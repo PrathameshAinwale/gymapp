@@ -32,8 +32,9 @@ export const ProgressLogger = () => {
     setIsLogModalOpen(false);
   };
 
-  const latestMetric = bodyMetrics[bodyMetrics.length - 1];
-  const initialMetric = bodyMetrics[0];
+  const defaultMetric = { weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0, month: 'Sep' };
+  const latestMetric = bodyMetrics && bodyMetrics.length > 0 ? bodyMetrics[bodyMetrics.length - 1] : defaultMetric;
+  const initialMetric = bodyMetrics && bodyMetrics.length > 0 ? bodyMetrics[0] : defaultMetric;
   const weightLost = (initialMetric.weight - latestMetric.weight).toFixed(1);
   const fatLost = (initialMetric.bodyFat - latestMetric.bodyFat).toFixed(1);
 

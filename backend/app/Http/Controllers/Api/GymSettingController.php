@@ -72,7 +72,7 @@ class GymSettingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Gym settings updated successfully',
-            'data' => $this->show()->original['data'],
+            'data' => $this->show($request)->original['data'],
         ]);
     }
 }

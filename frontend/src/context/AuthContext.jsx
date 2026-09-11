@@ -174,8 +174,19 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // LOGOUT FUNCTION
-  const logout = async () => {
+  // LOGOUT STATE & CONFIRMATION
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+
+  const requestLogout = () => {
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const cancelLogout = () => {
+    setIsLogoutConfirmOpen(false);
+  };
+
+  const confirmLogout = async () => {
+    setIsLogoutConfirmOpen(false);
     try {
       await api.auth.logout();
     } catch (e) {}
@@ -183,6 +194,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('pulsefit_isAuth', 'false');
     localStorage.removeItem('pulsefit_gym_id');
     localStorage.removeItem('pulsefit_currentUser_v2');
+  };
+
+  // LOGOUT FUNCTION (Triggers confirmation popup)
+  const logout = (force = false) => {
+    if (force === true) {
+      confirmLogout();
+    } else {
+      requestLogout();
+    }
   };
 
   // UPDATE PASSWORD FUNCTION
@@ -263,6 +283,10 @@ export const AuthProvider = ({ children }) => {
         accounts,
         login,
         logout,
+        isLogoutConfirmOpen,
+        requestLogout,
+        confirmLogout,
+        cancelLogout,
         updateUserPassword,
         registerAccount,
         switchRole

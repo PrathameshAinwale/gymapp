@@ -31,15 +31,6 @@ export const SettingsManager = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          className="flex items-center justify-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
-        >
-          <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">Save All Settings</span>
-          <span className="inline sm:hidden">Save Settings</span>
-        </button>
       </div>
 
       <form onSubmit={handleSave} className="space-y-3 sm:space-y-6">

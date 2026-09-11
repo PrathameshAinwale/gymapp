@@ -352,6 +352,21 @@ export const api = {
       });
       return handleResponse(res);
     },
+    update: async (id, data) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
     cancel: async (classId, userId) => {
       const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/cancel`, {
         method: 'POST',

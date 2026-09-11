@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { GymDataProvider, useGymData } from './context/GymDataContext';
+import { GymDataProvider } from './context/GymDataContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForceChangePasswordModal } from './components/auth/ForceChangePasswordModal';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
 import { ToastContainer } from './components/common/ToastContainer';
-import { Modal } from './components/common/Modal';
+import { LogoutConfirmModal } from './components/common/LogoutConfirmModal';
 
 // Member Views
 import { MemberDashboard } from './components/member/MemberDashboard';
@@ -24,6 +26,7 @@ import { WorkoutBuilder } from './components/trainer/WorkoutBuilder';
 import { DietBuilder } from './components/trainer/DietBuilder';
 import { TrainerProfile } from './components/trainer/TrainerProfile';
 import { ProgressLogger } from './components/trainer/ProgressLogger';
+import { TrainerCommissionsView } from './components/trainer/TrainerCommissionsView';
 
 // Owner Views
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
@@ -45,10 +48,120 @@ import { SuperadminApp } from './components/superadmin/SuperadminApp';
 
 
 function MainApp() {
-  const { isAuthenticated, currentRole, currentUser } = useAuth();
+  const { isAuthenticated, currentRole } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Initialize and synchronize history state
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (!window.history.state || window.history.state.tab !== activeTab) {
+        window.history.replaceState(
+          { tab: activeTab, role: currentRole, app: 'gym' },
+          '',
+          window.location.pathname
+        );
+      }
+    }
+  }, [isAuthenticated, currentRole]);
+
+  // Navigate to new tab and push history entry so Back goes back one screen at a time
+  const handleNavigateTab = (newTab) => {
+    if (typeof newTab === 'function') {
+      setActiveTab((prev) => {
+        const resolved = newTab(prev);
+        if (resolved !== prev) {
+          window.history.pushState(
+            { tab: resolved, role: currentRole, app: 'gym' },
+            '',
+            window.location.pathname
+          );
+        }
+        return resolved;
+      });
+    } else {
+      if (newTab !== activeTab) {
+        window.history.pushState(
+          { tab: newTab, role: currentRole, app: 'gym' },
+          '',
+          window.location.pathname
+        );
+        setActiveTab(newTab);
+      }
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  // Listen to browser & webview popstate (Back button)
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // 1. Close mobile drawer if open
+      if (isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+        return;
+      }
+      // 2. Close Add Member modal if open
+      if (isOpenAddMemberModal) {
+        setIsOpenAddMemberModal(false);
+        return;
+      }
+
+      // 3. Tab history step back
+      if (event.state && event.state.tab) {
+        setActiveTab(event.state.tab);
+      } else {
+        setActiveTab('dashboard');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isMobileMenuOpen, isOpenAddMemberModal]);
+
+  // Capacitor Native Back Button handling for Mobile View (Hardware / Gesture Back)
+  useEffect(() => {
+    let backListener = null;
+
+    const setupCapacitorBack = async () => {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          backListener = await CapApp.addListener('backButton', () => {
+            // 1. Close drawer if open
+            if (isMobileMenuOpen) {
+              setIsMobileMenuOpen(false);
+              return;
+            }
+
+            // 2. Close Add Member modal if open
+            if (isOpenAddMemberModal) {
+              setIsOpenAddMemberModal(false);
+              return;
+            }
+
+            // 3. If on Dashboard, exit/close the mobile app
+            if (activeTab === 'dashboard') {
+              CapApp.exitApp();
+              return;
+            }
+
+            // 4. Otherwise step back one screen in history
+            window.history.back();
+          });
+        }
+      } catch (err) {
+        console.warn('Capacitor backButton setup error:', err);
+      }
+    };
+
+    setupCapacitorBack();
+
+    return () => {
+      if (backListener && typeof backListener.remove === 'function') {
+        backListener.remove();
+      }
+    };
+  }, [activeTab, isMobileMenuOpen, isOpenAddMemberModal]);
 
   // Reset to dashboard when role switches
   useEffect(() => {
@@ -70,21 +183,21 @@ function MainApp() {
   const renderMemberContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <MemberDashboard setActiveTab={setActiveTab} />;
+        return <MemberDashboard setActiveTab={handleNavigateTab} />;
       case 'workout':
-        return <WorkoutTracker setActiveTab={setActiveTab} />;
+        return <WorkoutTracker setActiveTab={handleNavigateTab} />;
       case 'diet':
-        return <DietTracker setActiveTab={setActiveTab} />;
+        return <DietTracker setActiveTab={handleNavigateTab} />;
       case 'classes':
-        return <ClassBooking setActiveTab={setActiveTab} />;
+        return <ClassBooking setActiveTab={handleNavigateTab} />;
       case 'profile':
-        return <MemberProfile setActiveTab={setActiveTab} />;
+        return <MemberProfile setActiveTab={handleNavigateTab} />;
       case 'invoices':
-        return <MemberInvoices setActiveTab={setActiveTab} />;
+        return <MemberInvoices setActiveTab={handleNavigateTab} />;
       case 'transformation':
-        return <MemberTransformation setActiveTab={setActiveTab} />;
+        return <MemberTransformation setActiveTab={handleNavigateTab} />;
       default:
-        return <MemberDashboard setActiveTab={setActiveTab} />;
+        return <MemberDashboard setActiveTab={handleNavigateTab} />;
     }
   };
 
@@ -92,19 +205,21 @@ function MainApp() {
   const renderTrainerContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <TrainerDashboard setActiveTab={setActiveTab} />;
+        return <TrainerDashboard setActiveTab={handleNavigateTab} />;
       case 'clients':
-        return <TrainerClientList setActiveTab={setActiveTab} />;
+        return <TrainerClientList setActiveTab={handleNavigateTab} />;
       case 'workout-builder':
-        return <WorkoutBuilder setActiveTab={setActiveTab} />;
+        return <WorkoutBuilder setActiveTab={handleNavigateTab} />;
       case 'diet-builder':
-        return <DietBuilder setActiveTab={setActiveTab} />;
+        return <DietBuilder setActiveTab={handleNavigateTab} />;
       case 'profile':
-        return <TrainerProfile setActiveTab={setActiveTab} />;
+        return <TrainerProfile setActiveTab={handleNavigateTab} />;
       case 'progress-logger':
-        return <ProgressLogger setActiveTab={setActiveTab} />;
+        return <ProgressLogger setActiveTab={handleNavigateTab} />;
+      case 'commissions':
+        return <TrainerCommissionsView />;
       default:
-        return <TrainerDashboard setActiveTab={setActiveTab} />;
+        return <TrainerDashboard setActiveTab={handleNavigateTab} />;
     }
   };
 
@@ -114,9 +229,9 @@ function MainApp() {
       case 'dashboard':
         return (
           <OwnerDashboard
-            setActiveTab={setActiveTab}
+            setActiveTab={handleNavigateTab}
             onOpenAddMember={() => {
-              setActiveTab('members');
+              handleNavigateTab('members');
               setIsOpenAddMemberModal(true);
             }}
           />
@@ -132,7 +247,7 @@ function MainApp() {
         return (
           <EnquiriesManager
             onConvertLeadToMember={() => {
-              setActiveTab('members');
+              handleNavigateTab('members');
               setIsOpenAddMemberModal(true);
             }}
           />
@@ -160,7 +275,7 @@ function MainApp() {
       case 'settings':
         return <SettingsManager />;
       default:
-        return <OwnerDashboard setActiveTab={setActiveTab} />;
+        return <OwnerDashboard setActiveTab={handleNavigateTab} />;
     }
   };
 
@@ -178,7 +293,7 @@ function MainApp() {
       {/* Top Navigation with Mobile Hamburger Trigger */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleNavigateTab}
         onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
       />
 
@@ -186,7 +301,7 @@ function MainApp() {
         {/* Universal Responsive Sidebar (Desktop Left Bar + Mobile Slide-Out Drawer for all roles) */}
         <Sidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleNavigateTab}
           isMobileOpen={isMobileMenuOpen}
           setIsMobileOpen={setIsMobileMenuOpen}
         />
@@ -197,8 +312,9 @@ function MainApp() {
         </main>
       </div>
 
-      {/* Floating Alerts Container */}
+      {/* Floating Alerts Container & Logout Confirm Dialog */}
       <ToastContainer />
+      <LogoutConfirmModal />
     </div>
   );
 }

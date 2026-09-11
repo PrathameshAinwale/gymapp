@@ -1,23 +1,17 @@
 import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Calendar, Clock, MapPin, Users, Plus, Flame, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Plus, Flame, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
 export const ScheduleManager = () => {
-  const { classes = [], trainers = [], addToast } = useGymData();
+  const { classes = [], trainers = [], addClass, deleteClass, addToast } = useGymData();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [classList, setClassList] = useState(classes || []);
-
-  React.useEffect(() => {
-    if (classes && classes.length > 0) {
-      setClassList(classes);
-    }
-  }, [classes]);
 
   const [newClass, setNewClass] = useState({
     title: '',
     category: 'HIIT & Cardio',
     trainerName: trainers[0]?.name || 'Alex Mercer',
+    trainerId: trainers[0]?.id || '',
     time: '07:00 AM - 08:00 AM',
     days: ['Mon', 'Wed', 'Fri'],
     room: 'Studio A (Floor 2)',
@@ -27,20 +21,19 @@ export const ScheduleManager = () => {
     description: 'High intensity interval training designed to burn calories and boost endurance.'
   });
 
-  const totalCapacity = classList.reduce((acc, c) => acc + (Number(c.capacity) || 0), 0);
-  const totalBooked = classList.reduce((acc, c) => acc + (Number(c.enrolledCount) || 0), 0);
+  const totalCapacity = classes.reduce((acc, c) => acc + (Number(c.capacity) || 0), 0);
+  const totalBooked = classes.reduce((acc, c) => acc + (Number(c.enrolledCount || c.bookedCount) || 0), 0);
   const avgOccupancy = totalCapacity > 0 ? Math.round((totalBooked / totalCapacity) * 100) : 0;
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
-    const created = {
-      ...newClass,
-      id: `cls-${Date.now()}`,
-      image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=60'
-    };
-    setClassList([...classList, created]);
+    if (addClass) {
+      await addClass({
+        ...newClass,
+        image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=60'
+      });
+    }
     setIsAddOpen(false);
-    addToast(`Class "${created.title}" scheduled successfully!`);
   };
 
   return (
@@ -95,8 +88,8 @@ export const ScheduleManager = () => {
 
       {/* Class Schedule Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
-        {classList.map((cls) => {
-          const percentFull = Math.round(((cls.enrolledCount || 0) / (cls.capacity || 1)) * 100);
+        {classes.map((cls) => {
+          const percentFull = Math.round(((cls.enrolledCount || cls.bookedCount || 0) / (cls.capacity || 1)) * 100);
 
           return (
             <div
@@ -107,7 +100,7 @@ export const ScheduleManager = () => {
               <div className="relative h-36 sm:h-44 w-full overflow-hidden bg-slate-900">
                 <img
                   src={cls.image || 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=60'}
-                  alt={cls.title}
+                  alt={cls.title || cls.name}
                   className="w-full h-full object-cover opacity-85"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent" />
@@ -119,7 +112,7 @@ export const ScheduleManager = () => {
                 <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-1 text-[10px] text-amber-300 font-bold bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded-lg border border-amber-500/20">
                     <Flame className="w-3 h-3" />
-                    <span>{cls.intensity || 'High'}</span>
+                    <span>{cls.intensity || cls.difficulty || 'High'}</span>
                   </div>
                   <div className="text-[10px] text-slate-200 font-bold bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded-lg border border-slate-700">
                     {cls.room || 'Studio A'}
@@ -129,13 +122,23 @@ export const ScheduleManager = () => {
 
               {/* Class Info */}
               <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between space-y-2.5 sm:space-y-3">
-                <div>
-                  <h3 className="font-bold text-sm sm:text-base text-slate-900 mb-0.5 truncate">
-                    {cls.title}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 line-clamp-2">
-                    {cls.description}
-                  </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900 mb-0.5 truncate">
+                      {cls.title || cls.name}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 line-clamp-2">
+                      {cls.description || 'Group training session for members.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteClass(cls.id)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                    title="Delete Class"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Details Matrix */}
@@ -153,7 +156,7 @@ export const ScheduleManager = () => {
                 {/* Instructor */}
                 <div className="flex items-center justify-between text-[11px] p-2 rounded-lg bg-slate-50 border border-slate-100">
                   <span className="text-slate-500 font-medium">Instructor:</span>
-                  <span className="font-bold text-slate-900">{cls.trainerName}</span>
+                  <span className="font-bold text-slate-900">{cls.trainerName || 'Coach Alex'}</span>
                 </div>
 
                 {/* Capacity Progress Bar */}
@@ -163,7 +166,7 @@ export const ScheduleManager = () => {
                       <Users className="w-3 h-3 text-emerald-600" /> Booked Capacity
                     </span>
                     <span className="font-bold text-slate-900">
-                      {cls.enrolledCount} / {cls.capacity} ({percentFull}%)
+                      {cls.enrolledCount || cls.bookedCount || 0} / {cls.capacity} ({percentFull}%)
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">

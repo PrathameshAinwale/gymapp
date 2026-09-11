@@ -72,8 +72,9 @@ class PlanController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'price' => 'required|numeric',
-            'period' => 'required|string',
+            'period' => 'nullable|string',
             'duration_months' => 'nullable|integer',
+            'durationMonths' => 'nullable|integer',
             'features' => 'nullable|array',
         ]);
 
@@ -86,13 +87,15 @@ class PlanController extends Controller
         }
 
         $gymId = $this->resolveGymId($request) ?? 1;
+        $durationMonths = (int)($request->duration_months ?? $request->durationMonths ?? 1);
+        $period = $request->period ?? ($durationMonths > 1 ? "{$durationMonths} Months" : 'Monthly');
 
         $plan = Plan::create([
             'gym_id' => $gymId,
             'name' => $request->name,
             'price' => $request->price,
-            'period' => $request->period,
-            'duration_months' => $request->duration_months ?? 1,
+            'period' => $period,
+            'duration_months' => $durationMonths,
             'popular' => $request->popular ?? false,
             'color' => $request->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
             'features' => $request->features ?? [],

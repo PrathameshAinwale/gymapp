@@ -84,8 +84,9 @@ export const getNavSectionsForTrainer = () => [
     ]
   },
   {
-    title: 'Account',
+    title: 'Earnings & Account',
     items: [
+      { id: 'commissions', label: 'My Commissions', icon: TrendingUp },
       { id: 'profile', label: 'Coach Profile', icon: UserCheck }
     ]
   }
@@ -104,7 +105,7 @@ export const getNavSectionsForMember = () => [
   {
     title: 'My Account',
     items: [
-      { id: 'profile', label: 'Profile & Pass', icon: User },
+      { id: 'profile', label: 'My Profile', icon: User },
       { id: 'invoices', label: 'Invoices', icon: CreditCard },
       { id: 'transformation', label: 'Body Progress', icon: TrendingUp }
     ]
@@ -241,37 +242,6 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
 
             {/* Scrollable Navigation */}
             {renderNavList(true)}
-
-            {/* Drawer Footer: User & Sign Out */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50/70 shrink-0 safe-bottom">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-xs shadow-xs shrink-0">
-                    {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-800 truncate leading-tight">
-                      {currentUser?.name || 'User'}
-                    </div>
-                    <div className="text-[10px] text-slate-400 truncate capitalize">
-                      {currentUser?.roleLabel || currentUser?.role}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileOpen(false);
-                    logout();
-                  }}
-                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

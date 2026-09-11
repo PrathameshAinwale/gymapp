@@ -209,12 +209,6 @@ export const Financials = () => {
             <div className="text-xl sm:text-3xl font-black text-emerald-600">
               ₹{totalInflow.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-emerald-700 font-semibold">
-              <span className="px-1 py-0.2 rounded bg-emerald-50 border border-emerald-200">
-                +{momGrowth}% MoM
-              </span>
-              <span className="text-slate-400 text-[10px] hidden sm:inline">{currentMonthLabel}</span>
-            </div>
           </div>
           <div className="text-[10px] sm:text-[11px] text-slate-400 pt-1.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
             <span className="hidden sm:inline">Inflow Source:</span>
@@ -236,43 +230,10 @@ export const Financials = () => {
             <div className="text-xl sm:text-3xl font-black text-rose-600">
               ₹{totalOutflow.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-rose-700 font-semibold">
-              <span className="px-1 py-0.2 rounded bg-rose-50 border border-rose-200">
-                {expenses.length} Records
-              </span>
-              <span className="text-slate-400 text-[10px] hidden sm:inline">Disbursements</span>
-            </div>
           </div>
           <div className="text-[10px] sm:text-[11px] text-slate-400 pt-1.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
             <span className="hidden sm:inline">Major Outflow:</span>
             <span className="font-semibold text-slate-600 truncate">Rent & Overheads</span>
-          </div>
-        </div>
-
-        {/* Net Operating Cash Flow */}
-        <div className="col-span-2 sm:col-span-1 p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">
-              Net Surplus (Profit)
-            </span>
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="my-1.5 sm:my-2.5">
-            <div className="text-xl sm:text-3xl font-black text-slate-900">
-              ₹{netCashFlow.toLocaleString('en-IN')}
-            </div>
-            <div className="flex items-center gap-1 mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-blue-700 font-semibold">
-              <span className="px-1 py-0.2 rounded bg-blue-50 border border-blue-200">
-                {netMarginPct}% Margin
-              </span>
-              <span className="text-slate-400 text-[10px] hidden sm:inline">After all bills</span>
-            </div>
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 pt-1.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span>Health:</span>
-            <span className="font-bold text-emerald-600">Strong & Positive</span>
           </div>
         </div>
       </div>
@@ -333,9 +294,6 @@ export const Financials = () => {
                   Incoming subscriptions versus outgoing facility overheads
                 </p>
               </div>
-              <span className="text-[11px] sm:text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 w-fit">
-                Surplus: +₹{netCashFlow.toLocaleString('en-IN')}
-              </span>
             </div>
 
             {/* Inflow vs Outflow Visual Bar */}

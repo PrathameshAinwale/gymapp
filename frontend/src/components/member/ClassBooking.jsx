@@ -1,13 +1,13 @@
 import React from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Calendar, Clock, MapPin, CheckCircle, Flame, Plus } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, Flame, Plus } from 'lucide-react';
 
 export const ClassBooking = () => {
   const { classes, bookedClasses, toggleBookClass } = useGymData();
 
   return (
     <div className="space-y-6 animate-fadeIn pb-10 max-w-4xl mx-auto">
-      
+
       {/* Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 flex items-center gap-2">
@@ -27,11 +27,10 @@ export const ClassBooking = () => {
           return (
             <div
               key={cls.id}
-              className={`bg-white rounded-2xl overflow-hidden border flex flex-col justify-between transition-all duration-300 shadow-sm ${
-                isBooked
+              className={`bg-white rounded-2xl overflow-hidden border flex flex-col justify-between transition-all duration-300 shadow-sm ${isBooked
                   ? 'border-emerald-400 ring-1 ring-emerald-300/60'
                   : 'border-slate-200'
-              }`}
+                }`}
             >
               {/* Image banner */}
               <div className="relative h-40 w-full overflow-hidden bg-slate-100">
@@ -94,11 +93,10 @@ export const ClassBooking = () => {
                 <button
                   type="button"
                   onClick={() => toggleBookClass(cls.id)}
-                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
-                    isBooked
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${isBooked
                       ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-600/20'
-                  }`}
+                    }`}
                 >
                   {isBooked ? (
                     <span>Cancel Reservation</span>

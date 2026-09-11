@@ -8,12 +8,14 @@ import {
   Award,
   ArrowRight,
   ChevronRight,
-  Target
+  Target,
+  TrendingUp,
+  IndianRupee
 } from 'lucide-react';
 
 export const TrainerDashboard = ({ setActiveTab }) => {
   const { currentUser } = useAuth();
-  const { members } = useGymData();
+  const { members, commissions } = useGymData();
 
   // Assigned clients
   const assignedClients = members.filter(
@@ -49,23 +51,32 @@ export const TrainerDashboard = ({ setActiveTab }) => {
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
+        <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
           <button
             type="button"
             onClick={() => setActiveTab('workout-builder')}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 cursor-pointer active:scale-95"
           >
-            <Dumbbell className="w-4 h-4 shrink-0" />
-            <span>Workout Builder</span>
+            <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Workouts</span>
           </button>
           
           <button
             type="button"
             onClick={() => setActiveTab('diet-builder')}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] sm:text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] sm:text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95"
           >
-            <Utensils className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Diet Builder</span>
+            <Utensils className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">Diet Plans</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('commissions')}
+            className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] sm:text-xs font-bold border border-teal-200 transition-all cursor-pointer active:scale-95"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+            <span className="truncate">Commissions</span>
           </button>
         </div>
       </div>

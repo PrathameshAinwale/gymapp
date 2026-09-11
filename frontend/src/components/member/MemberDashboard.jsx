@@ -2,14 +2,11 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
-  Dumbbell,
   Flame,
   Clock,
   CheckCircle2,
   Circle,
   Calendar,
-  Utensils,
-  QrCode,
   ArrowRight,
   Sparkles,
   ChevronRight
@@ -46,7 +43,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
 
   return (
     <div className="space-y-3 sm:space-y-4 animate-fadeIn pb-10 max-w-2xl mx-auto">
-      
+
       {/* Greeting & Streak Header */}
       <div className="p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between gap-2">
@@ -66,15 +63,6 @@ export const MemberDashboard = ({ setActiveTab }) => {
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('profile')}
-            className="w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition-colors shrink-0 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
-          >
-            <QrCode className="w-4 h-4" />
-            <span className="hidden sm:inline">Pass</span>
-          </button>
         </div>
       </div>
 
@@ -158,11 +146,10 @@ export const MemberDashboard = ({ setActiveTab }) => {
                   key={ex.id}
                   type="button"
                   onClick={() => toggleExercise(ex.id)}
-                  className={`w-full text-left p-2.5 sm:p-3 rounded-xl border transition-all flex items-center gap-2.5 sm:gap-3 cursor-pointer active:scale-[0.98] ${
-                    isDone
-                      ? 'bg-emerald-50/70 border-emerald-200'
-                      : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300'
-                  }`}
+                  className={`w-full text-left p-2.5 sm:p-3 rounded-xl border transition-all flex items-center gap-2.5 sm:gap-3 cursor-pointer active:scale-[0.98] ${isDone
+                    ? 'bg-emerald-50/70 border-emerald-200'
+                    : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300'
+                    }`}
                 >
                   <div className="shrink-0">
                     {isDone ? (

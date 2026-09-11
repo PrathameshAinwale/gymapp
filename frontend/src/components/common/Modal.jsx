@@ -3,17 +3,41 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' }) => {
+  const hasPushedHistoryRef = React.useRef(false);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
+
+    const handlePopState = () => {
+      // Back pressed while modal was open
+      hasPushedHistoryRef.current = false;
+      onClose();
+    };
+
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('popstate', handlePopState);
+
+      // Push modal state so back button closes the modal first
+      window.history.pushState({ isModal: true, app: 'gym' }, '');
+      hasPushedHistoryRef.current = true;
     }
+
     return () => {
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+
+      // If closed by button/code (not by popstate), cleanly pop the pushed modal entry
+      if (hasPushedHistoryRef.current) {
+        hasPushedHistoryRef.current = false;
+        if (window.history.state?.isModal) {
+          window.history.back();
+        }
+      }
     };
   }, [isOpen, onClose]);
 

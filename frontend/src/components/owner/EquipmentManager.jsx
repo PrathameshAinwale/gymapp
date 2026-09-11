@@ -113,6 +113,11 @@ export const EquipmentManager = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+         <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Maintenance</span>
+          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{maintenanceCount} Pending</div>
+          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Routine inspections</span>
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Assets</span>
           <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{equipment.length} Units</div>
@@ -123,12 +128,6 @@ export const EquipmentManager = () => {
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Operational</span>
           <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{operationalCount} Ready</div>
           <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">100% floor certified</span>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Maintenance</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{maintenanceCount} Pending</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Routine inspections</span>
         </div>
       </div>
 

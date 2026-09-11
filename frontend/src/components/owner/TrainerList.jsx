@@ -149,6 +149,13 @@ export const TrainerList = () => {
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Monthly Base Payroll</span>
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+            ₹{trainers.reduce((acc, t) => acc + (Number(t.monthlySalary) || 0), 0).toLocaleString('en-IN')}
+          </div>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Fixed retainer commitments</span>
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Coaches</span>
           <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{trainers.length} Coaches</div>
@@ -161,14 +168,6 @@ export const TrainerList = () => {
             {members.filter((m) => m.trainerId).length} Members
           </div>
           <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">1-on-1 personal training guidance</span>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Monthly Base Payroll</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-            ₹{trainers.reduce((acc, t) => acc + (Number(t.monthlySalary) || 0), 0).toLocaleString('en-IN')}
-          </div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Fixed retainer commitments</span>
         </div>
       </div>
 

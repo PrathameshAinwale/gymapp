@@ -71,6 +71,8 @@ Route::prefix('v1')->group(function () {
     // Classes & Scheduling
     Route::get('/classes', [GymClassController::class, 'index']);
     Route::post('/classes', [GymClassController::class, 'store']);
+    Route::put('/classes/{id}', [GymClassController::class, 'update']);
+    Route::delete('/classes/{id}', [GymClassController::class, 'destroy']);
     Route::post('/classes/{id}/book', [GymClassController::class, 'book']);
     Route::post('/classes/{id}/cancel', [GymClassController::class, 'cancel']);
 

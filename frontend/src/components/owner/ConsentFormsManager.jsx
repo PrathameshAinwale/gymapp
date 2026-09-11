@@ -130,6 +130,11 @@ export const ConsentFormsManager = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Pending Signatures</span>
+          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{pendingCount}</div>
+          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Awaiting member sign-off</span>
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Forms</span>
           <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{totalForms}</div>
@@ -140,12 +145,6 @@ export const ConsentFormsManager = () => {
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Signed</span>
           <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{signedCount}</div>
           <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Verified signatures</span>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Pending Signatures</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{pendingCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Awaiting member sign-off</span>
         </div>
       </div>
 

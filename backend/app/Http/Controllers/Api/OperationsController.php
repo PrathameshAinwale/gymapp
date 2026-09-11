@@ -215,20 +215,41 @@ class OperationsController extends Controller
 
     public function storeCommission(Request $request)
     {
+        $trainerIdRaw = $request->trainerId ?? $request->trainer_id;
+        $trainerId = $trainerIdRaw ? (int)str_replace(['trn-', 'tr-'], '', $trainerIdRaw) : null;
+        $amount = (float)($request->amount ?? $request->packageAmount ?? 0);
+        $ratePercent = (float)($request->ratePercent ?? $request->rate_percent ?? $request->commissionPct ?? 20);
+
         $c = Commission::create([
             'gym_id' => $this->resolveGymId($request) ?? 1,
-            'trainer_id' => $request->trainerId ? (int)str_replace('tr-', '', $request->trainerId) : null,
-            'trainer_name' => $request->trainerName,
-            'member_name' => $request->memberName,
-            'plan_name' => $request->planName,
-            'session_type' => $request->sessionType ?? 'Personal Training (PT)',
-            'rate_percent' => (float)($request->ratePercent ?? 20),
-            'amount' => (float)$request->amount,
+            'trainer_id' => $trainerId,
+            'trainer_name' => $request->trainerName ?? $request->trainer_name ?? 'Trainer',
+            'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
+            'plan_name' => $request->planName ?? $request->plan_name ?? $request->serviceType ?? 'Personal Training (PT)',
+            'session_type' => $request->sessionType ?? $request->session_type ?? $request->serviceType ?? 'Personal Training (PT)',
+            'rate_percent' => $ratePercent,
+            'amount' => $amount,
             'date' => $request->date ?? now()->toDateString(),
-            'status' => 'Pending',
+            'status' => $request->status ?? 'Pending',
         ]);
 
-        return response()->json(['success' => true, 'data' => $c], 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Commission recorded in database',
+            'data' => [
+                'id' => 'com-' . $c->id,
+                'numericId' => $c->id,
+                'trainerId' => 'trn-' . $c->trainer_id,
+                'trainerName' => $c->trainer_name,
+                'memberName' => $c->member_name,
+                'planName' => $c->plan_name,
+                'sessionType' => $c->session_type,
+                'ratePercent' => (float)$c->rate_percent,
+                'amount' => (float)$c->amount,
+                'date' => $c->date?->format('Y-m-d') ?? (string)$c->date,
+                'status' => $c->status,
+            ]
+        ], 201);
     }
 
     public function updateCommissionStatus(Request $request, $id)
@@ -273,31 +294,52 @@ class OperationsController extends Controller
 
     public function storeFreeze(Request $request)
     {
-        $memberId = $request->memberId ? (int)str_replace('mem-', '', $request->memberId) : null;
+        $memberIdRaw = $request->memberId ?? $request->member_id;
+        $memberId = $memberIdRaw ? (int)str_replace('mem-', '', $memberIdRaw) : null;
+        $daysFrozen = (int)($request->daysFrozen ?? $request->days_frozen ?? 15);
+        $freezeStartDate = $request->freezeStartDate ?? $request->freeze_start_date ?? now()->toDateString();
+        $freezeEndDate = $request->freezeEndDate ?? $request->freeze_end_date ?? now()->addDays($daysFrozen)->toDateString();
+
         $freeze = MembershipFreeze::create([
             'gym_id' => $this->resolveGymId($request) ?? 1,
             'member_id' => $memberId,
-            'member_name' => $request->memberName,
-            'plan_name' => $request->planName,
-            'freeze_start_date' => $request->freezeStartDate,
-            'freeze_end_date' => $request->freezeEndDate,
-            'days_frozen' => (int)($request->daysFrozen ?? 15),
-            'reason' => $request->reason,
+            'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
+            'plan_name' => $request->planName ?? $request->plan_name ?? 'Membership Plan',
+            'freeze_start_date' => $freezeStartDate,
+            'freeze_end_date' => $freezeEndDate,
+            'days_frozen' => $daysFrozen,
+            'reason' => $request->reason ?? 'Temporary Leave',
             'status' => 'Active Freeze',
-            'approved_by' => 'Vikramaditya Singhania (Owner)',
+            'approved_by' => $request->approvedBy ?? 'Vikramaditya Singhania (Owner)',
         ]);
 
         // Update member expiry date
         if ($memberId) {
             $profile = MemberProfile::where('user_id', $memberId)->first();
             if ($profile && $profile->expiry_date) {
-                $profile->expiry_date = \Carbon\Carbon::parse($profile->expiry_date)->addDays((int)$request->daysFrozen)->toDateString();
+                $profile->expiry_date = \Carbon\Carbon::parse($profile->expiry_date)->addDays($daysFrozen)->toDateString();
                 $profile->status = 'Frozen (Paused)';
                 $profile->save();
             }
         }
 
-        return response()->json(['success' => true, 'data' => $freeze], 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Freeze record saved in database',
+            'data' => [
+                'id' => 'frz-' . $freeze->id,
+                'numericId' => $freeze->id,
+                'memberId' => 'mem-' . $freeze->member_id,
+                'memberName' => $freeze->member_name,
+                'planName' => $freeze->plan_name,
+                'freezeStartDate' => (string)$freeze->freeze_start_date,
+                'freezeEndDate' => (string)$freeze->freeze_end_date,
+                'daysFrozen' => (int)$freeze->days_frozen,
+                'reason' => $freeze->reason,
+                'status' => $freeze->status,
+                'approvedBy' => $freeze->approved_by,
+            ]
+        ], 201);
     }
 
     public function unfreeze($id)
@@ -352,18 +394,21 @@ class OperationsController extends Controller
 
     public function storeConsentForm(Request $request)
     {
-        $memberId = $request->memberId ? (int)str_replace('mem-', '', $request->memberId) : null;
+        $memberIdRaw = $request->memberId ?? $request->member_id;
+        $memberId = $memberIdRaw ? (int)str_replace('mem-', '', $memberIdRaw) : null;
+        $status = $request->status ?? 'Pending';
+
         $cf = ConsentForm::create([
             'gym_id' => $this->resolveGymId($request) ?? 1,
             'member_id' => $memberId,
-            'member_name' => $request->memberName,
+            'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
             'phone' => $request->phone ?? '',
-            'plan_name' => $request->planName ?? 'General Membership',
-            'emergency_contact' => $request->emergencyContact ?? '',
-            'emergency_phone' => $request->emergencyPhone ?? '',
-            'medical_conditions' => $request->medicalNotes ?? $request->medicalConditions ?? 'None recorded',
-            'status' => $request->status ?? 'Pending',
-            'signed_date' => $request->status === 'Signed' ? now()->toDateString() : null,
+            'plan_name' => $request->planName ?? $request->plan_name ?? 'General Membership',
+            'emergency_contact' => $request->emergencyContact ?? $request->emergency_contact ?? '',
+            'emergency_phone' => $request->emergencyPhone ?? $request->emergency_phone ?? '',
+            'medical_conditions' => $request->medicalNotes ?? $request->medical_conditions ?? $request->medicalConditions ?? 'None recorded',
+            'status' => $status,
+            'signed_date' => $status === 'Signed' ? now()->toDateString() : null,
         ]);
 
         return response()->json([

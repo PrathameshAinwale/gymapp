@@ -153,4 +153,43 @@ class GymClassController extends Controller
             'bookedCount' => $cls->booked_count,
         ]);
     }
+
+    public function update(Request $request, $id)
+    {
+        $numericClassId = (int)str_replace('cls-', '', $id);
+        $cls = GymClass::findOrFail($numericClassId);
+
+        $trainerId = $request->trainer_id ?? $request->trainerId;
+        if ($trainerId) {
+            $trainerId = (int)str_replace(['trn-', 'tr-'], '', $trainerId);
+        }
+
+        $cls->update([
+            'name' => $request->input('name', $cls->name),
+            'trainer_id' => $trainerId ?? $cls->trainer_id,
+            'time' => $request->input('time', $cls->time),
+            'days' => $request->input('days', $cls->days),
+            'capacity' => $request->input('capacity', $cls->capacity),
+            'category' => $request->input('category', $cls->category),
+            'room' => $request->input('room', $cls->room),
+            'difficulty' => $request->input('difficulty', $cls->difficulty),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Class updated successfully',
+            'data' => $cls
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $numericClassId = (int)str_replace('cls-', '', $id);
+        GymClass::findOrFail($numericClassId)->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Class deleted from database'
+        ]);
+    }
 }

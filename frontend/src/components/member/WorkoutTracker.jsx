@@ -12,7 +12,11 @@ export const WorkoutTracker = () => {
   const { workoutPlan } = useGymData();
 
   const days = workoutPlan?.days || [];
-  const [expandedDay, setExpandedDay] = useState(null);
+
+  // Default expanded to today's day (matching DietTracker)
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayName = dayNames[new Date().getDay()];
+  const [expandedDay, setExpandedDay] = useState(todayName);
 
   const toggleDay = (dayName) => {
     setExpandedDay((prev) => (prev === dayName ? null : dayName));
@@ -20,7 +24,7 @@ export const WorkoutTracker = () => {
 
   return (
     <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-10 max-w-2xl mx-auto">
-      
+
       {/* Header */}
       <div>
         <h1 className="text-base sm:text-xl font-bold font-heading text-slate-900 flex items-center gap-2">
@@ -48,8 +52,14 @@ export const WorkoutTracker = () => {
       <div className="space-y-2">
         {days.map((day) => {
           const isExpanded = expandedDay === day.day;
+          const isToday = day.day === todayName;
           return (
-            <div key={day.day} className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+            <div
+              key={day.day}
+              className={`rounded-xl sm:rounded-2xl border overflow-hidden shadow-sm transition-all ${
+                isToday ? 'border-emerald-400 bg-white ring-1 ring-emerald-300/50' : 'border-slate-200 bg-white'
+              }`}
+            >
               {/* Day Header */}
               <button
                 type="button"
@@ -57,11 +67,24 @@ export const WorkoutTracker = () => {
                 className="w-full flex items-center justify-between p-3 sm:p-4 text-left hover:bg-slate-50 transition-colors cursor-pointer active:bg-slate-50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center text-[10px] sm:text-xs font-black">
+                  <div
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-black border ${
+                      isToday
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
                     {day.day.substring(0, 3).toUpperCase()}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-900">{day.day}</div>
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      {day.day}
+                      {isToday && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                          TODAY
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] text-slate-500">{day.label}</div>
                   </div>
                 </div>

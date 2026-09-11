@@ -489,6 +489,170 @@ const SEED_RECOVERY_PLANS = [
   { id: "rec-3", name: "Infrared Sauna & Steam Detoxing", duration: "40 Mins", sessions: 1, price: 799, type: "Infrared Sauna", description: "Full-spectrum infrared heat therapy for cellular detox, joint stiffness relief, and deep relaxation." }
 ];
 
+const SEED_EXERCISES = [
+  { id: 'ex-1', name: 'Barbell Flat Bench Press', category: 'Chest', equipment: 'Barbell' },
+  { id: 'ex-2', name: 'Incline Dumbbell Press', category: 'Chest', equipment: 'Dumbbells' },
+  { id: 'ex-3', name: 'Overhead Shoulder Press', category: 'Shoulders', equipment: 'Barbell' },
+  { id: 'ex-4', name: 'Dumbbell Lateral Raises', category: 'Shoulders', equipment: 'Dumbbells' },
+  { id: 'ex-5', name: 'Tricep Rope Pushdowns', category: 'Arms', equipment: 'Cable' },
+  { id: 'ex-6', name: 'Barbell Deadlift', category: 'Back', equipment: 'Barbell' },
+  { id: 'ex-7', name: 'Lat Pulldowns', category: 'Back', equipment: 'Cable' },
+  { id: 'ex-8', name: 'Seated Cable Row', category: 'Back', equipment: 'Cable' },
+  { id: 'ex-9', name: 'Barbell EZ-Bar Bicep Curls', category: 'Arms', equipment: 'Barbell' },
+  { id: 'ex-10', name: 'Hammer Curls', category: 'Arms', equipment: 'Dumbbells' },
+  { id: 'ex-11', name: 'Barbell Back Squats', category: 'Legs', equipment: 'Barbell' },
+  { id: 'ex-12', name: 'Leg Press Machine', category: 'Legs', equipment: 'Machine' },
+  { id: 'ex-13', name: 'Lying Hamstring Curls', category: 'Legs', equipment: 'Machine' },
+  { id: 'ex-14', name: 'Standing Calf Raises', category: 'Legs', equipment: 'Machine' },
+  { id: 'ex-15', name: 'Romanian Deadlifts (RDL)', category: 'Legs', equipment: 'Barbell' },
+  { id: 'ex-16', name: 'Hanging Knee Raises & Plank', category: 'Core', equipment: 'Bodyweight' }
+];
+
+const SEED_BODY_METRICS = [
+  { month: 'Apr', weight: 84.5, bodyFat: 19.5, muscleMass: 35.2, chest: 104.0, waist: 88.0, biceps: 35.5 },
+  { month: 'May', weight: 82.8, bodyFat: 18.0, muscleMass: 36.0, chest: 105.5, waist: 86.0, biceps: 36.2 },
+  { month: 'Jun', weight: 81.2, bodyFat: 16.8, muscleMass: 36.8, chest: 106.5, waist: 84.0, biceps: 37.0 },
+  { month: 'Jul', weight: 79.8, bodyFat: 15.5, muscleMass: 37.5, chest: 108.0, waist: 82.5, biceps: 38.0 },
+  { month: 'Aug', weight: 78.4, bodyFat: 14.8, muscleMass: 37.9, chest: 109.0, waist: 81.2, biceps: 38.5 },
+  { month: 'Sep', weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0 }
+];
+
+const SEED_DEFAULT_WORKOUT_PLAN = {
+  id: 'wp-1',
+  memberId: 'mem-4',
+  memberName: 'Pooja Hegde',
+  title: '6-Day Muscle Hypertrophy Split',
+  assignedBy: 'Coach Alex Rivers',
+  days: [
+    {
+      day: 'Monday',
+      label: 'Push (Chest & Triceps)',
+      exercises: [
+        { id: 1, name: 'Barbell Flat Bench Press', sets: 4, reps: '10-12', weight: '60 kg', rest: 90, done: false },
+        { id: 2, name: 'Incline Dumbbell Press', sets: 4, reps: '12', weight: '22 kg', rest: 60, done: false },
+        { id: 3, name: 'Dumbbell Lateral Raises', sets: 4, reps: '15', weight: '10 kg', rest: 45, done: false },
+        { id: 4, name: 'Tricep Rope Pushdowns', sets: 4, reps: '12', weight: '25 kg', rest: 60, done: false }
+      ]
+    },
+    {
+      day: 'Tuesday',
+      label: 'Pull (Back & Biceps)',
+      exercises: [
+        { id: 5, name: 'Lat Pulldowns', sets: 4, reps: '10-12', weight: '55 kg', rest: 90, done: false },
+        { id: 6, name: 'Seated Cable Rows', sets: 4, reps: '12', weight: '45 kg', rest: 60, done: false },
+        { id: 7, name: 'Barbell EZ-Bar Bicep Curls', sets: 4, reps: '12', weight: '25 kg', rest: 60, done: false },
+        { id: 8, name: 'Hammer Curls', sets: 3, reps: '15', weight: '12 kg', rest: 45, done: false }
+      ]
+    },
+    {
+      day: 'Wednesday',
+      label: 'Legs & Core Compound',
+      exercises: [
+        { id: 9, name: 'Barbell Back Squats', sets: 4, reps: '8-10', weight: '80 kg', rest: 120, done: false },
+        { id: 10, name: 'Leg Press Machine', sets: 4, reps: '12', weight: '140 kg', rest: 90, done: false },
+        { id: 11, name: 'Lying Hamstring Curls', sets: 4, reps: '12', weight: '35 kg', rest: 60, done: false },
+        { id: 12, name: 'Standing Calf Raises', sets: 4, reps: '20', weight: '50 kg', rest: 45, done: false }
+      ]
+    },
+    {
+      day: 'Thursday',
+      label: 'Upper Body Hypertrophy',
+      exercises: [
+        { id: 13, name: 'Standing Overhead Barbell Press', sets: 4, reps: '10', weight: '40 kg', rest: 90, done: false },
+        { id: 14, name: 'Cable Chest Flyes', sets: 4, reps: '15', weight: '15 kg', rest: 60, done: false },
+        { id: 15, name: 'Single-Arm Dumbbell Rows', sets: 4, reps: '12', weight: '24 kg', rest: 60, done: false },
+        { id: 16, name: 'Overhead Dumbbell Tricep Ext', sets: 3, reps: '12', weight: '16 kg', rest: 60, done: false }
+      ]
+    },
+    {
+      day: 'Friday',
+      label: 'Back Width & Arm Sculpt',
+      exercises: [
+        { id: 17, name: 'Wide-Grip Pull-ups / Assist', sets: 4, reps: '8-10', weight: 'Bodyweight', rest: 90, done: false },
+        { id: 18, name: 'Face Pulls with Rope', sets: 4, reps: '15', weight: '20 kg', rest: 45, done: false },
+        { id: 19, name: 'Incline Dumbbell Bicep Curls', sets: 4, reps: '12', weight: '10 kg', rest: 60, done: false },
+        { id: 20, name: 'Skull Crushers EZ Bar', sets: 3, reps: '12', weight: '20 kg', rest: 60, done: false }
+      ]
+    },
+    {
+      day: 'Saturday',
+      label: 'Legs & Core Volume',
+      exercises: [
+        { id: 21, name: 'Romanian Deadlifts (RDL)', sets: 4, reps: '10-12', weight: '60 kg', rest: 90, done: false },
+        { id: 22, name: 'Walking Dumbbell Lunges', sets: 3, reps: '12/leg', weight: '14 kg', rest: 60, done: false },
+        { id: 23, name: 'Leg Extensions', sets: 4, reps: '15', weight: '40 kg', rest: 45, done: false },
+        { id: 24, name: 'Hanging Knee Raises & Plank', sets: 4, reps: '15 reps / 60s', weight: 'Bodyweight', rest: 45, done: false }
+      ]
+    }
+  ]
+};
+
+const SEED_DEFAULT_DIET_PLAN = {
+  id: 'dp-1',
+  memberId: 'mem-4',
+  memberName: 'Pooja Hegde',
+  dailyCaloriesTarget: 2400,
+  proteinGramsTarget: 160,
+  carbsGramsTarget: 260,
+  fatsGramsTarget: 60,
+  waterGlassesTarget: 10,
+  assignedBy: 'Coach Alex Rivers',
+  days: [
+    {
+      day: 'Monday',
+      meals: [
+        { id: 1, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Oatmeal with whey protein, banana, almonds & chia seeds', calories: 520, protein: 35, carbs: 65, fats: 14, completed: false },
+        { id: 2, name: 'Mid-Morning Snack (11:00 AM)', time: '11:00 AM', items: 'Boiled egg whites / Paneer cubes & green tea', calories: 220, protein: 20, carbs: 10, fats: 8, completed: false },
+        { id: 3, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Brown rice, grilled chicken breast / tofu, dal & mixed veggies salad', calories: 680, protein: 48, carbs: 75, fats: 16, completed: false },
+        { id: 4, name: 'Pre-Workout Snack (5:00 PM)', time: '5:00 PM', items: '2 slices whole wheat toast with peanut butter & 1 banana', calories: 340, protein: 12, carbs: 48, fats: 12, completed: false },
+        { id: 5, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Quinoa bowl with paneer / fish curry, steamed broccoli & curd', calories: 640, protein: 45, carbs: 62, fats: 15, completed: false }
+      ]
+    },
+    {
+      day: 'Tuesday',
+      meals: [
+        { id: 6, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Moong dal chilla with paneer stuffing & tender coconut water', calories: 480, protein: 32, carbs: 55, fats: 12, completed: false },
+        { id: 7, name: 'Mid-Morning Snack (11:00 AM)', time: '11:00 AM', items: 'Handful of roasted chana & walnuts + black coffee', calories: 210, protein: 14, carbs: 18, fats: 9, completed: false },
+        { id: 8, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: '2 Multigrain rotis, soya chunks curry, rajma & cucumber salad', calories: 650, protein: 42, carbs: 80, fats: 14, completed: false },
+        { id: 9, name: 'Pre-Workout Snack (5:00 PM)', time: '5:00 PM', items: 'Whey protein shake with chilled almond milk & an apple', calories: 290, protein: 28, carbs: 32, fats: 4, completed: false },
+        { id: 10, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled chicken breast / grilled tofu, sautéed asparagus & sweet potato', calories: 620, protein: 46, carbs: 55, fats: 14, completed: false }
+      ]
+    },
+    {
+      day: 'Wednesday',
+      meals: [
+        { id: 11, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: '3-egg masala omelette with whole grain toast & black coffee', calories: 490, protein: 34, carbs: 45, fats: 15, completed: false },
+        { id: 12, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Jeera brown rice, chicken tikka / grilled paneer & green salad', calories: 670, protein: 46, carbs: 70, fats: 16, completed: false },
+        { id: 13, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Stir-fried vegetables with chicken / edamame & whole wheat wrap', calories: 610, protein: 42, carbs: 60, fats: 15, completed: false }
+      ]
+    },
+    {
+      day: 'Thursday',
+      meals: [
+        { id: 14, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Overnight protein oats with berries, walnuts & seeds', calories: 510, protein: 35, carbs: 60, fats: 14, completed: false },
+        { id: 15, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: '2 Rotis, chole masala, cucumber raita & grilled fish / soya curry', calories: 660, protein: 44, carbs: 76, fats: 15, completed: false },
+        { id: 16, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled chicken / tofu salad with olive oil dressing & sweet potato', calories: 590, protein: 45, carbs: 50, fats: 14, completed: false }
+      ]
+    },
+    {
+      day: 'Friday',
+      meals: [
+        { id: 17, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Besan & paneer chilla with mint chutney & green tea', calories: 470, protein: 30, carbs: 52, fats: 14, completed: false },
+        { id: 18, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Brown rice, dal tadka, chicken curry / paneer bhurji & curd', calories: 690, protein: 48, carbs: 78, fats: 17, completed: false },
+        { id: 19, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'High protein soup with grilled chicken breast / tofu steak', calories: 580, protein: 46, carbs: 45, fats: 13, completed: false }
+      ]
+    },
+    {
+      day: 'Saturday',
+      meals: [
+        { id: 20, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Scrambled eggs / paneer bhurji with toasted multigrain bread', calories: 510, protein: 36, carbs: 46, fats: 16, completed: false },
+        { id: 21, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Quinoa biryani with raita and boiled eggs / soya chunks', calories: 680, protein: 44, carbs: 80, fats: 16, completed: false },
+        { id: 22, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled fish / paneer with sautéed broccoli, bell peppers & lemon rice', calories: 620, protein: 45, carbs: 58, fats: 15, completed: false }
+      ]
+    }
+  ]
+};
+
 export const GymDataProvider = ({ children }) => {
   const { currentUser } = useAuth();
   const isDefaultGym = !currentUser?.gymId || currentUser?.gymId === 1;
@@ -508,12 +672,12 @@ export const GymDataProvider = ({ children }) => {
   const [plans, setPlans] = useState(SEED_PLANS);
   const [classes, setClasses] = useState(SEED_CLASSES);
   const [attendance, setAttendance] = useState(SEED_ATTENDANCE);
-  const [workoutPlan, setWorkoutPlan] = useState(null);
-  const [workoutPlans, setWorkoutPlans] = useState([]);
-  const [dietPlan, setDietPlan] = useState(null);
-  const [dietPlans, setDietPlans] = useState([]);
+  const [workoutPlan, setWorkoutPlan] = useState(SEED_DEFAULT_WORKOUT_PLAN);
+  const [workoutPlans, setWorkoutPlans] = useState([SEED_DEFAULT_WORKOUT_PLAN]);
+  const [dietPlan, setDietPlan] = useState(SEED_DEFAULT_DIET_PLAN);
+  const [dietPlans, setDietPlans] = useState([SEED_DEFAULT_DIET_PLAN]);
   const [waterGlasses, setWaterGlasses] = useState(8);
-  const [bodyMetrics, setBodyMetrics] = useState([]);
+  const [bodyMetrics, setBodyMetrics] = useState(SEED_BODY_METRICS);
   const [invoices, setInvoices] = useState(SEED_INVOICES);
   const [expenses, setExpenses] = useState(SEED_EXPENSES);
   const [equipment, setEquipment] = useState(SEED_EQUIPMENT);
@@ -533,7 +697,7 @@ export const GymDataProvider = ({ children }) => {
   const [entryApprovals, setEntryApprovals] = useState([]);
   const [biometricDevices, setBiometricDevices] = useState([]);
   const [biometricLogs, setBiometricLogs] = useState([]);
-  const initialExercises = [];
+  const initialExercises = SEED_EXERCISES;
 
   // Dynamic live revenue analytics & owner stats
   const [ownerStats, setOwnerStats] = useState({
@@ -1116,6 +1280,50 @@ export const GymDataProvider = ({ children }) => {
     }
   };
 
+  // CLASSES MANAGEMENT
+  const addClass = async (classData) => {
+    const tempId = `cls-${Date.now()}`;
+    const newClass = {
+      id: tempId,
+      enrolledCount: 0,
+      bookedCount: 0,
+      ...classData
+    };
+    setClasses((prev) => [...prev, newClass]);
+
+    try {
+      const res = await api.classes.create({
+        name: classData.title || classData.name,
+        trainer_id: classData.trainerId,
+        time: classData.time,
+        days: classData.days,
+        capacity: Number(classData.capacity) || 20,
+        category: classData.category || 'Group Fitness',
+        room: classData.room || 'Studio A',
+        difficulty: classData.intensity || classData.difficulty || 'All Levels'
+      });
+      if (res?.data?.id) {
+        setClasses((prev) =>
+          prev.map((c) => (c.id === tempId ? { ...c, id: 'cls-' + res.data.id, numericId: res.data.id } : c))
+        );
+      }
+    } catch (err) {
+      console.warn('Class creation sync error:', err.message);
+    }
+    addToast(`Class "${classData.title || classData.name}" scheduled successfully!`, 'success');
+    return newClass;
+  };
+
+  const deleteClass = async (id) => {
+    setClasses((prev) => prev.filter((c) => c.id !== id && c.numericId !== id));
+    try {
+      await api.classes.delete(id);
+    } catch (err) {
+      console.warn('Class deletion sync error:', err.message);
+    }
+    addToast('Class removed from schedule');
+  };
+
   // WORKOUT & DIET ACTIONS
   const toggleExerciseDone = (dayIndex, exerciseId) => {
     setWorkoutPlan((prev) => {
@@ -1640,30 +1848,60 @@ export const GymDataProvider = ({ children }) => {
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const todayStr = now.toISOString().split('T')[0];
 
-    const existingToday = staffAttendanceLogs.find((l) => l.staffId === staffId && l.date === todayStr && !l.checkOutTime);
+    const existingToday = staffAttendanceLogs.find(
+      (l) => l.staffId === staffId && (l.date === todayStr || l.date === 'Today') && !l.checkOutTime
+    );
+
     if (existingToday) {
+      // Calculate total hours
+      let calculatedHours = '8.0 hrs';
+      try {
+        const timeRegex = /(\d+):(\d+)\s*(AM|PM)?/i;
+        const inMatch = existingToday.checkInTime ? existingToday.checkInTime.match(timeRegex) : null;
+        if (inMatch) {
+          let [_, hStr, mStr, period] = inMatch;
+          let h = parseInt(hStr, 10);
+          let m = parseInt(mStr, 10);
+          if (period) {
+            if (period.toUpperCase() === 'PM' && h < 12) h += 12;
+            if (period.toUpperCase() === 'AM' && h === 12) h = 0;
+          }
+          const checkInDate = new Date();
+          checkInDate.setHours(h, m, 0, 0);
+          const diffMs = Math.max(0, now.getTime() - checkInDate.getTime());
+          const diffHrs = diffMs / (1000 * 60 * 60);
+          if (diffHrs < 0.1) {
+            calculatedHours = `${Math.max(1, Math.round(diffMs / (1000 * 60)))} mins`;
+          } else {
+            calculatedHours = `${diffHrs.toFixed(1)} hrs`;
+          }
+        }
+      } catch (e) {
+        calculatedHours = '8.0 hrs';
+      }
+
       setStaffAttendanceLogs((prev) =>
         prev.map((l) =>
           l.id === existingToday.id
-            ? { ...l, checkOutTime: timeStr, status: 'Completed Shift', totalHours: '8 hrs' }
+            ? { ...l, checkOutTime: timeStr, status: 'Completed Shift', totalHours: calculatedHours }
             : l
         )
       );
-      addToast(`${staff.name} checked OUT at ${timeStr}`);
+      addToast(`${staff.name} punched OUT at ${timeStr}`);
     } else {
       const newLog = {
         id: `stf-att-${Date.now()}`,
         staffId,
         staffName: staff.name,
-        role: staff.role || 'Fitness Coach',
-        date: todayStr,
+        role: staff.specialty || staff.role || 'Fitness Coach',
+        date: 'Today',
         checkInTime: timeStr,
         checkOutTime: null,
         status: 'On Premises (Active)',
         totalHours: 'In progress'
       };
       setStaffAttendanceLogs((prev) => [newLog, ...prev]);
-      addToast(`${staff.name} checked IN at ${timeStr}`);
+      addToast(`${staff.name} punched IN at ${timeStr}`);
     }
   };
 
@@ -1887,6 +2125,8 @@ export const GymDataProvider = ({ children }) => {
         addPlan,
         updatePlan,
         deletePlan,
+        addClass,
+        deleteClass,
         addEquipment,
         updateEquipment,
         deleteEquipment,

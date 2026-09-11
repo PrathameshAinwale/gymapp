@@ -14,7 +14,8 @@ import {
   MapPin,
   LogOut,
   ChevronRight,
-  User
+  User,
+  TrendingUp
 } from 'lucide-react';
 
 export const TrainerProfile = ({ setActiveTab }) => {
@@ -187,49 +188,6 @@ export const TrainerProfile = ({ setActiveTab }) => {
         </div>
       </div>
 
-      {/* Quick Navigation Shortcuts */}
-      <div className="p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 space-y-2 shadow-sm">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-          Coach Navigation Shortcuts
-        </h2>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab && setActiveTab('clients')}
-          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all text-xs font-bold text-slate-800 group active:scale-98 cursor-pointer"
-        >
-          <span className="flex items-center gap-2.5">
-            <Users className="w-4 h-4 text-emerald-600" />
-            <span>Manage Assigned Clients</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-colors" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab && setActiveTab('workout-builder')}
-          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all text-xs font-bold text-slate-800 group active:scale-98 cursor-pointer"
-        >
-          <span className="flex items-center gap-2.5">
-            <Dumbbell className="w-4 h-4 text-emerald-600" />
-            <span>Workout Plans & Routines</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-colors" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab && setActiveTab('diet-builder')}
-          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all text-xs font-bold text-slate-800 group active:scale-98 cursor-pointer"
-        >
-          <span className="flex items-center gap-2.5">
-            <Utensils className="w-4 h-4 text-amber-600" />
-            <span>Diet & Nutrition Builder</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-colors" />
-        </button>
-      </div>
-
       {/* Sign Out Button */}
       <button
         type="button"
@@ -237,7 +195,7 @@ export const TrainerProfile = ({ setActiveTab }) => {
         className="w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
       >
         <LogOut className="w-4 h-4" />
-        <span>Log Out of Coach Account</span>
+        <span>Log Out</span>
       </button>
 
     </div>

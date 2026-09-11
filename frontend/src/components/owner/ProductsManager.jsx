@@ -5,6 +5,7 @@ import {
   Search,
   Plus,
   Filter,
+  ChevronDown,
   DollarSign,
   AlertTriangle,
   CheckCircle2,
@@ -175,33 +176,45 @@ export const ProductsManager = () => {
         </div>
       </div>
 
-      {/* Search & Category Filter Bar */}
-      <div className="bg-white border border-slate-200 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* Sleek Compact Search & Category Filter Toolbar */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Search Input Box */}
+        <div className="relative flex-1 sm:w-72 sm:flex-initial">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search products by title, SKU, or category..."
+            placeholder="Search products, SKU, category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
+        {/* Category Filter Dropdown */}
+        <div className="relative shrink-0">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
           >
-            <option value="ALL">All Categories</option>
-            <option value="Supplements">Supplements</option>
-            <option value="Accessories">Accessories</option>
-            <option value="Gear">Gear</option>
-            <option value="Apparel">Apparel</option>
-            <option value="Drinks">Drinks</option>
+            <option value="ALL">All ({products.length})</option>
+            <option value="Supplements">Supplements ({products.filter(p => p.category === 'Supplements').length})</option>
+            <option value="Accessories">Accessories ({products.filter(p => p.category === 'Accessories').length})</option>
+            <option value="Gear">Gear ({products.filter(p => p.category === 'Gear').length})</option>
+            <option value="Apparel">Apparel ({products.filter(p => p.category === 'Apparel').length})</option>
+            <option value="Drinks">Drinks ({products.filter(p => p.category === 'Drinks').length})</option>
           </select>
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 

@@ -52,14 +52,9 @@ class DietController extends Controller
 
     public function updateMemberDiet(Request $request, $memberId)
     {
-        $numericId = str_replace('mem-', '', $memberId);
+        $numericId = (int) str_replace('mem-', '', $memberId);
         $validator = Validator::make($request->all(), [
             'days' => 'required|array',
-            'daily_calories_target' => 'nullable|integer',
-            'protein_grams_target' => 'nullable|integer',
-            'carbs_grams_target' => 'nullable|integer',
-            'fats_grams_target' => 'nullable|integer',
-            'water_glasses_target' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
@@ -68,15 +63,21 @@ class DietController extends Controller
 
         $trainerId = $request->user()?->role === 'trainer' ? $request->user()->id : null;
 
+        $dailyCalories = (int) ($request->daily_calories_target ?? $request->dailyCaloriesTarget ?? 2600);
+        $proteinGrams = (int) ($request->protein_grams_target ?? $request->proteinGramsTarget ?? 175);
+        $carbsGrams = (int) ($request->carbs_grams_target ?? $request->carbsGramsTarget ?? 290);
+        $fatsGrams = (int) ($request->fats_grams_target ?? $request->fatsGramsTarget ?? 65);
+        $waterGlasses = (int) ($request->water_glasses_target ?? $request->waterGlassesTarget ?? 10);
+
         $diet = DietPlan::updateOrCreate(
             ['user_id' => $numericId],
             [
                 'trainer_id' => $trainerId ?? 2,
-                'daily_calories_target' => $request->daily_calories_target ?? 2600,
-                'protein_grams_target' => $request->protein_grams_target ?? 175,
-                'carbs_grams_target' => $request->carbs_grams_target ?? 290,
-                'fats_grams_target' => $request->fats_grams_target ?? 65,
-                'water_glasses_target' => $request->water_glasses_target ?? 10,
+                'daily_calories_target' => $dailyCalories,
+                'protein_grams_target' => $proteinGrams,
+                'carbs_grams_target' => $carbsGrams,
+                'fats_grams_target' => $fatsGrams,
+                'water_glasses_target' => $waterGlasses,
                 'days' => $request->days,
             ]
         );

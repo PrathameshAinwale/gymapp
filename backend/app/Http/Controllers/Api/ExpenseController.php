@@ -75,13 +75,14 @@ class ExpenseController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'required|string|max:100',
-            'vendor' => 'required|string|max:255',
+            'vendor' => 'nullable|string|max:255',
             'amount' => 'required|numeric|min:1',
             'date' => 'required|date',
             'paymentMode' => 'nullable|string',
             'payment_mode' => 'nullable|string',
             'refNo' => 'nullable|string|max:100',
             'ref_no' => 'nullable|string|max:100',
+            'receiptRef' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
 
@@ -100,11 +101,11 @@ class ExpenseController extends Controller
             'gym_id' => $gymId,
             'title' => $request->title,
             'category' => $request->category,
-            'vendor' => $request->vendor,
+            'vendor' => $request->vendor ?: 'General Expense',
             'amount' => (float)$request->amount,
             'date' => $request->date,
             'payment_mode' => $request->paymentMode ?? $request->payment_mode ?? 'UPI',
-            'ref_no' => $request->refNo ?? $request->ref_no ?? ('EXP-' . strtoupper(substr(uniqid(), -6))),
+            'ref_no' => $request->refNo ?? $request->ref_no ?? $request->receiptRef ?? ('EXP-' . strtoupper(substr(uniqid(), -6))),
             'notes' => $request->notes,
             'created_by' => $userId,
         ]);

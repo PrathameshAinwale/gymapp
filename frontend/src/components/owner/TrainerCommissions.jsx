@@ -5,6 +5,7 @@ import {
   Search,
   Plus,
   Filter,
+  ChevronDown,
   Award,
   CheckCircle2,
   Clock,
@@ -133,6 +134,11 @@ export const TrainerCommissions = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Paid Out</span>
+          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">₹{paidCommissions.toLocaleString('en-IN')}</div>
+          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Disbursed successfully</span>
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
           <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Commissions</span>
           <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">₹{totalCommissions.toLocaleString('en-IN')}</div>
@@ -144,38 +150,44 @@ export const TrainerCommissions = () => {
           <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">₹{pendingCommissions.toLocaleString('en-IN')}</div>
           <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Due in upcoming cycle</span>
         </div>
-
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Paid Out</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">₹{paidCommissions.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Disbursed successfully</span>
-        </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white border border-slate-200 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* Sleek Compact Search & Filter Toolbar */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Search Input Box */}
+        <div className="relative flex-1 sm:w-72 sm:flex-initial">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by coach name, member name, or service..."
+            placeholder="Search coach, member..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
+        {/* Filter Dropdown */}
+        <div className="relative shrink-0">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="Pending">Pending Payout</option>
-            <option value="Paid">Paid Out</option>
+            <option value="ALL">All ({commissions.length})</option>
+            <option value="Pending">Pending ({commissions.filter(c => c.status === 'Pending').length})</option>
+            <option value="Paid">Paid ({commissions.filter(c => c.status === 'Paid').length})</option>
           </select>
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
