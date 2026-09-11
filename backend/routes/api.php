@@ -1,0 +1,158 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\TrainerController;
+use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\GymClassController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\WorkoutController;
+use App\Http\Controllers\Api\DietController;
+use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\GymSettingController;
+use App\Http\Controllers\Api\SuperadminController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\EnquiryController;
+use App\Http\Controllers\Api\OperationsController;
+
+// API Health Check
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'online',
+        'app' => 'PulseFit Pro API',
+        'timestamp' => now()->toIso8601String(),
+        'database' => 'MySQL connected',
+    ]);
+});
+
+Route::prefix('v1')->group(function () {
+    // Health check for v1
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'online',
+            'version' => 'v1',
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    });
+
+    // Public / Auth Routes
+    Route::prefix('auth')->group(function () {
+        Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/register', [AuthController::class, 'register']);
+        
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::get('/me', [AuthController::class, 'me']);
+            Route::post('/logout', [AuthController::class, 'logout']);
+            Route::post('/change-password', [AuthController::class, 'changePassword']);
+            Route::post('/first-login-change-password', [AuthController::class, 'firstLoginSetPassword']);
+        });
+    });
+
+    // Gym Business Information
+    Route::get('/gym-info', [GymSettingController::class, 'show']);
+    Route::put('/gym-info', [GymSettingController::class, 'update']);
+
+    // Dashboard & Analytics
+    Route::get('/dashboard/owner-stats', [DashboardController::class, 'getOwnerStats']);
+
+    // Plans
+    Route::apiResource('plans', PlanController::class);
+
+    // Members CRM & Profiles
+    Route::apiResource('members', MemberController::class);
+
+    // Trainers
+    Route::apiResource('trainers', TrainerController::class);
+
+    // Classes & Scheduling
+    Route::get('/classes', [GymClassController::class, 'index']);
+    Route::post('/classes', [GymClassController::class, 'store']);
+    Route::post('/classes/{id}/book', [GymClassController::class, 'book']);
+    Route::post('/classes/{id}/cancel', [GymClassController::class, 'cancel']);
+
+    // Attendance & QR Scanner
+    Route::get('/attendance', [AttendanceController::class, 'index']);
+    Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn']);
+    Route::post('/attendance/{id}/check-out', [AttendanceController::class, 'checkOut']);
+
+    // Workout Routines
+    Route::get('/workouts/member/{memberId}', [WorkoutController::class, 'getMemberRoutine']);
+    Route::post('/workouts/member/{memberId}', [WorkoutController::class, 'updateMemberRoutine']);
+
+    // Diet & Nutrition Charts
+    Route::get('/diets/member/{memberId}', [DietController::class, 'getMemberDiet']);
+    Route::post('/diets/member/{memberId}', [DietController::class, 'updateMemberDiet']);
+
+    // Invoices & Billing
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::post('/invoices', [InvoiceController::class, 'store']);
+
+    // Operating Expenses & Cash Flow
+    Route::apiResource('expenses', ExpenseController::class);
+    Route::get('/financials/cashflow-summary', [ExpenseController::class, 'cashflowSummary']);
+
+    // Enquiries & Leads CRM
+    Route::apiResource('enquiries', EnquiryController::class);
+    Route::patch('/enquiries/{id}/priority', [EnquiryController::class, 'updatePriority']);
+    Route::patch('/enquiries/{id}/follow-up', [EnquiryController::class, 'updateFollowUp']);
+    Route::post('/enquiries/{id}/comments', [EnquiryController::class, 'addComment']);
+    Route::post('/enquiries/{id}/convert', [EnquiryController::class, 'convertToMember']);
+    Route::get('/enquiries-stats', [EnquiryController::class, 'pipelineStats']);
+
+    // Equipment & Maintenance
+    Route::apiResource('equipment', EquipmentController::class);
+
+    // Operations & Modules
+    // Pro Shop Products
+    Route::get('/products', [OperationsController::class, 'getProducts']);
+    Route::post('/products', [OperationsController::class, 'storeProduct']);
+    Route::put('/products/{id}', [OperationsController::class, 'updateProduct']);
+    Route::delete('/products/{id}', [OperationsController::class, 'deleteProduct']);
+    Route::post('/products/sell', [OperationsController::class, 'sellProduct']);
+
+    // Trainer Commissions
+    Route::get('/commissions', [OperationsController::class, 'getCommissions']);
+    Route::post('/commissions', [OperationsController::class, 'storeCommission']);
+    Route::patch('/commissions/{id}/status', [OperationsController::class, 'updateCommissionStatus']);
+
+    // Membership Freezes & Extensions
+    Route::get('/freezes', [OperationsController::class, 'getFreezes']);
+    Route::post('/freezes', [OperationsController::class, 'storeFreeze']);
+    Route::patch('/freezes/{id}/unfreeze', [OperationsController::class, 'unfreeze']);
+
+    // Consent & Medical Waivers
+    Route::get('/consent-forms', [OperationsController::class, 'getConsentForms']);
+    Route::patch('/consent-forms/{id}/status', [OperationsController::class, 'updateConsentStatus']);
+
+    // Payroll & Salaries
+    Route::get('/payroll', [OperationsController::class, 'getPayroll']);
+    Route::patch('/payroll/{id}/pay', [OperationsController::class, 'markPayrollPaid']);
+
+    // Biometrics & Gate Overrides
+    Route::get('/biometrics/devices', [OperationsController::class, 'getBiometricDevices']);
+    Route::post('/biometrics/devices', [OperationsController::class, 'storeBiometricDevice']);
+    Route::post('/biometrics/pulse/{id}', [OperationsController::class, 'triggerTurnstilePulse']);
+    Route::get('/biometrics/logs', [OperationsController::class, 'getBiometricLogs']);
+    Route::get('/gate-overrides', [OperationsController::class, 'getEntryApprovals']);
+    Route::post('/gate-overrides/{id}/approve', [OperationsController::class, 'approveGateEntry']);
+    Route::post('/gate-overrides/{id}/deny', [OperationsController::class, 'denyGateEntry']);
+
+    // PT & Recovery Packages
+    Route::get('/pt-plans', [OperationsController::class, 'getPtPlans']);
+    Route::post('/pt-plans', [OperationsController::class, 'storePtPlan']);
+    Route::get('/recovery-plans', [OperationsController::class, 'getRecoveryPlans']);
+    Route::post('/recovery-plans', [OperationsController::class, 'storeRecoveryPlan']);
+
+    // Superadmin Platform Control
+    Route::prefix('superadmin')->group(function () {
+        Route::get('/stats', [SuperadminController::class, 'stats']);
+        Route::get('/gyms', [SuperadminController::class, 'indexGyms']);
+        Route::post('/gyms', [SuperadminController::class, 'storeGym']);
+        Route::put('/gyms/{id}', [SuperadminController::class, 'updateGym']);
+        Route::delete('/gyms/{id}', [SuperadminController::class, 'deleteGym']);
+    });
+});

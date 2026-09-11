@@ -1,0 +1,13 @@
+{
+  "appId": "in.pulsefit.app",
+  "appName": "PulseFit",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#080d1a",
+    "allowMixedContent": true
+  }
+}
