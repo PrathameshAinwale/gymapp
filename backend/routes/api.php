@@ -126,6 +126,7 @@ Route::prefix('v1')->group(function () {
 
     // Consent & Medical Waivers
     Route::get('/consent-forms', [OperationsController::class, 'getConsentForms']);
+    Route::post('/consent-forms', [OperationsController::class, 'storeConsentForm']);
     Route::patch('/consent-forms/{id}/status', [OperationsController::class, 'updateConsentStatus']);
 
     // Payroll & Salaries

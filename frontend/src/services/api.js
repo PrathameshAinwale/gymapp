@@ -667,6 +667,14 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/consent-forms`, { headers: getHeaders() });
       return handleResponse(res);
     },
+    create: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/consent-forms`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
     updateStatus: async (id, status = 'Signed') => {
       const res = await apiFetch(`${API_BASE_URL}/consent-forms/${id}/status`, {
         method: 'PATCH',

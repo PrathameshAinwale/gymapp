@@ -187,9 +187,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
             <div className="text-xl sm:text-3xl font-black text-slate-900">
               {activeMembersCount}
             </div>
-            <div className="text-[10px] sm:text-xs text-emerald-700 font-bold mt-0.5">
-              {Math.round((activeMembersCount / (totalMembersCount || 1)) * 100)}% of {totalMembersCount}
-            </div>
           </div>
           <div className="hidden sm:flex text-xs font-bold text-emerald-700 items-center justify-between pt-2 border-t border-slate-100">
             <span>View</span>
@@ -210,9 +207,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
           <div className="mt-1.5 sm:my-3">
             <div className="text-xl sm:text-3xl font-black text-slate-900">
               {expiredMembersCount}
-            </div>
-            <div className="text-[10px] sm:text-xs text-amber-700 font-bold mt-0.5">
-              {members.filter((m) => (m.status || '').toLowerCase() === 'expired').length} overdue
             </div>
           </div>
           <div className="hidden sm:flex text-xs font-bold text-amber-700 items-center justify-between pt-2 border-t border-slate-100">
@@ -235,9 +229,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
             <div className="text-xl sm:text-3xl font-black text-slate-900">
               {enquiries.length}
             </div>
-            <div className="text-[10px] sm:text-xs text-rose-700 font-bold mt-0.5">
-              {hotLeads.length} hot
-            </div>
           </div>
           <div className="hidden sm:flex text-xs font-bold text-rose-700 items-center justify-between pt-2 border-t border-slate-100">
             <span>Follow-up</span>
@@ -258,9 +249,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
           <div className="mt-1.5 sm:my-3">
             <div className="text-xl sm:text-3xl font-black text-slate-900">
               ₹{(totalRevenue / 100000).toFixed(2)}L
-            </div>
-            <div className="text-[10px] sm:text-xs text-emerald-700 font-bold mt-0.5 inline-flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" /> +{momGrowthPct}%
             </div>
           </div>
           <div className="hidden sm:flex text-xs font-bold text-emerald-700 items-center justify-between pt-2 border-t border-slate-100">

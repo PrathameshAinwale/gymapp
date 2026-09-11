@@ -1474,6 +1474,50 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // Consent Forms Handlers
+  const addConsentForm = async ({ memberId, memberName, phone, planName, formType, emergencyContact, emergencyPhone, medicalNotes, status, signedDate }) => {
+    const tempId = `cs-${Date.now()}`;
+    const newForm = {
+      id: tempId,
+      memberId: memberId || 'mem-1',
+      memberName,
+      phone: phone || '',
+      planName: planName || 'General Gym Access',
+      formType: formType || 'General Fitness & Liability Waiver',
+      emergencyContact: emergencyContact || '',
+      emergencyPhone: emergencyPhone || '',
+      medicalNotes: medicalNotes || 'None recorded',
+      status: status || 'Pending',
+      signedDate: status === 'Signed' ? (signedDate || new Date().toISOString().split('T')[0]) : null
+    };
+
+    setConsentForms((prev) => [newForm, ...prev]);
+
+    try {
+      const res = await api.consentForms.create({
+        memberId,
+        memberName,
+        phone,
+        planName,
+        formType,
+        emergencyContact,
+        emergencyPhone,
+        medicalNotes,
+        status,
+        signedDate: newForm.signedDate
+      });
+      if (res?.data?.id) {
+        setConsentForms((prev) =>
+          prev.map((f) => (f.id === tempId ? { ...f, id: res.data.id } : f))
+        );
+      }
+    } catch (err) {
+      console.warn('Consent form creation sync error:', err.message);
+    }
+
+    addToast(`Consent form registered for ${memberName}!`);
+    return newForm;
+  };
+
   const updateConsentStatus = async (id, status) => {
     setConsentForms((prev) =>
       prev.map((f) =>
@@ -1874,6 +1918,7 @@ export const GymDataProvider = ({ children }) => {
         addCommissionRecord,
         markCommissionPaid,
         consentForms,
+        addConsentForm,
         updateConsentStatus,
         membershipFreezes,
         addFreezeRequest,

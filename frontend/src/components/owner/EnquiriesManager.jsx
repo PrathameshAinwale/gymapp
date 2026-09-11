@@ -472,36 +472,6 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
           <span className="inline sm:hidden">Add Lead</span>
         </button>
       </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Leads</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{totalCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">All registered leads</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Hot Leads</span>
-          <div className="text-lg sm:text-2xl font-black text-rose-600 mt-0.5 sm:mt-1">{hotCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-rose-700 font-medium hidden sm:block">Ready to join immediately</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Warm Leads</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{warmCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Active follow-ups ({coldCount} Cold)</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Converted</span>
-          <div className="text-lg sm:text-2xl font-black text-purple-600 mt-0.5 sm:mt-1">{convertedCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-purple-700 font-medium hidden sm:block">
-            {totalCount > 0 ? `${((convertedCount / totalCount) * 100).toFixed(0)}% rate` : '0%'}
-          </span>
-        </div>
-      </div>
-
       {/* Sleek Compact Search & Filter Toolbar */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Search Input Box */}

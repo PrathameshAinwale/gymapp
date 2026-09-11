@@ -350,6 +350,41 @@ class OperationsController extends Controller
         return response()->json(['success' => true, 'data' => $forms]);
     }
 
+    public function storeConsentForm(Request $request)
+    {
+        $memberId = $request->memberId ? (int)str_replace('mem-', '', $request->memberId) : null;
+        $cf = ConsentForm::create([
+            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'member_id' => $memberId,
+            'member_name' => $request->memberName,
+            'phone' => $request->phone ?? '',
+            'plan_name' => $request->planName ?? 'General Membership',
+            'emergency_contact' => $request->emergencyContact ?? '',
+            'emergency_phone' => $request->emergencyPhone ?? '',
+            'medical_conditions' => $request->medicalNotes ?? $request->medicalConditions ?? 'None recorded',
+            'status' => $request->status ?? 'Pending',
+            'signed_date' => $request->status === 'Signed' ? now()->toDateString() : null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Consent form created in database',
+            'data' => [
+                'id' => 'cform-' . $cf->id,
+                'numericId' => $cf->id,
+                'memberId' => 'mem-' . $cf->member_id,
+                'memberName' => $cf->member_name,
+                'phone' => $cf->phone,
+                'planName' => $cf->plan_name,
+                'formType' => $request->formType ?? 'General Fitness & Liability Waiver',
+                'emergencyContact' => $cf->emergency_contact,
+                'medicalNotes' => $cf->medical_conditions,
+                'signedDate' => $cf->signed_date?->format('Y-m-d') ?? (string)$cf->signed_date,
+                'status' => $cf->status,
+            ]
+        ], 201);
+    }
+
     public function updateConsentStatus(Request $request, $id)
     {
         $numericId = (int)str_replace('cform-', '', $id);

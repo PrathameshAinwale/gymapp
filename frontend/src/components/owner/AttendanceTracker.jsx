@@ -87,23 +87,16 @@ export const AttendanceTracker = () => {
             <span className="hidden sm:inline">Muster Report</span>
             <span className="inline sm:hidden">Report</span>
           </button>
-
-          {activeTab === 'members' && (
-            <button
-              type="button"
-              onClick={() => setIsMemberCheckInModalOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Check In Member</span>
-              <span className="inline sm:hidden">Check In</span>
-            </button>
-          )}
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Today's Total Check-ins</span>
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{attendance.length + staffAttendanceLogs.length}</div>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Turnstile punches recorded</span>
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Members on Floor</span>
           <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{activeMembersOnFloor || 4} Active</div>
@@ -116,11 +109,6 @@ export const AttendanceTracker = () => {
           <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">Active duty shifts</span>
         </div>
 
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Today's Total Check-ins</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{attendance.length + staffAttendanceLogs.length}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Turnstile punches recorded</span>
-        </div>
       </div>
 
       {/* Tabs Switcher & Search */}
