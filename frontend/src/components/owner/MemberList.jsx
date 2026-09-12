@@ -31,23 +31,54 @@ import {
   MessageCircle,
   FileText,
   Share2,
-  ChevronDown
+  ChevronDown,
+  Loader2,
+  ShieldCheck,
+  MailCheck,
+  Send,
+  CheckCheck,
+  HeartPulse,
+  Dumbbell,
+  IndianRupee,
+  Percent
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const { registerAccount } = useAuth();
-  const { members, trainers, plans, addMember, updateMember, deleteMember, renewMemberPlan, addToast } = useGymData();
+  const {
+    members,
+    trainers,
+    plans,
+    ptPlans = [],
+    recoveryPlans = [],
+    addMember,
+    updateMember,
+    deleteMember,
+    renewMemberPlan,
+    recordPayment,
+    addConsentForm,
+    addCommissionRecord,
+    addToast
+  } = useGymData();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedMember, setSelectedMember] = useState(null);
-  const [renewingMember, setRenewingMember] = useState(null);
-  const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState(plans[0]?.id || '');
   const [editingMember, setEditingMember] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [renewingMember, setRenewingMember] = useState(null);
+  const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState('');
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState('');
+  const [isCreatingMember, setIsCreatingMember] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isRenewing, setIsRenewing] = useState(false);
   const [paymentLinkModalMember, setPaymentLinkModalMember] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -61,7 +92,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     age: 25,
     gender: 'Male',
     planId: plans[0]?.id || '',
-    trainerId: trainers[0]?.id || '',
+    trainerId: '', // Default: Self Guided
     goal: 'Muscle Gain & Strength',
     weight: 70,
     targetWeight: 75,
@@ -72,6 +103,45 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     kycDocNumber: '',
     kycStatus: 'Verified'
   });
+
+  // PT, Recovery, and Consent States
+  const [ptPlanId, setPtPlanId] = useState('');
+  const [recoveryPlanId, setRecoveryPlanId] = useState('');
+  const [ptCommissionPercent, setPtCommissionPercent] = useState(20);
+  const [consentAgreed, setConsentAgreed] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  // Coach & PT Logic
+  const isCoachSelected = Boolean(formData.trainerId && formData.trainerId !== 'general');
+  const chosenTrainer = isCoachSelected ? trainers.find((t) => t.id === formData.trainerId) : null;
+
+  // Live Price Calculations
+  const chosenPlan = plans.find((p) => p.id === formData.planId) || plans[0];
+  const basePrice = Number(chosenPlan?.price) || 0;
+  const chosenPtPlan = isCoachSelected ? ptPlans.find((p) => p.id === ptPlanId) : null;
+  const ptPrice = Number(chosenPtPlan?.price) || 0;
+  const chosenRecoveryPlan = recoveryPlans.find((r) => r.id === recoveryPlanId);
+  const recoveryPrice = Number(chosenRecoveryPlan?.price) || 0;
+  const totalCalculatedAmount = basePrice + ptPrice + recoveryPrice;
+  const ptCommissionAmount = isCoachSelected && ptPrice > 0 ? Math.round((ptPrice * (Number(ptCommissionPercent) || 0)) / 100) : 0;
+
+  const handleTrainerChange = (newTrainerId) => {
+    setFormData((prev) => ({ ...prev, trainerId: newTrainerId }));
+    if (newTrainerId && newTrainerId !== 'general') {
+      // Dedicated coach selected: enable PT and default select first PT package
+      if (!ptPlanId && ptPlans.length > 0) {
+        setPtPlanId(ptPlans[0].id);
+      }
+    } else {
+      // Self Guided or General Coaching: disable PT
+      setPtPlanId('');
+    }
+  };
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -88,89 +158,214 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     setFormData({ ...formData, password: pass });
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleSendOtp = () => {
+    if (!formData.email || !formData.email.includes('@')) {
+      addToast('Please enter a valid member email address above before requesting OTP.', 'error');
+      return;
+    }
+    setIsSendingOtp(true);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(code);
+    setOtpSent(true);
+    setOtpVerified(false);
+    setOtpValue('');
+    setTimeout(() => {
+      setIsSendingOtp(false);
+      addToast(`Consent Signature OTP sent to ${formData.email}: Code is ${code}`, 'info');
+    }, 450);
+  };
+
+  const handleVerifyOtp = () => {
+    if (!otpValue.trim()) {
+      addToast('Please enter the 6-digit OTP code sent to the email.', 'error');
+      return;
+    }
+    setIsVerifyingOtp(true);
+    setTimeout(() => {
+      setIsVerifyingOtp(false);
+      if (otpValue.trim() === generatedOtp) {
+        setOtpVerified(true);
+        addToast('OTP verified! Consent form digitally signed.', 'success');
+      } else {
+        addToast('Invalid OTP code. Please check the code and try again.', 'error');
+      }
+    }, 350);
+  };
+
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
 
-    const chosenPlan = plans.find((p) => p.id === formData.planId) || plans[0];
-    const chosenTrainer = trainers.find((t) => t.id === formData.trainerId);
+    if (!consentAgreed) {
+      addToast('Please review and agree to the Gym Terms & Liability Waiver.', 'error');
+      return;
+    }
 
-    const today = new Date();
-    const expiry = new Date();
-    expiry.setMonth(today.getMonth() + (chosenPlan.durationMonths || 1));
+    if (!otpVerified) {
+      addToast('Please send and verify the Email OTP to complete digital signing of the consent form.', 'error');
+      return;
+    }
 
-    // 1. Add to Gym CRM state
-    const createdMember = addMember({
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      avatar: formData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
-      age: formData.age,
-      gender: formData.gender,
-      planId: chosenPlan.id,
-      planName: chosenPlan.name,
-      trainerId: chosenTrainer ? chosenTrainer.id : null,
-      trainerName: chosenTrainer ? chosenTrainer.name : 'None / Self Guided',
-      goal: formData.goal,
-      weight: formData.weight,
-      targetWeight: formData.targetWeight,
-      height: formData.height,
-      medicalNotes: formData.medicalNotes,
-      emergencyContact: formData.emergencyContact,
-      expiryDate: expiry.toISOString().split('T')[0],
-      kycDocType: formData.kycDocType || 'Aadhaar Card',
-      kycDocNumber: formData.kycDocNumber || 'Not provided',
-      kycStatus: formData.kycStatus || 'Verified'
-    });
+    setIsCreatingMember(true);
+    try {
+      let resolvedTrainer = null;
+      let resolvedTrainerName = 'None / Self Guided';
+      if (formData.trainerId === 'general') {
+        resolvedTrainerName = 'General Coaching';
+      } else if (formData.trainerId) {
+        resolvedTrainer = trainers.find((t) => t.id === formData.trainerId);
+        resolvedTrainerName = resolvedTrainer ? resolvedTrainer.name : 'None / Self Guided';
+      }
 
-    // 2. Provision Login Account in Auth Database
-    registerAccount({
-      id: createdMember.id,
-      name: formData.name,
-      email: formData.email,
-      username: formData.email.split('@')[0],
-      password: formData.password || 'member123',
-      role: 'member',
-      planName: chosenPlan.name,
-      qrPassCode: createdMember.qrPassCode
-    });
+      const today = new Date();
+      const expiry = new Date();
+      expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
 
-    // 3. Open Credentials Receipt for Owner
-    setNewlyCreatedCredentials({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password || 'member123',
-      id: createdMember.id,
-      qrPassCode: createdMember.qrPassCode,
-      planName: chosenPlan.name
-    });
+      // 1. Add to Gym CRM state
+      const createdMember = await addMember({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        avatar: formData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
+        age: formData.age,
+        gender: formData.gender,
+        planId: chosenPlan?.id,
+        planName: chosenPlan?.name,
+        trainerId: resolvedTrainer ? resolvedTrainer.id : (formData.trainerId === 'general' ? 'general' : null),
+        trainerName: resolvedTrainerName,
+        ptPlanId: chosenPtPlan ? chosenPtPlan.id : null,
+        ptPlanName: chosenPtPlan ? chosenPtPlan.name : null,
+        ptSessions: chosenPtPlan ? chosenPtPlan.sessions : 0,
+        recoveryPlanId: chosenRecoveryPlan ? chosenRecoveryPlan.id : null,
+        recoveryPlanName: chosenRecoveryPlan ? chosenRecoveryPlan.name : null,
+        goal: formData.goal,
+        weight: formData.weight,
+        targetWeight: formData.targetWeight,
+        height: formData.height,
+        medicalNotes: formData.medicalNotes,
+        emergencyContact: formData.emergencyContact,
+        expiryDate: expiry.toISOString().split('T')[0],
+        kycDocType: formData.kycDocType || 'Aadhaar Card',
+        kycDocNumber: formData.kycDocNumber || 'Not provided',
+        kycStatus: formData.kycStatus || 'Verified',
+        consentSigned: true,
+        consentSignedDate: today.toISOString().split('T')[0]
+      });
 
-    setIsOpenAddModal(false);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      password: 'member' + Math.floor(100 + Math.random() * 900),
-      avatar: '',
-      age: 25,
-      gender: 'Male',
-      planId: plans[0]?.id || '',
-      trainerId: trainers[0]?.id || '',
-      goal: 'Muscle Gain & Strength',
-      weight: 70,
-      targetWeight: 75,
-      height: 175,
-      medicalNotes: 'None',
-      emergencyContact: '',
-      kycDocType: 'Aadhaar Card',
-      kycDocNumber: '',
-      kycStatus: 'Verified'
-    });
+      // 2. Provision Login Account in Auth Database
+      await registerAccount({
+        id: createdMember.id,
+        name: formData.name,
+        email: formData.email,
+        username: formData.email.split('@')[0],
+        password: formData.password || 'member123',
+        role: 'member',
+        planName: chosenPlan?.name,
+        qrPassCode: createdMember.qrPassCode
+      });
+
+      // 3. Register Signed Consent Form in state
+      await addConsentForm({
+        memberId: createdMember.id,
+        memberName: formData.name,
+        phone: formData.phone,
+        planName: chosenPlan?.name,
+        formType: 'General Fitness & Liability Waiver (Integrated OTP Signed)',
+        emergencyContact: formData.emergencyContact,
+        emergencyPhone: formData.emergencyContact,
+        medicalNotes: formData.medicalNotes,
+        status: 'Signed',
+        signedDate: today.toISOString().split('T')[0]
+      });
+
+      // 4. Generate Invoice & Record Inflow Billing
+      let invoiceTitle = chosenPlan?.name || 'Gym Membership';
+      const additions = [];
+      if (chosenPtPlan) additions.push(`${chosenPtPlan.name} (${chosenPtPlan.sessions} PT Sessions)`);
+      if (chosenRecoveryPlan) additions.push(chosenRecoveryPlan.name);
+      if (additions.length > 0) invoiceTitle += ` + ${additions.join(' + ')}`;
+
+      await recordPayment({
+        memberId: createdMember.id,
+        memberName: formData.name,
+        planId: chosenPlan?.id,
+        planName: invoiceTitle,
+        amount: totalCalculatedAmount,
+        paymentMethod: 'UPI'
+      });
+
+      // 5. If PT with dedicated Coach, Log Trainer Commission
+      if (resolvedTrainer && chosenPtPlan && ptCommissionAmount > 0) {
+        await addCommissionRecord({
+          trainerId: resolvedTrainer.id,
+          trainerName: resolvedTrainer.name,
+          memberName: formData.name,
+          planName: `${chosenPtPlan.name} (${chosenPtPlan.sessions} Sessions)`,
+          sessionType: 'Personal Training (PT)',
+          serviceType: 'Personal Training (PT)',
+          ratePercent: Number(ptCommissionPercent),
+          commissionPct: Number(ptCommissionPercent),
+          amount: ptPrice,
+          packageAmount: ptPrice,
+          commissionEarned: ptCommissionAmount,
+          date: today.toISOString().split('T')[0],
+          status: 'Pending'
+        });
+      }
+
+      // 6. Open Credentials Receipt for Owner
+      setNewlyCreatedCredentials({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password || 'member123',
+        id: createdMember.id,
+        qrPassCode: createdMember.qrPassCode,
+        planName: invoiceTitle,
+        totalAmount: totalCalculatedAmount,
+        ptName: chosenPtPlan?.name,
+        recoveryName: chosenRecoveryPlan?.name,
+        trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
+        trainerName: resolvedTrainerName
+      });
+
+      setIsOpenAddModal(false);
+      // Reset form & otp state
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        password: 'member' + Math.floor(100 + Math.random() * 900),
+        avatar: '',
+        age: 25,
+        gender: 'Male',
+        planId: plans[0]?.id || '',
+        trainerId: '', // Reset to Self Guided
+        goal: 'Muscle Gain & Strength',
+        weight: 70,
+        targetWeight: 75,
+        height: 175,
+        medicalNotes: 'None',
+        emergencyContact: '',
+        kycDocType: 'Aadhaar Card',
+        kycDocNumber: '',
+        kycStatus: 'Verified'
+      });
+      setPtPlanId('');
+      setRecoveryPlanId('');
+      setPtCommissionPercent(20);
+      setConsentAgreed(false);
+      setOtpSent(false);
+      setOtpValue('');
+      setGeneratedOtp('');
+      setOtpVerified(false);
+    } finally {
+      setIsCreatingMember(false);
+    }
   };
 
   const handleCopyCredentials = () => {
     if (!newlyCreatedCredentials) return;
-    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: http://localhost:5173/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan: ${newlyCreatedCredentials.planName}`;
+    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: http://localhost:5173/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan & Services: ${newlyCreatedCredentials.planName}\n• Total Amount Paid: ₹${Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     addToast('Credentials copied to clipboard!');
@@ -939,7 +1134,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Membership Plan</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Membership Plan *</label>
               <select
                 value={formData.planId}
                 onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
@@ -947,25 +1142,169 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               >
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (₹{p.price.toLocaleString('en-IN')} / {p.period})
+                    {p.name} (₹{Number(p.price).toLocaleString('en-IN')} / {p.period})
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Assign Trainer</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Assign Coach / Trainer</label>
               <select
                 value={formData.trainerId}
-                onChange={(e) => setFormData({ ...formData, trainerId: e.target.value })}
+                onChange={(e) => handleTrainerChange(e.target.value)}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
-                <option value="">None / Self Guided</option>
+                <option value="">Self Guided</option>
+                <option value="general">General Coaching</option>
                 {trainers.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.specialty})
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* PT & RECOVERY SESSIONS SELECTION */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/40 border border-emerald-100 space-y-3">
+            <div className="flex items-center justify-between border-b border-emerald-100/80 pb-2">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Dumbbell className="w-4 h-4 text-emerald-600" />
+                <span>Coach, PT & Recovery Sessions Add-ons</span>
+              </span>
+              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                {isCoachSelected ? 'PT Enabled' : 'PT Requires Coach'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Personal Training (PT) Package */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>1-on-1 Personal Training (PT)</span>
+                  {ptPrice > 0 && (
+                    <span className="text-emerald-700 font-bold">+₹{ptPrice.toLocaleString('en-IN')}</span>
+                  )}
+                </label>
+                <select
+                  disabled={!isCoachSelected}
+                  value={isCoachSelected ? ptPlanId : ''}
+                  onChange={(e) => setPtPlanId(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none cursor-pointer ${
+                    isCoachSelected
+                      ? 'bg-white border-slate-200 text-slate-900 focus:border-emerald-500'
+                      : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <option value="">
+                    {isCoachSelected ? 'No PT Package (₹0)' : 'No PT (Assign coach to enable PT)'}
+                  </option>
+                  {ptPlans.map((pt) => (
+                    <option key={pt.id} value={pt.id}>
+                      {pt.name} - {pt.sessions} Sessions (₹{Number(pt.price).toLocaleString('en-IN')})
+                    </option>
+                  ))}
+                </select>
+
+                {!isCoachSelected ? (
+                  <p className="text-[10px] text-amber-600 font-semibold mt-1">
+                    Select a dedicated coach above to enable 1-on-1 Personal Training (PT).
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Coached by <strong>{chosenTrainer?.name}</strong>.
+                  </p>
+                )}
+              </div>
+
+              {/* Recovery Sessions Package */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Recovery & Wellness Sessions</span>
+                  {recoveryPrice > 0 && (
+                    <span className="text-emerald-700 font-bold">+₹{recoveryPrice.toLocaleString('en-IN')}</span>
+                  )}
+                </label>
+                <select
+                  value={recoveryPlanId}
+                  onChange={(e) => setRecoveryPlanId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="">No Recovery Package (₹0)</option>
+                  {recoveryPlans.map((rec) => (
+                    <option key={rec.id} value={rec.id}>
+                      {rec.name} ({rec.type || 'Therapy'}) - ₹{Number(rec.price).toLocaleString('en-IN')}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Cold plunge, percussion gun, or infrared sauna recovery.
+                </p>
+              </div>
+            </div>
+
+            {/* TRAINER PT COMMISSION ENTRY & DISPLAY (when coach & PT selected) */}
+            {isCoachSelected && ptPrice > 0 && (
+              <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 space-y-2 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                    <Percent className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Trainer PT Commission</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                    To: {chosenTrainer?.name}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-semibold text-slate-700">Commission Rate:</label>
+                    <div className="relative w-24">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={ptCommissionPercent}
+                        onChange={(e) => setPtCommissionPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                        className="w-full px-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 pr-6 text-center"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 p-2 rounded-lg bg-white border border-emerald-200/80 flex items-center justify-between text-xs">
+                    <span className="text-slate-600 font-medium text-[11px]">
+                      Commission on PT (₹{ptPrice.toLocaleString('en-IN')}):
+                    </span>
+                    <span className="font-mono font-black text-emerald-700 text-sm">
+                      ₹{ptCommissionAmount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-emerald-700/90 font-medium">
+                  ✓ This will automatically be logged under <strong>Trainer Commissions</strong> for {chosenTrainer?.name}.
+                </p>
+              </div>
+            )}
+
+            {/* DYNAMIC PRICING SUMMARY CARD */}
+            <div className="mt-2 p-3 rounded-xl bg-white border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-600 space-y-0.5">
+                <div className="font-semibold text-slate-700">Calculated Invoice Breakdown:</div>
+                <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-2">
+                  <span>Plan: ₹{basePrice.toLocaleString('en-IN')}</span>
+                  {ptPrice > 0 && <span>+ PT: ₹{ptPrice.toLocaleString('en-IN')}</span>}
+                  {recoveryPrice > 0 && <span>+ Recovery: ₹{recoveryPrice.toLocaleString('en-IN')}</span>}
+                </div>
+              </div>
+
+              <div className="text-right sm:self-center shrink-0">
+                <div className="text-[9px] uppercase font-bold text-slate-400">Total Invoice Amount</div>
+                <div className="text-base sm:text-lg font-black text-emerald-600 font-mono">
+                  ₹{totalCalculatedAmount.toLocaleString('en-IN')}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1014,7 +1353,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             <label className="block text-xs font-bold text-slate-700 mb-1">Medical Notes & Allergies</label>
             <input
               type="text"
-              placeholder="e.g. Asthma, Lower back pain history"
+              placeholder="e.g. Asthma, Lower back pain history, None"
               value={formData.medicalNotes}
               onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -1022,7 +1361,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact & Phone</label>
             <input
               type="text"
               placeholder="e.g. Jane Doe (+91 98200 12345)"
@@ -1030,6 +1369,154 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
+          </div>
+
+          {/* INTEGRATED DIGITAL CONSENT FORM & EMAIL OTP SIGNATURE */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-900">
+                  Integrated Consent Form & Liability Waiver
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Digital Signature
+              </span>
+            </div>
+
+            {/* Legal Waiver Text Box */}
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-24 overflow-y-auto">
+              <p className="font-semibold text-slate-800 mb-1">Member Health Declaration & Assumption of Risk:</p>
+              I certify that I am physically fit and medically sound to participate in gym exercises, weight training, group classes, and recovery sessions. I acknowledge that physical activity involves inherent risk of physical injury. In consideration of my membership, I agree to abide by club safety rules and release the gym facility, management, and trainers from all liability.
+            </div>
+
+            {/* Agreement Checkbox */}
+            <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                required
+                checked={consentAgreed}
+                onChange={(e) => setConsentAgreed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
+              />
+              <span className="text-xs text-slate-700 font-medium">
+                I accept the terms of the Health Declaration, Liability Waiver & Gym Rules.
+              </span>
+            </label>
+
+            {/* EMAIL OTP SIGNATURE WORKFLOW */}
+            <div className="pt-2 border-t border-slate-200/80">
+              <div className="text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <MailCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Sign Consent Form via Email OTP</span>
+                </span>
+                {otpVerified ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <CheckCircle className="w-3 h-3" /> Digitally Signed
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 font-semibold">
+                    Signature Required
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[10px] text-slate-500 mb-2">
+                An OTP sent to <strong className="text-slate-700">{formData.email || 'the member email'}</strong> acts as the legally binding digital signature on this consent form.
+              </p>
+
+              {!otpVerified ? (
+                <div className="space-y-2">
+                  {!otpSent ? (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={isSendingOtp || !formData.email}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
+                    >
+                      {isSendingOtp ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending OTP to {formData.email}...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send Signature OTP to Email</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          placeholder="Enter 6-digit OTP"
+                          value={otpValue}
+                          onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                          className="w-36 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-center font-mono text-sm tracking-widest font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyOtp}
+                          disabled={isVerifyingOtp || !otpValue}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
+                        >
+                          {isVerifyingOtp ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCheck className="w-3.5 h-3.5" />
+                          )}
+                          <span>Verify & Sign</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          className="text-[11px] text-slate-500 hover:text-emerald-700 font-semibold cursor-pointer underline"
+                        >
+                          Resend Code
+                        </button>
+                      </div>
+
+                      {/* Simulation Helper Box */}
+                      {generatedOtp && (
+                        <div className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                          <span>Simulated Email Delivery: Verification code is <strong>{generatedOtp}</strong></span>
+                          <button
+                            type="button"
+                            onClick={() => setOtpValue(generatedOtp)}
+                            className="font-bold underline hover:text-emerald-950 ml-2"
+                          >
+                            Auto-Fill
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Consent signed & verified via OTP sent to <strong>{formData.email}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpVerified(false);
+                      setOtpSent(false);
+                      setOtpValue('');
+                    }}
+                    className="text-[10px] text-emerald-700 hover:underline font-semibold"
+                  >
+                    Re-verify
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
@@ -1042,9 +1529,17 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              disabled={isCreatingMember || !otpVerified || !consentAgreed}
+              className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
             >
-              Create Account & Issue Pass
+              {isCreatingMember ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Creating Account & Invoice...</span>
+                </>
+              ) : (
+                <span>Register Member & Issue Invoice</span>
+              )}
             </button>
           </div>
         </form>
@@ -1092,6 +1587,12 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-bold uppercase text-[10px]">Membership Plan:</span>
                 <span className="font-bold text-emerald-700 text-xs">{newlyCreatedCredentials.planName}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                <span className="text-slate-500 font-bold uppercase text-[10px]">Invoice Total Inflow:</span>
+                <span className="font-mono font-black text-emerald-600 text-sm">
+                  ₹{Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
+                </span>
               </div>
             </div>
 

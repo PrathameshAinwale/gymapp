@@ -10,7 +10,8 @@ import {
   QrCode,
   Calendar,
   FileText,
-  Printer
+  Printer,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -30,6 +31,8 @@ export const AttendanceTracker = () => {
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
+  const [loadingStaffId, setLoadingStaffId] = useState(null);
+  const [isCheckingInManual, setIsCheckingInManual] = useState(false);
 
   // Live Metrics
   const staffOnDuty = staffAttendanceLogs.filter(
@@ -46,14 +49,28 @@ export const AttendanceTracker = () => {
     (s.role || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleManualMemberCheckIn = (e) => {
+  const handleManualMemberCheckIn = async (e) => {
     e.preventDefault();
     const mem = members.find((m) => m.id === selectedMemberId);
     if (!mem) return;
 
-    checkInMemberByQR(mem.qrPassCode || `PF-M-${mem.id.toUpperCase()}-CHECKIN`);
-    setIsMemberCheckInModalOpen(false);
-    addToast(`Member "${mem.name}" marked Present!`);
+    setIsCheckingInManual(true);
+    try {
+      await checkInMemberByQR(mem.qrPassCode || `PF-M-${mem.id.toUpperCase()}-CHECKIN`);
+      setIsMemberCheckInModalOpen(false);
+      addToast(`Member "${mem.name}" marked Present!`);
+    } finally {
+      setIsCheckingInManual(false);
+    }
+  };
+
+  const handleRecordPunch = async (staffId) => {
+    setLoadingStaffId(staffId);
+    try {
+      await recordStaffCheckIn(staffId);
+    } finally {
+      setLoadingStaffId(null);
+    }
   };
 
   return (
@@ -306,10 +323,12 @@ export const AttendanceTracker = () => {
                       <div className="flex justify-end pt-1 border-t border-slate-100">
                         <button
                           type="button"
-                          onClick={() => recordStaffCheckIn(stf.staffId)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                          disabled={loadingStaffId === stf.staffId}
+                          onClick={() => handleRecordPunch(stf.staffId)}
+                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
                         >
-                          Punch Out
+                          {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                          <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
                         </button>
                       </div>
                     ) : isPunchedOut ? (
@@ -323,10 +342,12 @@ export const AttendanceTracker = () => {
                       <div className="flex justify-end pt-1 border-t border-slate-100">
                         <button
                           type="button"
-                          onClick={() => recordStaffCheckIn(stf.staffId)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500"
+                          disabled={loadingStaffId === stf.staffId}
+                          onClick={() => handleRecordPunch(stf.staffId)}
+                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
                         >
-                          Punch In
+                          {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                          <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
                         </button>
                       </div>
                     )}
@@ -412,10 +433,12 @@ export const AttendanceTracker = () => {
                             {isOnDuty ? (
                               <button
                                 type="button"
-                                onClick={() => recordStaffCheckIn(stf.staffId)}
-                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                                disabled={loadingStaffId === stf.staffId}
+                                onClick={() => handleRecordPunch(stf.staffId)}
+                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
                               >
-                                Punch Out
+                                {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                                <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
                               </button>
                             ) : isPunchedOut ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
@@ -425,10 +448,12 @@ export const AttendanceTracker = () => {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => recordStaffCheckIn(stf.staffId)}
-                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500"
+                                disabled={loadingStaffId === stf.staffId}
+                                onClick={() => handleRecordPunch(stf.staffId)}
+                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
                               >
-                                Punch In
+                                {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                                <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
                               </button>
                             )}
                           </td>
@@ -486,9 +511,11 @@ export const AttendanceTracker = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+              disabled={isCheckingInManual}
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
             >
-              Confirm Punch In
+              {isCheckingInManual && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+              <span>{isCheckingInManual ? 'Punching In...' : 'Confirm Punch In'}</span>
             </button>
           </div>
         </form>

@@ -14,7 +14,8 @@ import {
   Save,
   Droplets,
   Flame,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -44,6 +45,7 @@ export const DietBuilder = () => {
   // Modal State for Create / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState(null);
+  const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -171,31 +173,36 @@ export const DietBuilder = () => {
   };
 
   // Submit plan
-  const handleSubmitDiet = (e) => {
+  const handleSubmitDiet = async (e) => {
     e.preventDefault();
     if (!formData.memberId) {
       addToast('Please select a client', 'error');
       return;
     }
 
-    const planToSave = {
-      id: editingPlanId || `dp-${Date.now()}`,
-      memberId: formData.memberId,
-      memberName: formData.memberName,
-      assignedBy: currentUser?.name ? `Coach ${currentUser.name}` : 'Coach',
-      dailyCaloriesTarget: Number(formData.dailyCaloriesTarget) || 2600,
-      proteinGramsTarget: Number(formData.proteinGramsTarget) || 175,
-      carbsGramsTarget: Number(formData.carbsGramsTarget) || 290,
-      fatsGramsTarget: Number(formData.fatsGramsTarget) || 65,
-      waterGlassesTarget: Number(formData.waterGlassesTarget) || 10,
-      days: formData.days
-    };
+    try {
+      setIsSubmittingPlan(true);
+      const planToSave = {
+        id: editingPlanId || `dp-${Date.now()}`,
+        memberId: formData.memberId,
+        memberName: formData.memberName,
+        assignedBy: currentUser?.name ? `Coach ${currentUser.name}` : 'Coach',
+        dailyCaloriesTarget: Number(formData.dailyCaloriesTarget) || 2600,
+        proteinGramsTarget: Number(formData.proteinGramsTarget) || 175,
+        carbsGramsTarget: Number(formData.carbsGramsTarget) || 290,
+        fatsGramsTarget: Number(formData.fatsGramsTarget) || 65,
+        waterGlassesTarget: Number(formData.waterGlassesTarget) || 10,
+        days: formData.days
+      };
 
-    saveDietPlan(planToSave);
-    if (selectedPlanForView && selectedPlanForView.id === planToSave.id) {
-      setSelectedPlanForView(planToSave);
+      await saveDietPlan(planToSave);
+      if (selectedPlanForView && selectedPlanForView.id === planToSave.id) {
+        setSelectedPlanForView(planToSave);
+      }
+      setIsModalOpen(false);
+    } finally {
+      setIsSubmittingPlan(false);
     }
-    setIsModalOpen(false);
   };
 
   // ==========================================
@@ -859,9 +866,11 @@ export const DietBuilder = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-98 cursor-pointer"
+              disabled={isSubmittingPlan}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all active:scale-98 cursor-pointer inline-flex items-center gap-2"
             >
-              Save & Assign Diet Plan
+              {isSubmittingPlan && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingPlan ? 'Saving & Assigning...' : 'Save & Assign Diet Plan'}</span>
             </button>
           </div>
         </form>

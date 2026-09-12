@@ -44,6 +44,7 @@ import { ConsentFormsManager } from './components/owner/ConsentFormsManager';
 import { MembershipFreezeManager } from './components/owner/MembershipFreezeManager';
 import { PayrollManager } from './components/owner/PayrollManager';
 import { AttendanceTracker } from './components/owner/AttendanceTracker';
+import { InvoicesPage } from './components/owner/InvoicesPage';
 import { SuperadminApp } from './components/superadmin/SuperadminApp';
 
 
@@ -270,6 +271,8 @@ function MainApp() {
         return <ProductsManager />;
       case 'financials':
         return <Financials />;
+      case 'invoices':
+        return <InvoicesPage />;
       case 'equipment':
         return <EquipmentManager />;
       case 'settings':

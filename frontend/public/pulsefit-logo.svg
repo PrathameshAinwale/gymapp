@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+  <defs>
+    <!-- Metallic White/Silver Gradient -->
+    <linearGradient id="silver-grad" x1="280" y1="120" x2="520" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="35%" stop-color="#F8FAFC" />
+      <stop offset="70%" stop-color="#CBD5E1" />
+      <stop offset="100%" stop-color="#94A3B8" />
+    </linearGradient>
+
+    <!-- Neon Lime Green Gradient -->
+    <linearGradient id="green-grad" x1="300" y1="260" x2="540" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#86EFAC" />
+      <stop offset="25%" stop-color="#4ADE80" />
+      <stop offset="75%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
+    </linearGradient>
+
+    <!-- Pulse Line Gradient -->
+    <linearGradient id="pulse-grad" x1="180" y1="310" x2="620" y2="310" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="50%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#4ADE80" />
+    </linearGradient>
+
+    <!-- Barbell Plate Metallic Gradient -->
+    <linearGradient id="barbell-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="50%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#94A3B8" />
+    </linearGradient>
+
+    <!-- Text Green Gradient -->
+    <linearGradient id="text-green-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="100%" stop-color="#22C55E" />
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="aura-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Deep Black Background -->
+  <rect width="800" height="800" fill="#050811" />
+
+  <!-- Radial Glow Behind Logo -->
+  <circle cx="400" cy="300" r="220" fill="#22C55E" opacity="0.10" filter="url(#aura-glow)" />
+
+  <!-- ================= LOGO MARK ================= -->
+  <g transform="translate(150, 60) scale(1)">
+    <!-- 1. Main Stylized "P" - Upper Loop & Spine -->
+    <path
+      d="M 195 85 
+         L 320 85 
+         C 365 85 395 110 395 155 
+         C 395 200 365 225 320 225 
+         L 260 225 
+         L 260 270 
+         L 320 270 
+         C 385 270 425 225 425 155 
+         C 425 80 375 55 300 55 
+         L 180 55 
+         C 165 55 155 65 152 80 
+         L 115 300 
+         C 112 315 122 330 138 330 
+         L 175 330 
+         L 195 85 Z"
+      fill="url(#silver-grad)"
+    />
+
+    <!-- 2. Main Stylized "P" - Lower Green Swoosh -->
+    <path
+      d="M 190 270 
+         L 175 375 
+         C 172 392 184 405 200 405 
+         L 245 405 
+         C 255 405 264 398 266 388 
+         L 278 315 
+         C 310 315 365 305 385 240 
+         C 388 230 380 220 370 220 
+         C 355 245 315 270 265 270 
+         L 190 270 Z"
+      fill="url(#green-grad)"
+    />
+
+    <!-- 3. Inner Hole of 'P' -->
+    <path
+      d="M 230 115 
+         L 310 115 
+         C 340 115 360 130 360 155 
+         C 360 180 340 195 310 195 
+         L 218 195 
+         L 230 115 Z"
+      fill="#050811"
+    />
+
+    <!-- 4. Pulse / Heartbeat Line -->
+    <path
+      d="M 100 250 
+         L 205 250 
+         L 225 270 
+         L 255 130 
+         L 285 295 
+         L 305 250 
+         L 400 250"
+      stroke="url(#pulse-grad)"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M 100 250 
+         L 205 250 
+         L 225 270 
+         L 255 130 
+         L 285 295 
+         L 305 250 
+         L 400 250"
+      stroke="#FFFFFF"
+      stroke-width="6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.85"
+    />
+
+    <!-- 5. Left Dumbbell Plates -->
+    <rect x="68" y="210" width="12" height="80" rx="4" fill="url(#barbell-grad)" />
+    <rect x="83" y="195" width="14" height="110" rx="5" fill="url(#barbell-grad)" />
+    <rect x="100" y="205" width="12" height="90" rx="4" fill="url(#barbell-grad)" />
+    <rect x="60" y="244" width="55" height="12" rx="3" fill="#E2E8F0" />
+
+    <!-- 6. Right Dumbbell Plates -->
+    <rect x="388" y="205" width="12" height="90" rx="4" fill="url(#barbell-grad)" />
+    <rect x="403" y="195" width="14" height="110" rx="5" fill="url(#barbell-grad)" />
+    <rect x="420" y="210" width="12" height="80" rx="4" fill="url(#barbell-grad)" />
+    <rect x="385" y="244" width="55" height="12" rx="3" fill="#E2E8F0" />
+  </g>
+
+  <!-- ================= TYPOGRAPHY ================= -->
+  <!-- "PULSE FIT" -->
+  <g transform="translate(400, 560)" text-anchor="middle" font-family="'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif" font-weight="900" letter-spacing="4">
+    <text x="-95" y="0" font-size="78" fill="#FFFFFF">PULSE</text>
+    <text x="125" y="0" font-size="78" fill="url(#text-green-grad)">FIT</text>
+  </g>
+
+  <!-- "MANAGE | MOTIVATE | GROW" -->
+  <g transform="translate(400, 630)" text-anchor="middle" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="18" font-weight="800" letter-spacing="9" fill="#CBD5E1">
+    <text x="0" y="0">
+      <tspan>MANAGE</tspan>
+      <tspan fill="#22C55E" font-weight="900">   |   </tspan>
+      <tspan>MOTIVATE</tspan>
+      <tspan fill="#22C55E" font-weight="900">   |   </tspan>
+      <tspan>GROW</tspan>
+    </text>
+  </g>
+
+  <!-- "GYM MANAGEMENT APP & WEBSITE" -->
+  <text x="400" y="685" text-anchor="middle" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="14" font-weight="700" letter-spacing="8" fill="#64748B">
+    GYM MANAGEMENT APP &amp; WEBSITE
+  </text>
+</svg>

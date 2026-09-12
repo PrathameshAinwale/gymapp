@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { PulseFitLogo } from './PulseFitLogo';
 import {
-  Dumbbell,
   LogOut,
   Sparkles,
   ShieldCheck,
@@ -54,19 +54,13 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
           </button>
 
           {/* Brand Logo */}
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-lime-500 text-white shadow-md shadow-emerald-500/15 font-black shrink-0">
-              <Dumbbell className="w-4 h-4 -rotate-45 text-white" />
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-heading font-black tracking-tight text-sm sm:text-lg text-slate-900 leading-none whitespace-nowrap">
-                  PULSE<span className="text-emerald-600">FIT</span>
-                </span>
-                {/* Role badge visible on all screens */}
-                {getRoleBadge()}
-              </div>
+          <div 
+            className="flex items-center gap-2 min-w-0 cursor-pointer select-none"
+            onClick={() => setActiveTab && setActiveTab('dashboard')}
+          >
+            <PulseFitLogo variant="horizontal" size="sm" theme="light" />
+            <div className="shrink-0 ml-0.5 sm:ml-1.5">
+              {getRoleBadge()}
             </div>
           </div>
         </div>

@@ -15,26 +15,24 @@ const getDefaultHosts = () => {
   const inCapacitor = isRunningInCapacitor();
   const currentHost = window.location.hostname;
   
-  if (inCapacitor) {
-    return [
-      'http://10.0.2.2:8000/api/v1',
-      'http://192.168.1.41:8000/api/v1',
-      'http://127.0.0.1:8000/api/v1',
-      'http://localhost:8000/api/v1'
-    ];
-  }
-  
-  // Standard Web Browser (Desktop / Mobile Chrome / Edge / Firefox)
-  const hosts = [
-    'http://127.0.0.1:8000/api/v1',
-    'http://localhost:8000/api/v1'
-  ];
-  
+  const hosts = [];
+
+  // If running in browser with a specific IP or domain (e.g. 192.168.1.48 or custom domain)
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-    hosts.unshift(`http://${currentHost}:8000/api/v1`);
+    hosts.push(`http://${currentHost}:8000/api/v1`);
   }
-  
-  return hosts;
+
+  if (inCapacitor) {
+    hosts.push('http://10.0.2.2:8000/api/v1'); // Android Emulator
+    hosts.push('http://192.168.1.48:8000/api/v1'); // Current Wi-Fi LAN IP
+  }
+
+  // Standard Localhost fallbacks
+  hosts.push('http://127.0.0.1:8000/api/v1');
+  hosts.push('http://localhost:8000/api/v1');
+  hosts.push('http://192.168.1.48:8000/api/v1');
+
+  return Array.from(new Set(hosts));
 };
 
 const CANDIDATE_API_HOSTS = getDefaultHosts();
@@ -42,8 +40,10 @@ const CANDIDATE_API_HOSTS = getDefaultHosts();
 let activeBaseUrl = (function () {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('pulsefit_api_url');
-    // If not in Capacitor and custom is 10.0.2.2, clean it up
-    if (custom && custom.includes('10.0.2.2') && !isRunningInCapacitor()) {
+    // Clear out known stale/dead IPs (e.g., 192.168.1.41)
+    if (custom && custom.includes('192.168.1.41')) {
+      localStorage.removeItem('pulsefit_api_url');
+    } else if (custom && custom.includes('10.0.2.2') && !isRunningInCapacitor()) {
       localStorage.removeItem('pulsefit_api_url');
     } else if (custom) {
       return custom;
@@ -85,8 +85,8 @@ const apiFetch = async (urlOrPath, options = {}) => {
     ...CANDIDATE_API_HOSTS,
     'http://127.0.0.1:8000/api/v1',
     'http://localhost:8000/api/v1',
-    'http://10.0.2.2:8000/api/v1',
-    'http://192.168.1.41:8000/api/v1'
+    'http://192.168.1.48:8000/api/v1',
+    'http://10.0.2.2:8000/api/v1'
   ];
 
   for (const host of allKnownHosts) {
@@ -104,7 +104,8 @@ const apiFetch = async (urlOrPath, options = {}) => {
     activeBaseUrl,
     ...CANDIDATE_API_HOSTS,
     'http://127.0.0.1:8000/api/v1',
-    'http://localhost:8000/api/v1'
+    'http://localhost:8000/api/v1',
+    'http://192.168.1.48:8000/api/v1'
   ])).filter(Boolean);
 
   let lastError = null;
@@ -112,7 +113,12 @@ const apiFetch = async (urlOrPath, options = {}) => {
     try {
       const fullUrl = `${host}${relativePath}`;
       const res = await fetchWithTimeout(fullUrl, options, 2500);
-      activeBaseUrl = host;
+      if (activeBaseUrl !== host) {
+        activeBaseUrl = host;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_api_url', host);
+        }
+      }
       return res;
     } catch (err) {
       lastError = err;
@@ -128,21 +134,30 @@ const getHeaders = () => {
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'X-Gym-ID': gymId
   };
-  if (token && token !== 'null' && token !== 'undefined') {
+  if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-  }
-  if (gymId) {
-    headers['X-Gym-Id'] = gymId.toString();
   }
   return headers;
 };
 
-const handleResponse = async (res) => {
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'API request failed');
+const handleResponse = async (response) => {
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new Error(`Invalid JSON response: ${response.status} ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    const errorMsg = data?.message || (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
+    const error = new Error(errorMsg);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
   return data;
 };
 
@@ -152,26 +167,38 @@ export const api = {
     login: async (email, password) => {
       const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ email, password }),
       });
-      const data = await handleResponse(res);
-      if (data.token) {
-        localStorage.setItem('pulsefit_token', data.token);
-      }
-      return data;
+      return handleResponse(res);
     },
     register: async (userData) => {
       const res = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify(userData),
       });
       return handleResponse(res);
     },
     me: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/auth/me`, {
+      const res = await apiFetch(`${API_BASE_URL}/auth/me`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    changePassword: async (currentPassword, newPassword) => {
+      const res = await apiFetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
         headers: getHeaders(),
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          new_password_confirmation: newPassword,
+        }),
       });
       return handleResponse(res);
     },
@@ -181,39 +208,43 @@ export const api = {
           method: 'POST',
           headers: getHeaders(),
         });
-      } finally {
+      } catch (err) {
+        console.warn('Backend logout call failed or server unreachable:', err.message);
+      }
+      if (typeof window !== 'undefined') {
         localStorage.removeItem('pulsefit_token');
+        localStorage.removeItem('pulsefit_user');
       }
       return { success: true };
     },
-    changePassword: async (currentPassword, newPassword, newPasswordConfirmation) => {
-      const res = await apiFetch(`${API_BASE_URL}/auth/change-password`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          current_password: currentPassword,
-          new_password: newPassword,
-          new_password_confirmation: newPasswordConfirmation,
-        }),
-      });
-      return handleResponse(res);
-    },
   },
 
-  // Gym Info
-  gymInfo: {
-    get: async () => {
+  // Gym Settings & Branding
+  gym: {
+    getInfo: async () => {
       const res = await apiFetch(`${API_BASE_URL}/gym-info`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    update: async (data) => {
+    updateInfo: async (gymData) => {
       const res = await apiFetch(`${API_BASE_URL}/gym-info`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(gymData),
       });
       return handleResponse(res);
-    }
+    },
+    getGateOverrides: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/gate-overrides`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    addGateOverride: async (overrideData) => {
+      const res = await apiFetch(`${API_BASE_URL}/gate-overrides`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(overrideData),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Dashboard & Analytics
@@ -235,19 +266,19 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/members/${id}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (memberData) => {
       const res = await apiFetch(`${API_BASE_URL}/members`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(memberData),
       });
       return handleResponse(res);
     },
-    update: async (id, data) => {
+    update: async (id, memberData) => {
       const res = await apiFetch(`${API_BASE_URL}/members/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(memberData),
       });
       return handleResponse(res);
     },
@@ -257,7 +288,27 @@ export const api = {
         headers: getHeaders(),
       });
       return handleResponse(res);
-    }
+    },
+    renewPlan: async (id, planId) => {
+      const res = await apiFetch(`${API_BASE_URL}/members/${id}/renew`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ plan_id: planId }),
+      });
+      return handleResponse(res);
+    },
+    getTransformations: async (memberId) => {
+      const res = await apiFetch(`${API_BASE_URL}/members/${memberId}/transformations`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    addTransformation: async (memberId, data) => {
+      const res = await apiFetch(`${API_BASE_URL}/members/${memberId}/transformations`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Trainers Endpoints
@@ -270,19 +321,19 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/trainers/${id}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (trainerData) => {
       const res = await apiFetch(`${API_BASE_URL}/trainers`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(trainerData),
       });
       return handleResponse(res);
     },
-    update: async (id, data) => {
+    update: async (id, trainerData) => {
       const res = await apiFetch(`${API_BASE_URL}/trainers/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(trainerData),
       });
       return handleResponse(res);
     },
@@ -292,32 +343,28 @@ export const api = {
         headers: getHeaders(),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Membership Plans Endpoints
+  // Plans Endpoints
   plans: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/plans`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    getById: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/plans/${id}`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
+    create: async (planData) => {
       const res = await apiFetch(`${API_BASE_URL}/plans`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(planData),
       });
       return handleResponse(res);
     },
-    update: async (id, data) => {
+    update: async (id, planData) => {
       const res = await apiFetch(`${API_BASE_URL}/plans/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(planData),
       });
       return handleResponse(res);
     },
@@ -327,36 +374,90 @@ export const api = {
         headers: getHeaders(),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Classes & Scheduling Endpoints
+  // PT Plans Endpoints
+  ptPlans: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/pt-plans`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (planData) => {
+      const res = await apiFetch(`${API_BASE_URL}/pt-plans`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, planData) => {
+      const res = await apiFetch(`${API_BASE_URL}/pt-plans/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/pt-plans/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Recovery Plans Endpoints
+  recoveryPlans: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/recovery-plans`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (planData) => {
+      const res = await apiFetch(`${API_BASE_URL}/recovery-plans`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, planData) => {
+      const res = await apiFetch(`${API_BASE_URL}/recovery-plans/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/recovery-plans/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Classes Endpoints
   classes: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/classes`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (classData) => {
       const res = await apiFetch(`${API_BASE_URL}/classes`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(classData),
       });
       return handleResponse(res);
     },
-    book: async (classId, userId) => {
-      const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/book`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ user_id: userId }),
-      });
-      return handleResponse(res);
-    },
-    update: async (id, data) => {
+    update: async (id, classData) => {
       const res = await apiFetch(`${API_BASE_URL}/classes/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(classData),
       });
       return handleResponse(res);
     },
@@ -367,217 +468,108 @@ export const api = {
       });
       return handleResponse(res);
     },
-    cancel: async (classId, userId) => {
+    book: async (classId, memberId) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/book`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ member_id: memberId }),
+      });
+      return handleResponse(res);
+    },
+    cancelBooking: async (classId, memberId) => {
       const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/cancel`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ user_id: userId }),
+        body: JSON.stringify({ member_id: memberId }),
       });
       return handleResponse(res);
-    }
+    },
   },
 
   // Attendance Endpoints
   attendance: {
-    getAll: async (date) => {
-      const res = await apiFetch(`${API_BASE_URL}/attendance${date ? `?date=${date}` : ''}`, { headers: getHeaders() });
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/attendance${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    checkIn: async (qrCodeOrUserId, gate = 'Main Turnstile A') => {
-      const body = qrCodeOrUserId.startsWith('PF-') || qrCodeOrUserId.length > 8
-        ? { qr_code: qrCodeOrUserId, gate }
-        : { user_id: qrCodeOrUserId, gate };
-
+    checkIn: async (memberId, type = 'member') => {
       const res = await apiFetch(`${API_BASE_URL}/attendance/check-in`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ member_id: memberId, type }),
       });
       return handleResponse(res);
     },
-    checkOut: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/attendance/${id}/check-out`, {
+    checkOut: async (attendanceId) => {
+      const res = await apiFetch(`${API_BASE_URL}/attendance/check-out`, {
         method: 'POST',
         headers: getHeaders(),
+        body: JSON.stringify({ attendance_id: attendanceId }),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Workouts & Diets
+  // Workouts Endpoints
   workouts: {
-    getMemberRoutine: async (memberId) => {
+    getForMember: async (memberId) => {
       const res = await apiFetch(`${API_BASE_URL}/workouts/member/${memberId}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    updateMemberRoutine: async (memberId, data) => {
+    saveForMember: async (memberId, workoutData) => {
       const res = await apiFetch(`${API_BASE_URL}/workouts/member/${memberId}`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(workoutData),
       });
       return handleResponse(res);
-    }
+    },
+    logProgress: async (memberId, logData) => {
+      const res = await apiFetch(`${API_BASE_URL}/workouts/member/${memberId}/log`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(logData),
+      });
+      return handleResponse(res);
+    },
   },
 
+  // Diets Endpoints
   diets: {
-    getMemberDiet: async (memberId) => {
+    getForMember: async (memberId) => {
       const res = await apiFetch(`${API_BASE_URL}/diets/member/${memberId}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    updateMemberDiet: async (memberId, data) => {
+    saveForMember: async (memberId, dietData) => {
       const res = await apiFetch(`${API_BASE_URL}/diets/member/${memberId}`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(dietData),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Invoices & Financials
-  invoices: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/invoices`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/invoices`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    }
-  },
-
-  // Operating Expenses & Cash Flow
-  expenses: {
-    getAll: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
-      const res = await apiFetch(`${API_BASE_URL}/expenses${query ? `?${query}` : ''}`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    getSummary: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/financials/cashflow-summary`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/expenses`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    update: async (id, data) => {
-      const res = await apiFetch(`${API_BASE_URL}/expenses/${id}`, {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    delete: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/expenses/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
-      return handleResponse(res);
-    }
-  },
-
-  // Enquiries & Leads CRM
-  enquiries: {
-    getAll: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
-      const res = await apiFetch(`${API_BASE_URL}/enquiries${query ? `?${query}` : ''}`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    getById: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    update: async (id, data) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    updatePriority: async (id, priority) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/priority`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify({ priority }),
-      });
-      return handleResponse(res);
-    },
-    updateFollowUp: async (id, followUpDate) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/follow-up`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify({ follow_up_date: followUpDate }),
-      });
-      return handleResponse(res);
-    },
-    addComment: async (id, text, author) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/comments`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ text, author }),
-      });
-      return handleResponse(res);
-    },
-    convertToMember: async (id, data = {}) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/convert`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    delete: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
-      return handleResponse(res);
-    },
-    getStats: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/enquiries-stats`, { headers: getHeaders() });
-      return handleResponse(res);
-    }
-  },
-
-  // Equipment Management
+  // Equipment & Assets Endpoints
   equipment: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/equipment`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (equipmentData) => {
       const res = await apiFetch(`${API_BASE_URL}/equipment`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(equipmentData),
       });
       return handleResponse(res);
     },
-    update: async (id, data) => {
+    update: async (id, equipmentData) => {
       const res = await apiFetch(`${API_BASE_URL}/equipment/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(equipmentData),
       });
       return handleResponse(res);
     },
@@ -587,28 +579,106 @@ export const api = {
         headers: getHeaders(),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Pro Shop Products & Inventory
+  // Invoices & Billing Endpoints
+  invoices: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/invoices`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (invoiceData) => {
+      const res = await apiFetch(`${API_BASE_URL}/invoices`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(invoiceData),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, invoiceData) => {
+      const res = await apiFetch(`${API_BASE_URL}/invoices/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(invoiceData),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Expenses Endpoints
+  expenses: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/expenses`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (expenseData) => {
+      const res = await apiFetch(`${API_BASE_URL}/expenses`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(expenseData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/expenses/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Enquiries & CRM Leads Endpoints
+  enquiries: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (enquiryData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(enquiryData),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, enquiryData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(enquiryData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Store Products Endpoints
   products: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/products`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (productData) => {
       const res = await apiFetch(`${API_BASE_URL}/products`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(productData),
       });
       return handleResponse(res);
     },
-    update: async (id, data) => {
+    update: async (id, productData) => {
       const res = await apiFetch(`${API_BASE_URL}/products/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(productData),
       });
       return handleResponse(res);
     },
@@ -619,184 +689,122 @@ export const api = {
       });
       return handleResponse(res);
     },
-    sell: async (productId, quantity, buyerName) => {
-      const res = await apiFetch(`${API_BASE_URL}/products/sell`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ productId, quantity, buyerName }),
-      });
-      return handleResponse(res);
-    }
   },
 
-  // Trainer Commissions
+  // Trainer Commissions Endpoints
   commissions: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/commissions`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (commData) => {
       const res = await apiFetch(`${API_BASE_URL}/commissions`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(commData),
       });
       return handleResponse(res);
     },
-    updateStatus: async (id, status = 'Paid') => {
-      const res = await apiFetch(`${API_BASE_URL}/commissions/${id}/status`, {
-        method: 'PATCH',
+    update: async (id, commData) => {
+      const res = await apiFetch(`${API_BASE_URL}/commissions/${id}`, {
+        method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(commData),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Membership Freezes & Extensions
+  // Membership Freezes & Extensions Endpoints
   freezes: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/freezes`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (freezeData) => {
       const res = await apiFetch(`${API_BASE_URL}/freezes`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(freezeData),
       });
       return handleResponse(res);
     },
-    unfreeze: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/freezes/${id}/unfreeze`, {
-        method: 'PATCH',
+    update: async (id, freezeData) => {
+      const res = await apiFetch(`${API_BASE_URL}/freezes/${id}`, {
+        method: 'PUT',
         headers: getHeaders(),
+        body: JSON.stringify(freezeData),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Consent & Medical Waivers
+  // Digital Consent & Waivers Endpoints
   consentForms: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/consent-forms`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    create: async (data) => {
+    create: async (formData) => {
       const res = await apiFetch(`${API_BASE_URL}/consent-forms`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(formData),
       });
       return handleResponse(res);
     },
-    updateStatus: async (id, status = 'Signed') => {
-      const res = await apiFetch(`${API_BASE_URL}/consent-forms/${id}/status`, {
-        method: 'PATCH',
+    update: async (id, formData) => {
+      const res = await apiFetch(`${API_BASE_URL}/consent-forms/${id}`, {
+        method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(formData),
       });
       return handleResponse(res);
-    }
+    },
   },
 
-  // Employee Payroll
+  // Employee Payroll Endpoints
   payroll: {
     getAll: async () => {
       const res = await apiFetch(`${API_BASE_URL}/payroll`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    markPaid: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/payroll/${id}/pay`, {
-        method: 'PATCH',
+    create: async (payrollData) => {
+      const res = await apiFetch(`${API_BASE_URL}/payroll`, {
+        method: 'POST',
         headers: getHeaders(),
+        body: JSON.stringify(payrollData),
       });
       return handleResponse(res);
-    }
+    },
+    update: async (id, payrollData) => {
+      const res = await apiFetch(`${API_BASE_URL}/payroll/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payrollData),
+      });
+      return handleResponse(res);
+    },
   },
 
-  // Biometrics, Devices & Gate Overrides
+  // Biometric Devices & Access Logs
   biometrics: {
     getDevices: async () => {
       const res = await apiFetch(`${API_BASE_URL}/biometrics/devices`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    createDevice: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/biometrics/devices`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    },
-    triggerPulse: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/biometrics/pulse/${id}`, {
-        method: 'POST',
-        headers: getHeaders(),
-      });
       return handleResponse(res);
     },
     getLogs: async () => {
       const res = await apiFetch(`${API_BASE_URL}/biometrics/logs`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    getApprovals: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/gate-overrides`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    approveGate: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/gate-overrides/${id}/approve`, {
+    syncDevice: async (deviceId) => {
+      const res = await apiFetch(`${API_BASE_URL}/biometrics/sync`, {
         method: 'POST',
         headers: getHeaders(),
+        body: JSON.stringify({ device_id: deviceId }),
       });
       return handleResponse(res);
     },
-    denyGate: async (id) => {
-      const res = await apiFetch(`${API_BASE_URL}/gate-overrides/${id}/deny`, {
-        method: 'POST',
-        headers: getHeaders(),
-      });
-      return handleResponse(res);
-    }
-  },
-
-  // PT & Recovery Packages
-  ptPlans: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/pt-plans`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/pt-plans`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    }
-  },
-
-  recoveryPlans: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/recovery-plans`, { headers: getHeaders() });
-      return handleResponse(res);
-    },
-    create: async (data) => {
-      const res = await apiFetch(`${API_BASE_URL}/recovery-plans`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      return handleResponse(res);
-    }
-  },
-
-  // Dashboard Metrics & Live Stats
-  dashboard: {
-    getOwnerStats: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/dashboard/owner-stats`, { headers: getHeaders() });
-      return handleResponse(res);
-    }
   },
 
   // Superadmin Platform Control
@@ -832,5 +840,5 @@ export const api = {
       });
       return handleResponse(res);
     },
-  }
+  },
 };

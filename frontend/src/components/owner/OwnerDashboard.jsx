@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
+import { useAuth } from '../../context/AuthContext';
+import { Modal } from '../common/Modal';
 import {
   Users,
   AlertTriangle,
@@ -17,7 +19,9 @@ import {
   ChevronRight,
   Sparkles,
   ShieldCheck,
-  Plus
+  Plus,
+  UserPlus,
+  Loader2
 } from 'lucide-react';
 import {
   AreaChart,
@@ -40,11 +44,86 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     attendance = [],
     enquiries = [],
     products = [],
-    membershipFreezes = []
+    membershipFreezes = [],
+    addEnquiry,
+    addToast
   } = useGymData();
+  const { currentUser } = useAuth();
 
   // Segment tab state for Priority Action Hub (reduces page clutter)
   const [activeActionTab, setActiveActionTab] = useState('leads'); // 'leads' | 'renewals'
+
+  // New Enquiry Modal State
+  const defaultStaffName = currentUser?.name
+    ? `${currentUser.name} (${currentUser.role === 'owner' ? 'Owner' : 'Staff'})`
+    : 'Pooja Sharma (Front Desk)';
+
+  const [isAddEnquiryOpen, setIsAddEnquiryOpen] = useState(false);
+  const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
+  const [enquiryFormData, setEnquiryFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    source: 'Walk-in Visit',
+    interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+    goal: 'Weight Loss & Fitness',
+    status: 'Warm',
+    staffName: defaultStaffName,
+    notes: ''
+  });
+
+  const getTodayFormatted = () => {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const handleAddEnquirySubmit = async (e) => {
+    e.preventDefault();
+    if (!enquiryFormData.name || !enquiryFormData.phone) return;
+
+    try {
+      setIsSubmittingEnquiry(true);
+      const today = getTodayFormatted();
+      const cleanNotes = (enquiryFormData.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
+      const stampedNote = cleanNotes ? `[${today}] ${cleanNotes}` : '';
+
+      if (addEnquiry) {
+        await addEnquiry({
+          ...enquiryFormData,
+          status: enquiryFormData.status || 'Warm',
+          priority: ['Hot', 'Warm', 'Cold'].includes(enquiryFormData.status) ? enquiryFormData.status : 'Warm',
+          notes: stampedNote,
+          noteDate: cleanNotes ? today : null
+        });
+      }
+
+      setIsAddEnquiryOpen(false);
+      setEnquiryFormData({
+        name: '',
+        phone: '',
+        email: '',
+        source: 'Walk-in Visit',
+        interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+        goal: 'Weight Loss & Fitness',
+        status: 'Warm',
+        staffName: defaultStaffName,
+        notes: ''
+      });
+      if (addToast) {
+        addToast(`New enquiry for "${enquiryFormData.name}" added successfully!`);
+      }
+    } catch (err) {
+      console.error('Failed to add enquiry:', err);
+      if (addToast) {
+        addToast('Failed to save enquiry', 'error');
+      }
+    } finally {
+      setIsSubmittingEnquiry(false);
+    }
+  };
 
   // Core metrics
   const totalMembersCount = members.length;
@@ -132,11 +211,11 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 lg:pt-0">
             <button
               type="button"
-              onClick={() => setActiveTab('enquiries')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-[11px] sm:text-xs font-bold border border-slate-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+              onClick={() => setIsAddEnquiryOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] sm:text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-blue-500" />
-              <span>Enquiries</span>
+              <UserPlus className="w-3.5 h-3.5 text-blue-600" />
+              <span>New Enquiry</span>
             </button>
 
             <button
@@ -358,8 +437,16 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
             {activeActionTab === 'leads' && (
               <div className="pt-4 space-y-3">
                 {hotLeads.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-400">
-                    No pending hot leads. All prospects followed up!
+                  <div className="text-center py-8 text-xs text-slate-400 space-y-2">
+                    <p>No pending hot leads. All prospects followed up!</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddEnquiryOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-200 cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Add New Enquiry</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -569,6 +656,177 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
         </div>
       </div>
+
+      {/* ADD NEW ENQUIRY MODAL */}
+      <Modal
+        isOpen={isAddEnquiryOpen}
+        onClose={() => setIsAddEnquiryOpen(false)}
+        title="Add New Gym Enquiry / Lead"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleAddEnquirySubmit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Prospect Full Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={enquiryFormData.name}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, name: e.target.value })}
+                placeholder="e.g. Vikram Malhotra"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Phone Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={enquiryFormData.phone}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, phone: e.target.value })}
+                placeholder="+91 98200 00000"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Email Address</label>
+              <input
+                type="email"
+                value={enquiryFormData.email}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, email: e.target.value })}
+                placeholder="prospect@email.com"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Lead Source</label>
+              <select
+                value={enquiryFormData.source}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, source: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="Walk-in Visit">Walk-in Visit</option>
+                <option value="Phone Call">Phone Inquiry</option>
+                <option value="Instagram / Social Media">Instagram / Social Media</option>
+                <option value="Google Search / Maps">Google Search / Maps</option>
+                <option value="Member Referral">Member Referral</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Interested Plan</label>
+              <select
+                value={enquiryFormData.interestedPlan}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, interestedPlan: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                {plans.map((p) => (
+                  <option key={p.id} value={p.name}>
+                    {p.name} (₹{p.price})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
+              <input
+                type="text"
+                value={enquiryFormData.goal}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, goal: e.target.value })}
+                placeholder="e.g. Weight Loss & Muscle Gain"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Lead Priority / Status</label>
+            <select
+              value={enquiryFormData.status}
+              onChange={(e) => setEnquiryFormData({ ...enquiryFormData, status: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="Hot">🔥 Hot (Ready to join immediately / trial session)</option>
+              <option value="Warm">⚡ Warm (Interested / evaluating options)</option>
+              <option value="Cold">❄️ Cold (General inquiry / comparing prices)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Logged By Staff Member <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={enquiryFormData.staffName}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, staffName: e.target.value })}
+                placeholder="e.g. Pooja Sharma, Coach Alex, Owner"
+                list="overview-staff-name-datalist"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
+              />
+              <datalist id="overview-staff-name-datalist">
+                <option value={`${currentUser?.name || 'Vikramaditya Singhania'} (Owner)`} />
+                <option value="Pooja Sharma (Front Desk)" />
+                <option value="Rohan Deshmukh (Front Desk)" />
+                {trainers?.map((t) => (
+                  <option key={t.id} value={`${t.name} (Coach)`} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-bold text-slate-700">Notes & Discussion Summary</label>
+              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                Date Stamped: {getTodayFormatted()}
+              </span>
+            </div>
+            <textarea
+              rows={2}
+              value={enquiryFormData.notes}
+              onChange={(e) => setEnquiryFormData({ ...enquiryFormData, notes: e.target.value })}
+              placeholder="Add details about their requirement, preferred workout hours, fitness history..."
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 resize-none"
+            />
+            <p className="text-[9px] text-slate-400 mt-0.5">
+              Today's date ({getTodayFormatted()}) will automatically be saved in front of this note.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsAddEnquiryOpen(false)}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingEnquiry}
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+            >
+              {isSubmittingEnquiry && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSubmittingEnquiry ? 'Saving...' : 'Save Enquiry'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
 
     </div>
   );

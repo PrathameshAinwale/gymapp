@@ -9,7 +9,8 @@ import {
   Clock,
   ShieldCheck,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 
 export const RecordPaymentModal = ({
@@ -296,9 +297,13 @@ export const RecordPaymentModal = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
+            {isSubmitting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ShieldCheck className="w-3.5 h-3.5" />
+            )}
             <span>{isSubmitting ? 'Recording...' : 'Confirm & Receipt'}</span>
           </button>
         </div>

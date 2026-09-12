@@ -14,17 +14,19 @@ import {
   Sparkles,
   ShieldCheck,
   DollarSign,
-  GraduationCap
+  GraduationCap,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
 export const TrainerList = () => {
   const { registerAccount } = useAuth();
-  const { trainers, members, addTrainer, addToast } = useGymData();
+  const { trainers = [], members = [], addTrainer, addToast } = useGymData();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -42,72 +44,88 @@ export const TrainerList = () => {
     address: ''
   });
 
+  const getCertList = (certs) => {
+    if (Array.isArray(certs)) return certs.filter(Boolean);
+    if (typeof certs === 'string' && certs.trim()) {
+      return certs.split(',').map((c) => c.trim()).filter(Boolean);
+    }
+    return ['CSCS', 'NASM-CPT'];
+  };
+
   const generateRandomPassword = () => {
     const pass = 'coach' + Math.floor(1000 + Math.random() * 9000);
     setFormData({ ...formData, password: pass });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
 
-    // 1. Add to Gym state
-    const createdTrainer = {
-      id: `trn-${trainers.length + 1}`,
-      name: formData.name,
-      role: formData.role,
-      email: formData.email,
-      phone: formData.phone,
-      specialty: formData.specialty,
-      monthlySalary: Number(formData.monthlySalary),
-      bio: formData.bio || 'Passionate fitness professional committed to member transformation.',
-      certifications: formData.certifications.split(',').map((c) => c.trim()).filter(Boolean),
-      age: formData.age ? Number(formData.age) : null,
-      gender: formData.gender || null,
-      bloodGroup: formData.bloodGroup || null,
-      address: formData.address || null
-    };
+    setIsSubmitting(true);
+    try {
+      // 1. Add to Gym state
+      const createdTrainer = {
+        id: `trn-${trainers.length + 1}`,
+        name: formData.name,
+        role: formData.role,
+        email: formData.email,
+        phone: formData.phone,
+        specialty: formData.specialty,
+        monthlySalary: Number(formData.monthlySalary) || 0,
+        bio: formData.bio || 'Passionate fitness professional committed to member transformation.',
+        certifications: getCertList(formData.certifications),
+        age: formData.age ? Number(formData.age) : null,
+        gender: formData.gender || null,
+        bloodGroup: formData.bloodGroup || null,
+        address: formData.address || null
+      };
 
-    addTrainer(createdTrainer);
+      const result = await addTrainer(createdTrainer);
+      const actualId = result?.id || createdTrainer.id;
 
-    // 2. Register Account in Auth Database
-    registerAccount({
-      id: createdTrainer.id,
-      name: formData.name,
-      email: formData.email,
-      username: formData.email.split('@')[0],
-      password: formData.password || 'trainer123',
-      role: 'trainer',
-      specialty: formData.specialty
-    });
+      // 2. Register Account in Auth Database
+      if (registerAccount) {
+        await registerAccount({
+          id: actualId,
+          name: formData.name,
+          email: formData.email,
+          username: formData.email.split('@')[0],
+          password: formData.password || 'trainer123',
+          role: 'trainer',
+          specialty: formData.specialty
+        });
+      }
 
-    // 3. Open Credentials Receipt
-    setNewlyCreatedCredentials({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password || 'trainer123',
-      id: createdTrainer.id,
-      role: formData.role,
-      specialty: formData.specialty
-    });
+      // 3. Open Credentials Receipt
+      setNewlyCreatedCredentials({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password || 'trainer123',
+        id: actualId,
+        role: formData.role,
+        specialty: formData.specialty
+      });
 
-    setIsAddOpen(false);
-    setFormData({
-      name: '',
-      role: 'Head Strength & Conditioning Coach',
-      email: '',
-      phone: '',
-      password: 'trainer' + Math.floor(100 + Math.random() * 900),
-      specialty: 'Hypertrophy & Powerlifting',
-      monthlySalary: 45000,
-      bio: '',
-      certifications: 'NASM-CPT, CSCS',
-      age: '',
-      gender: 'Male',
-      bloodGroup: 'B+',
-      address: ''
-    });
-    addToast('New coach onboarded and credentials generated!', 'success');
+      setIsAddOpen(false);
+      setFormData({
+        name: '',
+        role: 'Head Strength & Conditioning Coach',
+        email: '',
+        phone: '',
+        password: 'trainer' + Math.floor(100 + Math.random() * 900),
+        specialty: 'Hypertrophy & Powerlifting',
+        monthlySalary: 45000,
+        bio: '',
+        certifications: 'NASM-CPT, CSCS',
+        age: '',
+        gender: 'Male',
+        bloodGroup: 'B+',
+        address: ''
+      });
+      addToast('New coach onboarded and credentials generated!', 'success');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCopyCredentials = () => {
@@ -215,7 +233,7 @@ export const TrainerList = () => {
 
                 {/* Certifications badges */}
                 <div className="flex flex-wrap gap-1 mb-3">
-                  {(trainer.certifications || ['CSCS', 'NASM-CPT']).map((cert, idx) => (
+                  {getCertList(trainer.certifications).map((cert, idx) => (
                     <span
                       key={idx}
                       className="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
@@ -246,7 +264,7 @@ export const TrainerList = () => {
       <Modal
         isOpen={!!selectedTrainer}
         onClose={() => setSelectedTrainer(null)}
-        title={`Coach Roster: ${selectedTrainer?.name}`}
+        title={`Coach Roster: ${selectedTrainer?.name || 'Coach'}`}
       >
         {selectedTrainer && (
           <div className="space-y-4">
@@ -254,26 +272,26 @@ export const TrainerList = () => {
               <div>
                 <span className="text-slate-500 font-medium">Monthly Compensation:</span>
                 <div className="text-base font-black text-slate-900 mt-0.5">
-                  ₹{Number(selectedTrainer.monthlySalary).toLocaleString('en-IN')} / mo
+                  ₹{Number(selectedTrainer.monthlySalary || 0).toLocaleString('en-IN')} / mo
                 </div>
               </div>
               <div className="text-right">
                 <span className="text-slate-500 font-medium">Coach Email:</span>
-                <div className="text-slate-800 font-semibold mt-0.5">{selectedTrainer.email}</div>
+                <div className="text-slate-800 font-semibold mt-0.5">{selectedTrainer.email || 'N/A'}</div>
               </div>
             </div>
 
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Assigned Active Members ({selectedTrainer.assignedMembers.length})
+              Assigned Active Members ({(selectedTrainer.assignedMembers || []).length})
             </h4>
 
-            {selectedTrainer.assignedMembers.length === 0 ? (
+            {(selectedTrainer.assignedMembers || []).length === 0 ? (
               <div className="text-center py-8 text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 No members currently assigned to this coach. Assign members from the Members tab.
               </div>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {selectedTrainer.assignedMembers.map((m) => (
+                {(selectedTrainer.assignedMembers || []).map((m) => (
                   <div
                     key={m.id}
                     className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 text-xs shadow-xs"
@@ -440,9 +458,17 @@ export const TrainerList = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-60 flex items-center gap-2"
             >
-              Create Coach Account
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Creating Account...</span>
+                </>
+              ) : (
+                <span>Create Coach Account</span>
+              )}
             </button>
           </div>
         </form>

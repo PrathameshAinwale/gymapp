@@ -18,7 +18,8 @@ import {
   Flame,
   HeartPulse,
   Activity,
-  Award
+  Award,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -39,6 +40,7 @@ export const PlanManager = () => {
   const [activeTab, setActiveTab] = useState('memberships'); // memberships | pt | classes | recovery
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Group Classes state populated from backend database
   const [classPlans, setClassPlans] = useState([]);
@@ -99,100 +101,115 @@ export const PlanManager = () => {
   };
 
   // Handle Submit New Plan
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
 
-    const features = formData.featuresText
-      .split('\n')
-      .map((f) => f.trim())
-      .filter(Boolean);
+    setIsSubmitting(true);
+    try {
+      const features = formData.featuresText
+        .split('\n')
+        .map((f) => f.trim())
+        .filter(Boolean);
 
-    addPlan({
-      name: formData.name,
-      price: Number(formData.price),
-      period: formData.period,
-      durationMonths: Number(formData.durationMonths),
-      popular: formData.popular,
-      features
-    });
+      await addPlan({
+        name: formData.name,
+        price: Number(formData.price),
+        period: formData.period,
+        durationMonths: Number(formData.durationMonths),
+        popular: formData.popular,
+        features
+      });
 
-    setIsAddOpen(false);
-    setFormData({
-      name: '',
-      price: 1999,
-      period: 'Monthly (1 Month)',
-      durationMonths: 1,
-      popular: false,
-      featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nPulseFit Mobile App Access\n1 Free Fitness & BMI Assessment'
-    });
-    addToast('New gym membership package published successfully!', 'success');
+      setIsAddOpen(false);
+      setFormData({
+        name: '',
+        price: 1999,
+        period: 'Monthly (1 Month)',
+        durationMonths: 1,
+        popular: false,
+        featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nPulseFit Mobile App Access\n1 Free Fitness & BMI Assessment'
+      });
+      addToast('New gym membership package published successfully!', 'success');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle Create PT / Class / Recovery Service
-  const handleCreateServiceSubmit = (e) => {
+  const handleCreateServiceSubmit = async (e) => {
     e.preventDefault();
     if (!serviceFormData.name) return;
 
-    if (activeTab === 'pt') {
-      addPTPlan({
-        name: serviceFormData.name,
-        sessions: Number(serviceFormData.sessions) || 12,
-        validityDays: Number(serviceFormData.validityDays) || 30,
-        price: Number(serviceFormData.price),
-        trainerLevel: serviceFormData.instructorOrType || 'Master Coach',
-        description: serviceFormData.description
-      });
-      addToast('Personal Training package added!', 'success');
-    } else if (activeTab === 'classes') {
-      const newClass = {
-        id: `cls-p-${Date.now()}`,
-        name: serviceFormData.name,
-        sessions: `${serviceFormData.sessions} Classes / Month`,
-        price: Number(serviceFormData.price),
-        instructor: serviceFormData.instructorOrType || 'Master Coach',
-        schedule: 'Flexible Timings',
-        popular: false,
-        features: serviceFormData.description.split('. ').filter(Boolean)
-      };
-      setClassPlans((prev) => [...prev, newClass]);
-      addToast('Group Class package added!', 'success');
-    } else if (activeTab === 'recovery') {
-      addRecoveryPlan({
-        name: serviceFormData.name,
-        duration: `${serviceFormData.sessions} Mins`,
-        sessions: 1,
-        price: Number(serviceFormData.price),
-        type: serviceFormData.instructorOrType || 'Therapy',
-        description: serviceFormData.description
-      });
-      addToast('Recovery & Therapy package added!', 'success');
-    }
+    setIsSubmitting(true);
+    try {
+      if (activeTab === 'pt') {
+        await addPTPlan({
+          name: serviceFormData.name,
+          sessions: Number(serviceFormData.sessions) || 12,
+          validityDays: Number(serviceFormData.validityDays) || 30,
+          price: Number(serviceFormData.price),
+          trainerLevel: serviceFormData.instructorOrType || 'Master Coach',
+          description: serviceFormData.description
+        });
+        addToast('Personal Training package added!', 'success');
+      } else if (activeTab === 'classes') {
+        const newClass = {
+          id: `cls-p-${Date.now()}`,
+          name: serviceFormData.name,
+          sessions: `${serviceFormData.sessions} Classes / Month`,
+          price: Number(serviceFormData.price),
+          instructor: serviceFormData.instructorOrType || 'Master Coach',
+          schedule: 'Flexible Timings',
+          popular: false,
+          features: serviceFormData.description.split('. ').filter(Boolean)
+        };
+        setClassPlans((prev) => [...prev, newClass]);
+        addToast('Group Class package added!', 'success');
+      } else if (activeTab === 'recovery') {
+        await addRecoveryPlan({
+          name: serviceFormData.name,
+          duration: `${serviceFormData.sessions} Mins`,
+          sessions: 1,
+          price: Number(serviceFormData.price),
+          type: serviceFormData.instructorOrType || 'Therapy',
+          description: serviceFormData.description
+        });
+        addToast('Recovery & Therapy package added!', 'success');
+      }
 
-    setIsAddOpen(false);
+      setIsAddOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle Save Edited Plan
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingPlan || !editingPlan.name) return;
 
-    const features = editingPlan.featuresText
-      .split('\n')
-      .map((f) => f.trim())
-      .filter(Boolean);
+    setIsSubmitting(true);
+    try {
+      const features = editingPlan.featuresText
+        .split('\n')
+        .map((f) => f.trim())
+        .filter(Boolean);
 
-    updatePlan(editingPlan.id, {
-      name: editingPlan.name,
-      price: Number(editingPlan.price),
-      period: editingPlan.period,
-      durationMonths: Number(editingPlan.durationMonths),
-      popular: editingPlan.popular,
-      features
-    });
+      await updatePlan(editingPlan.id, {
+        name: editingPlan.name,
+        price: Number(editingPlan.price),
+        period: editingPlan.period,
+        durationMonths: Number(editingPlan.durationMonths),
+        popular: editingPlan.popular,
+        features
+      });
 
-    setEditingPlan(null);
-    addToast('Plan package updated successfully!', 'success');
+      setEditingPlan(null);
+      addToast('Plan package updated successfully!', 'success');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -634,10 +651,20 @@ export const PlanManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Save Changes</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving Changes...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -745,26 +772,34 @@ export const PlanManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
               >
-                Publish Package
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Publishing...</span>
+                  </>
+                ) : (
+                  <span>Publish Package</span>
+                )}
               </button>
             </div>
           </form>
         ) : (
           <form onSubmit={handleCreateServiceSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Service / Package Title *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {activeTab === 'pt'
+                  ? 'PT Package Title'
+                  : activeTab === 'classes'
+                  ? 'Group Class Pass Title'
+                  : 'Massage / Therapy Name'} *
+              </label>
               <input
                 type="text"
                 required
-                placeholder={
-                  activeTab === 'pt'
-                    ? 'e.g. 20-Session Athlete Transformation'
-                    : activeTab === 'classes'
-                    ? 'e.g. Pilates & Core Sculpt'
-                    : 'e.g. Infrared Sauna & Ice Bath'
-                }
+                placeholder="e.g. 12-Session Transformation Tier"
                 value={serviceFormData.name}
                 onChange={(e) => setServiceFormData({ ...serviceFormData, name: e.target.value })}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -774,27 +809,21 @@ export const PlanManager = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
-                  <input
-                    type="number"
-                    required
-                    placeholder="4999"
-                    value={serviceFormData.price}
-                    onChange={(e) => setServiceFormData({ ...serviceFormData, price: e.target.value })}
-                    className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
+                <input
+                  type="number"
+                  required
+                  value={serviceFormData.price}
+                  onChange={(e) => setServiceFormData({ ...serviceFormData, price: Number(e.target.value) })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {activeTab === 'recovery' ? 'Session Duration' : 'Sessions Included'} *
+                  {activeTab === 'recovery' ? 'Duration (Mins)' : 'Sessions Count'}
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder={activeTab === 'recovery' ? 'e.g. 60 Mins' : 'e.g. 12 Sessions'}
+                  placeholder="e.g. 12 / 60 Mins"
                   value={serviceFormData.sessions}
                   onChange={(e) => setServiceFormData({ ...serviceFormData, sessions: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -805,7 +834,11 @@ export const PlanManager = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {activeTab === 'classes' ? 'Assigned Instructor' : 'Category / Specialist'}
+                  {activeTab === 'pt'
+                    ? 'Trainer Level'
+                    : activeTab === 'classes'
+                    ? 'Lead Instructor'
+                    : 'Therapy Category'}
                 </label>
                 <input
                   type="text"
@@ -848,9 +881,17 @@ export const PlanManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
               >
-                Save Package
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Save Package</span>
+                )}
               </button>
             </div>
           </form>

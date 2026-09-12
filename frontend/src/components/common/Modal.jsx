@@ -1,30 +1,35 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' }) => {
-  const hasPushedHistoryRef = React.useRef(false);
+  const hasPushedHistoryRef = useRef(false);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
 
     const handlePopState = () => {
       // Back pressed while modal was open
       hasPushedHistoryRef.current = false;
-      onClose();
+      onCloseRef.current?.();
     };
 
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-      window.addEventListener('popstate', handlePopState);
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
 
-      // Push modal state so back button closes the modal first
-      window.history.pushState({ isModal: true, app: 'gym' }, '');
-      hasPushedHistoryRef.current = true;
-    }
+    // Push modal state so back button closes the modal first
+    window.history.pushState({ isModal: true, app: 'gym' }, '');
+    hasPushedHistoryRef.current = true;
 
     return () => {
       document.body.style.overflow = 'unset';
@@ -39,7 +44,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
         }
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -47,12 +52,13 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-hidden">
       {/* Viewport Backdrop */}
       <div
-        onClick={onClose}
+        onClick={() => onCloseRef.current?.()}
         className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity animate-fadeIn"
       />
 
       {/* Modal Card */}
       <div
+        onClick={(e) => e.stopPropagation()}
         className={`relative w-full ${maxWidth} bg-white border border-slate-100 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden z-10 animate-scaleUp my-auto max-h-[90vh] flex flex-col`}
       >
         {/* Header */}
@@ -61,7 +67,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
             {title}
           </h3>
           <button
-            onClick={onClose}
+            onClick={() => onCloseRef.current?.()}
             type="button"
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0 active:scale-95"
             title="Close dialog"

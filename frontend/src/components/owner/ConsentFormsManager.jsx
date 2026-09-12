@@ -15,7 +15,8 @@ import {
   Filter,
   Plus,
   ChevronDown,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -26,6 +27,8 @@ export const ConsentFormsManager = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [viewingForm, setViewingForm] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [createForm, setCreateForm] = useState({
     memberId: '',
@@ -66,19 +69,24 @@ export const ConsentFormsManager = () => {
       return;
     }
 
-    await addConsentForm(createForm);
-    setIsCreateModalOpen(false);
-    setCreateForm({
-      memberId: '',
-      memberName: '',
-      phone: '',
-      planName: '',
-      formType: 'General Fitness & Liability Waiver',
-      emergencyContact: '',
-      emergencyPhone: '',
-      medicalNotes: '',
-      status: 'Pending'
-    });
+    try {
+      setIsSubmitting(true);
+      await addConsentForm(createForm);
+      setIsCreateModalOpen(false);
+      setCreateForm({
+        memberId: '',
+        memberName: '',
+        phone: '',
+        planName: '',
+        formType: 'General Fitness & Liability Waiver',
+        emergencyContact: '',
+        emergencyPhone: '',
+        medicalNotes: '',
+        status: 'Pending'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -496,9 +504,11 @@ export const ConsentFormsManager = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
-              Save Consent Form
+              {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSubmitting ? 'Saving...' : 'Save Consent Form'}</span>
             </button>
           </div>
         </form>
@@ -557,13 +567,20 @@ export const ConsentFormsManager = () => {
               {viewingForm.status === 'Pending' && (
                 <button
                   type="button"
-                  onClick={() => {
-                    updateConsentStatus(viewingForm.id, 'Signed');
-                    setViewingForm(null);
+                  disabled={isVerifying}
+                  onClick={async () => {
+                    try {
+                      setIsVerifying(true);
+                      await updateConsentStatus(viewingForm.id, 'Signed');
+                      setViewingForm(null);
+                    } finally {
+                      setIsVerifying(false);
+                    }
                   }}
-                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  Verify & Sign Off
+                  {isVerifying && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isVerifying ? 'Verifying...' : 'Verify & Sign Off'}</span>
                 </button>
               )}
               <button

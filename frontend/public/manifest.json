@@ -1,0 +1,22 @@
+{
+  "short_name": "PulseFit",
+  "name": "PulseFit - Gym Management App & Website",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/pulsefit-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#050811",
+  "theme_color": "#050811",
+  "display": "standalone",
+  "orientation": "portrait"
+}

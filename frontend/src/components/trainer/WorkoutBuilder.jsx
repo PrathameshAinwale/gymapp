@@ -14,7 +14,8 @@ import {
   Calendar,
   Save,
   CheckCircle2,
-  Circle
+  Circle,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -46,6 +47,7 @@ export const WorkoutBuilder = () => {
   // Modal State for Create / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState(null);
+  const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -179,36 +181,41 @@ export const WorkoutBuilder = () => {
   };
 
   // Save workout plan
-  const handleSubmitPlan = (e) => {
+  const handleSubmitPlan = async (e) => {
     e.preventDefault();
     if (!formData.memberId) {
       addToast('Please select a client', 'error');
       return;
     }
 
-    if (formData.memberId) {
-      updateMember(formData.memberId, {
-        weight: Number(formData.weight) || undefined,
-        height: Number(formData.height) || undefined,
-        goal: formData.goal || undefined
-      });
-    }
+    try {
+      setIsSubmittingPlan(true);
+      if (formData.memberId) {
+        await updateMember(formData.memberId, {
+          weight: Number(formData.weight) || undefined,
+          height: Number(formData.height) || undefined,
+          goal: formData.goal || undefined
+        });
+      }
 
-    const planToSave = {
-      id: editingPlanId || `wp-${Date.now()}`,
-      memberId: formData.memberId,
-      memberName: formData.memberName,
-      assignedBy: currentUser?.name ? `Coach ${currentUser.name}` : 'Coach',
-      title: formData.title,
-      startDate: new Date().toISOString().split('T')[0],
-      days: formData.days
-    };
+      const planToSave = {
+        id: editingPlanId || `wp-${Date.now()}`,
+        memberId: formData.memberId,
+        memberName: formData.memberName,
+        assignedBy: currentUser?.name ? `Coach ${currentUser.name}` : 'Coach',
+        title: formData.title,
+        startDate: new Date().toISOString().split('T')[0],
+        days: formData.days
+      };
 
-    saveWorkoutPlan(planToSave);
-    if (selectedPlanForView && selectedPlanForView.id === planToSave.id) {
-      setSelectedPlanForView(planToSave);
+      await saveWorkoutPlan(planToSave);
+      if (selectedPlanForView && selectedPlanForView.id === planToSave.id) {
+        setSelectedPlanForView(planToSave);
+      }
+      setIsModalOpen(false);
+    } finally {
+      setIsSubmittingPlan(false);
     }
-    setIsModalOpen(false);
   };
 
   // ==========================================
@@ -829,9 +836,11 @@ export const WorkoutBuilder = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer"
+              disabled={isSubmittingPlan}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer inline-flex items-center gap-2"
             >
-              Save & Assign Workout Plan
+              {isSubmittingPlan && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingPlan ? 'Saving & Assigning...' : 'Save & Assign Workout Plan'}</span>
             </button>
           </div>
         </form>

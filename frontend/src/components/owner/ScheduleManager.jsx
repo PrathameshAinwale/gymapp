@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Calendar, Clock, MapPin, Users, Plus, Flame, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Plus, Flame, Sparkles, CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
 export const ScheduleManager = () => {
   const { classes = [], trainers = [], addClass, deleteClass, addToast } = useGymData();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [newClass, setNewClass] = useState({
     title: '',
@@ -27,13 +28,18 @@ export const ScheduleManager = () => {
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (addClass) {
-      await addClass({
-        ...newClass,
-        image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=60'
-      });
+    try {
+      setIsSubmitting(true);
+      if (addClass) {
+        await addClass({
+          ...newClass,
+          image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=60'
+        });
+      }
+      setIsAddOpen(false);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsAddOpen(false);
   };
 
   return (
@@ -313,9 +319,11 @@ export const ScheduleManager = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1.5"
             >
-              Create Class
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmitting ? 'Creating...' : 'Create Class'}</span>
             </button>
           </div>
         </form>

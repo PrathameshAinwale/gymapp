@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { TrendingUp, Plus, Calendar, Activity, Scale, Percent } from 'lucide-react';
+import { TrendingUp, Plus, Calendar, Activity, Scale, Percent, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Modal } from '../common/Modal';
 
 export const ProgressLogger = () => {
   const { bodyMetrics, logNewBodyMetrics, members, addToast } = useGymData();
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isSubmittingMetric, setIsSubmittingMetric] = useState(false);
 
   const [formMetric, setFormMetric] = useState({
     month: 'Sep',
@@ -18,18 +19,23 @@ export const ProgressLogger = () => {
     biceps: 39.0
   });
 
-  const handleLogSubmit = (e) => {
+  const handleLogSubmit = async (e) => {
     e.preventDefault();
-    logNewBodyMetrics({
-      month: formMetric.month,
-      weight: Number(formMetric.weight),
-      bodyFat: Number(formMetric.bodyFat),
-      muscleMass: Number(formMetric.muscleMass),
-      chest: Number(formMetric.chest),
-      waist: Number(formMetric.waist),
-      biceps: Number(formMetric.biceps)
-    });
-    setIsLogModalOpen(false);
+    try {
+      setIsSubmittingMetric(true);
+      await logNewBodyMetrics({
+        month: formMetric.month,
+        weight: Number(formMetric.weight),
+        bodyFat: Number(formMetric.bodyFat),
+        muscleMass: Number(formMetric.muscleMass),
+        chest: Number(formMetric.chest),
+        waist: Number(formMetric.waist),
+        biceps: Number(formMetric.biceps)
+      });
+      setIsLogModalOpen(false);
+    } finally {
+      setIsSubmittingMetric(false);
+    }
   };
 
   const defaultMetric = { weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0, month: 'Sep' };
@@ -270,9 +276,11 @@ export const ProgressLogger = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm cursor-pointer"
+              disabled={isSubmittingMetric}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-2"
             >
-              Save Metrics
+              {isSubmittingMetric && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingMetric ? 'Saving...' : 'Save Metrics'}</span>
             </button>
           </div>
         </form>

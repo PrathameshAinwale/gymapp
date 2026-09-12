@@ -11,7 +11,8 @@ import {
   AlertCircle,
   User,
   ShieldCheck,
-  CalendarPlus
+  CalendarPlus,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -21,6 +22,9 @@ export const MembershipFreezeManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFreezeModalOpen, setIsFreezeModalOpen] = useState(false);
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [isSubmittingFreeze, setIsSubmittingFreeze] = useState(false);
+  const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
+  const [unfreezingId, setUnfreezingId] = useState(null);
 
   // Freeze Form State
   const [freezeData, setFreezeData] = useState({
@@ -66,29 +70,39 @@ export const MembershipFreezeManager = () => {
     });
   };
 
-  const handleFreezeSubmit = (e) => {
+  const handleFreezeSubmit = async (e) => {
     e.preventDefault();
     const mem = members.find((m) => m.id === freezeData.memberId) || members[0];
-    addFreezeRequest({
-      memberId: mem.id,
-      memberName: mem.name,
-      planName: mem.planName || 'Silver Monthly Pass',
-      freezeStartDate: freezeData.freezeStartDate,
-      freezeEndDate: freezeData.freezeEndDate,
-      daysFrozen: Number(freezeData.daysFrozen),
-      reason: freezeData.reason
-    });
-    setIsFreezeModalOpen(false);
+    try {
+      setIsSubmittingFreeze(true);
+      await addFreezeRequest({
+        memberId: mem.id,
+        memberName: mem.name,
+        planName: mem.planName || 'Silver Monthly Pass',
+        freezeStartDate: freezeData.freezeStartDate,
+        freezeEndDate: freezeData.freezeEndDate,
+        daysFrozen: Number(freezeData.daysFrozen),
+        reason: freezeData.reason
+      });
+      setIsFreezeModalOpen(false);
+    } finally {
+      setIsSubmittingFreeze(false);
+    }
   };
 
-  const handleExtendSubmit = (e) => {
+  const handleExtendSubmit = async (e) => {
     e.preventDefault();
-    extendMembership({
-      memberId: extendData.memberId,
-      extensionDays: Number(extendData.extensionDays),
-      reason: extendData.reason
-    });
-    setIsExtendModalOpen(false);
+    try {
+      setIsSubmittingExtend(true);
+      await extendMembership({
+        memberId: extendData.memberId,
+        extensionDays: Number(extendData.extensionDays),
+        reason: extendData.reason
+      });
+      setIsExtendModalOpen(false);
+    } finally {
+      setIsSubmittingExtend(false);
+    }
   };
 
   return (
@@ -223,11 +237,23 @@ export const MembershipFreezeManager = () => {
                     {isActive ? (
                       <button
                         type="button"
-                        onClick={() => unfreezeMembership(f.id)}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        disabled={unfreezingId === f.id}
+                        onClick={async () => {
+                          try {
+                            setUnfreezingId(f.id);
+                            await unfreezeMembership(f.id);
+                          } finally {
+                            setUnfreezingId(null);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[10px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                       >
-                        <PlayCircle className="w-3 h-3" />
-                        <span>Unfreeze Plan</span>
+                        {unfreezingId === f.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <PlayCircle className="w-3 h-3" />
+                        )}
+                        <span>{unfreezingId === f.id ? 'Resuming...' : 'Unfreeze Plan'}</span>
                       </button>
                     ) : (
                       <span className="text-[10px] font-bold text-slate-400">Resumed</span>
@@ -310,11 +336,23 @@ export const MembershipFreezeManager = () => {
                         {isActive ? (
                           <button
                             type="button"
-                            onClick={() => unfreezeMembership(f.id)}
-                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ml-auto active:scale-95"
+                            disabled={unfreezingId === f.id}
+                            onClick={async () => {
+                              try {
+                                setUnfreezingId(f.id);
+                                await unfreezeMembership(f.id);
+                              } finally {
+                                setUnfreezingId(null);
+                              }
+                            }}
+                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ml-auto active:scale-95"
                           >
-                            <PlayCircle className="w-3.5 h-3.5" />
-                            <span>Unfreeze</span>
+                            {unfreezingId === f.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <PlayCircle className="w-3.5 h-3.5" />
+                            )}
+                            <span>{unfreezingId === f.id ? 'Resuming...' : 'Unfreeze'}</span>
                           </button>
                         ) : (
                           <span className="text-[11px] text-slate-400">Resumed</span>
@@ -410,9 +448,11 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+              disabled={isSubmittingFreeze}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
-              Confirm Freeze
+              {isSubmittingFreeze && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingFreeze ? 'Freezing...' : 'Confirm Freeze'}</span>
             </button>
           </div>
         </form>
@@ -476,9 +516,11 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+              disabled={isSubmittingExtend}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
-              Apply Extension
+              {isSubmittingExtend && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingExtend ? 'Applying Extension...' : 'Apply Extension'}</span>
             </button>
           </div>
         </form>

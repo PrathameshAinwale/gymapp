@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { PulseFitLogo } from '../common/PulseFitLogo';
 import {
-  Dumbbell,
   Lock,
   Mail,
   Eye,
@@ -57,16 +57,8 @@ export const LoginPage = () => {
       <div className="max-w-md w-full relative z-10 space-y-4 sm:space-y-5">
         
         {/* Brand Header */}
-        <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-lime-500 text-white shadow-lg shadow-emerald-500/20 mb-1 font-black -rotate-3">
-            <Dumbbell className="w-6 h-6 sm:w-7 sm:h-7 -rotate-45" />
-          </div>
-          <h1 className="text-xl sm:text-3xl font-black font-heading text-slate-900 tracking-tight">
-            PULSE<span className="text-emerald-600">FIT</span>
-          </h1>
-          <p className="text-xs text-slate-500 font-medium">
-            Next-Gen Athletic Club Operations & Member Portal
-          </p>
+        <div className="text-center py-0.5">
+          <PulseFitLogo variant="full" size="md" animate={true} />
         </div>
 
         {/* Login Form Card */}
@@ -219,12 +211,6 @@ export const LoginPage = () => {
           </div>
 
         </div>
-
-        {/* Footer Note */}
-        <p className="text-center text-[11px] text-slate-400">
-          PulseFit Athletic Operations • Multi-Role Web & Mobile System
-        </p>
-
       </div>
     </div>
   );

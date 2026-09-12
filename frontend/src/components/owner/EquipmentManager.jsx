@@ -10,13 +10,15 @@ import {
   Trash2,
   Layers,
   Activity,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
 export const EquipmentManager = () => {
   const { equipment, addEquipment, updateEquipment, deleteEquipment, addToast } = useGymData();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState('ALL');
 
   const [formData, setFormData] = useState({
@@ -32,26 +34,31 @@ export const EquipmentManager = () => {
     e.preventDefault();
     if (!formData.name) return;
 
-    await addEquipment({
-      name: formData.name,
-      category: formData.category,
-      location: formData.location,
-      status: formData.status,
-      condition: formData.condition,
-      next_service_due: formData.nextServiceDue,
-      nextServiceDue: formData.nextServiceDue
-    });
+    try {
+      setIsSubmitting(true);
+      await addEquipment({
+        name: formData.name,
+        category: formData.category,
+        location: formData.location,
+        status: formData.status,
+        condition: formData.condition,
+        next_service_due: formData.nextServiceDue,
+        nextServiceDue: formData.nextServiceDue
+      });
 
-    setIsAddOpen(false);
-    setFormData({
-      name: '',
-      category: 'Free Weights & Racks',
-      location: 'Zone A - Heavy Iron',
-      status: 'Operational',
-      condition: 'Excellent',
-      nextServiceDue: '2026-11-15'
-    });
-    if (addToast) addToast('New equipment asset registered successfully!', 'success');
+      setIsAddOpen(false);
+      setFormData({
+        name: '',
+        category: 'Free Weights & Racks',
+        location: 'Zone A - Heavy Iron',
+        status: 'Operational',
+        condition: 'Excellent',
+        nextServiceDue: '2026-11-15'
+      });
+      if (addToast) addToast('New equipment asset registered successfully!', 'success');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleStatus = (item) => {
@@ -339,9 +346,11 @@ export const EquipmentManager = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer inline-flex items-center gap-2"
             >
-              Save Asset
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmitting ? 'Saving...' : 'Save Asset'}</span>
             </button>
           </div>
         </form>

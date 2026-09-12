@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { PulseFitLogo } from './PulseFitLogo';
 import {
   LayoutDashboard,
   Users,
@@ -44,8 +45,7 @@ export const getNavSectionsForOwner = () => [
     title: 'Memberships & Compliance',
     items: [
       { id: 'plans', label: 'Membership Plans', icon: CreditCard },
-      { id: 'membership-freeze', label: 'Freeze & Extensions', icon: PauseCircle },
-      { id: 'consent-forms', label: 'Consent & Waivers', icon: FileText }
+      { id: 'membership-freeze', label: 'Freeze & Extensions', icon: PauseCircle }
     ]
   },
   {
@@ -67,6 +67,7 @@ export const getNavSectionsForOwner = () => [
     title: 'Finance & System',
     items: [
       { id: 'financials', label: 'Revenue & Billing', icon: IndianRupee },
+      { id: 'invoices', label: 'Member Invoices', icon: FileText },
       { id: 'settings', label: 'Gym Settings', icon: Settings }
     ]
   }
@@ -217,9 +218,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
             {/* Drawer Header */}
             <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 safe-top shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${accent.bg} flex items-center justify-center text-white shadow-sm font-black`}>
-                  <Dumbbell className="w-5 h-5 -rotate-45 text-white" />
-                </div>
+                <PulseFitLogo variant="icon" size={36} />
                 <div>
                   <div className="font-heading font-black tracking-tight text-sm text-slate-900 leading-tight">
                     PULSE<span className="text-emerald-600">FIT</span>

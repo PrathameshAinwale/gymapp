@@ -16,7 +16,8 @@ import {
   Edit2,
   ShoppingCart,
   IndianRupee,
-  Layers
+  Layers,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -26,6 +27,9 @@ export const ProductsManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [isSubmittingSell, setIsSubmittingSell] = useState(false);
+  const [isSubmittingRestock, setIsSubmittingRestock] = useState(false);
   const [sellingProduct, setSellingProduct] = useState(null);
   const [restockingProduct, setRestockingProduct] = useState(null);
   const [restockAmount, setRestockAmount] = useState(10);
@@ -69,57 +73,72 @@ export const ProductsManager = () => {
     return matchesSearch && (p.category || '').toLowerCase() === categoryFilter.toLowerCase();
   });
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
 
-    addProduct({
-      ...formData,
-      price: Number(formData.price),
-      costPrice: Number(formData.costPrice),
-      stock: Number(formData.stock),
-      minStockAlert: Number(formData.minStockAlert)
-    });
+    try {
+      setIsSubmittingAdd(true);
+      await addProduct({
+        ...formData,
+        price: Number(formData.price),
+        costPrice: Number(formData.costPrice),
+        stock: Number(formData.stock),
+        minStockAlert: Number(formData.minStockAlert)
+      });
 
-    setIsAddModalOpen(false);
-    setFormData({
-      name: '',
-      category: 'Supplements',
-      sku: 'SUP-' + Math.floor(100 + Math.random() * 900),
-      price: 999,
-      costPrice: 650,
-      stock: 20,
-      minStockAlert: 5,
-      image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
-      description: ''
-    });
-  };
-
-  const handleSellSubmit = (e) => {
-    e.preventDefault();
-    if (!sellingProduct) return;
-
-    const success = recordProductSale({
-      productId: sellingProduct.id,
-      quantity: Number(sellQuantity),
-      buyerName: buyerName || 'Walk-in Customer',
-      paymentMethod: sellPaymentMethod
-    });
-
-    if (success) {
-      setSellingProduct(null);
-      setSellQuantity(1);
+      setIsAddModalOpen(false);
+      setFormData({
+        name: '',
+        category: 'Supplements',
+        sku: 'SUP-' + Math.floor(100 + Math.random() * 900),
+        price: 999,
+        costPrice: 650,
+        stock: 20,
+        minStockAlert: 5,
+        image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
+        description: ''
+      });
+    } finally {
+      setIsSubmittingAdd(false);
     }
   };
 
-  const handleRestockSubmit = (e) => {
+  const handleSellSubmit = async (e) => {
+    e.preventDefault();
+    if (!sellingProduct) return;
+
+    try {
+      setIsSubmittingSell(true);
+      const success = await recordProductSale({
+        productId: sellingProduct.id,
+        quantity: Number(sellQuantity),
+        buyerName: buyerName || 'Walk-in Customer',
+        paymentMethod: sellPaymentMethod
+      });
+
+      if (success) {
+        setSellingProduct(null);
+        setSellQuantity(1);
+      }
+    } finally {
+      setIsSubmittingSell(false);
+    }
+  };
+
+  const handleRestockSubmit = async (e) => {
     e.preventDefault();
     if (!restockingProduct) return;
 
-    updateProduct(restockingProduct.id, {
-      stock: Number(restockingProduct.stock) + Number(restockAmount)
-    });
-    setRestockingProduct(null);
+    try {
+      setIsSubmittingRestock(true);
+      await updateProduct(restockingProduct.id, {
+        stock: Number(restockingProduct.stock) + Number(restockAmount)
+      });
+      setRestockingProduct(null);
+    } finally {
+      setIsSubmittingRestock(false);
+    }
   };
 
   return (
@@ -450,9 +469,11 @@ export const ProductsManager = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              disabled={isSubmittingAdd}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
             >
-              Save Product
+              {isSubmittingAdd && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingAdd ? 'Saving...' : 'Save Product'}</span>
             </button>
           </div>
         </form>
@@ -541,9 +562,11 @@ export const ProductsManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                disabled={isSubmittingSell}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
               >
-                Confirm Sale & Record Receipt
+                {isSubmittingSell && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSubmittingSell ? 'Recording Sale...' : 'Confirm Sale & Record Receipt'}</span>
               </button>
             </div>
           </form>
@@ -585,9 +608,11 @@ export const ProductsManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                disabled={isSubmittingRestock}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
               >
-                Add to Stock
+                {isSubmittingRestock && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSubmittingRestock ? 'Restocking...' : 'Add to Stock'}</span>
               </button>
             </div>
           </form>

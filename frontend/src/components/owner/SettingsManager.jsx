@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell } from 'lucide-react';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2 } from 'lucide-react';
 
 export const SettingsManager = () => {
   const { gymInfo, setGymInfo, addToast } = useGymData();
   const [formData, setFormData] = useState({ ...gymInfo });
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setGymInfo(formData);
-    localStorage.setItem('pulsefit_gymInfo', JSON.stringify(formData));
-    addToast('Gym profile & operational settings saved successfully!', 'success');
+    try {
+      setIsSaving(true);
+      await setGymInfo(formData);
+      localStorage.setItem('pulsefit_gymInfo', JSON.stringify(formData));
+      addToast('Gym profile & operational settings saved successfully!', 'success');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -110,14 +116,6 @@ export const SettingsManager = () => {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
-
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="text-[11px] truncate">Turnstiles lock automatically outside operational hours.</span>
-            </div>
-            <span className="font-bold text-[10px] bg-emerald-100 px-2 py-0.5 rounded shrink-0">Auto Gate Sync</span>
-          </div>
         </div>
 
         {/* System & Currency Settings */}
@@ -152,10 +150,11 @@ export const SettingsManager = () => {
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            disabled={isSaving}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
           >
-            <Save className="w-4 h-4" />
-            <span>Save Settings</span>
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSaving ? 'Saving Settings...' : 'Save Settings'}</span>
           </button>
         </div>
       </form>

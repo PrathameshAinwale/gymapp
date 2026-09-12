@@ -34,7 +34,8 @@ import {
   Upload,
   Copy,
   Check,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
@@ -56,6 +57,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isSubmittingScrap, setIsSubmittingScrap] = useState(false);
+  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   // Edit Lead Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -186,34 +192,39 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     return matchesSearch && currentStatus === statusFilter;
   });
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) return;
 
-    const today = getTodayFormatted();
-    const cleanNotes = (formData.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
-    const stampedNote = cleanNotes ? `[${today}] ${cleanNotes}` : '';
+    try {
+      setIsSubmittingAdd(true);
+      const today = getTodayFormatted();
+      const cleanNotes = (formData.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
+      const stampedNote = cleanNotes ? `[${today}] ${cleanNotes}` : '';
 
-    addEnquiry({
-      ...formData,
-      status: formData.status || 'Warm',
-      priority: ['Hot', 'Warm', 'Cold'].includes(formData.status) ? formData.status : 'Warm',
-      notes: stampedNote,
-      noteDate: cleanNotes ? today : null
-    });
+      await addEnquiry({
+        ...formData,
+        status: formData.status || 'Warm',
+        priority: ['Hot', 'Warm', 'Cold'].includes(formData.status) ? formData.status : 'Warm',
+        notes: stampedNote,
+        noteDate: cleanNotes ? today : null
+      });
 
-    setIsAddModalOpen(false);
-    setFormData({
-      name: '',
-      phone: '',
-      email: '',
-      source: 'Walk-in',
-      interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
-      goal: 'Weight Loss & Fitness',
-      status: 'Warm',
-      staffName: defaultStaffName,
-      notes: ''
-    });
+      setIsAddModalOpen(false);
+      setFormData({
+        name: '',
+        phone: '',
+        email: '',
+        source: 'Walk-in',
+        interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+        goal: 'Weight Loss & Fitness',
+        status: 'Warm',
+        staffName: defaultStaffName,
+        notes: ''
+      });
+    } finally {
+      setIsSubmittingAdd(false);
+    }
   };
 
   const handleStatusChange = (id, newStatus) => {
@@ -247,21 +258,26 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingEnquiry || !editingEnquiry.name || !editingEnquiry.phone) return;
-    const today = getTodayFormatted();
-    const cleanNotes = (editingEnquiry.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
-    const stampedNote = cleanNotes ? `[${today}] ${cleanNotes}` : '';
+    try {
+      setIsSubmittingEdit(true);
+      const today = getTodayFormatted();
+      const cleanNotes = (editingEnquiry.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
+      const stampedNote = cleanNotes ? `[${today}] ${cleanNotes}` : '';
 
-    updateEnquiry(editingEnquiry.id, {
-      ...editingEnquiry,
-      notes: stampedNote,
-      noteDate: cleanNotes ? today : null,
-      priority: ['Hot', 'Warm', 'Cold'].includes(editingEnquiry.status) ? editingEnquiry.status : 'Warm'
-    });
-    setIsEditModalOpen(false);
-    setEditingEnquiry(null);
+      await updateEnquiry(editingEnquiry.id, {
+        ...editingEnquiry,
+        notes: stampedNote,
+        noteDate: cleanNotes ? today : null,
+        priority: ['Hot', 'Warm', 'Cold'].includes(editingEnquiry.status) ? editingEnquiry.status : 'Warm'
+      });
+      setIsEditModalOpen(false);
+      setEditingEnquiry(null);
+    } finally {
+      setIsSubmittingEdit(false);
+    }
   };
 
   const handleOpenCommentModal = (enquiry) => {
@@ -271,18 +287,23 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     setCommentModalOpen(true);
   };
 
-  const handleSaveComment = (e) => {
+  const handleSaveComment = async (e) => {
     e.preventDefault();
     if (!selectedEnquiryForComment) return;
-    const today = getTodayFormatted();
-    const cleanText = commentText.replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
-    const stampedNote = cleanText ? `[${today}] ${cleanText}` : '';
-    updateEnquiry(selectedEnquiryForComment.id, { 
-      notes: stampedNote,
-      noteDate: cleanText ? today : null
-    });
-    setCommentModalOpen(false);
-    setSelectedEnquiryForComment(null);
+    try {
+      setIsSubmittingComment(true);
+      const today = getTodayFormatted();
+      const cleanText = commentText.replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
+      const stampedNote = cleanText ? `[${today}] ${cleanText}` : '';
+      await updateEnquiry(selectedEnquiryForComment.id, { 
+        notes: stampedNote,
+        noteDate: cleanText ? today : null
+      });
+      setCommentModalOpen(false);
+      setSelectedEnquiryForComment(null);
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   const handleOpenScrapModal = (enquiry) => {
@@ -291,23 +312,28 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     setScrapModalOpen(true);
   };
 
-  const handleConfirmScrap = (e) => {
+  const handleConfirmScrap = async (e) => {
     e.preventDefault();
     if (!leadToScrap) return;
-    const today = getTodayFormatted();
-    const existingNotes = (leadToScrap.notes || '').trim();
-    const reasonText = `[Reason: ${scrapReason}]`;
-    const updatedNotes = existingNotes
-      ? `${existingNotes} ${reasonText}`
-      : `[${today}] ${reasonText}`;
+    try {
+      setIsSubmittingScrap(true);
+      const today = getTodayFormatted();
+      const existingNotes = (leadToScrap.notes || '').trim();
+      const reasonText = `[Reason: ${scrapReason}]`;
+      const updatedNotes = existingNotes
+        ? `${existingNotes} ${reasonText}`
+        : `[${today}] ${reasonText}`;
 
-    updateEnquiry(leadToScrap.id, {
-      status: 'Not Interested',
-      isScrapped: true,
-      notes: updatedNotes
-    });
-    setScrapModalOpen(false);
-    setLeadToScrap(null);
+      await updateEnquiry(leadToScrap.id, {
+        status: 'Not Interested',
+        isScrapped: true,
+        notes: updatedNotes
+      });
+      setScrapModalOpen(false);
+      setLeadToScrap(null);
+    } finally {
+      setIsSubmittingScrap(false);
+    }
   };
 
   const handleConvertToMember = (enquiry) => {
@@ -360,81 +386,86 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     e.preventDefault();
     if (!memberFormData.name || !memberFormData.email) return;
 
-    const chosenPlan = plans.find((p) => p.id === memberFormData.planId) || plans[0];
-    const chosenTrainer = trainers.find((t) => t.id === memberFormData.trainerId);
+    try {
+      setIsSubmittingRegister(true);
+      const chosenPlan = plans.find((p) => p.id === memberFormData.planId) || plans[0];
+      const chosenTrainer = trainers.find((t) => t.id === memberFormData.trainerId);
 
-    const today = new Date();
-    const expiry = new Date();
-    expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
+      const today = new Date();
+      const expiry = new Date();
+      expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
 
-    const enquiryId = leadForMemberRegistration?.id;
-    const finalPassword = memberFormData.password || ('fit' + Math.floor(1000 + Math.random() * 9000));
+      const enquiryId = leadForMemberRegistration?.id;
+      const finalPassword = memberFormData.password || ('fit' + Math.floor(1000 + Math.random() * 9000));
 
-    const memberPayload = {
-      name: memberFormData.name,
-      email: memberFormData.email,
-      phone: memberFormData.phone,
-      password: finalPassword,
-      enquiryId: enquiryId,
-      enquiry_id: enquiryId,
-      avatar: memberFormData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
-      age: memberFormData.age ? Number(memberFormData.age) : 25,
-      gender: memberFormData.gender || 'Unspecified',
-      planId: chosenPlan?.id,
-      plan_id: chosenPlan?.id,
-      planName: chosenPlan?.name,
-      trainerId: chosenTrainer ? chosenTrainer.id : null,
-      trainer_id: chosenTrainer ? chosenTrainer.id : null,
-      trainerName: chosenTrainer ? chosenTrainer.name : 'None / Self Guided',
-      goal: memberFormData.goal || 'General Fitness',
-      weight: memberFormData.weight ? Number(memberFormData.weight) : 70,
-      targetWeight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
-      target_weight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
-      height: memberFormData.height ? Number(memberFormData.height) : 175,
-      medicalNotes: memberFormData.medicalNotes || 'None',
-      medical_notes: memberFormData.medicalNotes || 'None',
-      emergencyContact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
-      emergency_contact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
-      expiryDate: expiry.toISOString().split('T')[0]
-    };
-
-    // 1. Convert enquiry to member via backend / context
-    let createdMember = null;
-    if (convertEnquiryToMember && enquiryId) {
-      createdMember = await convertEnquiryToMember(enquiryId, memberPayload);
-    } else {
-      createdMember = await addMember(memberPayload);
-      if (enquiryId) {
-        deleteEnquiry(enquiryId);
-      }
-    }
-
-    // 2. Provision / sync Login Account in Auth Database
-    if (registerAccount) {
-      registerAccount({
-        id: createdMember?.id || `mem-${Date.now()}`,
+      const memberPayload = {
         name: memberFormData.name,
         email: memberFormData.email,
-        username: memberFormData.email.split('@')[0],
+        phone: memberFormData.phone,
         password: finalPassword,
-        role: 'member',
+        enquiryId: enquiryId,
+        enquiry_id: enquiryId,
+        avatar: memberFormData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
+        age: memberFormData.age ? Number(memberFormData.age) : 25,
+        gender: memberFormData.gender || 'Unspecified',
+        planId: chosenPlan?.id,
+        plan_id: chosenPlan?.id,
         planName: chosenPlan?.name,
-        qrPassCode: createdMember?.qrPassCode
+        trainerId: chosenTrainer ? chosenTrainer.id : null,
+        trainer_id: chosenTrainer ? chosenTrainer.id : null,
+        trainerName: chosenTrainer ? chosenTrainer.name : 'None / Self Guided',
+        goal: memberFormData.goal || 'General Fitness',
+        weight: memberFormData.weight ? Number(memberFormData.weight) : 70,
+        targetWeight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
+        target_weight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
+        height: memberFormData.height ? Number(memberFormData.height) : 175,
+        medicalNotes: memberFormData.medicalNotes || 'None',
+        medical_notes: memberFormData.medicalNotes || 'None',
+        emergencyContact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
+        emergency_contact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
+        expiryDate: expiry.toISOString().split('T')[0]
+      };
+
+      // 1. Convert enquiry to member via backend / context
+      let createdMember = null;
+      if (convertEnquiryToMember && enquiryId) {
+        createdMember = await convertEnquiryToMember(enquiryId, memberPayload);
+      } else {
+        createdMember = await addMember(memberPayload);
+        if (enquiryId) {
+          deleteEnquiry(enquiryId);
+        }
+      }
+
+      // 2. Provision / sync Login Account in Auth Database
+      if (registerAccount) {
+        registerAccount({
+          id: createdMember?.id || `mem-${Date.now()}`,
+          name: memberFormData.name,
+          email: memberFormData.email,
+          username: memberFormData.email.split('@')[0],
+          password: finalPassword,
+          role: 'member',
+          planName: chosenPlan?.name,
+          qrPassCode: createdMember?.qrPassCode
+        });
+      }
+
+      // 3. Show credentials receipt
+      setNewlyCreatedCredentials({
+        name: memberFormData.name,
+        email: memberFormData.email,
+        password: finalPassword,
+        id: createdMember?.id,
+        qrPassCode: createdMember?.qrPassCode,
+        planName: chosenPlan?.name
       });
+
+      setIsRegisterMemberModalOpen(false);
+      setLeadForMemberRegistration(null);
+    } finally {
+      setIsSubmittingRegister(false);
     }
-
-    // 3. Show credentials receipt
-    setNewlyCreatedCredentials({
-      name: memberFormData.name,
-      email: memberFormData.email,
-      password: finalPassword,
-      id: createdMember?.id,
-      qrPassCode: createdMember?.qrPassCode,
-      planName: chosenPlan?.name
-    });
-
-    setIsRegisterMemberModalOpen(false);
-    setLeadForMemberRegistration(null);
   };
 
   const handleCopyCredentials = () => {
@@ -1012,9 +1043,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              disabled={isSubmittingAdd}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
-              Save Enquiry
+              {isSubmittingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSubmittingAdd ? 'Saving...' : 'Save Enquiry'}</span>
             </button>
           </div>
         </form>
@@ -1072,9 +1105,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              disabled={isSubmittingComment}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
-              Save Comment
+              {isSubmittingComment && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSubmittingComment ? 'Saving...' : 'Save Comment'}</span>
             </button>
           </div>
         </form>
@@ -1139,9 +1174,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              disabled={isSubmittingScrap}
+              className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
-              Mark as Not Interested
+              {isSubmittingScrap && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSubmittingScrap ? 'Updating...' : 'Mark as Not Interested'}</span>
             </button>
           </div>
         </form>
@@ -1313,9 +1350,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                disabled={isSubmittingEdit}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
-                Save Changes
+                {isSubmittingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSubmittingEdit ? 'Saving...' : 'Save Changes'}</span>
               </button>
             </div>
           </form>
@@ -1599,9 +1638,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              disabled={isSubmittingRegister}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
             >
-              Complete Registration & Issue Account
+              {isSubmittingRegister && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSubmittingRegister ? 'Completing Registration...' : 'Complete Registration & Issue Account'}</span>
             </button>
           </div>
         </form>

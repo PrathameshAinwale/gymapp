@@ -176,20 +176,26 @@ export const AuthProvider = ({ children }) => {
 
   // LOGOUT STATE & CONFIRMATION
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const requestLogout = () => {
     setIsLogoutConfirmOpen(true);
   };
 
   const cancelLogout = () => {
+    if (isLoggingOut) return;
     setIsLogoutConfirmOpen(false);
   };
 
   const confirmLogout = async () => {
-    setIsLogoutConfirmOpen(false);
+    setIsLoggingOut(true);
     try {
       await api.auth.logout();
     } catch (e) {}
+    // Give a smooth feedback transition
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    setIsLoggingOut(false);
+    setIsLogoutConfirmOpen(false);
     setIsAuthenticated(false);
     localStorage.setItem('pulsefit_isAuth', 'false');
     localStorage.removeItem('pulsefit_gym_id');
@@ -284,6 +290,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         isLogoutConfirmOpen,
+        isLoggingOut,
         requestLogout,
         confirmLogout,
         cancelLogout,

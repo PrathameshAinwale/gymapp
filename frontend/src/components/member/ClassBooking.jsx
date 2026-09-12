@@ -1,9 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Calendar, Clock, CheckCircle, Flame, Plus } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, Flame, Plus, Loader2 } from 'lucide-react';
 
 export const ClassBooking = () => {
   const { classes, bookedClasses, toggleBookClass } = useGymData();
+  const [loadingClassId, setLoadingClassId] = useState(null);
+
+  const handleToggleBooking = async (classId) => {
+    setLoadingClassId(classId);
+    try {
+      await toggleBookClass(classId);
+    } finally {
+      setLoadingClassId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn pb-10 max-w-4xl mx-auto">
@@ -23,6 +33,7 @@ export const ClassBooking = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {classes.map((cls) => {
           const isBooked = bookedClasses.includes(cls.id);
+          const isLoading = loadingClassId === cls.id;
 
           return (
             <div
@@ -92,13 +103,19 @@ export const ClassBooking = () => {
                 {/* Booking Button */}
                 <button
                   type="button"
-                  onClick={() => toggleBookClass(cls.id)}
-                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${isBooked
+                  disabled={isLoading}
+                  onClick={() => handleToggleBooking(cls.id)}
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 ${isBooked
                       ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-600/20'
                     }`}
                 >
-                  {isBooked ? (
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : isBooked ? (
                     <span>Cancel Reservation</span>
                   ) : (
                     <>

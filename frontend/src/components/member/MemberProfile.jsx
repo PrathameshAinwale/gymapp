@@ -15,7 +15,8 @@ import {
   Edit2,
   AlertTriangle,
   ShieldCheck,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { StatCard } from '../common/StatCard';
@@ -29,6 +30,7 @@ export const MemberProfile = () => {
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -54,23 +56,28 @@ export const MemberProfile = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!member?.id) return;
 
-    updateMember(member.id, {
-      name: formData.name,
-      phone: formData.phone,
-      emergencyContact: formData.emergencyContact,
-      weight: formData.weight ? Number(formData.weight) : undefined,
-      targetWeight: formData.targetWeight ? Number(formData.targetWeight) : undefined,
-      height: formData.height ? Number(formData.height) : undefined,
-      goal: formData.goal,
-      medicalNotes: formData.medicalNotes
-    });
+    setIsSaving(true);
+    try {
+      await updateMember(member.id, {
+        name: formData.name,
+        phone: formData.phone,
+        emergencyContact: formData.emergencyContact,
+        weight: formData.weight ? Number(formData.weight) : undefined,
+        targetWeight: formData.targetWeight ? Number(formData.targetWeight) : undefined,
+        height: formData.height ? Number(formData.height) : undefined,
+        goal: formData.goal,
+        medicalNotes: formData.medicalNotes
+      });
 
-    setIsEditModalOpen(false);
-    addToast('Profile updated successfully!');
+      setIsEditModalOpen(false);
+      addToast('Profile updated successfully!');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Calculate days remaining
@@ -432,9 +439,11 @@ export const MemberProfile = () => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all text-xs cursor-pointer shadow-md shadow-emerald-600/20"
+              disabled={isSaving}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all text-xs cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-60 flex items-center gap-1.5"
             >
-              Save Changes
+              {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isSaving ? 'Saving Changes...' : 'Save Changes'}</span>
             </button>
           </div>
         </form>
