@@ -28,15 +28,22 @@ import {
   X,
   LogOut,
   Flame,
-  UserCheck
+  UserCheck,
+  UserPlus,
+  BarChart3,
+  Coins,
+  Star,
+  CheckSquare
 } from 'lucide-react';
 
-export const getNavSectionsForOwner = () => [
+export const getNavSectionsForSuperadmin = () => [
   {
-    title: 'Operations',
+    title: 'Operations & Schedule',
     items: [
       { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
       { id: 'members', label: 'Member Directory', icon: Users },
+      { id: 'classes', label: 'Classes & Batches', icon: Calendar },
+      { id: 'pt-sessions', label: 'PT Sessions Tracker', icon: Dumbbell },
       { id: 'enquiries', label: 'Enquiries & Leads', icon: PhoneCall },
       { id: 'attendance', label: 'Attendance Tracker', icon: CalendarCheck }
     ]
@@ -51,24 +58,61 @@ export const getNavSectionsForOwner = () => [
   {
     title: 'Staff & Payroll',
     items: [
+      { id: 'staff-accounts', label: 'Create Account / Staff', icon: UserPlus },
       { id: 'trainers', label: 'Coach Roster', icon: Award },
-      { id: 'commissions', label: 'Trainer Commissions', icon: TrendingUp },
-      { id: 'payroll', label: 'Employee Payroll', icon: Wallet }
+      { id: 'advance-pay', label: 'Advance Pay Requests', icon: Coins },
+      { id: 'payroll', label: 'Employee Payroll', icon: Wallet },
+      { id: 'commissions', label: 'Trainer Commissions', icon: TrendingUp }
     ]
   },
   {
-    title: 'Commerce & Inventory',
+    title: 'Finance & Analytics',
+    items: [
+      { id: 'analytics', label: 'Analytics & Insights', icon: BarChart3 },
+      { id: 'reports', label: 'Export Reports', icon: FileText },
+      { id: 'financials', label: 'Revenue & Billing', icon: IndianRupee },
+      { id: 'invoices', label: 'Member Invoices', icon: CreditCard }
+    ]
+  },
+  {
+    title: 'Inventory & Setup',
+    items: [
+      { id: 'products', label: 'Pro Shop & Store', icon: ShoppingBag },
+      { id: 'equipment', label: 'Equipment & Assets', icon: Wrench },
+      { id: 'settings', label: 'Gym Settings', icon: Settings }
+    ]
+  }
+];
+
+// Accounts role has identical accessibility to superadmin with an [Accounts] badge
+export const getNavSectionsForAccounts = () => getNavSectionsForSuperadmin();
+
+// Manager role: Operational access ONLY - NO revenue, billing, expenses or financials
+export const getNavSectionsForManager = () => [
+  {
+    title: 'Operations',
+    items: [
+      { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+      { id: 'analytics', label: 'Gym Analytics', icon: BarChart3 },
+      { id: 'members', label: 'Member Directory', icon: Users },
+      { id: 'classes', label: 'Classes & Batches', icon: Calendar },
+      { id: 'pt-sessions', label: 'PT Sessions Tracker', icon: Dumbbell },
+      { id: 'enquiries', label: 'Enquiries & Leads', icon: PhoneCall },
+      { id: 'attendance', label: 'Attendance Tracker', icon: CalendarCheck }
+    ]
+  },
+  {
+    title: 'Memberships',
+    items: [
+      { id: 'plans', label: 'Membership Plans', icon: CreditCard },
+      { id: 'membership-freeze', label: 'Freeze & Extensions', icon: PauseCircle }
+    ]
+  },
+  {
+    title: 'Store & Inventory',
     items: [
       { id: 'products', label: 'Pro Shop & Store', icon: ShoppingBag },
       { id: 'equipment', label: 'Equipment & Assets', icon: Wrench }
-    ]
-  },
-  {
-    title: 'Finance & System',
-    items: [
-      { id: 'financials', label: 'Revenue & Billing', icon: IndianRupee },
-      { id: 'invoices', label: 'Member Invoices', icon: FileText },
-      { id: 'settings', label: 'Gym Settings', icon: Settings }
     ]
   }
 ];
@@ -78,15 +122,16 @@ export const getNavSectionsForTrainer = () => [
     title: 'Training & Clients',
     items: [
       { id: 'dashboard', label: 'Coach Dashboard', icon: LayoutDashboard },
+      { id: 'sessions', label: '1-on-1 PT Sessions', icon: CalendarCheck },
       { id: 'clients', label: 'My Client Roster', icon: Users },
       { id: 'workout-builder', label: 'Workout Builder', icon: Dumbbell },
-      { id: 'diet-builder', label: 'Diet & Macro Builder', icon: Utensils },
-      { id: 'progress-logger', label: 'Progress Logger', icon: Activity }
+      { id: 'diet-builder', label: 'Diet & Macro Builder', icon: Utensils }
     ]
   },
   {
-    title: 'Earnings & Account',
+    title: 'Earnings & Advance Pay',
     items: [
+      { id: 'advance-request', label: 'Request Advance Pay', icon: Coins },
       { id: 'commissions', label: 'My Commissions', icon: TrendingUp },
       { id: 'profile', label: 'Coach Profile', icon: UserCheck }
     ]
@@ -100,7 +145,8 @@ export const getNavSectionsForMember = () => [
       { id: 'dashboard', label: 'Today\'s Routine', icon: Flame },
       { id: 'workout', label: 'Workout Plan', icon: Dumbbell },
       { id: 'diet', label: 'Nutrition Chart', icon: Utensils },
-      { id: 'classes', label: 'Group Classes', icon: Calendar }
+      { id: 'classes', label: 'Group Classes', icon: Calendar },
+      { id: 'coaches', label: 'Gym Coaches & Reviews', icon: Star }
     ]
   },
   {
@@ -116,7 +162,9 @@ export const getNavSectionsForMember = () => [
 export const getNavSectionsForRole = (role) => {
   if (role === 'trainer') return getNavSectionsForTrainer();
   if (role === 'member') return getNavSectionsForMember();
-  return getNavSectionsForOwner();
+  if (role === 'manager') return getNavSectionsForManager();
+  if (role === 'accounts') return getNavSectionsForAccounts();
+  return getNavSectionsForSuperadmin();
 };
 
 export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMobileOpen = () => {} }) => {
@@ -126,7 +174,9 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const getRoleAccent = () => {
     if (currentRole === 'trainer') return { bg: 'from-teal-500 to-cyan-500', text: 'text-teal-600', label: 'Coach Portal' };
     if (currentRole === 'member') return { bg: 'from-cyan-500 to-blue-500', text: 'text-cyan-600', label: 'Athlete Zone' };
-    return { bg: 'from-emerald-500 via-teal-500 to-lime-500', text: 'text-emerald-600', label: 'Admin Console' };
+    if (currentRole === 'manager') return { bg: 'from-indigo-500 to-purple-500', text: 'text-indigo-600', label: 'Manager Operations' };
+    if (currentRole === 'accounts') return { bg: 'from-amber-500 to-orange-500', text: 'text-amber-600', label: 'Accounts & Finance' };
+    return { bg: 'from-emerald-500 via-teal-500 to-lime-500', text: 'text-emerald-600', label: 'Superadmin Console' };
   };
 
   const accent = getRoleAccent();

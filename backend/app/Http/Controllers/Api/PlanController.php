@@ -14,12 +14,7 @@ class PlanController extends Controller
         $gymId = $this->resolveGymId($request);
         $query = Plan::query();
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) {
-                    $q->orWhereNull('gym_id');
-                }
-            });
+            $query->where('gym_id', $gymId);
         }
 
         $plans = $query->get()->map(function ($plan) {
@@ -33,7 +28,7 @@ class PlanController extends Controller
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
                 'color' => $plan->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
-                'features' => $plan->features ?? [],
+                'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
             ];
         });
@@ -42,6 +37,24 @@ class PlanController extends Controller
             'success' => true,
             'data' => $plans,
         ]);
+    }
+
+    protected function parseFeatures($features): array
+    {
+        if (is_array($features)) {
+            return array_values($features);
+        }
+        if (is_string($features)) {
+            $decoded = json_decode($features, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $this->parseFeatures($decoded);
+            }
+            $lines = array_filter(array_map('trim', preg_split('/[\r\n,]+/', $features)));
+            if (!empty($lines)) {
+                return array_values($lines);
+            }
+        }
+        return [];
     }
 
     public function show($id)
@@ -61,7 +74,7 @@ class PlanController extends Controller
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
                 'color' => $plan->color,
-                'features' => $plan->features,
+                'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
             ]
         ]);
@@ -86,7 +99,7 @@ class PlanController extends Controller
             ], 422);
         }
 
-        $gymId = $this->resolveGymId($request) ?? 1;
+        $gymId = $this->resolveGymId($request);
         $durationMonths = (int)($request->duration_months ?? $request->durationMonths ?? 1);
         $period = $request->period ?? ($durationMonths > 1 ? "{$durationMonths} Months" : 'Monthly');
 

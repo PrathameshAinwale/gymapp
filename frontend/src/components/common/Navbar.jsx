@@ -15,6 +15,20 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
   const { currentRole, currentUser, logout } = useAuth();
 
   const getRoleBadge = () => {
+    if (currentRole === 'accounts') {
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1 whitespace-nowrap shadow-xs">
+          <ShieldCheck className="w-3 h-3 text-amber-600" /> Accounts
+        </span>
+      );
+    }
+    if (currentRole === 'manager') {
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
+          <ShieldCheck className="w-3 h-3 text-indigo-600" /> Manager
+        </span>
+      );
+    }
     if (currentRole === 'trainer') {
       return (
         <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1 whitespace-nowrap">
@@ -31,7 +45,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
     }
     return (
       <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 whitespace-nowrap">
-        <ShieldCheck className="w-3 h-3" /> Admin
+        <ShieldCheck className="w-3 h-3" /> Superadmin
       </span>
     );
   };

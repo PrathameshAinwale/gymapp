@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -35,13 +35,17 @@ import {
   Copy,
   Check,
   ChevronDown,
-  Loader2
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { AddMemberModal } from './AddMemberModal';
+import { EmptyState } from '../common/EmptyState';
 
 export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const {
     enquiries,
+    fetchEnquiries,
     addEnquiry,
     updateEnquiry,
     deleteEnquiry,
@@ -50,9 +54,28 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     plans,
     trainers,
     addMember,
-    addToast
+    addToast,
+    loadingModules
   } = useGymData();
   const { currentUser, registerAccount } = useAuth();
+
+  const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const runFetch = async () => {
+      if (!enquiries || enquiries.length === 0) {
+        setIsLoadingEnquiries(true);
+      }
+      try {
+        await fetchEnquiries?.();
+      } finally {
+        if (active) setIsLoadingEnquiries(false);
+      }
+    };
+    runFetch();
+    return () => { active = false; };
+  }, [fetchEnquiries]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -77,31 +100,9 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const [selectedEnquiryForComment, setSelectedEnquiryForComment] = useState(null);
   const [commentText, setCommentText] = useState('');
 
-  // Register Member Modal State (Direct converted lead enrolment)
-  const [isRegisterMemberModalOpen, setIsRegisterMemberModalOpen] = useState(false);
-  const [leadForMemberRegistration, setLeadForMemberRegistration] = useState(null);
-  const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [memberFormData, setMemberFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    password: '',
-    avatar: '',
-    age: 25,
-    gender: 'Male',
-    planId: '',
-    trainerId: '',
-    goal: 'Muscle Gain & Strength',
-    weight: 70,
-    targetWeight: 75,
-    height: 175,
-    medicalNotes: 'None',
-    emergencyContact: '',
-    kycDocType: 'Aadhaar Card',
-    kycDocNumber: '',
-    kycStatus: 'Verified'
-  });
+  // Intended Add Member Modal State (opens comprehensive AddMemberModal)
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [addMemberInitialData, setAddMemberInitialData] = useState(null);
 
   const defaultStaffName = currentUser?.name
     ? `${currentUser.name} (${currentUser.role === 'owner' ? 'Owner' : 'Staff'})`
@@ -234,6 +235,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
       updates.isScrapped = false;
     } else if (newStatus === 'Not Interested') {
       updates.isScrapped = true;
+    } else if (newStatus === 'Converted') {
+      updates.isScrapped = false;
     } else {
       updates.isScrapped = false;
     }
@@ -343,138 +346,26 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     }
   };
 
-  const handleOpenRegisterModal = (enquiry) => {
-    setLeadForMemberRegistration(enquiry);
+  const handleOpenAddMemberModal = (enquiry) => {
+    // Match plan from interestedPlan if possible
+    const matchedPlan = plans.find((p) =>
+      p.name?.toLowerCase().trim() === (enquiry.interestedPlan || '').toLowerCase().trim() ||
+      p.id === enquiry.interestedPlan
+    ) || plans[0];
 
-    // Only Name and Phone Number are prefilled from the enquiry; owner fills the rest
-    setMemberFormData({
+    const cleanNotes = (enquiry.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
+
+    setAddMemberInitialData({
       name: enquiry.name || '',
       phone: enquiry.phone || '',
-      email: '',
-      password: '',
-      avatar: '',
-      age: '',
-      gender: '',
-      planId: '',
-      trainerId: '',
-      goal: '',
-      weight: '',
-      targetWeight: '',
-      height: '',
-      medicalNotes: '',
-      emergencyContact: '',
+      email: enquiry.email || '',
+      goal: enquiry.goal || 'Muscle Gain & Strength',
+      planId: matchedPlan?.id || plans[0]?.id || '',
+      medicalNotes: cleanNotes || 'None',
+      emergencyContact: enquiry.phone || '',
+      enquiryId: enquiry.id,
     });
-    setIsRegisterMemberModalOpen(true);
-  };
-
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setMemberFormData((prev) => ({ ...prev, avatar: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const generateRandomPassword = () => {
-    const pass = 'fit' + Math.floor(1000 + Math.random() * 9000);
-    setMemberFormData((prev) => ({ ...prev, password: pass }));
-  };
-
-  const handleRegisterMemberSubmit = async (e) => {
-    e.preventDefault();
-    if (!memberFormData.name || !memberFormData.email) return;
-
-    try {
-      setIsSubmittingRegister(true);
-      const chosenPlan = plans.find((p) => p.id === memberFormData.planId) || plans[0];
-      const chosenTrainer = trainers.find((t) => t.id === memberFormData.trainerId);
-
-      const today = new Date();
-      const expiry = new Date();
-      expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
-
-      const enquiryId = leadForMemberRegistration?.id;
-      const finalPassword = memberFormData.password || ('fit' + Math.floor(1000 + Math.random() * 9000));
-
-      const memberPayload = {
-        name: memberFormData.name,
-        email: memberFormData.email,
-        phone: memberFormData.phone,
-        password: finalPassword,
-        enquiryId: enquiryId,
-        enquiry_id: enquiryId,
-        avatar: memberFormData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
-        age: memberFormData.age ? Number(memberFormData.age) : 25,
-        gender: memberFormData.gender || 'Unspecified',
-        planId: chosenPlan?.id,
-        plan_id: chosenPlan?.id,
-        planName: chosenPlan?.name,
-        trainerId: chosenTrainer ? chosenTrainer.id : null,
-        trainer_id: chosenTrainer ? chosenTrainer.id : null,
-        trainerName: chosenTrainer ? chosenTrainer.name : 'None / Self Guided',
-        goal: memberFormData.goal || 'General Fitness',
-        weight: memberFormData.weight ? Number(memberFormData.weight) : 70,
-        targetWeight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
-        target_weight: memberFormData.targetWeight ? Number(memberFormData.targetWeight) : 65,
-        height: memberFormData.height ? Number(memberFormData.height) : 175,
-        medicalNotes: memberFormData.medicalNotes || 'None',
-        medical_notes: memberFormData.medicalNotes || 'None',
-        emergencyContact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
-        emergency_contact: memberFormData.emergencyContact || memberFormData.phone || 'N/A',
-        expiryDate: expiry.toISOString().split('T')[0]
-      };
-
-      // 1. Convert enquiry to member via backend / context
-      let createdMember = null;
-      if (convertEnquiryToMember && enquiryId) {
-        createdMember = await convertEnquiryToMember(enquiryId, memberPayload);
-      } else {
-        createdMember = await addMember(memberPayload);
-        if (enquiryId) {
-          deleteEnquiry(enquiryId);
-        }
-      }
-
-      // 2. Provision / sync Login Account in Auth Database
-      if (registerAccount) {
-        registerAccount({
-          id: createdMember?.id || `mem-${Date.now()}`,
-          name: memberFormData.name,
-          email: memberFormData.email,
-          username: memberFormData.email.split('@')[0],
-          password: finalPassword,
-          role: 'member',
-          planName: chosenPlan?.name,
-          qrPassCode: createdMember?.qrPassCode
-        });
-      }
-
-      // 3. Show credentials receipt
-      setNewlyCreatedCredentials({
-        name: memberFormData.name,
-        email: memberFormData.email,
-        password: finalPassword,
-        id: createdMember?.id,
-        qrPassCode: createdMember?.qrPassCode,
-        planName: chosenPlan?.name
-      });
-
-      setIsRegisterMemberModalOpen(false);
-      setLeadForMemberRegistration(null);
-    } finally {
-      setIsSubmittingRegister(false);
-    }
-  };
-
-  const handleCopyCredentials = () => {
-    if (!newlyCreatedCredentials) return;
-    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: http://localhost:5173/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan: ${newlyCreatedCredentials.planName}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    if (addToast) addToast('Credentials copied to clipboard!');
-    setTimeout(() => setCopied(false), 3000);
+    setIsAddMemberModalOpen(true);
   };
 
   return (
@@ -493,15 +384,17 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">New Enquiry</span>
-          <span className="inline sm:hidden">Add Lead</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">New Enquiry</span>
+            <span className="inline sm:hidden">Add Lead</span>
+          </button>
+        </div>
       </div>
       {/* Sleek Compact Search & Filter Toolbar */}
       <div className="flex items-center gap-1.5 sm:gap-2">
@@ -547,9 +440,28 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
       {/* Leads Mobile Cards View */}
       <div className="block sm:hidden space-y-2.5">
-        {filteredEnquiries.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-            No enquiries match the current filter or search criteria.
+        {isLoadingEnquiries ? (
+          <div className="p-8 bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
+            <p className="text-sm font-semibold text-slate-700">Loading Leads & Enquiries...</p>
+            <p className="text-xs text-slate-400 mt-1">Fetching records from database</p>
+          </div>
+        ) : filteredEnquiries.length === 0 ? (
+          <div className="p-6 bg-white rounded-2xl border border-slate-200">
+            <EmptyState
+              icon={PhoneCall}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching enquiries found" : "No Enquiries Yet"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No prospect leads match your current search or status filters. Try clearing your filters or add a new enquiry."
+                  : "Capture prospect walk-ins, phone calls, and web inquiries to grow your gym membership base."
+              }
+              actionText="Add New Enquiry"
+              onAction={() => setIsAddModalOpen(true)}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
           </div>
         ) : (
           filteredEnquiries.map((enq) => {
@@ -652,11 +564,12 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                     {currentStatus === 'Converted' && (
                       <button
                         type="button"
-                        onClick={() => handleOpenRegisterModal(enq)}
+                        onClick={() => handleOpenAddMemberModal(enq)}
                         className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                        title="Add Member - Register & Enroll this Lead"
                       >
                         <UserPlus className="w-3 h-3" />
-                        <span>Register</span>
+                        <span>Add Member</span>
                       </button>
                     )}
                     <button
@@ -685,27 +598,44 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
       {/* Enquiries Table Card (Desktop View) */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl lg:rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3.5 px-4">Prospect Details</th>
-                <th className="py-3.5 px-4">Interested Plan & Goal</th>
-                <th className="py-3.5 px-4">Status & Source</th>
-                <th className="py-3.5 px-4">Logged By Staff</th>
-                <th className="py-3.5 px-4">Staff Comments</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredEnquiries.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
-                    No enquiries match the current filter or search criteria.
-                  </td>
+        {isLoadingEnquiries ? (
+          <div className="p-16 flex flex-col items-center justify-center text-center">
+            <Loader2 className="w-9 h-9 text-emerald-600 animate-spin mb-3" />
+            <p className="text-sm font-semibold text-slate-700">Loading Leads & Enquiries...</p>
+            <p className="text-xs text-slate-400 mt-1">Fetching records from database</p>
+          </div>
+        ) : filteredEnquiries.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={PhoneCall}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching enquiries found" : "No Enquiries Yet"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No prospect leads match your current search or status filters. Try clearing your filters or add a new enquiry."
+                  : "Capture prospect walk-ins, phone calls, and web inquiries to grow your gym membership base."
+              }
+              actionText="Add New Enquiry"
+              onAction={() => setIsAddModalOpen(true)}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3.5 px-4">Prospect Details</th>
+                  <th className="py-3.5 px-4">Interested Plan & Goal</th>
+                  <th className="py-3.5 px-4">Status & Source</th>
+                  <th className="py-3.5 px-4">Logged By Staff</th>
+                  <th className="py-3.5 px-4">Staff Comments</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
-              ) : (
-                filteredEnquiries.map((enq) => {
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredEnquiries.map((enq) => {
                   const currentStatus = normalizeStatus(enq);
                   const isConverted = currentStatus === 'Converted';
                   const isNotInterested = currentStatus === 'Not Interested';
@@ -713,7 +643,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
                   return (
                     <tr key={enq.id} className="hover:bg-slate-50/70 transition-colors">
-                      {/* Combined Prospect Name, Contact & Email */}
+                      {/* Prospect Name & Phone */}
                       <td className="py-3.5 px-4 space-y-1">
                         <div className="font-bold text-slate-900 text-sm leading-snug">{enq.name}</div>
                         <div className="flex items-center gap-1.5 font-medium text-slate-900 text-[11px] flex-wrap">
@@ -728,16 +658,9 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                               title="1-Click WhatsApp Follow-up"
                             >
                               <MessageCircle className="w-3 h-3 text-emerald-600" />
-                              <span>WhatsApp</span>
                             </a>
                           )}
                         </div>
-                        {enq.email && (
-                          <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
-                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[220px]" title={enq.email}>{enq.email}</span>
-                          </div>
-                        )}
                       </td>
 
                       {/* Interested Plan & Goal */}
@@ -792,15 +715,9 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                       {/* Logged By Staff */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700 shrink-0">
-                            {(enq.staffName || 'S').charAt(0).toUpperCase()}
-                          </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900 text-xs truncate max-w-[135px]" title={enq.staffName}>
                               {enq.staffName || 'Front Desk Staff'}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {enq.createdDate ? `Logged: ${enq.createdDate}` : 'Front Desk'}
                             </div>
                           </div>
                         </div>
@@ -847,11 +764,12 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                           {currentStatus === 'Converted' && (
                             <button
                               type="button"
-                              onClick={() => handleOpenRegisterModal(enq)}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm shadow-emerald-600/20"
-                              title="Register Member & Issue Login Account"
+                              onClick={() => handleOpenAddMemberModal(enq)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-emerald-600/20 active:scale-95"
+                              title="Add Member - Register & Enroll this Lead"
                             >
                               <UserPlus className="w-3.5 h-3.5" />
+                              <span>Add Member</span>
                             </button>
                           )}
                           <button
@@ -874,11 +792,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add Enquiry Modal */}
@@ -1361,353 +1279,15 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
         )}
       </Modal>
 
-      {/* REGISTER MEMBER & ISSUE LOGIN ACCOUNT MODAL */}
-      <Modal
-        isOpen={isRegisterMemberModalOpen}
+      {/* Intended Add Member Modal Prepopulated from Selected Lead */}
+      <AddMemberModal
+        isOpen={isAddMemberModalOpen}
         onClose={() => {
-          setIsRegisterMemberModalOpen(false);
-          setLeadForMemberRegistration(null);
+          setIsAddMemberModalOpen(false);
+          setAddMemberInitialData(null);
         }}
-        title="Register Member & Issue Login Account"
-        maxWidth="max-w-2xl"
-      >
-        <form onSubmit={handleRegisterMemberSubmit} className="space-y-4">
-          {/* Member Photo Upload */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-slate-200 border-2 border-slate-300 shrink-0 flex items-center justify-center group shadow-sm">
-              {memberFormData.avatar ? (
-                <img
-                  src={memberFormData.avatar}
-                  alt="Member Preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Camera className="w-8 h-8 text-slate-400" />
-              )}
-            </div>
-
-            <div className="flex-1 space-y-1.5 text-center sm:text-left">
-              <label className="block text-xs font-bold text-slate-800">
-                Member Profile Photo
-              </label>
-              <p className="text-[11px] text-slate-500">
-                Upload a photo for attendance, QR turnstile verification, and member profile.
-              </p>
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
-                <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Choose Photo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                </label>
-                {memberFormData.avatar && (
-                  <button
-                    type="button"
-                    onClick={() => setMemberFormData({ ...memberFormData, avatar: '' })}
-                    className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold cursor-pointer"
-                  >
-                    Remove Photo
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Account Credentials Box */}
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                <KeyRound className="w-4 h-4" />
-                <span>Member Portal Login Credentials</span>
-              </div>
-              <button
-                type="button"
-                onClick={generateRandomPassword}
-                className="text-[11px] text-emerald-700 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="w-3 h-3" /> Auto-generate Password
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Login Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="member@example.com"
-                  value={memberFormData.email}
-                  onChange={(e) => setMemberFormData({ ...memberFormData, email: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700">
-                    Initial Password *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={generateRandomPassword}
-                    className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
-                  >
-                    Auto-Generate
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. fit4829 or custom password"
-                  value={memberFormData.password}
-                  onChange={(e) => setMemberFormData({ ...memberFormData, password: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-500">
-              The member can log into the PULSE FIT Member Portal using this email and password.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Liam Hemsworth"
-                value={memberFormData.name}
-                onChange={(e) => setMemberFormData({ ...memberFormData, name: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
-              <input
-                type="text"
-                placeholder="+91 98200 00000"
-                value={memberFormData.phone}
-                onChange={(e) => setMemberFormData({ ...memberFormData, phone: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Age</label>
-              <input
-                type="number"
-                placeholder="e.g. 25"
-                value={memberFormData.age}
-                onChange={(e) => setMemberFormData({ ...memberFormData, age: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
-              <select
-                value={memberFormData.gender}
-                onChange={(e) => setMemberFormData({ ...memberFormData, gender: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="">Select Gender...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Membership Plan</label>
-              <select
-                value={memberFormData.planId}
-                onChange={(e) => setMemberFormData({ ...memberFormData, planId: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="">Select Membership Plan...</option>
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (₹{p.price.toLocaleString('en-IN')} / {p.period})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Assign Trainer</label>
-              <select
-                value={memberFormData.trainerId}
-                onChange={(e) => setMemberFormData({ ...memberFormData, trainerId: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="">None / Self Guided</option>
-                {trainers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.specialty})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Current Weight (kg)</label>
-              <input
-                type="number"
-                placeholder="e.g. 70"
-                value={memberFormData.weight}
-                onChange={(e) => setMemberFormData({ ...memberFormData, weight: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Target Weight (kg)</label>
-              <input
-                type="number"
-                placeholder="e.g. 65"
-                value={memberFormData.targetWeight}
-                onChange={(e) => setMemberFormData({ ...memberFormData, targetWeight: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Height (cm)</label>
-              <input
-                type="number"
-                placeholder="e.g. 175"
-                value={memberFormData.height}
-                onChange={(e) => setMemberFormData({ ...memberFormData, height: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Fitness Goal</label>
-            <input
-              type="text"
-              placeholder="e.g. Fat loss, Marathon training, Hypertrophy"
-              value={memberFormData.goal}
-              onChange={(e) => setMemberFormData({ ...memberFormData, goal: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Medical Notes & Allergies</label>
-            <input
-              type="text"
-              placeholder="e.g. Asthma, Lower back pain history"
-              value={memberFormData.medicalNotes}
-              onChange={(e) => setMemberFormData({ ...memberFormData, medicalNotes: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact</label>
-            <input
-              type="text"
-              placeholder="e.g. Jane Doe (+91 98200 12345)"
-              value={memberFormData.emergencyContact}
-              onChange={(e) => setMemberFormData({ ...memberFormData, emergencyContact: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegisterMemberModalOpen(false);
-                setLeadForMemberRegistration(null);
-              }}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmittingRegister}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
-            >
-              {isSubmittingRegister && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isSubmittingRegister ? 'Completing Registration...' : 'Complete Registration & Issue Account'}</span>
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Newly Created Credentials Modal */}
-      <Modal
-        isOpen={!!newlyCreatedCredentials}
-        onClose={() => setNewlyCreatedCredentials(null)}
-        title="Member Account Successfully Created"
-        maxWidth="max-w-md"
-      >
-        <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-              <Check className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-emerald-900 text-base">
-              Member Added & Enrolled!
-            </h3>
-            <p className="text-xs text-emerald-700">
-              The converted lead has been added to the <strong>Member Directory</strong> and removed from the enquiry pipeline.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 font-mono">
-            <div className="flex justify-between pb-1.5 border-b border-slate-200 text-slate-600">
-              <span className="font-sans font-semibold text-slate-500">Full Name:</span>
-              <span className="font-bold text-slate-900 font-sans">{newlyCreatedCredentials?.name}</span>
-            </div>
-            <div className="flex justify-between pb-1.5 border-b border-slate-200 text-slate-600">
-              <span className="font-sans font-semibold text-slate-500">Login Email:</span>
-              <span className="font-bold text-slate-900">{newlyCreatedCredentials?.email}</span>
-            </div>
-            <div className="flex justify-between pb-1.5 border-b border-slate-200 text-slate-600">
-              <span className="font-sans font-semibold text-slate-500">Password:</span>
-              <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                {newlyCreatedCredentials?.password}
-              </span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span className="font-sans font-semibold text-slate-500">Plan Assigned:</span>
-              <span className="font-semibold text-slate-800 font-sans">{newlyCreatedCredentials?.planName}</span>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={handleCopyCredentials}
-              className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer transition-all"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Copied Details!' : 'Copy Credentials'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewlyCreatedCredentials(null)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </Modal>
+        initialData={addMemberInitialData}
+      />
     </div>
   );
 };

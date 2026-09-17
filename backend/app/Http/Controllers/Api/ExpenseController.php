@@ -19,12 +19,7 @@ class ExpenseController extends Controller
         $query = Expense::query();
 
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) {
-                    $q->orWhereNull('gym_id');
-                }
-            });
+            $query->where('gym_id', $gymId);
         }
 
         // Category filter
@@ -94,7 +89,7 @@ class ExpenseController extends Controller
             ], 422);
         }
 
-        $gymId = $this->resolveGymId($request) ?? 1;
+        $gymId = $this->resolveGymId($request);
         $userId = auth('sanctum')->id();
 
         $expense = Expense::create([
@@ -122,7 +117,7 @@ class ExpenseController extends Controller
      */
     public function show($id)
     {
-        $numericId = (int)str_replace('exp-', '', $id);
+        $numericId = (int)str_replace(['exp-', 'EXP-'], '', $id);
         $expense = Expense::findOrFail($numericId);
 
         return response()->json([
@@ -136,15 +131,15 @@ class ExpenseController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $numericId = (int)str_replace('exp-', '', $id);
+        $numericId = (int)str_replace(['exp-', 'EXP-'], '', $id);
         $expense = Expense::findOrFail($numericId);
 
         $validator = Validator::make($request->all(), [
-            'title' => 'sometimes|required|string|max:255',
-            'category' => 'sometimes|required|string|max:100',
-            'vendor' => 'sometimes|required|string|max:255',
-            'amount' => 'sometimes|required|numeric|min:1',
-            'date' => 'sometimes|required|date',
+            'title' => 'nullable|string|max:255',
+            'category' => 'nullable|string|max:100',
+            'vendor' => 'nullable|string|max:255',
+            'amount' => 'nullable|numeric|min:1',
+            'date' => 'nullable|date',
             'paymentMode' => 'nullable|string',
             'payment_mode' => 'nullable|string',
             'refNo' => 'nullable|string|max:100',
@@ -183,9 +178,11 @@ class ExpenseController extends Controller
      */
     public function destroy($id)
     {
-        $numericId = (int)str_replace('exp-', '', $id);
-        $expense = Expense::findOrFail($numericId);
-        $expense->delete();
+        $numericId = (int)str_replace(['exp-', 'EXP-'], '', $id);
+        $expense = Expense::find($numericId);
+        if ($expense) {
+            $expense->delete();
+        }
 
         return response()->json([
             'success' => true,
@@ -203,10 +200,7 @@ class ExpenseController extends Controller
         // 1. Cash Inflow (Paid fee invoices)
         $invoicesQuery = Invoice::where('status', 'Paid');
         if ($gymId) {
-            $invoicesQuery->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $invoicesQuery->where('gym_id', $gymId);
         }
         $dbInflow = (float)$invoicesQuery->sum('amount');
         $totalInflow = $dbInflow;
@@ -214,10 +208,7 @@ class ExpenseController extends Controller
         // 2. Cash Outflow (Operating expenses)
         $expensesQuery = Expense::query();
         if ($gymId) {
-            $expensesQuery->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $expensesQuery->where('gym_id', $gymId);
         }
         $totalOutflow = (float)$expensesQuery->sum('amount');
 

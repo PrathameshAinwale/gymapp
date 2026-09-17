@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   Wallet,
@@ -16,12 +16,19 @@ import {
   DollarSign,
   AlertCircle,
   Loader2,
-  History
+  History,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 
 export const PayrollManager = () => {
-  const { payrollRecords, markPayrollPaid, trainers } = useGymData();
+  const { payrollRecords, markPayrollPaid, updatePayrollAdjustments, trainers, fetchPayroll, fetchTrainers } = useGymData();
+
+  useEffect(() => {
+    fetchPayroll?.();
+    fetchTrainers?.();
+  }, [fetchPayroll, fetchTrainers]);
 
   // Generate the last 12 months (1 year archive)
   const last12Months = useMemo(() => {
@@ -41,6 +48,8 @@ export const PayrollManager = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [viewingPayslip, setViewingPayslip] = useState(null);
   const [payingId, setPayingId] = useState(null);
+  const [adjustingRecord, setAdjustingRecord] = useState(null);
+  const [adjustForm, setAdjustForm] = useState({ bonus: 0, deductions: 0 });
 
   const isCurrentCycle = selectedMonth === last12Months[0]?.label;
 
@@ -112,23 +121,25 @@ export const PayrollManager = () => {
           </p>
         </div>
 
-        {/* 1-Year Historical Month Selector */}
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 self-start sm:self-auto shrink-0 shadow-xs">
-          <div className="flex items-center gap-1.5 px-1.5 text-slate-600 text-xs font-bold">
-            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Cycle:</span>
+        {/* 1-Year Historical Month Selector & Refresh */}
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-xs">
+            <div className="flex items-center gap-1.5 px-1.5 text-slate-600 text-xs font-bold">
+              <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Cycle:</span>
+            </div>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
+            >
+              {last12Months.map((m) => (
+                <option key={m.val} value={m.label}>
+                  {m.label} {m.isCurrent ? '(Current Cycle)' : '(Past Cycle)'}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
-          >
-            {last12Months.map((m) => (
-              <option key={m.val} value={m.label}>
-                {m.label} {m.isCurrent ? '(Current Cycle)' : '(Past Cycle)'}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -213,8 +224,19 @@ export const PayrollManager = () => {
       {/* Mobile View: Compact Cards */}
       <div className="block sm:hidden space-y-2">
         {filteredPayroll.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
-            No payroll records found.
+          <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <EmptyState
+              icon={Wallet}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching payroll records" : `No Payroll Logs for ${selectedMonth}`}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No staff salary payouts match your current search or status filter."
+                  : `No payroll records have been generated yet for ${selectedMonth}.`
+              }
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
           </div>
         ) : (
           filteredPayroll.map((pay) => {
@@ -300,23 +322,39 @@ export const PayrollManager = () => {
 
       {/* Desktop View: Full Table */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3.5 px-5">Staff Member</th>
-                <th className="py-3.5 px-5">Role / Designation</th>
-                <th className="py-3.5 px-5">Base Pay</th>
-                <th className="py-3.5 px-5">PT Commissions</th>
-                <th className="py-3.5 px-5">Incentive / Bonus</th>
-                <th className="py-3.5 px-5">Deductions</th>
-                <th className="py-3.5 px-5">Net Salary</th>
-                <th className="py-3.5 px-5">Status</th>
-                <th className="py-3.5 px-5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredPayroll.map((pay) => {
+        {filteredPayroll.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={Wallet}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching payroll records" : `No Payroll Logs for ${selectedMonth}`}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No staff salary payouts match your current search or status filter."
+                  : `No payroll records have been generated yet for ${selectedMonth}.`
+              }
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3.5 px-5">Staff Member</th>
+                  <th className="py-3.5 px-5">Role / Designation</th>
+                  <th className="py-3.5 px-5">Base Pay</th>
+                  <th className="py-3.5 px-5">PT Commissions</th>
+                  <th className="py-3.5 px-5">Incentive / Bonus</th>
+                  <th className="py-3.5 px-5">Deductions</th>
+                  <th className="py-3.5 px-5">Net Salary</th>
+                  <th className="py-3.5 px-5">Status</th>
+                  <th className="py-3.5 px-5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredPayroll.map((pay) => {
                 const isPaid = pay.status === 'Paid';
 
                 return (
@@ -370,6 +408,19 @@ export const PayrollManager = () => {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
+                          onClick={() => {
+                            setAdjustingRecord(pay);
+                            setAdjustForm({ bonus: pay.bonus || 0, deductions: pay.deductions || 0 });
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                          title="Edit Incentives & Deductions"
+                        >
+                          <IndianRupee className="w-3 h-3 text-emerald-600" />
+                          <span>Adjust</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => setViewingPayslip(pay)}
                           className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
                         >
@@ -405,7 +456,101 @@ export const PayrollManager = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      )}
+    </div>
+
+      {/* Manual Incentives & Deductions Modal */}
+      <Modal
+        isOpen={Boolean(adjustingRecord)}
+        onClose={() => setAdjustingRecord(null)}
+        title={`Adjust Pay: ${adjustingRecord?.trainerName || 'Staff'}`}
+        maxWidth="max-w-md"
+      >
+        {adjustingRecord && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updatePayrollAdjustments(adjustingRecord.id, {
+                bonus: Number(adjustForm.bonus),
+                deductions: Number(adjustForm.deductions)
+              });
+              setAdjustingRecord(null);
+            }}
+            className="space-y-4 text-xs"
+          >
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <div className="flex justify-between font-medium text-slate-600">
+                <span>Base Salary:</span>
+                <span className="font-bold text-slate-900">₹{Number(adjustingRecord.baseSalary).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between font-medium text-slate-600">
+                <span>Commissions:</span>
+                <span className="font-bold text-emerald-700">+₹{Number(adjustingRecord.commissions || 0).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Incentive / Bonus (₹)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={adjustForm.bonus}
+                onChange={(e) => setAdjustForm({ ...adjustForm, bonus: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Manual performance reward or monthly attendance incentive.
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Salary Deductions (₹)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={adjustForm.deductions}
+                onChange={(e) => setAdjustForm({ ...adjustForm, deductions: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-rose-500"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                TDS, advance repayments, late penalties, or absence deductions.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex justify-between items-center">
+              <span className="font-bold text-emerald-900">Revised Net Payable:</span>
+              <span className="font-mono font-black text-sm text-emerald-700">
+                ₹{(
+                  Number(adjustingRecord.baseSalary || 0) +
+                  Number(adjustingRecord.commissions || 0) +
+                  Number(adjustForm.bonus || 0) -
+                  Number(adjustForm.deductions || 0)
+                ).toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAdjustingRecord(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm cursor-pointer"
+              >
+                Save Adjustments
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* Payslip View Modal */}
       <Modal

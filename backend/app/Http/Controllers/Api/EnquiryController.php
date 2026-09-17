@@ -23,10 +23,7 @@ class EnquiryController extends Controller
         $query = Enquiry::query();
 
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $query->where('gym_id', $gymId);
         }
 
         // Priority filter
@@ -51,7 +48,7 @@ class EnquiryController extends Controller
             });
         }
 
-        $enquiries = $query->orderByRaw("FIELD(priority, 'Hot', 'Warm', 'Cold')")
+        $enquiries = $query->orderByRaw("CASE priority WHEN 'Hot' THEN 1 WHEN 'Warm' THEN 2 WHEN 'Cold' THEN 3 ELSE 4 END")
             ->orderBy('follow_up_date', 'asc')
             ->orderBy('id', 'desc')
             ->get()
@@ -100,7 +97,7 @@ class EnquiryController extends Controller
             ], 422);
         }
 
-        $gymId = $this->resolveGymId($request) ?? 1;
+        $gymId = $this->resolveGymId($request);
 
         $comments = [];
         if ($request->filled('notes')) {
@@ -344,7 +341,7 @@ class EnquiryController extends Controller
             ], 404);
         }
 
-        $gymId = $this->resolveGymId($request) ?? $enquiry->gym_id ?? 1;
+        $gymId = $this->resolveGymId($request) ?? $enquiry->gym_id;
 
         // Resolve plan
         $plan = null;
@@ -356,9 +353,7 @@ class EnquiryController extends Controller
             $plan = Plan::where('name', $enquiry->interested_plan)->first();
         }
         if (!$plan) {
-            $plan = Plan::where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId)->orWhereNull('gym_id');
-            })->first() ?? Plan::first();
+            $plan = Plan::where('gym_id', $gymId)->first() ?? Plan::first();
         }
 
         // Resolve trainer
@@ -384,7 +379,7 @@ class EnquiryController extends Controller
             $user->name = $name;
             $user->phone = $phone;
             $user->password = Hash::make($plainPassword);
-            $user->initial_password = $plainPassword;
+            $user->initial_password = Hash::make($plainPassword);
             $user->must_change_password = true;
             if ($request->filled('avatar')) {
                 $user->avatar = $request->avatar;
@@ -396,7 +391,7 @@ class EnquiryController extends Controller
                 'email' => $email,
                 'phone' => $phone,
                 'password' => Hash::make($plainPassword),
-                'initial_password' => $plainPassword,
+                'initial_password' => Hash::make($plainPassword),
                 'must_change_password' => true,
                 'role' => 'member',
                 'gym_id' => $gymId,
@@ -521,10 +516,7 @@ class EnquiryController extends Controller
         $query = Enquiry::query();
 
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $query->where('gym_id', $gymId);
         }
 
         $total = $query->count();

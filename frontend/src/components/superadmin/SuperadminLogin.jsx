@@ -1,22 +1,28 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, Sparkles, Key, AlertCircle, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, Key, AlertCircle, ArrowRight } from 'lucide-react';
 import { api } from '../../services/api';
 
 export const SuperadminLogin = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('archdevops360@gmail.com');
-  const [password, setPassword] = useState('111111');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError('Please enter both Superadmin email and security key.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // 1. Try logging in via backend API
-      const res = await api.auth.login(email.trim(), password);
+      // Authenticate exclusively via backend API & database
+      const res = await api.auth.login(cleanEmail, password);
       
       if (res?.user) {
         if (res.user.role !== 'superadmin') {
@@ -31,21 +37,10 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
         onLoginSuccess(res.user);
         return;
       }
+
+      setError('Authentication failed. No user details returned.');
     } catch (err) {
-      // Direct validation fallback for archdevops360@gmail.com
-      if (email.trim() === 'archdevops360@gmail.com' && password === '111111') {
-        const superUser = {
-          id: 9999,
-          name: 'Arch DevOps Master Admin',
-          email: 'archdevops360@gmail.com',
-          role: 'superadmin',
-        };
-        localStorage.setItem('pulsefit_superadmin_user', JSON.stringify(superUser));
-        localStorage.setItem('pulsefit_superadmin_token', 'mock_superadmin_token');
-        onLoginSuccess(superUser);
-        return;
-      }
-      setError(err.message || 'Invalid Superadmin credentials. Please verify email and password.');
+      setError(err.message || 'Invalid Superadmin credentials. Please verify your email and password.');
     } finally {
       setIsLoading(false);
     }
@@ -112,7 +107,8 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700/70 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                  placeholder="archdevops360@gmail.com"
+                  placeholder="Enter Superadmin Email"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -131,12 +127,14 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-11 py-2.5 bg-slate-900/80 border border-slate-700/70 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
-                  placeholder="••••••••"
+                  placeholder="Enter Master Security Key"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -158,22 +156,6 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access Bar */}
-          <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('archdevops360@gmail.com');
-                setPassword('111111');
-                handleSubmit();
-              }}
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>One-Click Superadmin Access</span>
-            </button>
-          </div>
         </div>
 
         {/* Bottom Note */}

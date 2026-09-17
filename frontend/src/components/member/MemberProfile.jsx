@@ -81,15 +81,20 @@ export const MemberProfile = () => {
   };
 
   // Calculate days remaining
-  const expiryDate = member?.expiryDate ? new Date(member.expiryDate) : null;
-  const joinDate = member?.joinDate ? new Date(member.joinDate) : new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const today = new Date();
-  const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24))) : 180;
+  today.setHours(0, 0, 0, 0);
+  const expiryDate = member?.expiryDate ? new Date(member.expiryDate) : null;
+  if (expiryDate) expiryDate.setHours(0, 0, 0, 0);
+  const joinDate = member?.joinDate ? new Date(member.joinDate) : new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  if (joinDate) joinDate.setHours(0, 0, 0, 0);
+
+  const rawDiff = expiryDate ? Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 180;
+  const daysRemaining = Math.max(0, rawDiff);
   const totalPlanDays = expiryDate && joinDate ? Math.max(1, Math.ceil((expiryDate - joinDate) / (1000 * 60 * 60 * 24))) : 365;
   const progressPercent = Math.min(100, Math.max(0, Math.round(((totalPlanDays - daysRemaining) / totalPlanDays) * 100)));
 
-  const isExpired = daysRemaining <= 0;
-  const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 15;
+  const isExpired = rawDiff < 0;
+  const isExpiringSoon = rawDiff >= 0 && rawDiff <= 10;
 
   const planStatusBadge = isExpired ? (
     <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200">

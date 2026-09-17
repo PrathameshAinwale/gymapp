@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   FileText,
@@ -16,12 +16,27 @@ import {
   Plus,
   ChevronDown,
   Check,
-  Loader2
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 
 export const ConsentFormsManager = () => {
-  const { consentForms, members, addConsentForm, updateConsentStatus, addToast } = useGymData();
+  const {
+    consentForms,
+    members,
+    addConsentForm,
+    updateConsentStatus,
+    fetchConsentForms,
+    fetchMembers,
+    addToast
+  } = useGymData();
+
+  useEffect(() => {
+    fetchConsentForms?.();
+    fetchMembers?.();
+  }, [fetchConsentForms, fetchMembers]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -198,8 +213,37 @@ export const ConsentFormsManager = () => {
       {/* Forms Mobile Cards View */}
       <div className="block sm:hidden space-y-2.5">
         {filteredForms.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-            No consent forms match this filter.
+          <div className="p-6 bg-white rounded-2xl border border-slate-200">
+            <EmptyState
+              icon={FileText}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching consent forms" : "No Consent Forms Yet"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No liability waivers match your search or filter. Try clearing filters or create a new waiver."
+                  : "Issue PAR-Q health declarations, liability waivers, and emergency contacts to gym members."
+              }
+              actionText="Create Consent Waiver"
+              onAction={() => {
+                if (members.length > 0) {
+                  const defaultMember = members[0];
+                  setCreateForm({
+                    memberId: defaultMember.id,
+                    memberName: defaultMember.name,
+                    phone: defaultMember.phone || '',
+                    planName: defaultMember.planName || 'General Membership',
+                    emergencyContact: defaultMember.emergencyContact || '',
+                    emergencyPhone: '',
+                    medicalNotes: defaultMember.medicalNotes || '',
+                    formType: 'General Fitness & Liability Waiver',
+                    status: 'Pending'
+                  });
+                }
+                setIsCreateModalOpen(true);
+              }}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
           </div>
         ) : (
           filteredForms.map((f) => {
@@ -271,21 +315,55 @@ export const ConsentFormsManager = () => {
 
       {/* Forms Table (Desktop View) */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3.5 px-4">Member Name</th>
-                <th className="py-3.5 px-4">Agreement / Form Title</th>
-                <th className="py-3.5 px-4">Emergency Contact</th>
-                <th className="py-3.5 px-4">Medical Clearance Notes</th>
-                <th className="py-3.5 px-4">Date Signed</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredForms.map((f) => {
+        {filteredForms.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={FileText}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching consent forms" : "No Consent Forms Yet"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No liability waivers match your search or filter. Try clearing filters or create a new waiver."
+                  : "Issue PAR-Q health declarations, liability waivers, and emergency contacts to gym members."
+              }
+              actionText="Create Consent Waiver"
+              onAction={() => {
+                if (members.length > 0) {
+                  const defaultMember = members[0];
+                  setCreateForm({
+                    memberId: defaultMember.id,
+                    memberName: defaultMember.name,
+                    phone: defaultMember.phone || '',
+                    planName: defaultMember.planName || 'General Membership',
+                    emergencyContact: defaultMember.emergencyContact || '',
+                    emergencyPhone: '',
+                    medicalNotes: defaultMember.medicalNotes || '',
+                    formType: 'General Fitness & Liability Waiver',
+                    status: 'Pending'
+                  });
+                }
+                setIsCreateModalOpen(true);
+              }}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3.5 px-4">Member Name</th>
+                  <th className="py-3.5 px-4">Agreement / Form Title</th>
+                  <th className="py-3.5 px-4">Emergency Contact</th>
+                  <th className="py-3.5 px-4">Medical Clearance Notes</th>
+                  <th className="py-3.5 px-4">Date Signed</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredForms.map((f) => {
                 const isSigned = f.status === 'Signed';
 
                 return (
@@ -373,7 +451,8 @@ export const ConsentFormsManager = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* CREATE NEW CONSENT FORM MODAL */}
       <Modal

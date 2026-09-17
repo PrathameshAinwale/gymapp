@@ -39,17 +39,15 @@ const CANDIDATE_API_HOSTS = getDefaultHosts();
 
 let activeBaseUrl = (function () {
   if (typeof window !== 'undefined') {
-    const custom = localStorage.getItem('pulsefit_api_url');
-    // Clear out known stale/dead IPs (e.g., 192.168.1.41)
-    if (custom && custom.includes('192.168.1.41')) {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
       localStorage.removeItem('pulsefit_api_url');
-    } else if (custom && custom.includes('10.0.2.2') && !isRunningInCapacitor()) {
-      localStorage.removeItem('pulsefit_api_url');
-    } else if (custom) {
-      return custom;
+      return 'http://127.0.0.1:8000/api/v1';
     }
+    const custom = localStorage.getItem('pulsefit_api_url');
+    if (custom) return custom;
   }
-  return import.meta.env.VITE_API_BASE_URL || CANDIDATE_API_HOSTS[0];
+  return import.meta.env.VITE_API_BASE_URL || CANDIDATE_API_HOSTS[0] || 'http://127.0.0.1:8000/api/v1';
 })();
 
 export const getActiveApiUrl = () => activeBaseUrl;
@@ -62,8 +60,8 @@ export const setActiveApiUrl = (url) => {
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-// Fast fetch helper with timeout to avoid browser hangs
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 2500) => {
+// Fast fetch helper with timeout to avoid browser hangs (10s allowance for queued requests in dev server)
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -100,19 +98,27 @@ const apiFetch = async (urlOrPath, options = {}) => {
   }
 
   // Deduplicate candidate hosts starting with activeBaseUrl
-  const hostsToTry = Array.from(new Set([
-    activeBaseUrl,
-    ...CANDIDATE_API_HOSTS,
-    'http://127.0.0.1:8000/api/v1',
-    'http://localhost:8000/api/v1',
-    'http://192.168.1.48:8000/api/v1'
-  ])).filter(Boolean);
+  const currentHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
+  const isLocal = typeof window !== 'undefined' && (currentHost === 'localhost' || currentHost === '127.0.0.1');
+  const hostsToTry = isLocal
+    ? Array.from(new Set([
+        `http://${currentHost}:8000/api/v1`,
+        'http://127.0.0.1:8000/api/v1',
+        'http://localhost:8000/api/v1'
+      ]))
+    : Array.from(new Set([
+        activeBaseUrl,
+        ...CANDIDATE_API_HOSTS,
+        'http://127.0.0.1:8000/api/v1',
+        'http://localhost:8000/api/v1'
+      ])).filter(Boolean);
 
   let lastError = null;
+  const timeoutMs = isLocal ? 6000 : 10000;
   for (const host of hostsToTry) {
     try {
       const fullUrl = `${host}${relativePath}`;
-      const res = await fetchWithTimeout(fullUrl, options, 2500);
+      const res = await fetchWithTimeout(fullUrl, options, timeoutMs);
       if (activeBaseUrl !== host) {
         activeBaseUrl = host;
         if (typeof window !== 'undefined') {
@@ -130,12 +136,14 @@ const apiFetch = async (urlOrPath, options = {}) => {
 
 const getHeaders = () => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_token') : null;
-  const gymId = typeof window !== 'undefined' ? (localStorage.getItem('pulsefit_gym_id') || '1') : '1';
+  const gymId = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null;
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Gym-ID': gymId
   };
+  if (gymId) {
+    headers['X-Gym-ID'] = gymId;
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -551,6 +559,78 @@ export const api = {
     },
   },
 
+  // Enquiries & Leads CRM Endpoints
+  enquiries: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/enquiries${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getById: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, data) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    updatePriority: async (id, priority) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/priority`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ priority }),
+      });
+      return handleResponse(res);
+    },
+    updateFollowUp: async (id, followUpDate) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/follow-up`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ follow_up_date: followUpDate }),
+      });
+      return handleResponse(res);
+    },
+    addComment: async (id, commentData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/comments`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(commentData),
+      });
+      return handleResponse(res);
+    },
+    convertToMember: async (id, memberData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/convert`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(memberData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    getStats: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries-stats`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
   // Equipment & Assets Endpoints
   equipment: {
     getAll: async () => {
@@ -655,6 +735,38 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}`, {
         method: 'DELETE',
         headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    convertToMember: async (id, memberData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/convert`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(memberData),
+      });
+      return handleResponse(res);
+    },
+    updatePriority: async (id, priority) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/priority`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ priority }),
+      });
+      return handleResponse(res);
+    },
+    updateFollowUp: async (id, followUpDate) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/follow-up`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ followUpDate }),
+      });
+      return handleResponse(res);
+    },
+    addComment: async (id, commentData) => {
+      const res = await apiFetch(`${API_BASE_URL}/enquiries/${id}/comments`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(typeof commentData === 'string' ? { text: commentData } : commentData),
       });
       return handleResponse(res);
     },
@@ -785,6 +897,23 @@ export const api = {
       });
       return handleResponse(res);
     },
+    adjust: async (id, data) => {
+      const numericId = typeof id === 'string' ? id.replace('pay-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/payroll/${numericId}/adjust`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    markPaid: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('pay-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/payroll/${numericId}/pay`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Biometric Devices & Access Logs
@@ -803,6 +932,10 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify({ device_id: deviceId }),
       });
+      return handleResponse(res);
+    },
+    getApprovals: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/gate-overrides`, { headers: getHeaders() });
       return handleResponse(res);
     },
   },
@@ -835,6 +968,204 @@ export const api = {
     },
     deleteGym: async (id) => {
       const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Staff Account Provisioning
+  staff: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/staff${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (staffData) => {
+      const res = await apiFetch(`${API_BASE_URL}/staff`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(staffData),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, staffData) => {
+      const numericId = typeof id === 'string' ? id.replace('usr-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(staffData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('usr-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // PT Sessions & OTP Session Logging
+  ptSessions: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (sessionData) => {
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(sessionData),
+      });
+      return handleResponse(res);
+    },
+    logSession: async (id, logData) => {
+      const numericId = typeof id === 'string' ? id.replace('pts-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions/${numericId}/log-session`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(logData),
+      });
+      return handleResponse(res);
+    },
+    regenerateOtp: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('pts-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions/${numericId}/regenerate-otp`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    getLogs: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('pts-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions/${numericId}/logs`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
+  // Advance Salary Requests
+  advanceRequests: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/advance-requests${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/advance-requests`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    updateStatus: async (id, status, notes = null) => {
+      const numericId = String(id).replace(/[^0-9]/g, '');
+      const res = await apiFetch(`${API_BASE_URL}/advance-requests/${numericId}/status`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ status, notes }),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Trainer Reviews & Star Ratings
+  trainerReviews: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/trainer-reviews${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (reviewData) => {
+      const res = await apiFetch(`${API_BASE_URL}/trainer-reviews`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(reviewData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('rev-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/trainer-reviews/${numericId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Reports & Analytics
+  reports: {
+    getSummary: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/reports/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
+  // Gym Business Information
+  gymInfo: {
+    get: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/gym-info`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    update: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/gym-info`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Dashboard Telemetry
+  dashboard: {
+    getOwnerStats: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/dashboard/owner-stats`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
+  // Dedicated Revenue & Billing (Inflow & Outflow)
+  revenueBilling: {
+    getInflows: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/inflow${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getOutflows: async (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/outflow${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getSummary: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/summary`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    addInflow: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/inflow`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    addOutflow: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/outflow`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    deleteRecord: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/${id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

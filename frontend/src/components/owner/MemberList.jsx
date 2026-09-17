@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
@@ -6,62 +6,67 @@ import {
   Search,
   Plus,
   Filter,
-  MoreVertical,
   Phone,
   Mail,
   Calendar,
   CreditCard,
+  Receipt,
   UserCheck,
   ShieldAlert,
   Trash2,
   Edit2,
   Eye,
   RefreshCw,
-  QrCode,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
-  KeyRound,
-  Copy,
   Check,
-  Sparkles,
   Target,
-  Camera,
-  Upload,
-  Image,
   MessageCircle,
   FileText,
-  Share2,
-  ChevronDown,
   Loader2,
   ShieldCheck,
-  MailCheck,
-  Send,
-  CheckCheck,
   HeartPulse,
   Dumbbell,
   IndianRupee,
-  Percent
+  Clock,
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
+import { AddMemberModal } from './AddMemberModal';
+import { EmptyState } from '../common/EmptyState';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
-  const { registerAccount } = useAuth();
+  const { registerAccount, canEditDelete, currentRole } = useAuth();
   const {
-    members,
-    trainers,
-    plans,
+    members = [],
+    trainers = [],
+    plans = [],
+    invoices = [],
     ptPlans = [],
     recoveryPlans = [],
+    fetchMembers,
+    fetchPlans,
+    fetchTrainers,
     addMember,
     updateMember,
     deleteMember,
     renewMemberPlan,
     recordPayment,
+    calculateMemberStatus,
+    getExpiryDaysDiff,
     addConsentForm,
     addCommissionRecord,
     addToast
   } = useGymData();
+
+  useEffect(() => {
+    fetchMembers?.();
+    fetchPlans?.();
+    fetchTrainers?.();
+  }, [fetchMembers, fetchPlans, fetchTrainers]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -69,315 +74,68 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const [editingMember, setEditingMember] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [renewingMember, setRenewingMember] = useState(null);
+  const [upgradingMember, setUpgradingMember] = useState(null);
   const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState('');
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
-  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [copiedField, setCopiedField] = useState('');
-  const [isCreatingMember, setIsCreatingMember] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRenewing, setIsRenewing] = useState(false);
-  const [paymentLinkModalMember, setPaymentLinkModalMember] = useState(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Form State for New Member with Photo and KYC
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    password: 'member' + Math.floor(100 + Math.random() * 900),
-    avatar: '',
-    age: 25,
-    gender: 'Male',
-    planId: plans[0]?.id || '',
-    trainerId: '', // Default: Self Guided
-    goal: 'Muscle Gain & Strength',
-    weight: 70,
-    targetWeight: 75,
-    height: 175,
-    medicalNotes: 'None',
-    emergencyContact: '',
-    kycDocType: 'Aadhaar Card',
-    kycDocNumber: '',
-    kycStatus: 'Verified'
-  });
-
-  // PT, Recovery, and Consent States
-  const [ptPlanId, setPtPlanId] = useState('');
-  const [recoveryPlanId, setRecoveryPlanId] = useState('');
-  const [ptCommissionPercent, setPtCommissionPercent] = useState(20);
-  const [consentAgreed, setConsentAgreed] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpValue, setOtpValue] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-
-  // Coach & PT Logic
-  const isCoachSelected = Boolean(formData.trainerId && formData.trainerId !== 'general');
-  const chosenTrainer = isCoachSelected ? trainers.find((t) => t.id === formData.trainerId) : null;
-
-  // Live Price Calculations
-  const chosenPlan = plans.find((p) => p.id === formData.planId) || plans[0];
-  const basePrice = Number(chosenPlan?.price) || 0;
-  const chosenPtPlan = isCoachSelected ? ptPlans.find((p) => p.id === ptPlanId) : null;
-  const ptPrice = Number(chosenPtPlan?.price) || 0;
-  const chosenRecoveryPlan = recoveryPlans.find((r) => r.id === recoveryPlanId);
-  const recoveryPrice = Number(chosenRecoveryPlan?.price) || 0;
-  const totalCalculatedAmount = basePrice + ptPrice + recoveryPrice;
-  const ptCommissionAmount = isCoachSelected && ptPrice > 0 ? Math.round((ptPrice * (Number(ptCommissionPercent) || 0)) / 100) : 0;
-
-  const handleTrainerChange = (newTrainerId) => {
-    setFormData((prev) => ({ ...prev, trainerId: newTrainerId }));
-    if (newTrainerId && newTrainerId !== 'general') {
-      // Dedicated coach selected: enable PT and default select first PT package
-      if (!ptPlanId && ptPlans.length > 0) {
-        setPtPlanId(ptPlans[0].id);
-      }
-    } else {
-      // Self Guided or General Coaching: disable PT
-      setPtPlanId('');
-    }
+  const getMemberEffectiveStatus = (m) => {
+    return calculateMemberStatus ? calculateMemberStatus(m?.expiryDate, m?.status) : (m?.status || 'Active');
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prev) => ({ ...prev, avatar: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const generateRandomPassword = () => {
-    const pass = 'fit' + Math.floor(1000 + Math.random() * 9000);
-    setFormData({ ...formData, password: pass });
-  };
-
-  const handleSendOtp = () => {
-    if (!formData.email || !formData.email.includes('@')) {
-      addToast('Please enter a valid member email address above before requesting OTP.', 'error');
-      return;
-    }
-    setIsSendingOtp(true);
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
-    setOtpSent(true);
-    setOtpVerified(false);
-    setOtpValue('');
-    setTimeout(() => {
-      setIsSendingOtp(false);
-      addToast(`Consent Signature OTP sent to ${formData.email}: Code is ${code}`, 'info');
-    }, 450);
-  };
-
-  const handleVerifyOtp = () => {
-    if (!otpValue.trim()) {
-      addToast('Please enter the 6-digit OTP code sent to the email.', 'error');
-      return;
-    }
-    setIsVerifyingOtp(true);
-    setTimeout(() => {
-      setIsVerifyingOtp(false);
-      if (otpValue.trim() === generatedOtp) {
-        setOtpVerified(true);
-        addToast('OTP verified! Consent form digitally signed.', 'success');
-      } else {
-        addToast('Invalid OTP code. Please check the code and try again.', 'error');
-      }
-    }, 350);
-  };
-
-  const handleCreateSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name || !formData.email) return;
-
-    if (!consentAgreed) {
-      addToast('Please review and agree to the Gym Terms & Liability Waiver.', 'error');
-      return;
-    }
-
-    if (!otpVerified) {
-      addToast('Please send and verify the Email OTP to complete digital signing of the consent form.', 'error');
-      return;
-    }
-
-    setIsCreatingMember(true);
+  const handleRefreshMembers = async () => {
+    setIsRefreshing(true);
     try {
-      let resolvedTrainer = null;
-      let resolvedTrainerName = 'None / Self Guided';
-      if (formData.trainerId === 'general') {
-        resolvedTrainerName = 'General Coaching';
-      } else if (formData.trainerId) {
-        resolvedTrainer = trainers.find((t) => t.id === formData.trainerId);
-        resolvedTrainerName = resolvedTrainer ? resolvedTrainer.name : 'None / Self Guided';
-      }
-
-      const today = new Date();
-      const expiry = new Date();
-      expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
-
-      // 1. Add to Gym CRM state
-      const createdMember = await addMember({
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        avatar: formData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
-        age: formData.age,
-        gender: formData.gender,
-        planId: chosenPlan?.id,
-        planName: chosenPlan?.name,
-        trainerId: resolvedTrainer ? resolvedTrainer.id : (formData.trainerId === 'general' ? 'general' : null),
-        trainerName: resolvedTrainerName,
-        ptPlanId: chosenPtPlan ? chosenPtPlan.id : null,
-        ptPlanName: chosenPtPlan ? chosenPtPlan.name : null,
-        ptSessions: chosenPtPlan ? chosenPtPlan.sessions : 0,
-        recoveryPlanId: chosenRecoveryPlan ? chosenRecoveryPlan.id : null,
-        recoveryPlanName: chosenRecoveryPlan ? chosenRecoveryPlan.name : null,
-        goal: formData.goal,
-        weight: formData.weight,
-        targetWeight: formData.targetWeight,
-        height: formData.height,
-        medicalNotes: formData.medicalNotes,
-        emergencyContact: formData.emergencyContact,
-        expiryDate: expiry.toISOString().split('T')[0],
-        kycDocType: formData.kycDocType || 'Aadhaar Card',
-        kycDocNumber: formData.kycDocNumber || 'Not provided',
-        kycStatus: formData.kycStatus || 'Verified',
-        consentSigned: true,
-        consentSignedDate: today.toISOString().split('T')[0]
-      });
-
-      // 2. Provision Login Account in Auth Database
-      await registerAccount({
-        id: createdMember.id,
-        name: formData.name,
-        email: formData.email,
-        username: formData.email.split('@')[0],
-        password: formData.password || 'member123',
-        role: 'member',
-        planName: chosenPlan?.name,
-        qrPassCode: createdMember.qrPassCode
-      });
-
-      // 3. Register Signed Consent Form in state
-      await addConsentForm({
-        memberId: createdMember.id,
-        memberName: formData.name,
-        phone: formData.phone,
-        planName: chosenPlan?.name,
-        formType: 'General Fitness & Liability Waiver (Integrated OTP Signed)',
-        emergencyContact: formData.emergencyContact,
-        emergencyPhone: formData.emergencyContact,
-        medicalNotes: formData.medicalNotes,
-        status: 'Signed',
-        signedDate: today.toISOString().split('T')[0]
-      });
-
-      // 4. Generate Invoice & Record Inflow Billing
-      let invoiceTitle = chosenPlan?.name || 'Gym Membership';
-      const additions = [];
-      if (chosenPtPlan) additions.push(`${chosenPtPlan.name} (${chosenPtPlan.sessions} PT Sessions)`);
-      if (chosenRecoveryPlan) additions.push(chosenRecoveryPlan.name);
-      if (additions.length > 0) invoiceTitle += ` + ${additions.join(' + ')}`;
-
-      await recordPayment({
-        memberId: createdMember.id,
-        memberName: formData.name,
-        planId: chosenPlan?.id,
-        planName: invoiceTitle,
-        amount: totalCalculatedAmount,
-        paymentMethod: 'UPI'
-      });
-
-      // 5. If PT with dedicated Coach, Log Trainer Commission
-      if (resolvedTrainer && chosenPtPlan && ptCommissionAmount > 0) {
-        await addCommissionRecord({
-          trainerId: resolvedTrainer.id,
-          trainerName: resolvedTrainer.name,
-          memberName: formData.name,
-          planName: `${chosenPtPlan.name} (${chosenPtPlan.sessions} Sessions)`,
-          sessionType: 'Personal Training (PT)',
-          serviceType: 'Personal Training (PT)',
-          ratePercent: Number(ptCommissionPercent),
-          commissionPct: Number(ptCommissionPercent),
-          amount: ptPrice,
-          packageAmount: ptPrice,
-          commissionEarned: ptCommissionAmount,
-          date: today.toISOString().split('T')[0],
-          status: 'Pending'
-        });
-      }
-
-      // 6. Open Credentials Receipt for Owner
-      setNewlyCreatedCredentials({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password || 'member123',
-        id: createdMember.id,
-        qrPassCode: createdMember.qrPassCode,
-        planName: invoiceTitle,
-        totalAmount: totalCalculatedAmount,
-        ptName: chosenPtPlan?.name,
-        recoveryName: chosenRecoveryPlan?.name,
-        trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
-        trainerName: resolvedTrainerName
-      });
-
-      setIsOpenAddModal(false);
-      // Reset form & otp state
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        password: 'member' + Math.floor(100 + Math.random() * 900),
-        avatar: '',
-        age: 25,
-        gender: 'Male',
-        planId: plans[0]?.id || '',
-        trainerId: '', // Reset to Self Guided
-        goal: 'Muscle Gain & Strength',
-        weight: 70,
-        targetWeight: 75,
-        height: 175,
-        medicalNotes: 'None',
-        emergencyContact: '',
-        kycDocType: 'Aadhaar Card',
-        kycDocNumber: '',
-        kycStatus: 'Verified'
-      });
-      setPtPlanId('');
-      setRecoveryPlanId('');
-      setPtCommissionPercent(20);
-      setConsentAgreed(false);
-      setOtpSent(false);
-      setOtpValue('');
-      setGeneratedOtp('');
-      setOtpVerified(false);
+      await Promise.allSettled([fetchMembers?.(), fetchPlans?.(), fetchTrainers?.()]);
+      addToast('Member directory refreshed from database!', 'info');
     } finally {
-      setIsCreatingMember(false);
+      setIsRefreshing(false);
     }
   };
 
-  const handleCopyCredentials = () => {
-    if (!newlyCreatedCredentials) return;
-    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: http://localhost:5173/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan & Services: ${newlyCreatedCredentials.planName}\n• Total Amount Paid: ₹${Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    addToast('Credentials copied to clipboard!');
-    setTimeout(() => setCopied(false), 3000);
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getBmiData = (weight, height) => {
+    if (!weight || !height) return null;
+    const hM = Number(height) / 100;
+    if (hM <= 0) return null;
+    const bmiVal = (Number(weight) / (hM * hM)).toFixed(1);
+    let category = 'Normal';
+    let color = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    if (bmiVal < 18.5) {
+      category = 'Underweight';
+      color = 'text-blue-700 bg-blue-50 border-blue-200';
+    } else if (bmiVal >= 25 && bmiVal < 30) {
+      category = 'Overweight';
+      color = 'text-amber-700 bg-amber-50 border-amber-200';
+    } else if (bmiVal >= 30) {
+      category = 'Obese';
+      color = 'text-rose-700 bg-rose-50 border-rose-200';
+    }
+    return { bmi: bmiVal, category, color };
   };
 
   const handleEditSubmit = (e) => {
     e.preventDefault();
     if (!editingMember) return;
     const chosenTrainer = trainers.find((t) => t.id === editingMember.trainerId);
+    const autoStatus = calculateMemberStatus
+      ? calculateMemberStatus(editingMember.expiryDate, editingMember.status)
+      : editingMember.status;
     updateMember(editingMember.id, {
       ...editingMember,
+      status: autoStatus,
       trainerName: chosenTrainer ? chosenTrainer.name : editingMember.trainerName
     });
     setEditingMember(null);
@@ -394,12 +152,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
       (m?.planName || '').toLowerCase().includes(term);
 
     if (statusFilter === 'ALL' || !statusFilter) return matchSearch;
-    return matchSearch && (m?.status || '').toLowerCase() === statusFilter.toLowerCase();
+    const effectiveStatus = getMemberEffectiveStatus(m);
+    return matchSearch && effectiveStatus.toLowerCase() === statusFilter.toLowerCase();
   });
 
-  const activeCount = (members || []).filter((m) => (m?.status || '').toLowerCase() === 'active').length;
-  const expiringCount = (members || []).filter((m) => (m?.status || '').toLowerCase() === 'expiring soon').length;
-  const expiredCount = (members || []).filter((m) => (m?.status || '').toLowerCase() === 'expired').length;
+  const activeCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'active').length;
+  const expiringCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'expiring soon').length;
+  const expiredCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'expired').length;
 
   return (
     <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-12 max-w-7xl mx-auto">
@@ -422,14 +181,27 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsOpenAddModal(true)}
-          className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add New Member</span>
-          <span className="inline sm:hidden">Add Member</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefreshMembers}
+            disabled={isRefreshing}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            title="Refresh members list from database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsOpenAddModal(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add New Member</span>
+            <span className="inline sm:hidden">Add Member</span>
+          </button>
+        </div>
       </div>
 
       {/* Sleek Compact Search & Filter Toolbar */}
@@ -487,30 +259,41 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
       {/* Member Cards (Mobile View) */}
       <div className="block sm:hidden space-y-2.5">
         {filteredMembers.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-            No members found matching your search criteria.
-          </div>
+          <EmptyState
+            icon={Users}
+            title={members.length === 0 ? "No Members Enrolled Yet" : "No Members Matching Filter"}
+            description={members.length === 0 
+              ? "There is currently no member data for this gym. Click below to add and register your first athlete."
+              : `No members match the search query "${searchTerm}" or the selected status filter.`}
+            actionText="Add New Member"
+            onAction={() => setIsOpenAddModal(true)}
+            secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Search Filter" : undefined}
+            onSecondaryAction={() => { setSearchTerm(''); setStatusFilter('ALL'); }}
+            accentColor="emerald"
+          />
         ) : (
           filteredMembers.map((member) => {
-            const isExpiring = member.status === 'Expiring Soon';
-            const isExpired = member.status === 'Expired';
+            const effectiveStatus = getMemberEffectiveStatus(member);
+            const isExpiring = effectiveStatus === 'Expiring Soon';
+            const isExpired = effectiveStatus === 'Expired';
+            const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
             let statusBadge = (
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 inline-flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
                 <CheckCircle className="w-2.5 h-2.5" /> Active
               </span>
             );
 
             if (isExpiring) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20 inline-flex items-center gap-1">
-                  <AlertCircle className="w-2.5 h-2.5" /> Expiring
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
+                  <AlertCircle className="w-2.5 h-2.5" /> Expiring {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : 'Soon'}
                 </span>
               );
             } else if (isExpired) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/20 inline-flex items-center gap-1">
-                  <ShieldAlert className="w-2.5 h-2.5" /> Expired
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
+                  <ShieldAlert className="w-2.5 h-2.5" /> Expired {diffDays !== null ? `(${Math.abs(diffDays)}d ago)` : ''}
                 </span>
               );
             }
@@ -568,8 +351,16 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     <span className="font-semibold text-emerald-700 truncate block">{member.trainerName || 'None'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-medium block">Pass</span>
-                    <span className="font-mono text-slate-600 truncate block">{member.qrPassCode || member.id}</span>
+                    <span className="text-slate-400 font-medium block">Balance Due</span>
+                    {Number(member.duesAmount || 0) > 0 ? (
+                      <span className="font-bold text-rose-600 truncate block">
+                        ₹{Number(member.duesAmount).toLocaleString('en-IN')} Due
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-emerald-700 truncate block">
+                        ₹0 (Clear)
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -591,6 +382,15 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      onClick={() => setUpgradingMember(member)}
+                      className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                      title="Upgrade / Add Top-ups"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>Upgrade</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
                         setRenewingMember(member);
                         setSelectedPlanForRenewal(member.planId);
@@ -600,22 +400,26 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <RefreshCw className="w-3 h-3" />
                       <span>Renew</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingMember(member)}
-                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
-                      title="Edit"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteMember(member.id)}
-                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {canEditDelete && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember(member)}
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteMember(member.id)}
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -633,6 +437,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 <th className="py-3 px-4">Member Name</th>
                 <th className="py-3 px-4">Plan & Validity</th>
                 <th className="py-3 px-4">Assigned Coach</th>
+                <th className="py-3 px-4">Balance Due</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -640,14 +445,27 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-medium">
-                    No members found matching your search criteria.
+                  <td colSpan={6} className="py-8 px-4">
+                    <EmptyState
+                      icon={Users}
+                      title={members.length === 0 ? "No Members Enrolled Yet" : "No Members Matching Filter"}
+                      description={members.length === 0 
+                        ? "There is currently no member data for this gym. Click below to add and register your first athlete."
+                        : `No members match the search query "${searchTerm}" or the selected status filter.`}
+                      actionText="Add New Member"
+                      onAction={() => setIsOpenAddModal(true)}
+                      secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Search Filter" : undefined}
+                      onSecondaryAction={() => { setSearchTerm(''); setStatusFilter('ALL'); }}
+                      accentColor="emerald"
+                    />
                   </td>
                 </tr>
               ) : (
                 filteredMembers.map((member) => {
-                  const isExpiring = member.status === 'Expiring Soon';
-                  const isExpired = member.status === 'Expired';
+                  const effectiveStatus = getMemberEffectiveStatus(member);
+                  const isExpiring = effectiveStatus === 'Expiring Soon';
+                  const isExpired = effectiveStatus === 'Expired';
+                  const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
                   let statusBadge = (
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
@@ -657,14 +475,14 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
                   if (isExpiring) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> Expiring Soon
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expires in ${diffDays} days` : 'Expiring soon'}>
+                        <AlertCircle className="w-3 h-3" /> Expiring Soon {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : ''}
                       </span>
                     );
                   } else if (isExpired) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
-                        <ShieldAlert className="w-3 h-3" /> Expired
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expired ${Math.abs(diffDays)} days ago` : 'Expired'}>
+                        <ShieldAlert className="w-3 h-3" /> Expired {diffDays !== null ? `(${Math.abs(diffDays)}d ago)` : ''}
                       </span>
                     );
                   }
@@ -702,9 +520,11 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                               {member.name}
                             </div>
                             <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                              <span>{member.email}</span>
-                              <span>•</span>
-                              <span className="font-mono text-slate-400">{member.id}</span>
+                              {member.phone && (
+                                <>
+                                  <span>{member.phone}</span>
+                                </>
+                              )}
                               {member.phone && (
                                 <a
                                   href={`https://wa.me/${(member.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`)}`}
@@ -715,7 +535,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                                   title="1-Click WhatsApp"
                                 >
                                   <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
-                                  <span>WhatsApp</span>
                                 </a>
                               )}
                             </div>
@@ -746,6 +565,21 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         </div>
                       </td>
 
+                      {/* Balance Due */}
+                      <td className="py-3 px-4">
+                        {Number(member.duesAmount || 0) > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                            <span>₹{Number(member.duesAmount).toLocaleString('en-IN')} Due</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>₹0 (Clear)</span>
+                          </span>
+                        )}
+                      </td>
+
                       {/* Status */}
                       <td className="py-3 px-4">
                         {statusBadge}
@@ -755,6 +589,16 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
 
+
+                          <button
+                            type="button"
+                            onClick={() => setUpgradingMember(member)}
+                            title="Upgrade / Add Top-ups (PT, Recovery, Membership Upgrade)"
+                            className="px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Zap className="w-3 h-3 text-violet-600" />
+                            <span>Upgrade</span>
+                          </button>
 
                           <button
                             type="button"
@@ -769,23 +613,27 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                             <span>Renew</span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => setEditingMember(member)}
-                            title="Edit Member Details"
-                            className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canEditDelete && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setEditingMember(member)}
+                                title="Edit Member Details"
+                                className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => deleteMember(member.id)}
-                            title="Remove Member"
-                            className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteMember(member.id)}
+                                title="Remove Member"
+                                className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -801,177 +649,338 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
       <Modal
         isOpen={!!selectedMember}
         onClose={() => setSelectedMember(null)}
-        title={`Member Profile Card`}
-        maxWidth="max-w-2xl"
+        title="Member Dossier & Billing History"
+        maxWidth="max-w-3xl"
       >
-        {selectedMember && (
-          <div className="space-y-6">
-            
-            {/* Header Hero Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xl font-black text-slate-900 font-heading">{selectedMember.name}</h4>
-                    <span className="px-2 py-0.5 text-[9px] font-bold rounded bg-slate-100 text-slate-700 font-mono border border-slate-200">
-                      {selectedMember.id}
-                    </span>
+        {selectedMember && (() => {
+          const memberInvoices = (invoices || []).filter(
+            (inv) =>
+              String(inv.memberId) === String(selectedMember.id) ||
+              String(inv.userId) === String(selectedMember.id) ||
+              String(inv.user_id) === String(selectedMember.id) ||
+              (selectedMember.name && inv.memberName && inv.memberName.toLowerCase().trim() === selectedMember.name.toLowerCase().trim())
+          );
+
+          const totalPaidTillDate = memberInvoices.reduce(
+            (sum, inv) => sum + (Number(inv.amount) || 0),
+            0
+          );
+
+          const bmiInfo = getBmiData(selectedMember.weight, selectedMember.height);
+
+          return (
+            <div className="space-y-5">
+              {/* 1. Header Hero Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/40 to-white border border-emerald-200 shadow-2xs">
+                <div className="flex items-center gap-3.5">
+                  {selectedMember.avatar ? (
+                    <img
+                      src={selectedMember.avatar}
+                      alt={selectedMember.name}
+                      className="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl object-cover border-2 border-white shadow-xs shrink-0"
+                    />
+                  ) : (
+                    <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg border border-emerald-200 shrink-0">
+                      {selectedMember.name?.charAt(0) || 'M'}
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-lg sm:text-xl font-bold text-slate-900 font-heading">
+                      {selectedMember.name}
+                    </h4>
+
+                    <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                      <span>{selectedMember.gender}, {selectedMember.age} Years</span>
+                      <span>•</span>
+                      <span className="font-semibold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded">
+                        {selectedMember.planName}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                    <span>{selectedMember.gender}, {selectedMember.age} Years</span>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-semibold">{selectedMember.planName}</span>
+                </div>
+
+                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-100">
+                  {(() => {
+                    const drawerEffectiveStatus = getMemberEffectiveStatus(selectedMember);
+                    const drawerDiffDays = getExpiryDaysDiff ? getExpiryDaysDiff(selectedMember.expiryDate) : null;
+                    return (
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          drawerEffectiveStatus === 'Active'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : drawerEffectiveStatus === 'Expiring Soon'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-rose-100 text-rose-800 border border-rose-300'
+                        }`}
+                      >
+                        {drawerEffectiveStatus} {drawerDiffDays !== null ? (drawerDiffDays < 0 ? `(${Math.abs(drawerDiffDays)}d ago)` : drawerDiffDays <= 10 ? `(${drawerDiffDays === 0 ? 'Today' : `${drawerDiffDays}d left`})` : '') : ''}
+                      </span>
+                    );
+                  })()}
+                  <div className="text-xs text-amber-700 font-bold mt-1">
+                    {selectedMember.attendanceStreak || 0} Days Streak
                   </div>
                 </div>
               </div>
 
-              <div className="text-left sm:text-right">
-                <span
-                  className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    selectedMember.status === 'Active'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : selectedMember.status === 'Expiring Soon'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}
-                >
-                  {selectedMember.status}
-                </span>
-                <div className="text-xs text-amber-600 font-bold mt-1">
-                   {selectedMember.attendanceStreak || 0} Days Streak
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions Bar (WhatsApp & Payment Link) */}
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-              {selectedMember.phone && (
-                <a
-                  href={`https://wa.me/${(selectedMember.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${selectedMember.name}, greetings from Pulse Fitness! We are checking in on your fitness routine. Please let us know if you need any assistance!`)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>1-Click WhatsApp</span>
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  const m = selectedMember;
-                  setSelectedMember(null);
-                  setPaymentLinkModalMember(m);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold shadow-sm transition-all cursor-pointer"
-              >
-                <QrCode className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Share Payment Link & QR</span>
-              </button>
-
-              <div className="ml-auto text-[11px] font-semibold text-slate-500">
-                Gate Pass: <strong className="font-mono text-slate-800">{selectedMember.qrPassCode}</strong>
-              </div>
-            </div>
-
-            {/* Contact & KYC Document Matrix */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-emerald-600" /> Contact Details
-                </span>
-                <div className="text-slate-600">Email: <strong className="text-slate-900">{selectedMember.email}</strong></div>
-                <div className="text-slate-600">Phone: <strong className="text-slate-900">{selectedMember.phone || 'Not provided'}</strong></div>
-                <div className="text-slate-600">Emergency: <strong className="text-amber-700">{selectedMember.emergencyContact || 'None'}</strong></div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
+              {/* 2. Membership & Joining History */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-emerald-600" /> KYC Document Data
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Membership & Joining History</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                    {selectedMember.kycStatus || 'Verified'}
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    Coach: <strong className="text-slate-800">{selectedMember.trainerName || 'None / Self Guided'}</strong>
                   </span>
                 </div>
-                <div className="text-slate-600">Doc Type: <strong className="text-slate-900">{selectedMember.kycDocType || 'Aadhaar Card'}</strong></div>
-                <div className="text-slate-600">Doc Number: <strong className="text-slate-900 font-mono">{selectedMember.kycDocNumber || '5412 8901 2345'}</strong></div>
-                <div className="text-slate-600">Package: <strong className="text-emerald-700">{selectedMember.planName}</strong></div>
-              </div>
-            </div>
 
-            {/* Biometrics & Physical Stats */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Body Metrics & Physical Target
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Current Weight</div>
-                  <div className="text-base font-black text-slate-900 mt-1">{selectedMember.weight} kg</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Target Weight</div>
-                  <div className="text-base font-black text-emerald-600 mt-1">{selectedMember.targetWeight} kg</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Height</div>
-                  <div className="text-base font-black text-slate-900 mt-1">{selectedMember.height} cm</div>
-                </div>
-                <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Assigned Coach</div>
-                  <div className="text-xs font-bold text-emerald-700 mt-1 truncate">{selectedMember.trainerName || 'Unassigned'}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Date Joined</div>
+                    <div className="font-bold text-slate-900 mt-0.5 text-sm">
+                      {formatDate(selectedMember.joinDate || selectedMember.createdAt || selectedMember.created_at)}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                      Enrolled
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Valid Until</div>
+                    {(() => {
+                      const drawerEffectiveStatus = getMemberEffectiveStatus(selectedMember);
+                      const drawerDiffDays = getExpiryDaysDiff ? getExpiryDaysDiff(selectedMember.expiryDate) : null;
+                      return (
+                        <>
+                          <div className={`font-bold mt-0.5 text-sm ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-slate-900'}`}>
+                            {formatDate(selectedMember.expiryDate)}
+                          </div>
+                          <div className={`text-[10px] font-medium mt-0.5 ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-emerald-700'}`}>
+                            {drawerEffectiveStatus === 'Expired' ? (drawerDiffDays !== null ? `Expired ${Math.abs(drawerDiffDays)}d ago` : 'Plan Expired') : drawerEffectiveStatus === 'Expiring Soon' ? (drawerDiffDays !== null ? `Expires in ${drawerDiffDays}d` : 'Expiring Soon') : 'Plan Active'}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Attendance Streak</div>
+                    <div className="font-bold text-amber-600 mt-0.5 text-sm">
+                      {selectedMember.attendanceStreak || 0} Days
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      Last: {selectedMember.lastCheckIn || 'Recently'}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Total Dues</div>
+                    <div className="font-bold text-slate-900 mt-0.5 text-sm">
+                      ₹{Number(selectedMember.duesAmount || 0).toLocaleString('en-IN')}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      {Number(selectedMember.duesAmount || 0) === 0 ? 'All Clear' : 'Payment Due'}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Goal & Medical History */}
-            <div className="space-y-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-xs">
-              <div>
-                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
-                  Primary Fitness Objective:
+              {/* 3. Invoices Created Till Date */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Receipt className="w-4 h-4 text-emerald-600" />
+                    <span>Invoices Created Till Date ({memberInvoices.length})</span>
+                  </span>
+                  {memberInvoices.length > 0 && (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                      Total Paid: ₹{totalPaidTillDate.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+
+                {memberInvoices.length > 0 ? (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+                    <div className="max-h-52 overflow-y-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider sticky top-0">
+                          <tr>
+                            <th className="py-2.5 px-3">Invoice #</th>
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Description / Plan</th>
+                            <th className="py-2.5 px-3">Mode</th>
+                            <th className="py-2.5 px-3 text-right">Amount</th>
+                            <th className="py-2.5 px-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                          {memberInvoices.map((inv, idx) => (
+                            <tr key={inv.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{inv.id}</td>
+                              <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{formatDate(inv.date)}</td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-800">{inv.planName}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-700">
+                                  {inv.paymentMethod || 'UPI'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                                ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3" /> {inv.status || 'Paid'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-5 text-center bg-slate-50 border border-slate-200 rounded-2xl text-slate-500 text-xs">
+                    <Receipt className="w-8 h-8 mx-auto text-slate-400 mb-1" />
+                    <p className="font-semibold text-slate-700">No invoices recorded yet</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Billing receipts issued for this member will automatically show here.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Contact Information */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" /> Contact Information
+                  </span>
+                  {selectedMember.phone && (
+                    <a
+                      href={`https://wa.me/${(selectedMember.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${selectedMember.name}, greetings from Pulse Fitness!`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 transition-colors"
+                    >
+                      <MessageCircle className="w-3 h-3" /> WhatsApp
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Email Address</span>
+                    <strong className="text-slate-900 font-medium text-xs break-all">{selectedMember.email}</strong>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Phone Number</span>
+                    <strong className="text-slate-900 font-medium text-xs">{selectedMember.phone || 'Not provided'}</strong>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Emergency Contact</span>
+                    <strong className="text-slate-900 font-medium text-xs">{selectedMember.emergencyContact || 'None reported'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Biometrics & Physical Goals */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Physical Profile & Health
                 </span>
-                <p className="text-slate-900 font-semibold mt-0.5 flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  {selectedMember.goal}
-                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Current Weight</div>
+                    <div className="text-base font-black text-slate-900 mt-1">{selectedMember.weight || '--'} kg</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Target Weight</div>
+                    <div className="text-base font-black text-emerald-600 mt-1">{selectedMember.targetWeight || '--'} kg</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Height</div>
+                    <div className="text-base font-black text-slate-900 mt-1">{selectedMember.height || '--'} cm</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">BMI</div>
+                    <div className="text-base font-black text-slate-900 mt-1">
+                      {bmiInfo ? (
+                        <>
+                          <span>{bmiInfo.bmi}</span>
+                          <span className="text-[9px] block font-bold text-slate-500">{bmiInfo.category}</span>
+                        </>
+                      ) : (
+                        '--'
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs text-xs space-y-2">
+                  <div>
+                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                      Fitness Objective:
+                    </span>
+                    <p className="text-slate-900 font-semibold mt-0.5 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      {selectedMember.goal || 'General Fitness'}
+                    </p>
+                  </div>
+                  {selectedMember.medicalNotes && selectedMember.medicalNotes !== 'None' && (
+                    <div>
+                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                        Medical Notes & Health Considerations:
+                      </span>
+                      <p className="text-amber-800 mt-0.5">{selectedMember.medicalNotes}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
-                  Medical Notes & Health Considerations:
-                </span>
-                <p className="text-amber-800 mt-0.5">{selectedMember.medicalNotes || 'No reported health issues or injuries.'}</p>
+
+              {/* 6. Modal Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const m = selectedMember;
+                      setSelectedMember(null);
+                      setRenewingMember(m);
+                      setSelectedPlanForRenewal(m.planId);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Renew Membership</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const m = selectedMember;
+                      setSelectedMember(null);
+                      setEditingMember(m);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit Details</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedMember(null)}
+                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => {
-                  const m = selectedMember;
-                  setSelectedMember(null);
-                  setRenewingMember(m);
-                  setSelectedPlanForRenewal(m.planId);
-                }}
-                className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Renew Subscription</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMember(null)}
-                className="px-6 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
-              >
-                Close File
-              </button>
-            </div>
-
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* RENEW MEMBERSHIP MODAL (Full Payment & Automated Validity Engine) */}
@@ -981,643 +990,17 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         initialMember={renewingMember}
       />
 
-      {/* REGISTER NEW MEMBER MODAL WITH CREDENTIALS PROVISIONING */}
-      <Modal
-        isOpen={isOpenAddModal}
-        onClose={() => setIsOpenAddModal(false)}
-        title="Register Member & Issue Login Account"
-        maxWidth="max-w-2xl"
-      >
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
-          
-          {/* Member Photo Upload */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-slate-200 border-2 border-slate-300 shrink-0 flex items-center justify-center group shadow-sm">
-              {formData.avatar ? (
-                <img
-                  src={formData.avatar}
-                  alt="Member Preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Camera className="w-8 h-8 text-slate-400" />
-              )}
-            </div>
-
-            <div className="flex-1 space-y-1.5 text-center sm:text-left">
-              <label className="block text-xs font-bold text-slate-800">
-                Member Profile Photo
-              </label>
-              <p className="text-[11px] text-slate-500">
-                Upload a photo for attendance, QR turnstile verification, and member profile.
-              </p>
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
-                <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm inline-flex items-center gap-1.5 transition-all">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Choose Photo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                </label>
-                {formData.avatar && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, avatar: '' })}
-                    className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold cursor-pointer"
-                  >
-                    Remove Photo
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Account Credentials Box */}
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                <KeyRound className="w-4 h-4" />
-                <span>Member Portal Login Credentials</span>
-              </div>
-              <button
-                type="button"
-                onClick={generateRandomPassword}
-                className="text-[11px] text-emerald-700 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="w-3 h-3" /> Auto-generate Password
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Login Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="member@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Initial Password *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-500">
-              The member can log into the PULSE FIT Member Portal using this email and password.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Liam Hemsworth"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
-              <input
-                type="text"
-                placeholder="+91 98200 00000"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Age</label>
-              <input
-                type="number"
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Membership Plan *</label>
-              <select
-                value={formData.planId}
-                onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (₹{Number(p.price).toLocaleString('en-IN')} / {p.period})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Assign Coach / Trainer</label>
-              <select
-                value={formData.trainerId}
-                onChange={(e) => handleTrainerChange(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="">Self Guided</option>
-                <option value="general">General Coaching</option>
-                {trainers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.specialty})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* PT & RECOVERY SESSIONS SELECTION */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/40 border border-emerald-100 space-y-3">
-            <div className="flex items-center justify-between border-b border-emerald-100/80 pb-2">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Dumbbell className="w-4 h-4 text-emerald-600" />
-                <span>Coach, PT & Recovery Sessions Add-ons</span>
-              </span>
-              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                {isCoachSelected ? 'PT Enabled' : 'PT Requires Coach'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Personal Training (PT) Package */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>1-on-1 Personal Training (PT)</span>
-                  {ptPrice > 0 && (
-                    <span className="text-emerald-700 font-bold">+₹{ptPrice.toLocaleString('en-IN')}</span>
-                  )}
-                </label>
-                <select
-                  disabled={!isCoachSelected}
-                  value={isCoachSelected ? ptPlanId : ''}
-                  onChange={(e) => setPtPlanId(e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-xl text-xs focus:outline-none cursor-pointer ${
-                    isCoachSelected
-                      ? 'bg-white border-slate-200 text-slate-900 focus:border-emerald-500'
-                      : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <option value="">
-                    {isCoachSelected ? 'No PT Package (₹0)' : 'No PT (Assign coach to enable PT)'}
-                  </option>
-                  {ptPlans.map((pt) => (
-                    <option key={pt.id} value={pt.id}>
-                      {pt.name} - {pt.sessions} Sessions (₹{Number(pt.price).toLocaleString('en-IN')})
-                    </option>
-                  ))}
-                </select>
-
-                {!isCoachSelected ? (
-                  <p className="text-[10px] text-amber-600 font-semibold mt-1">
-                    Select a dedicated coach above to enable 1-on-1 Personal Training (PT).
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Coached by <strong>{chosenTrainer?.name}</strong>.
-                  </p>
-                )}
-              </div>
-
-              {/* Recovery Sessions Package */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Recovery & Wellness Sessions</span>
-                  {recoveryPrice > 0 && (
-                    <span className="text-emerald-700 font-bold">+₹{recoveryPrice.toLocaleString('en-IN')}</span>
-                  )}
-                </label>
-                <select
-                  value={recoveryPlanId}
-                  onChange={(e) => setRecoveryPlanId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="">No Recovery Package (₹0)</option>
-                  {recoveryPlans.map((rec) => (
-                    <option key={rec.id} value={rec.id}>
-                      {rec.name} ({rec.type || 'Therapy'}) - ₹{Number(rec.price).toLocaleString('en-IN')}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Cold plunge, percussion gun, or infrared sauna recovery.
-                </p>
-              </div>
-            </div>
-
-            {/* TRAINER PT COMMISSION ENTRY & DISPLAY (when coach & PT selected) */}
-            {isCoachSelected && ptPrice > 0 && (
-              <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 space-y-2 animate-fadeIn">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                    <Percent className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>Trainer PT Commission</span>
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
-                    To: {chosenTrainer?.name}
-                  </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-[11px] font-semibold text-slate-700">Commission Rate:</label>
-                    <div className="relative w-24">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={ptCommissionPercent}
-                        onChange={(e) => setPtCommissionPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
-                        className="w-full px-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 pr-6 text-center"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">%</span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 p-2 rounded-lg bg-white border border-emerald-200/80 flex items-center justify-between text-xs">
-                    <span className="text-slate-600 font-medium text-[11px]">
-                      Commission on PT (₹{ptPrice.toLocaleString('en-IN')}):
-                    </span>
-                    <span className="font-mono font-black text-emerald-700 text-sm">
-                      ₹{ptCommissionAmount.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-[10px] text-emerald-700/90 font-medium">
-                  ✓ This will automatically be logged under <strong>Trainer Commissions</strong> for {chosenTrainer?.name}.
-                </p>
-              </div>
-            )}
-
-            {/* DYNAMIC PRICING SUMMARY CARD */}
-            <div className="mt-2 p-3 rounded-xl bg-white border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div className="text-[11px] text-slate-600 space-y-0.5">
-                <div className="font-semibold text-slate-700">Calculated Invoice Breakdown:</div>
-                <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-2">
-                  <span>Plan: ₹{basePrice.toLocaleString('en-IN')}</span>
-                  {ptPrice > 0 && <span>+ PT: ₹{ptPrice.toLocaleString('en-IN')}</span>}
-                  {recoveryPrice > 0 && <span>+ Recovery: ₹{recoveryPrice.toLocaleString('en-IN')}</span>}
-                </div>
-              </div>
-
-              <div className="text-right sm:self-center shrink-0">
-                <div className="text-[9px] uppercase font-bold text-slate-400">Total Invoice Amount</div>
-                <div className="text-base sm:text-lg font-black text-emerald-600 font-mono">
-                  ₹{totalCalculatedAmount.toLocaleString('en-IN')}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Current Weight (kg)</label>
-              <input
-                type="number"
-                value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Target Weight (kg)</label>
-              <input
-                type="number"
-                value={formData.targetWeight}
-                onChange={(e) => setFormData({ ...formData, targetWeight: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Height (cm)</label>
-              <input
-                type="number"
-                value={formData.height}
-                onChange={(e) => setFormData({ ...formData, height: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Fitness Goal</label>
-            <input
-              type="text"
-              placeholder="e.g. Fat loss, Marathon training, Hypertrophy"
-              value={formData.goal}
-              onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Medical Notes & Allergies</label>
-            <input
-              type="text"
-              placeholder="e.g. Asthma, Lower back pain history, None"
-              value={formData.medicalNotes}
-              onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact & Phone</label>
-            <input
-              type="text"
-              placeholder="e.g. Jane Doe (+91 98200 12345)"
-              value={formData.emergencyContact}
-              onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          {/* INTEGRATED DIGITAL CONSENT FORM & EMAIL OTP SIGNATURE */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-bold text-slate-900">
-                  Integrated Consent Form & Liability Waiver
-                </span>
-              </div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Digital Signature
-              </span>
-            </div>
-
-            {/* Legal Waiver Text Box */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-24 overflow-y-auto">
-              <p className="font-semibold text-slate-800 mb-1">Member Health Declaration & Assumption of Risk:</p>
-              I certify that I am physically fit and medically sound to participate in gym exercises, weight training, group classes, and recovery sessions. I acknowledge that physical activity involves inherent risk of physical injury. In consideration of my membership, I agree to abide by club safety rules and release the gym facility, management, and trainers from all liability.
-            </div>
-
-            {/* Agreement Checkbox */}
-            <label className="flex items-start gap-2.5 cursor-pointer pt-1">
-              <input
-                type="checkbox"
-                required
-                checked={consentAgreed}
-                onChange={(e) => setConsentAgreed(e.target.checked)}
-                className="mt-0.5 w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
-              />
-              <span className="text-xs text-slate-700 font-medium">
-                I accept the terms of the Health Declaration, Liability Waiver & Gym Rules.
-              </span>
-            </label>
-
-            {/* EMAIL OTP SIGNATURE WORKFLOW */}
-            <div className="pt-2 border-t border-slate-200/80">
-              <div className="text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <MailCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Sign Consent Form via Email OTP</span>
-                </span>
-                {otpVerified ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle className="w-3 h-3" /> Digitally Signed
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-amber-700 font-semibold">
-                    Signature Required
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[10px] text-slate-500 mb-2">
-                An OTP sent to <strong className="text-slate-700">{formData.email || 'the member email'}</strong> acts as the legally binding digital signature on this consent form.
-              </p>
-
-              {!otpVerified ? (
-                <div className="space-y-2">
-                  {!otpSent ? (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={isSendingOtp || !formData.email}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
-                    >
-                      {isSendingOtp ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Sending OTP to {formData.email}...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Send Signature OTP to Email</span>
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          placeholder="Enter 6-digit OTP"
-                          value={otpValue}
-                          onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
-                          className="w-36 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-center font-mono text-sm tracking-widest font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleVerifyOtp}
-                          disabled={isVerifyingOtp || !otpValue}
-                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
-                        >
-                          {isVerifyingOtp ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <CheckCheck className="w-3.5 h-3.5" />
-                          )}
-                          <span>Verify & Sign</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSendOtp}
-                          className="text-[11px] text-slate-500 hover:text-emerald-700 font-semibold cursor-pointer underline"
-                        >
-                          Resend Code
-                        </button>
-                      </div>
-
-                      {/* Simulation Helper Box */}
-                      {generatedOtp && (
-                        <div className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
-                          <span>Simulated Email Delivery: Verification code is <strong>{generatedOtp}</strong></span>
-                          <button
-                            type="button"
-                            onClick={() => setOtpValue(generatedOtp)}
-                            className="font-bold underline hover:text-emerald-950 ml-2"
-                          >
-                            Auto-Fill
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-800">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Consent signed & verified via OTP sent to <strong>{formData.email}</strong></span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpVerified(false);
-                      setOtpSent(false);
-                      setOtpValue('');
-                    }}
-                    className="text-[10px] text-emerald-700 hover:underline font-semibold"
-                  >
-                    Re-verify
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsOpenAddModal(false)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isCreatingMember || !otpVerified || !consentAgreed}
-              className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
-            >
-              {isCreatingMember ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating Account & Invoice...</span>
-                </>
-              ) : (
-                <span>Register Member & Issue Invoice</span>
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* MEMBER CREDENTIALS RECEIPT MODAL */}
-      <Modal
-        isOpen={!!newlyCreatedCredentials}
-        onClose={() => setNewlyCreatedCredentials(null)}
-        title="Member Account Created & Credentials Ready"
-        maxWidth="max-w-md"
-      >
-        {newlyCreatedCredentials && (
-          <div className="space-y-5 text-center">
-            
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-
-            <div>
-              <h4 className="font-heading font-extrabold text-lg text-slate-900">
-                {newlyCreatedCredentials.name}
-              </h4>
-              <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                Plan: {newlyCreatedCredentials.planName}
-              </p>
-            </div>
-
-            {/* Credential Slip Box */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Member ID:</span>
-                <span className="font-mono font-bold text-slate-900">{newlyCreatedCredentials.id}</span>
-              </div>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Login Email / Username:</span>
-                <span className="font-bold text-slate-900">{newlyCreatedCredentials.email}</span>
-              </div>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Assigned Password:</span>
-                <span className="font-mono font-black text-emerald-800 text-sm bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                  {newlyCreatedCredentials.password}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Membership Plan:</span>
-                <span className="font-bold text-emerald-700 text-xs">{newlyCreatedCredentials.planName}</span>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Invoice Total Inflow:</span>
-                <span className="font-mono font-black text-emerald-600 text-sm">
-                  ₹{Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleCopyCredentials}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setNewlyCreatedCredentials(null)}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* REGISTER NEW MEMBER OR UPGRADE EXISTING MEMBER MODAL */}
+      <AddMemberModal
+        isOpen={isOpenAddModal || !!upgradingMember}
+        onClose={() => {
+          setIsOpenAddModal(false);
+          setUpgradingMember(null);
+        }}
+        initialData={upgradingMember}
+        isUpgrade={!!upgradingMember}
+        upgradeMember={upgradingMember}
+      />
 
       {/* EDIT MEMBER MODAL */}
       <Modal
@@ -1644,6 +1027,22 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Plan Expiry Date</label>
+              <input
+                type="date"
+                value={editingMember.expiryDate || ''}
+                onChange={(e) => {
+                  const newExpiry = e.target.value;
+                  const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, editingMember.status) : editingMember.status;
+                  setEditingMember({ ...editingMember, expiryDate: newExpiry, status: autoStatus });
+                }}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Auto-updates status: Expired if exceeded, Expiring Soon if within 10 days, Active if &gt; 10 days.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>

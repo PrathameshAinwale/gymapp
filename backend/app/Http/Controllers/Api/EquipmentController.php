@@ -14,12 +14,7 @@ class EquipmentController extends Controller
         $gymId = $this->resolveGymId($request);
         $query = Equipment::query();
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) {
-                    $q->orWhereNull('gym_id');
-                }
-            });
+            $query->where('gym_id', $gymId);
         }
 
         $equipment = $query->get()->map(function ($eq) {
@@ -56,7 +51,7 @@ class EquipmentController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $gymId = $this->resolveGymId($request) ?? 1;
+        $gymId = $this->resolveGymId($request);
 
         $eq = Equipment::create([
             'gym_id' => $gymId,

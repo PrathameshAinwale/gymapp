@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   Wrench,
@@ -11,12 +11,17 @@ import {
   Layers,
   Activity,
   ShieldCheck,
-  Loader2
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 
 export const EquipmentManager = () => {
-  const { equipment, addEquipment, updateEquipment, deleteEquipment, addToast } = useGymData();
+  const { equipment, addEquipment, updateEquipment, deleteEquipment, fetchEquipment, addToast } = useGymData();
+
+  useEffect(() => {
+    fetchEquipment?.();
+  }, [fetchEquipment]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState('ALL');
@@ -107,15 +112,17 @@ export const EquipmentManager = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">Add Equipment Asset</span>
-          <span className="inline sm:hidden">Add Asset</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Add Equipment Asset</span>
+            <span className="inline sm:hidden">Add Asset</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}

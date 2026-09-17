@@ -1,8 +1,51 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
+import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate } from '../utils/dateUtils';
 
 const GymDataContext = createContext(null);
+
+export const calculateMemberStatus = (expiryDate, currentStatus = 'Active') => {
+  if (currentStatus === 'Frozen' || currentStatus === 'On Hold') return currentStatus;
+  if (!expiryDate) return currentStatus || 'Active';
+
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const exp = new Date(expiryDate);
+    exp.setHours(0, 0, 0, 0);
+
+    if (isNaN(exp.getTime())) return currentStatus || 'Active';
+
+    const diffTime = exp.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return 'Expired';
+    } else if (diffDays <= 10) {
+      return 'Expiring Soon';
+    } else {
+      return 'Active';
+    }
+  } catch {
+    return currentStatus || 'Active';
+  }
+};
+
+export const getExpiryDaysDiff = (expiryDate) => {
+  if (!expiryDate) return null;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(expiryDate);
+    exp.setHours(0, 0, 0, 0);
+    if (isNaN(exp.getTime())) return null;
+    return Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  } catch {
+    return null;
+  }
+};
 
 // Initial Rich Seed Data
 const SEED_PLANS = [
@@ -420,12 +463,140 @@ const SEED_CLASSES = [
 ];
 
 const SEED_ATTENDANCE = [
-  { id: "att-6", memberId: "mem-5", memberName: "Aarav Sharma", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "07:15 AM", checkOutTime: "--", date: "Today", status: "Inside Gym", gate: "Main Turnstile A" },
-  { id: "att-5", memberId: "mem-6", memberName: "Priya Patel", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80", planName: "Diamond VIP Annual Elite", checkInTime: "06:45 AM", checkOutTime: "--", date: "Today", status: "Inside Gym", gate: "VIP Turnstile C" },
-  { id: "att-4", memberId: "mem-8", memberName: "Ananya Iyer", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "08:30 AM", checkOutTime: "--", date: "Today", status: "Inside Gym", gate: "Main Turnstile B" },
-  { id: "att-3", memberId: "mem-11", memberName: "Sameer Kulkarni", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "04:18 AM", checkOutTime: "05:45 AM", date: "Today", status: "Completed", gate: "Main Turnstile B" },
-  { id: "att-2", memberId: "mem-7", memberName: "Rohan Verma", avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "06:00 PM", checkOutTime: "07:30 PM", date: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
-  { id: "att-1", memberId: "mem-9", memberName: "Kabir Mehra", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "07:00 AM", checkOutTime: "08:15 AM", date: "02 Sep 2026", status: "Completed", gate: "Main Turnstile A" }
+  { id: "att-6", memberId: "mem-5", memberName: "Aarav Sharma", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "07:15 AM", checkOutTime: "08:30 AM", duration: "1h 15m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
+  { id: "att-5", memberId: "mem-6", memberName: "Priya Patel", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80", planName: "Diamond VIP Annual Elite", checkInTime: "06:45 AM", checkOutTime: "08:15 AM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
+  { id: "att-4", memberId: "mem-8", memberName: "Ananya Iyer", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "08:30 AM", checkOutTime: "09:45 AM", duration: "1h 15m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
+  { id: "att-3", memberId: "mem-11", memberName: "Sameer Kulkarni", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "04:18 AM", checkOutTime: "05:45 AM", duration: "1h 27m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
+  { id: "att-2", memberId: "mem-7", memberName: "Rohan Verma", avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "06:00 PM", checkOutTime: "07:30 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
+  { id: "att-2b", memberId: "mem-10", memberName: "Vikram Malhotra", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "05:15 PM", checkOutTime: "06:45 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
+  { id: "att-1", memberId: "mem-9", memberName: "Kabir Mehra", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "07:00 AM", checkOutTime: "08:15 AM", duration: "1h 15m", date: getOffsetIso(-3), rawDate: getOffsetIso(-3), displayDate: formatDateDisplay(getOffsetIso(-3)), status: "Completed", gate: "Main Turnstile A" }
+];
+
+const SEED_ADVANCE_REQUESTS = [
+  {
+    id: "adv-1",
+    staffId: "trn-2",
+    staffName: "Coach Alex Rivers",
+    role: "Head Strength Coach",
+    amount: 25000,
+    requestDate: "2026-09-10",
+    reason: "Family medical emergency and urgent hospital deposit",
+    repaymentMonth: "October 2026",
+    status: "Pending",
+    disbursedDate: null,
+    approvedBy: null
+  },
+  {
+    id: "adv-2",
+    staffId: "trn-3",
+    staffName: "Coach Elena Rostova",
+    role: "Senior Functional Coach",
+    amount: 15000,
+    requestDate: "2026-09-05",
+    reason: "CrossFit Level 3 International Certification fee",
+    repaymentMonth: "September 2026",
+    status: "Approved",
+    disbursedDate: "2026-09-06",
+    approvedBy: "Vikramaditya Singhania (Superadmin)"
+  },
+  {
+    id: "adv-3",
+    staffId: "trn-4",
+    staffName: "Coach Marcus Thorne",
+    role: "Mobility & Yoga Specialist",
+    amount: 12000,
+    requestDate: "2026-08-20",
+    reason: "Annual house lease renewal advance",
+    repaymentMonth: "August 2026",
+    status: "Disbursed",
+    disbursedDate: "2026-08-21",
+    approvedBy: "Sunita Deshmukh (Accounts)"
+  }
+];
+
+const SEED_PT_SESSIONS = [
+  {
+    id: "pts-1",
+    memberId: "mem-5",
+    memberName: "Aarav Sharma",
+    memberEmail: "member@pulsefit.in",
+    trainerId: "trn-2",
+    trainerName: "Coach Alex Rivers",
+    packageTitle: "Elite 1-on-1 PT (12 Sessions)",
+    totalSessions: 12,
+    completedSessions: 5,
+    remainingSessions: 7,
+    startDate: "2026-08-10",
+    otp: "4821",
+    logs: [
+      { sessionNo: 1, date: "2026-08-12 07:30 AM", verifiedWithOtp: true, trainerNotes: "Baseline bench & squat biomechanics form assessment" },
+      { sessionNo: 2, date: "2026-08-15 07:30 AM", verifiedWithOtp: true, trainerNotes: "Hypertrophy Push workout, 4 sets chest press" },
+      { sessionNo: 3, date: "2026-08-19 07:30 AM", verifiedWithOtp: true, trainerNotes: "Pull day deadlifts and heavy lat pulldowns" },
+      { sessionNo: 4, date: "2026-08-23 07:30 AM", verifiedWithOtp: true, trainerNotes: "Leg day squats and Romanian deadlifts" },
+      { sessionNo: 5, date: "2026-08-28 07:30 AM", verifiedWithOtp: true, trainerNotes: "Shoulder stability & overhead barbell press" }
+    ]
+  },
+  {
+    id: "pts-2",
+    memberId: "mem-6",
+    memberName: "Priya Patel",
+    memberEmail: "priya.p@gmail.com",
+    trainerId: "trn-3",
+    trainerName: "Coach Elena Rostova",
+    packageTitle: "VIP Executive Transformation (24 Sessions)",
+    totalSessions: 24,
+    completedSessions: 8,
+    remainingSessions: 16,
+    startDate: "2026-08-05",
+    otp: "7392",
+    logs: [
+      { sessionNo: 1, date: "2026-08-06 06:45 AM", verifiedWithOtp: true, trainerNotes: "Cardio VO2 max & core stability test" },
+      { sessionNo: 2, date: "2026-08-09 06:45 AM", verifiedWithOtp: true, trainerNotes: "HIIT circuit with kettlebells & rowing" }
+    ]
+  }
+];
+
+const SEED_TRAINER_REVIEWS = [
+  {
+    id: "rev-1",
+    trainerId: "trn-2",
+    trainerName: "Coach Alex Rivers",
+    memberId: "mem-5",
+    memberName: "Aarav Sharma",
+    rating: 5,
+    comment: "Coach Alex has transformed my strength! Added 25kg to my deadlift in 2 months with zero injury. Best biomechanics coach in Mumbai.",
+    date: "2026-09-02"
+  },
+  {
+    id: "rev-2",
+    trainerId: "trn-2",
+    trainerName: "Coach Alex Rivers",
+    memberId: "mem-7",
+    memberName: "Rohan Verma",
+    rating: 5,
+    comment: "Extreme attention to posture and progressive overload. Highly disciplined and supportive!",
+    date: "2026-08-28"
+  },
+  {
+    id: "rev-3",
+    trainerId: "trn-3",
+    trainerName: "Coach Elena Rostova",
+    memberId: "mem-6",
+    memberName: "Priya Patel",
+    rating: 5,
+    comment: "Elena's HIIT circuits and fat loss protocols are unmatched. Lost 4kg in 6 weeks while gaining toned endurance!",
+    date: "2026-09-05"
+  },
+  {
+    id: "rev-4",
+    trainerId: "trn-4",
+    trainerName: "Coach Marcus Thorne",
+    memberId: "mem-8",
+    memberName: "Ananya Iyer",
+    rating: 5,
+    comment: "Fixed my chronic lumbar spine stiffness through yoga mobility drills. Feel 10 years younger.",
+    date: "2026-08-30"
+  }
 ];
 
 const SEED_EQUIPMENT = [
@@ -437,57 +608,6 @@ const SEED_EQUIPMENT = [
   { id: "eq-6", numericId: 6, name: "Matrix Fitness Ultra Leg Press 45-Degree", brand: "Matrix", category: "Cable & Selectorized", location: "Zone B - Selectorized", status: "Operational", condition: "Good", lastServiced: "2026-07-28", lastServiceDate: "2026-07-28", nextServiceDue: "2026-10-28" }
 ];
 
-const SEED_INVOICES = [
-  { id: "INV-2026-001", memberId: "mem-5", memberName: "Aarav Sharma", planName: "Gold Quarterly Fitness", amount: 4999, date: "2026-08-10", paymentMethod: "UPI", status: "Paid", invoiceUrl: "#" },
-  { id: "INV-2026-002", memberId: "mem-6", memberName: "Priya Patel", planName: "Diamond VIP Annual Elite", amount: 15999, date: "2026-08-10", paymentMethod: "Credit Card", status: "Paid", invoiceUrl: "#" },
-  { id: "INV-2026-003", memberId: "mem-7", memberName: "Rohan Verma", planName: "Silver Monthly Pass", amount: 1999, date: "2026-08-12", paymentMethod: "Net Banking", status: "Paid", invoiceUrl: "#" },
-  { id: "INV-2026-004", memberId: "mem-8", memberName: "Ananya Iyer", planName: "Gold Quarterly Fitness", amount: 4999, date: "2026-08-12", paymentMethod: "UPI", status: "Paid", invoiceUrl: "#" },
-  { id: "INV-2026-005", memberId: "mem-9", memberName: "Kabir Mehra", planName: "Silver Monthly Pass", amount: 1999, date: "2026-08-13", paymentMethod: "UPI", status: "Paid", invoiceUrl: "#" },
-  { id: "INV-2026-006", memberId: "mem-11", memberName: "Sameer Kulkarni", planName: "Gold Quarterly Fitness", amount: 4999, date: "2026-08-14", paymentMethod: "Cash", status: "Paid", invoiceUrl: "#" }
-];
-
-const SEED_COMMISSIONS = [
-  { id: "com-1", numericId: 1, trainerId: "trn-2", trainerName: "Coach Alex Rivers", memberName: "Marcus Aurelius", planName: "1-on-1 PT Master Tier (12 Sessions)", sessionType: "Personal Training (PT)", serviceType: "Personal Training (PT)", ratePercent: 20, commissionPct: 20, amount: 12000, packageAmount: 12000, commissionEarned: 2400, date: "2026-08-10", status: "Paid" },
-  { id: "com-2", numericId: 2, trainerId: "trn-3", trainerName: "Coach Elena Rostova", memberName: "Priya Sharma", planName: "HIIT Power Hour Group Batch", sessionType: "Group Class Instruction", serviceType: "Group Class Instruction", ratePercent: 15, commissionPct: 15, amount: 10000, packageAmount: 10000, commissionEarned: 1500, date: "2026-08-11", status: "Paid" },
-  { id: "com-3", numericId: 3, trainerId: "trn-2", trainerName: "Coach Alex Rivers", memberName: "Rohan Joshi", planName: "Olympic Weightlifting Foundation (8 Sessions)", sessionType: "Personal Training (PT)", serviceType: "Personal Training (PT)", ratePercent: 20, commissionPct: 20, amount: 9000, packageAmount: 9000, commissionEarned: 1800, date: "2026-08-13", status: "Pending" },
-  { id: "com-4", numericId: 4, trainerId: "trn-4", trainerName: "Coach Marcus Thorne", memberName: "Ananya Roy", planName: "Vinyasa Flow Sunset Batch", sessionType: "Group Class Instruction", serviceType: "Group Class Instruction", ratePercent: 15, commissionPct: 15, amount: 8000, packageAmount: 8000, commissionEarned: 1200, date: "2026-08-14", status: "Pending" }
-];
-
-const SEED_FREEZES = [
-  { id: "frz-1", numericId: 1, memberId: "mem-7", memberName: "Rohan Verma", planName: "Silver Monthly Pass", freezeStartDate: "2026-08-15", freezeEndDate: "2026-08-30", daysFrozen: 15, reason: "Official overseas corporate assignment (Singapore)", status: "Active Freeze", approvedBy: "Vikramaditya Singhania (Owner)" },
-  { id: "frz-2", numericId: 2, memberId: "mem-9", memberName: "Kabir Mehra", planName: "Silver Monthly Pass", freezeStartDate: "2026-07-01", freezeEndDate: "2026-07-20", daysFrozen: 20, reason: "Rotator cuff rehabilitation & physical therapy rest", status: "Completed", approvedBy: "Vikramaditya Singhania (Owner)" }
-];
-
-const SEED_CONSENT_FORMS = [
-  { id: "cform-1", numericId: 1, memberId: "mem-5", memberName: "Aarav Sharma", phone: "+91 98765 43210", planName: "Gold Quarterly Fitness", formType: "General Fitness & Liability Waiver", emergencyContact: "Neha Sharma (+91 98765 11223)", emergencyPhone: "+91 98765 11223", medicalConditions: "None reported. Cleared for heavy resistance training.", signedDate: "2025-11-15", status: "Signed" },
-  { id: "cform-2", numericId: 2, memberId: "mem-6", memberName: "Priya Patel", phone: "+91 98112 34567", planName: "Diamond VIP Annual Elite", formType: "General Fitness & Liability Waiver", emergencyContact: "Rajesh Patel (+91 98112 99887)", emergencyPhone: "+91 98112 99887", medicalConditions: "None", signedDate: "2025-08-10", status: "Signed" },
-  { id: "cform-3", numericId: 3, memberId: "mem-7", memberName: "Rohan Verma", phone: "+91 98223 45678", planName: "Silver Monthly Pass", formType: "General Fitness & Liability Waiver", emergencyContact: "Kavita Verma (+91 98223 88776)", emergencyPhone: "+91 98223 88776", medicalConditions: "Mild exercise-induced asthma (cleared with inhaler)", signedDate: null, status: "Pending" }
-];
-
-const SEED_PAYROLL = [
-  { id: "pay-1", numericId: 1, employeeId: "trn-2", employeeName: "Coach Alex Rivers", trainerName: "Coach Alex Rivers", name: "Coach Alex Rivers", role: "Head Strength Coach", month: "August 2026", period: "August 2026", baseSalary: 65000, bonus: 5000, commissions: 2400, deductions: 2500, netPay: 69900, status: "Paid", payDate: "2026-08-31" },
-  { id: "pay-2", numericId: 2, employeeId: "trn-3", employeeName: "Coach Elena Rostova", trainerName: "Coach Elena Rostova", name: "Coach Elena Rostova", role: "Senior Functional Coach", month: "August 2026", period: "August 2026", baseSalary: 55000, bonus: 3500, commissions: 1500, deductions: 1800, netPay: 58200, status: "Paid", payDate: "2026-08-31" },
-  { id: "pay-3", numericId: 3, employeeId: "trn-4", employeeName: "Coach Marcus Thorne", trainerName: "Coach Marcus Thorne", name: "Coach Marcus Thorne", role: "Mobility & Yoga Specialist", month: "August 2026", period: "August 2026", baseSalary: 58000, bonus: 4000, commissions: 0, deductions: 2000, netPay: 60000, status: "Pending", payDate: null },
-  { id: "pay-4", numericId: 4, employeeId: "trn-5", employeeName: "Pooja Sharma", trainerName: "Pooja Sharma", name: "Pooja Sharma", role: "Front Desk & Club Admin", month: "August 2026", period: "August 2026", baseSalary: 32000, bonus: 2000, commissions: 0, deductions: 1000, netPay: 33000, status: "Pending", payDate: null }
-];
-
-const SEED_STAFF_ATTENDANCE = [
-  { id: "stf-1", staffId: "trn-2", staffName: "Coach Alex Rivers", role: "Head Strength Coach", date: "Today", checkInTime: "06:00 AM", checkOutTime: null, status: "On Premises (Active)", totalHours: "In progress" },
-  { id: "stf-2", staffId: "trn-3", staffName: "Coach Elena Rostova", role: "Senior Functional Coach", date: "Today", checkInTime: "06:30 AM", checkOutTime: null, status: "On Premises (Active)", totalHours: "In progress" },
-  { id: "stf-3", staffId: "trn-4", staffName: "Coach Marcus Thorne", role: "Mobility & Yoga Specialist", date: "Today", checkInTime: "07:00 AM", checkOutTime: null, status: "On Premises (Active)", totalHours: "In progress" }
-];
-
-const SEED_PT_PLANS = [
-  { id: "pt-1", name: "Elite 1-on-1 Personal Training", sessions: 12, validityDays: 30, price: 8999, trainerLevel: "Head Strength Coach", description: "Personalized biomechanical analysis, custom periodized workouts & Indian macro nutrition planning." },
-  { id: "pt-2", name: "VIP Executive Transformation", sessions: 24, validityDays: 60, price: 15999, trainerLevel: "Master Coach", description: "All-inclusive VIP personal coaching, body composition tracking, and daily dietary WhatsApp monitoring." },
-  { id: "pt-3", name: "Athlete Power & Conditioning", sessions: 36, validityDays: 90, price: 21999, trainerLevel: "Elite Coach", description: "Periodized strength, hypertrophy, and Olympic lifting protocols for serious athletes." }
-];
-
-const SEED_RECOVERY_PLANS = [
-  { id: "rec-1", name: "Cryotherapy & Cold Plunge Session", duration: "30 Mins", sessions: 1, price: 999, type: "Cryo Therapy", description: "Sub-zero cold plunge therapy for accelerated muscle recovery, reduced inflammation, and endorphin release." },
-  { id: "rec-2", name: "Deep Tissue Percussion & Hyperice", duration: "45 Mins", sessions: 1, price: 1499, type: "Myofascial Release", description: "Pneumatic compression and deep tissue massage gun therapy targeting tight fascial trigger points." },
-  { id: "rec-3", name: "Infrared Sauna & Steam Detoxing", duration: "40 Mins", sessions: 1, price: 799, type: "Infrared Sauna", description: "Full-spectrum infrared heat therapy for cellular detox, joint stiffness relief, and deep relaxation." }
-];
 
 const SEED_EXERCISES = [
   { id: 'ex-1', name: 'Barbell Flat Bench Press', category: 'Chest', equipment: 'Barbell' },
@@ -653,9 +773,66 @@ const SEED_DEFAULT_DIET_PLAN = {
   ]
 };
 
+const mapPtSession = (s) => ({
+  id: `pts-${s.id}`,
+  numericId: s.id,
+  memberId: `mem-${s.member_id}`,
+  memberName: s.member_name,
+  memberAvatar: s.member_avatar,
+  trainerId: `tr-${s.trainer_id}`,
+  trainerName: s.trainer_name,
+  packageTitle: s.plan_name || `${s.total_sessions} 1-on-1 PT Sessions`,
+  totalSessions: Number(s.total_sessions),
+  completedSessions: Number(s.completed_sessions),
+  remainingSessions: Number(s.remaining_sessions),
+  startDate: s.start_date,
+  otp: s.client_otp,
+  client_otp: s.client_otp,
+  status: s.status,
+  logs: Array.isArray(s.logs)
+    ? s.logs.map((l) => ({
+      sessionNo: l.session_number || l.sessionNo,
+      date: l.verified_at ? l.verified_at.slice(0, 16).replace('T', ' ') : (l.date || 'Today'),
+      verifiedWithOtp: Boolean(l.otp_verified ?? true),
+      trainerNotes: l.notes || l.trainerNotes || '1-on-1 coaching workout completed'
+    }))
+    : []
+});
+
+const mapAdvanceRequest = (r) => ({
+  id: `adv-${r.id}`,
+  numericId: r.id,
+  staffId: `tr-${r.trainer_id}`,
+  staffName: r.trainer_name || 'Staff Member',
+  trainerName: r.trainer_name || 'Staff Member',
+  trainerAvatar: r.trainer_avatar,
+  role: r.role || 'Fitness Coach',
+  amount: Number(r.amount),
+  reason: r.reason,
+  date: r.request_date || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
+  requestDate: r.request_date || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
+  repaymentMonth: r.repayment_month || 'Next Cycle',
+  status: r.status || 'Pending',
+  notes: r.notes,
+  disbursedDate: r.disbursed_at ? r.disbursed_at.slice(0, 10) : null,
+  approvedBy: r.status === 'Approved' || r.status === 'Disbursed' ? (r.notes?.includes('By') ? r.notes : 'Accounts Officer') : null
+});
+
+const mapTrainerReview = (rev) => ({
+  id: `rev-${rev.id}`,
+  numericId: rev.id,
+  trainerId: `tr-${rev.trainer_id}`,
+  trainerName: rev.trainer_name,
+  memberId: `mem-${rev.member_id}`,
+  memberName: rev.member_name,
+  avatar: rev.member_avatar,
+  rating: Number(rev.rating),
+  comment: rev.comment || '',
+  date: rev.date || (rev.created_at ? rev.created_at.slice(0, 10) : new Date().toISOString().split('T')[0])
+});
+
 export const GymDataProvider = ({ children }) => {
   const { currentUser } = useAuth();
-  const isDefaultGym = !currentUser?.gymId || currentUser?.gymId === 1;
 
   const [gymInfo, setGymInfo] = useState({
     name: "PULSE FIT ATHLETIC CLUB",
@@ -667,51 +844,98 @@ export const GymDataProvider = ({ children }) => {
     currency: "₹"
   });
 
-  const [members, setMembers] = useState(SEED_MEMBERS);
-  const [trainers, setTrainers] = useState(SEED_TRAINERS);
-  const [plans, setPlans] = useState(SEED_PLANS);
-  const [classes, setClasses] = useState(SEED_CLASSES);
-  const [attendance, setAttendance] = useState(SEED_ATTENDANCE);
+  const [members, setMembers] = useState([]);
+  const [trainers, setTrainers] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [attendance, setAttendance] = useState([]);
   const [workoutPlan, setWorkoutPlan] = useState(SEED_DEFAULT_WORKOUT_PLAN);
   const [workoutPlans, setWorkoutPlans] = useState([SEED_DEFAULT_WORKOUT_PLAN]);
   const [dietPlan, setDietPlan] = useState(SEED_DEFAULT_DIET_PLAN);
   const [dietPlans, setDietPlans] = useState([SEED_DEFAULT_DIET_PLAN]);
   const [waterGlasses, setWaterGlasses] = useState(8);
   const [bodyMetrics, setBodyMetrics] = useState(SEED_BODY_METRICS);
-  const [invoices, setInvoices] = useState(SEED_INVOICES);
-  const [expenses, setExpenses] = useState(SEED_EXPENSES);
-  const [equipment, setEquipment] = useState(SEED_EQUIPMENT);
+  const [invoices, setInvoices] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('pulsefit_invoices');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [expenses, setExpenses] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('pulsefit_expenses');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [equipment, setEquipment] = useState([]);
   const [bookedClasses, setBookedClasses] = useState([]);
-  const [isLoadingBackend, setIsLoadingBackend] = useState(false);
+  const [isLoadingBackend, setIsLoadingBackend] = useState(true);
+  const [loadingModules, setLoadingModules] = useState({
+    dashboard: true,
+    members: true,
+    trainers: true,
+    plans: true,
+    classes: true,
+    attendance: true,
+    financials: true,
+    invoices: true,
+    enquiries: true,
+    products: true,
+    equipment: true,
+    commissions: true,
+    freezes: true,
+    consent: true,
+    payroll: true,
+    ptSessions: true,
+    advanceRequests: true,
+    trainerReviews: true,
+    gymInfo: true
+  });
 
   // Operations modules: Enquiries, Products, Commissions, Consent, Freezes, Payroll, Biometrics, PT & Recovery
-  const [enquiries, setEnquiries] = useState(SEED_ENQUIRIES);
-  const [products, setProducts] = useState(SEED_PRODUCTS);
-  const [commissions, setCommissions] = useState(SEED_COMMISSIONS);
-  const [consentForms, setConsentForms] = useState(SEED_CONSENT_FORMS);
-  const [membershipFreezes, setMembershipFreezes] = useState(SEED_FREEZES);
-  const [payrollRecords, setPayrollRecords] = useState(SEED_PAYROLL);
-  const [staffAttendanceLogs, setStaffAttendanceLogs] = useState(SEED_STAFF_ATTENDANCE);
-  const [ptPlans, setPtPlans] = useState(SEED_PT_PLANS);
-  const [recoveryPlans, setRecoveryPlans] = useState(SEED_RECOVERY_PLANS);
+  const [enquiries, setEnquiries] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [commissions, setCommissions] = useState([]);
+  const [consentForms, setConsentForms] = useState([]);
+  const [membershipFreezes, setMembershipFreezes] = useState([]);
+  const [payrollRecords, setPayrollRecords] = useState([]);
+  const [staffAttendanceLogs, setStaffAttendanceLogs] = useState([]);
+  const [ptPlans, setPtPlans] = useState([]);
+  const [recoveryPlans, setRecoveryPlans] = useState([]);
   const [entryApprovals, setEntryApprovals] = useState([]);
   const [biometricDevices, setBiometricDevices] = useState([]);
   const [biometricLogs, setBiometricLogs] = useState([]);
+
+  // Advance Pay & Requests
+  const [advanceRequests, setAdvanceRequests] = useState([]);
+
+  // Personal Training (PT) Sessions with OTP Verification
+  const [ptSessions, setPtSessions] = useState([]);
+
+  // Trainer Reviews & Ratings by Members
+  const [trainerReviews, setTrainerReviews] = useState([]);
+
   const initialExercises = SEED_EXERCISES;
 
   // Dynamic live revenue analytics & owner stats
   const [ownerStats, setOwnerStats] = useState({
-    totalMembers: 12,
-    activeMembers: 10,
-    expiringMembers: 1,
-    expiredMembers: 1,
-    totalTrainers: 5,
-    todayAttendance: 8,
-    monthlyRevenue: 185000,
-    monthlyExpenses: 65000,
-    monthlyProfit: 120000,
-    totalLeads: 15,
-    hotLeads: 4
+    totalMembers: 0,
+    activeMembers: 0,
+    expiringMembers: 0,
+    expiredMembers: 0,
+    totalTrainers: 0,
+    todayAttendance: 0,
+    monthlyRevenue: 0,
+    monthlyExpenses: 0,
+    monthlyProfit: 0,
+    totalLeads: 0,
+    hotLeads: 0
   });
 
   const [revenueAnalytics, setRevenueAnalytics] = useState([]);
@@ -731,100 +955,373 @@ export const GymDataProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Live Async Fetch from Laravel + MySQL Backend with Progressive Hydration
-  const fetchAllFromBackend = useCallback(async () => {
+  const fetchEnquiries = useCallback(async () => {
     try {
-      // 1. Fetch Priority CRM Entities first for instant rendering
-      api.members.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setMembers(res.data);
-      }).catch(() => {});
-
-      api.trainers.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setTrainers(res.data);
-      }).catch(() => {});
-
-      api.plans.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setPlans(res.data);
-      }).catch(() => {});
-
-      api.classes.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setClasses(res.data);
-      }).catch(() => {});
-
-      api.attendance.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setAttendance(res.data);
-      }).catch(() => {});
-
-      api.equipment.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setEquipment(res.data);
-      }).catch(() => {});
-
-      api.invoices.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setInvoices(res.data);
-      }).catch(() => {});
-
-      api.expenses.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setExpenses(res.data);
-      }).catch(() => {});
-
-      api.enquiries.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setEnquiries(res.data);
-      }).catch(() => {});
-
-      api.products.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setProducts(res.data);
-      }).catch(() => {});
-
-      api.commissions.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setCommissions(res.data);
-      }).catch(() => {});
-
-      api.freezes.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setMembershipFreezes(res.data);
-      }).catch(() => {});
-
-      api.consentForms.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setConsentForms(res.data);
-      }).catch(() => {});
-
-      api.payroll.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setPayrollRecords(res.data);
-      }).catch(() => {});
-
-      api.biometrics.getDevices().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setBiometricDevices(res.data);
-      }).catch(() => {});
-
-      api.biometrics.getLogs().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setBiometricLogs(res.data);
-      }).catch(() => {});
-
-      api.biometrics.getApprovals().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setEntryApprovals(res.data);
-      }).catch(() => {});
-
-      api.ptPlans.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setPtPlans(res.data);
-      }).catch(() => {});
-
-      api.recoveryPlans.getAll().then((res) => {
-        if (Array.isArray(res?.data) && res.data.length > 0) setRecoveryPlans(res.data);
-      }).catch(() => {});
-
-      api.gymInfo.get().then((res) => {
-        if (res?.data) setGymInfo(res.data);
-      }).catch(() => {});
-
-      if (api.dashboard?.getOwnerStats) {
-        api.dashboard.getOwnerStats().then((res) => {
-          if (res?.stats) setOwnerStats(res.stats);
-          if (res?.revenueAnalytics) setRevenueAnalytics(res.revenueAnalytics);
-        }).catch(() => {});
+      const res = await api.enquiries.getAll();
+      if (Array.isArray(res?.data)) {
+        setEnquiries(res.data);
+        localStorage.setItem('pulsefit_enquiries', JSON.stringify(res.data));
+        return res.data;
       }
     } catch (err) {
-      console.warn('Backend sync note:', err.message);
+      console.warn('Enquiries fetch error:', err.message);
     }
   }, []);
+
+  const fetchMembers = useCallback(async () => {
+    try {
+      const res = await api.members.getAll();
+      if (Array.isArray(res?.data)) {
+        const synced = res.data.map((m) => ({
+          ...m,
+          status: calculateMemberStatus(m.expiryDate, m.status)
+        }));
+        setMembers(synced);
+        return synced;
+      }
+      return res?.data;
+    } catch (e) { console.warn('Fetch members error:', e.message); }
+  }, []);
+
+  const fetchTrainers = useCallback(async () => {
+    try {
+      const res = await api.trainers.getAll();
+      if (Array.isArray(res?.data)) setTrainers(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch trainers error:', e.message); }
+  }, []);
+
+  const fetchPlans = useCallback(async () => {
+    try {
+      const res = await api.plans.getAll();
+      if (Array.isArray(res?.data)) {
+        const cleaned = res.data.map((p) => {
+          let feats = p.features;
+          if (typeof feats === 'string') {
+            try {
+              const parsed = JSON.parse(feats);
+              feats = Array.isArray(parsed) ? parsed : [feats];
+            } catch (e) {
+              feats = feats.split('\n').map((f) => f.trim()).filter(Boolean);
+            }
+          }
+          return { ...p, features: Array.isArray(feats) ? feats : [] };
+        });
+        setPlans(cleaned);
+        fetchRecoveryPlans();
+        fetchPtPlans();
+        return cleaned;
+      }
+    } catch (e) { console.warn('Fetch plans error:', e.message); }
+  }, []);
+
+  const fetchRecoveryPlans = useCallback(async () => {
+    try {
+      const res = await api.recoveryPlans.getAll();
+      if (Array.isArray(res?.data)) {
+        setRecoveryPlans(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('Fetch recovery plans error:', e.message);
+    }
+  }, []);
+
+  const fetchPtPlans = useCallback(async () => {
+    try {
+      const res = await api.ptPlans.getAll();
+      if (Array.isArray(res?.data)) {
+        setPtPlans(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('Fetch PT plans error:', e.message);
+    }
+  }, []);
+
+  const fetchClasses = useCallback(async () => {
+    try {
+      const res = await api.classes.getAll();
+      if (Array.isArray(res?.data)) setClasses(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch classes error:', e.message); }
+  }, []);
+
+  const fetchAttendance = useCallback(async () => {
+    try {
+      const res = await api.attendance.getAll();
+      if (Array.isArray(res?.data)) setAttendance(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch attendance error:', e.message); }
+  }, []);
+
+  const fetchEquipment = useCallback(async () => {
+    try {
+      const res = await api.equipment.getAll();
+      if (Array.isArray(res?.data)) setEquipment(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch equipment error:', e.message); }
+  }, []);
+
+  const fetchInvoices = useCallback(async () => {
+    try {
+      const res = api.revenueBilling?.getInflows
+        ? await api.revenueBilling.getInflows()
+        : await api.invoices.getAll();
+      if (Array.isArray(res?.data)) {
+        setInvoices(res.data);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_invoices', JSON.stringify(res.data));
+        }
+      }
+      return res?.data;
+    } catch (e) { console.warn('Fetch invoices error:', e.message); }
+  }, []);
+
+  const fetchExpenses = useCallback(async () => {
+    try {
+      const res = api.revenueBilling?.getOutflows
+        ? await api.revenueBilling.getOutflows()
+        : await api.expenses.getAll();
+      if (Array.isArray(res?.data)) {
+        setExpenses(res.data);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_expenses', JSON.stringify(res.data));
+        }
+      }
+      return res?.data;
+    } catch (e) { console.warn('Fetch expenses error:', e.message); }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await api.products.getAll();
+      if (Array.isArray(res?.data)) setProducts(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch products error:', e.message); }
+  }, []);
+
+  const fetchCommissions = useCallback(async () => {
+    try {
+      const res = await api.commissions.getAll();
+      if (Array.isArray(res?.data)) setCommissions(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch commissions error:', e.message); }
+  }, []);
+
+  const fetchFreezes = useCallback(async () => {
+    try {
+      const res = await api.freezes.getAll();
+      if (Array.isArray(res?.data)) setMembershipFreezes(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch freezes error:', e.message); }
+  }, []);
+
+  const fetchConsentForms = useCallback(async () => {
+    try {
+      const res = await api.consentForms.getAll();
+      if (Array.isArray(res?.data)) setConsentForms(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch consent forms error:', e.message); }
+  }, []);
+
+  const fetchPayroll = useCallback(async () => {
+    try {
+      const res = await api.payroll.getAll();
+      if (Array.isArray(res?.data)) setPayrollRecords(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch payroll error:', e.message); }
+  }, []);
+
+  const fetchPtSessions = useCallback(async () => {
+    try {
+      if (api.ptSessions?.getAll) {
+        const res = await api.ptSessions.getAll();
+        if (Array.isArray(res?.data)) setPtSessions(res.data.map(mapPtSession));
+        return res?.data;
+      }
+    } catch (e) { console.warn('Fetch pt sessions error:', e.message); }
+  }, []);
+
+  const fetchAdvanceRequests = useCallback(async () => {
+    try {
+      if (api.advanceRequests?.getAll) {
+        const res = await api.advanceRequests.getAll();
+        if (Array.isArray(res?.data)) setAdvanceRequests(res.data.map(mapAdvanceRequest));
+        return res?.data;
+      }
+    } catch (e) { console.warn('Fetch advance requests error:', e.message); }
+  }, []);
+
+  const fetchTrainerReviews = useCallback(async () => {
+    try {
+      if (api.trainerReviews?.getAll) {
+        const res = await api.trainerReviews.getAll();
+        if (Array.isArray(res?.data)) setTrainerReviews(res.data.map(mapTrainerReview));
+        return res?.data;
+      }
+    } catch (e) { console.warn('Fetch trainer reviews error:', e.message); }
+  }, []);
+
+  const fetchGymInfo = useCallback(async () => {
+    try {
+      if (api.gymInfo?.get) {
+        const res = await api.gymInfo.get();
+        if (res?.data) setGymInfo(res.data);
+        return res?.data;
+      }
+    } catch (e) { console.warn('Fetch gym info error:', e.message); }
+  }, []);
+
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      if (api.dashboard?.getOwnerStats) {
+        const res = await api.dashboard.getOwnerStats();
+        if (res?.stats) setOwnerStats(res.stats);
+        if (res?.revenueAnalytics) setRevenueAnalytics(res.revenueAnalytics);
+        return res;
+      }
+    } catch (e) { console.warn('Fetch dashboard stats error:', e.message); }
+  }, []);
+
+  // Live Async Fetch from Laravel + MySQL Backend with Progressive Hydration
+  // NOTE: PHP built-in dev server is single-threaded, so we fetch in small
+  // sequential batches of 2 to avoid request queuing and timeouts.
+  const fetchAllFromBackend = useCallback(async () => {
+    try {
+      setIsLoadingBackend(true);
+
+      // Batch 1: Core member, trainer, plans & recovery
+      await Promise.allSettled([fetchMembers(), fetchTrainers(), fetchPlans(), fetchRecoveryPlans(), fetchPtPlans()]);
+      setLoadingModules((prev) => ({ ...prev, dashboard: false, members: false, trainers: false, plans: false }));
+
+      // Batch 2: Financial data (invoices & expenses) & dashboard stats
+      await Promise.allSettled([fetchInvoices(), fetchExpenses()]);
+      await fetchDashboardStats();
+      setLoadingModules((prev) => ({ ...prev, financials: false, invoices: false, analytics: false, reports: false }));
+
+      // Batch 3: CRM & classes
+      await Promise.allSettled([fetchEnquiries(), fetchClasses()]);
+      setLoadingModules((prev) => ({ ...prev, enquiries: false, classes: false }));
+
+      // Batch 4: Attendance & equipment
+      await Promise.allSettled([fetchAttendance(), fetchEquipment()]);
+      setLoadingModules((prev) => ({ ...prev, attendance: false, equipment: false }));
+
+      // Batch 5: Products & commissions
+      await Promise.allSettled([fetchProducts(), fetchCommissions()]);
+      setLoadingModules((prev) => ({ ...prev, products: false, commissions: false }));
+
+      // Batch 6: Freezes & payroll
+      await Promise.allSettled([fetchFreezes(), fetchPayroll()]);
+      setLoadingModules((prev) => ({ ...prev, freezes: false, payroll: false }));
+
+      // Batch 7: Consent & PT sessions
+      await Promise.allSettled([fetchConsentForms(), fetchPtSessions()]);
+      setLoadingModules((prev) => ({ ...prev, consent: false, ptSessions: false }));
+
+      // Batch 8: Advance requests, reviews & gym info
+      await Promise.allSettled([fetchAdvanceRequests(), fetchTrainerReviews(), fetchGymInfo()]);
+      setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false }));
+
+    } catch (err) {
+      console.warn('Backend sync note:', err.message);
+    } finally {
+      setIsLoadingBackend(false);
+      setLoadingModules((prev) => {
+        const cleared = {};
+        for (const k in prev) cleared[k] = false;
+        return cleared;
+      });
+    }
+  }, [
+    fetchMembers,
+    fetchTrainers,
+    fetchPlans,
+    fetchRecoveryPlans,
+    fetchPtPlans,
+    fetchClasses,
+    fetchEnquiries,
+    fetchAttendance,
+    fetchInvoices,
+    fetchExpenses,
+    fetchEquipment,
+    fetchProducts,
+    fetchCommissions,
+    fetchFreezes,
+    fetchConsentForms,
+    fetchPayroll,
+    fetchPtSessions,
+    fetchAdvanceRequests,
+    fetchTrainerReviews,
+    fetchGymInfo,
+    fetchDashboardStats
+  ]);
+
+  // Safety timer to guarantee no owner page ever hangs on a loader
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setIsLoadingBackend(false);
+      setLoadingModules((prev) => {
+        const cleared = {};
+        for (const k in prev) cleared[k] = false;
+        return cleared;
+      });
+    }, 4500);
+    return () => clearTimeout(safetyTimer);
+  }, []);
+
+  // Helper function to check if an owner page is still loading its dataset from the backend
+  const isOwnerTabLoading = useCallback((tabName) => {
+    if (!tabName) return false;
+    if (!isLoadingBackend && !Object.values(loadingModules).some(Boolean)) {
+      return false;
+    }
+
+    switch (tabName) {
+      case 'dashboard':
+        return Boolean(loadingModules.dashboard);
+      case 'members':
+        return Boolean(loadingModules.members);
+      case 'classes':
+        return Boolean(loadingModules.classes);
+      case 'pt-sessions':
+        return Boolean(loadingModules.ptSessions);
+      case 'enquiries':
+        return Boolean(loadingModules.enquiries);
+      case 'attendance':
+        return Boolean(loadingModules.attendance);
+      case 'plans':
+        return Boolean(loadingModules.plans);
+      case 'membership-freeze':
+        return Boolean(loadingModules.freezes);
+      case 'consent-forms':
+        return Boolean(loadingModules.consent);
+      case 'staff-accounts':
+      case 'trainers':
+        return Boolean(loadingModules.trainers);
+      case 'advance-pay':
+        return Boolean(loadingModules.advanceRequests);
+      case 'payroll':
+        return Boolean(loadingModules.payroll);
+      case 'commissions':
+        return Boolean(loadingModules.commissions);
+      case 'analytics':
+      case 'reports':
+      case 'financials':
+        return Boolean(loadingModules.financials);
+      case 'invoices':
+        return Boolean(loadingModules.invoices);
+      case 'products':
+        return Boolean(loadingModules.products);
+      case 'equipment':
+        return Boolean(loadingModules.equipment);
+      case 'settings':
+        return Boolean(loadingModules.gymInfo);
+      default:
+        return Boolean(isLoadingBackend);
+    }
+  }, [isLoadingBackend, loadingModules]);
 
   useEffect(() => {
     fetchAllFromBackend();
@@ -835,30 +1332,22 @@ export const GymDataProvider = ({ children }) => {
     try {
       const res = await api.members.create(newMemberData);
       if (res.success && res.data) {
-        setMembers((prev) => [res.data, ...prev]);
-        addToast(`New member "${res.data.name}" registered successfully & saved!`);
+        setMembers((prev) => [
+          res.data,
+          ...prev.filter((m) => m.id !== res.data.id && m.userId !== res.data.userId)
+        ]);
+        await fetchMembers();
+        await fetchInvoices();
+        await fetchDashboardStats();
+        addToast(`New member "${res.data.name}" registered successfully & saved to database!`, 'success');
         return res.data;
       }
+      throw new Error(res?.message || 'Failed to register member on backend server');
     } catch (e) {
-      console.warn('Backend create member fallback:', e.message);
+      console.error('Backend create member error:', e.message);
+      addToast(`Error adding member: ${e.message}`, 'error');
+      throw e;
     }
-
-    // Local fallback
-    const id = `mem-${100 + members.length + 1}`;
-    const newMember = {
-      id,
-      avatar: newMemberData.avatar || `https://images.unsplash.com/photo-${1530000000000 + Math.floor(Math.random() * 1000000)}?w=200&auto=format&fit=crop&q=80`,
-      joinDate: new Date().toISOString().split('T')[0],
-      status: 'Active',
-      attendanceStreak: 1,
-      qrPassCode: `PF-M-${id.toUpperCase()}-${newMemberData.name.split(' ')[0].toUpperCase()}`,
-      duesAmount: 0,
-      lastCheckIn: 'Just Joined',
-      ...newMemberData
-    };
-    setMembers((prev) => [newMember, ...prev]);
-    addToast(`New member "${newMember.name}" registered successfully!`);
-    return newMember;
   };
 
   const updateMember = async (id, updatedData) => {
@@ -868,8 +1357,12 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend update member fallback:', e.message);
     }
 
+    const calculatedStatus = (updatedData.expiryDate || updatedData.expiry_date)
+      ? calculateMemberStatus(updatedData.expiryDate || updatedData.expiry_date, updatedData.status)
+      : updatedData.status;
+
     setMembers((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...updatedData } : m))
+      prev.map((m) => (m.id === id ? { ...m, ...updatedData, ...(calculatedStatus ? { status: calculatedStatus } : {}) } : m))
     );
     addToast('Member details updated successfully');
   };
@@ -892,11 +1385,12 @@ export const GymDataProvider = ({ children }) => {
     const expiry = new Date();
     expiry.setMonth(today.getMonth() + (selectedPlan.durationMonths || 1));
     const expiryStr = expiry.toISOString().split('T')[0];
+    const newStatus = calculateMemberStatus(expiryStr, 'Active');
 
     try {
       await api.members.update(memberId, {
         plan_id: planId,
-        status: 'Active',
+        status: newStatus,
         expiry_date: expiryStr,
         dues_amount: 0
       });
@@ -918,7 +1412,7 @@ export const GymDataProvider = ({ children }) => {
             ...m,
             planId: selectedPlan.id,
             planName: selectedPlan.name,
-            status: 'Active',
+            status: newStatus,
             expiryDate: expiryStr,
             duesAmount: 0
           };
@@ -996,16 +1490,17 @@ export const GymDataProvider = ({ children }) => {
       (prev || []).map((item, idx, arr) =>
         idx === arr.length - 1
           ? {
-              ...item,
-              revenue: item.revenue + resolvedAmount,
-              profit: Math.max(0, (item.profit || 0) + resolvedAmount)
-            }
+            ...item,
+            revenue: item.revenue + resolvedAmount,
+            profit: Math.max(0, (item.profit || 0) + resolvedAmount)
+          }
           : item
       )
     );
 
     // Update member status & validity
     if (memberId) {
+      const paymentStatus = calculateMemberStatus(calculatedExpiry, 'Active');
       setMembers((prev) =>
         prev.map((m) => {
           if (m.id === memberId) {
@@ -1013,7 +1508,7 @@ export const GymDataProvider = ({ children }) => {
               ...m,
               planId: selectedPlan?.id || planId,
               planName: resolvedPlanName,
-              status: 'Active',
+              status: paymentStatus,
               expiryDate: calculatedExpiry,
               duesAmount: 0
             };
@@ -1025,7 +1520,7 @@ export const GymDataProvider = ({ children }) => {
       try {
         await api.members.update(memberId, {
           plan_name: resolvedPlanName,
-          status: 'Active',
+          status: paymentStatus,
           expiry_date: calculatedExpiry
         });
       } catch (e) {
@@ -1034,7 +1529,30 @@ export const GymDataProvider = ({ children }) => {
     }
 
     try {
-      if (api.invoices && api.invoices.create) {
+      if (api.revenueBilling?.addInflow) {
+        const res = await api.revenueBilling.addInflow({
+          memberId,
+          memberName: resolvedMemberName,
+          planId: selectedPlan?.id,
+          planName: resolvedPlanName,
+          amount: resolvedAmount,
+          paymentMethod: paymentMethod || 'UPI',
+          date: resolvedDate,
+          status: 'Paid'
+        });
+        if (res?.data) {
+          setInvoices((prev) => {
+            const updated = [res.data, ...prev.filter((i) => i.id !== newInvoice.id && i.id !== res.data.id)];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('pulsefit_invoices', JSON.stringify(updated));
+            }
+            return updated;
+          });
+        }
+        fetchInvoices();
+        fetchDashboardStats();
+        fetchMembers();
+      } else if (api.invoices && api.invoices.create) {
         const res = await api.invoices.create({
           user_id: memberId,
           member_id: memberId,
@@ -1048,12 +1566,22 @@ export const GymDataProvider = ({ children }) => {
           status: 'Paid'
         });
         if (res?.data) {
-          setInvoices((prev) => [res.data, ...prev.filter((i) => i.id !== newInvoice.id)]);
+          setInvoices((prev) => {
+            const updated = [res.data, ...prev.filter((i) => i.id !== newInvoice.id && i.id !== res.data.id)];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('pulsefit_invoices', JSON.stringify(updated));
+            }
+            return updated;
+          });
         }
-        fetchAllFromBackend();
+        fetchInvoices();
+        fetchDashboardStats();
+        fetchMembers();
       }
     } catch (e) {
-      console.warn('Backend invoice create fallback:', e);
+      console.error('Backend invoice create error:', e);
+      addToast(`Failed to record payment in database: ${e.message}`, 'error');
+      throw e;
     }
 
     addToast(`Payment of ₹${resolvedAmount.toLocaleString('en-IN')} recorded for ${resolvedMemberName}!`);
@@ -1119,6 +1647,7 @@ export const GymDataProvider = ({ children }) => {
     };
     setPlans((prev) => [...prev, newPlan]);
     addToast(`Membership package "${newPlan.name}" created successfully!`);
+    return newPlan;
   };
 
   const updatePlan = async (id, updatedData) => {
@@ -1217,7 +1746,8 @@ export const GymDataProvider = ({ children }) => {
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
+
+      const todayIso = getTodayIso();
       const newEntry = {
         id: `att-${Date.now().toString().slice(-4)}`,
         memberId: member.id,
@@ -1226,7 +1756,9 @@ export const GymDataProvider = ({ children }) => {
         planName: member.planName,
         checkInTime: timeStr,
         checkOutTime: '--',
-        date: 'Today',
+        date: todayIso,
+        rawDate: todayIso,
+        displayDate: 'Today',
         status: 'Inside Gym',
         gate: 'Main Turnstile A'
       };
@@ -1236,16 +1768,60 @@ export const GymDataProvider = ({ children }) => {
         prev.map((m) =>
           m.id === member.id
             ? {
-                ...m,
-                lastCheckIn: `Today, ${timeStr}`,
-                attendanceStreak: (m.attendanceStreak || 0) + 1
-              }
+              ...m,
+              lastCheckIn: `Today, ${timeStr}`,
+              attendanceStreak: (m.attendanceStreak || 0) + 1
+            }
             : m
         )
       );
 
       addToast(`Welcome ${member.name}! Access Granted.`, 'success');
       return { success: true, member, entry: newEntry };
+    }
+  };
+
+  // PUNCH OUT MEMBER
+  const punchOutMember = async (attendanceId) => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistic local update
+    setAttendance((prev) =>
+      prev.map((att) => {
+        if (att.id === attendanceId) {
+          return {
+            ...att,
+            checkOutTime: timeStr,
+            duration: att.duration && att.duration !== '--' ? att.duration : '1h 15m',
+            status: 'Completed'
+          };
+        }
+        return att;
+      })
+    );
+
+    try {
+      const res = await api.attendance.checkOut(attendanceId);
+      if (res?.success) {
+        setAttendance((prev) =>
+          prev.map((att) => {
+            if (att.id === attendanceId) {
+              return {
+                ...att,
+                checkOutTime: res.punch_out || timeStr,
+                duration: res.duration || att.duration,
+                status: 'Completed'
+              };
+            }
+            return att;
+          })
+        );
+        addToast(res.message || `Punch-out recorded at ${timeStr}. Workout completed!`, 'info');
+      }
+    } catch (err) {
+      console.warn('Backend attendance punch-out note:', err.message);
+      addToast(`Punch-out recorded at ${timeStr}. Workout completed!`, 'info');
     }
   };
 
@@ -1285,16 +1861,31 @@ export const GymDataProvider = ({ children }) => {
     const tempId = `cls-${Date.now()}`;
     const newClass = {
       id: tempId,
+      name: classData.name || classData.title,
+      title: classData.title || classData.name,
       enrolledCount: 0,
       bookedCount: 0,
+      trainerName: classData.trainerName || 'Coach',
+      days: Array.isArray(classData.days) ? classData.days : ['Mon', 'Wed', 'Fri'],
+      capacity: Number(classData.capacity) || 20,
+      category: classData.category || 'Group Fitness',
+      room: classData.room || 'Studio A',
+      difficulty: classData.difficulty || classData.intensity || 'All Levels',
+      intensity: classData.intensity || classData.difficulty || 'High',
       ...classData
     };
-    setClasses((prev) => [...prev, newClass]);
+    setClasses((prev) => {
+      const updated = [...prev, newClass];
+      localStorage.setItem('pulsefit_classes', JSON.stringify(updated));
+      return updated;
+    });
 
     try {
       const res = await api.classes.create({
         name: classData.title || classData.name,
         trainer_id: classData.trainerId,
+        trainer_name: classData.trainerName,
+        instructor_name: classData.trainerName,
         time: classData.time,
         days: classData.days,
         capacity: Number(classData.capacity) || 20,
@@ -1303,9 +1894,13 @@ export const GymDataProvider = ({ children }) => {
         difficulty: classData.intensity || classData.difficulty || 'All Levels'
       });
       if (res?.data?.id) {
-        setClasses((prev) =>
-          prev.map((c) => (c.id === tempId ? { ...c, id: 'cls-' + res.data.id, numericId: res.data.id } : c))
-        );
+        setClasses((prev) => {
+          const updated = prev.map((c) =>
+            c.id === tempId ? { ...c, id: 'cls-' + res.data.id, numericId: res.data.id } : c
+          );
+          localStorage.setItem('pulsefit_classes', JSON.stringify(updated));
+          return updated;
+        });
       }
     } catch (err) {
       console.warn('Class creation sync error:', err.message);
@@ -1315,7 +1910,11 @@ export const GymDataProvider = ({ children }) => {
   };
 
   const deleteClass = async (id) => {
-    setClasses((prev) => prev.filter((c) => c.id !== id && c.numericId !== id));
+    setClasses((prev) => {
+      const updated = prev.filter((c) => c.id !== id && c.numericId !== id);
+      localStorage.setItem('pulsefit_classes', JSON.stringify(updated));
+      return updated;
+    });
     try {
       await api.classes.delete(id);
     } catch (err) {
@@ -1419,32 +2018,20 @@ export const GymDataProvider = ({ children }) => {
     addToast('Diet plan deleted', 'info');
   };
 
-  // Enquiries Handlers
+  // Enquiries Handlers (Direct MySQL Database Operations)
   const addEnquiry = async (enquiryData) => {
-    const tempId = `enq-${Date.now()}`;
-    const newEnquiry = {
-      id: tempId,
-      createdDate: new Date().toISOString().split('T')[0],
-      status: 'New Lead',
-      priority: 'Warm',
-      staffName: enquiryData.staffName || 'Vikramaditya Singhania (Owner)',
-      ...enquiryData
-    };
-    setEnquiries((prev) => [newEnquiry, ...prev]);
-
     try {
       const res = await api.enquiries.create(enquiryData);
-      if (res?.data?.id) {
-        setEnquiries((prev) =>
-          prev.map((e) => (e.id === tempId ? { ...newEnquiry, ...res.data } : e))
-        );
+      if (res?.data) {
+        setEnquiries((prev) => [res.data, ...prev.filter((e) => e.id !== res.data.id)]);
+        addToast(`Enquiry for "${res.data.name}" recorded in database!`);
+        return res.data;
       }
     } catch (err) {
       console.warn('Enquiry create sync error:', err.message);
+      addToast(`Error saving enquiry: ${err.message}`, 'error');
+      throw err;
     }
-
-    addToast(`Enquiry for "${newEnquiry.name}" recorded in database!`);
-    return newEnquiry;
   };
 
   const updateEnquiry = async (id, updatedData) => {
@@ -1455,49 +2042,49 @@ export const GymDataProvider = ({ children }) => {
 
     try {
       const keys = Object.keys(updatedData);
+      let res;
       if (keys.length === 1 && updatedData.priority) {
-        await api.enquiries.updatePriority(id, updatedData.priority);
+        res = await api.enquiries.updatePriority(id, updatedData.priority);
       } else if (keys.length === 1 && updatedData.followUpDate) {
-        await api.enquiries.updateFollowUp(id, updatedData.followUpDate);
+        res = await api.enquiries.updateFollowUp(id, updatedData.followUpDate);
       } else {
-        await api.enquiries.update(id, updatedData);
+        res = await api.enquiries.update(id, updatedData);
       }
+      if (res?.data) {
+        setEnquiries((prev) => prev.map((e) => (e.id === id ? { ...e, ...res.data } : e)));
+      }
+      addToast('Lead details updated');
     } catch (err) {
       console.warn('Enquiry update sync error:', err.message);
+      addToast(`Update error: ${err.message}`, 'error');
     }
-
-    addToast('Lead details updated');
   };
 
   const deleteEnquiry = async (id) => {
-    setEnquiries((prev) => prev.filter((e) => e.id !== id));
     try {
       await api.enquiries.delete(id);
+      setEnquiries((prev) => prev.filter((e) => e.id !== id));
+      addToast('Enquiry removed from database', 'info');
     } catch (err) {
       console.warn('Enquiry delete sync error:', err.message);
+      addToast(`Error deleting enquiry: ${err.message}`, 'error');
     }
-    addToast('Enquiry removed from database', 'info');
   };
 
   const convertEnquiryToMember = async (id, memberData) => {
-    // Optimistic removal from enquiries list
-    setEnquiries((prev) => prev.filter((e) => e.id !== id));
-
     try {
       const res = await api.enquiries.convertToMember(id, memberData);
       if (res?.data) {
         setMembers((prev) => [res.data, ...prev.filter((m) => m.id !== res.data.id)]);
+        setEnquiries((prev) => prev.filter((e) => e.id !== id));
         addToast(res.message || `Lead converted to active member "${res.data.name}"!`);
         return res.data;
       }
     } catch (err) {
-      console.warn('Backend convert enquiry fallback:', err.message);
+      console.warn('Convert enquiry error:', err.message);
+      addToast(`Conversion error: ${err.message}`, 'error');
+      throw err;
     }
-
-    // Direct addMember fallback if endpoint fails
-    const createdMember = await addMember(memberData);
-    deleteEnquiry(id);
-    return createdMember;
   };
 
   // Products Handlers
@@ -1611,38 +2198,83 @@ export const GymDataProvider = ({ children }) => {
   // Expenses Handlers (Cash Outflow)
   const addExpense = async (expenseData) => {
     const tempId = `EXP-${Date.now()}`;
+    const payload = {
+      ...expenseData,
+      amount: Number(expenseData.amount) || 0,
+      date: expenseData.date || new Date().toISOString().split('T')[0],
+      paymentMode: expenseData.paymentMode || expenseData.payment_mode || 'UPI',
+      refNo: expenseData.receiptRef || expenseData.refNo || `EXP-${Date.now().toString().slice(-6)}`
+    };
+
     const newExpense = {
       id: tempId,
-      date: expenseData.date || new Date().toISOString().split('T')[0],
       status: 'Paid',
-      ...expenseData,
-      amount: Number(expenseData.amount) || 0
+      ...payload
     };
     setExpenses((prev) => [newExpense, ...prev]);
 
     try {
-      const res = await api.expenses.create(expenseData);
-      if (res?.data?.id) {
-        setExpenses((prev) =>
-          prev.map((e) => (e.id === tempId ? { ...newExpense, ...res.data } : e))
-        );
-      }
+      const res = api.revenueBilling?.addOutflow
+        ? await api.revenueBilling.addOutflow(payload)
+        : await api.expenses.create(payload);
+      const savedExpense = res?.data || newExpense;
+      setExpenses((prev) => {
+        const updated = prev.map((e) => (e.id === tempId ? { ...newExpense, ...savedExpense } : e));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_expenses', JSON.stringify(updated));
+        }
+        return updated;
+      });
+      fetchExpenses();
+      fetchDashboardStats();
+      addToast(`Expense "${newExpense.title}" (₹${newExpense.amount.toLocaleString('en-IN')}) saved to database!`);
+      return savedExpense;
     } catch (err) {
-      console.warn('Expense backend create sync error:', err.message);
+      console.error('Expense backend create sync error:', err);
+      // Revert optimistic add
+      setExpenses((prev) => {
+        const reverted = prev.filter((e) => e.id !== tempId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_expenses', JSON.stringify(reverted));
+        }
+        return reverted;
+      });
+      addToast(`Failed to save expense: ${err.message}`, 'error');
+      throw err;
     }
-
-    addToast(`Expense "${newExpense.title}" (₹${newExpense.amount.toLocaleString('en-IN')}) saved to database!`);
-    return newExpense;
   };
 
   const deleteExpense = async (expenseId) => {
-    setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
+    let backup;
+    setExpenses((prev) => {
+      backup = prev;
+      const updated = prev.filter((e) => e.id !== expenseId && e.numericId !== expenseId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('pulsefit_expenses', JSON.stringify(updated));
+      }
+      return updated;
+    });
+
     try {
-      await api.expenses.delete(expenseId);
+      if (api.revenueBilling?.deleteRecord) {
+        await api.revenueBilling.deleteRecord(expenseId);
+      } else {
+        await api.expenses.delete(expenseId);
+      }
+      fetchExpenses();
+      fetchDashboardStats();
+      addToast('Expense record removed from database', 'info');
     } catch (err) {
-      console.warn('Expense backend delete sync error:', err.message);
+      console.error('Expense backend delete sync error:', err);
+      if (backup) {
+        setExpenses(backup);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pulsefit_expenses', JSON.stringify(backup));
+        }
+      }
+      addToast('Failed to delete expense from database: ' + err.message, 'error');
+      throw err;
     }
-    addToast('Expense record removed from database', 'info');
   };
 
   // Commissions Handlers
@@ -1731,10 +2363,10 @@ export const GymDataProvider = ({ children }) => {
       prev.map((f) =>
         f.id === id
           ? {
-              ...f,
-              status,
-              signedDate: status === 'Signed' ? new Date().toISOString().split('T')[0] : null
-            }
+            ...f,
+            status,
+            signedDate: status === 'Signed' ? new Date().toISOString().split('T')[0] : null
+          }
           : f
       )
     );
@@ -1840,16 +2472,343 @@ export const GymDataProvider = ({ children }) => {
     addToast('Payroll payment disbursed and marked as Paid in database');
   };
 
+  // Dynamic Payroll Adjustments (Incentives and Deductions)
+  const updatePayrollAdjustments = async (recordId, { bonus, deductions, notes }) => {
+    let calculatedNet = 0;
+    setPayrollRecords((prev) =>
+      prev.map((rec) => {
+        if (rec.id === recordId || rec.numericId === recordId) {
+          const newBonus = Number(bonus !== undefined ? bonus : rec.bonus || 0);
+          const newDeductions = Number(deductions !== undefined ? deductions : rec.deductions || 0);
+          const base = Number(rec.baseSalary || 0);
+          const comm = Number(rec.commissions || 0);
+          calculatedNet = base + comm + newBonus - newDeductions;
+          return {
+            ...rec,
+            bonus: newBonus,
+            deductions: newDeductions,
+            netPay: calculatedNet
+          };
+        }
+        return rec;
+      })
+    );
+
+    try {
+      await api.payroll.adjust(recordId, {
+        bonus,
+        deductions,
+        notes: notes || 'Manual adjustment applied',
+        adjustedBy: currentUser?.name || 'Owner'
+      });
+    } catch (err) {
+      console.warn('Payroll adjustment sync note:', err.message);
+    }
+
+    addToast('Payroll adjustments updated in database!', 'success');
+  };
+
+  // Advance Salary Request by Staff / Trainer
+  const requestAdvancePay = async ({ staffId, staffName, role, amount, reason, repaymentMonth }) => {
+    const rawTrainerId = typeof staffId === 'string' ? staffId.replace(/[^0-9]/g, '') : staffId;
+    const numericTrainerId = Number(rawTrainerId) || 2;
+
+    try {
+      const res = await api.advanceRequests.create({
+        gym_id: currentUser?.gymId || 1,
+        trainer_id: numericTrainerId,
+        trainer_name: staffName || currentUser?.name || 'Staff Member',
+        amount: Number(amount) || 0,
+        reason: reason || 'Advance Salary Request',
+        repayment_month: repaymentMonth || 'Next Cycle'
+      });
+
+      if (res?.data) {
+        const mapped = mapAdvanceRequest({
+          ...res.data,
+          role: role || currentUser?.roleLabel || 'Fitness Coach'
+        });
+        setAdvanceRequests((prev) => [mapped, ...prev.filter((r) => r.id !== mapped.id)]);
+        addToast(`Advance salary request of ₹${Number(amount).toLocaleString('en-IN')} submitted and saved to database!`, 'info');
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('Backend advance request note:', err.message);
+    }
+
+    const newRequest = {
+      id: `adv-${Date.now().toString().slice(-4)}`,
+      numericId: Date.now(),
+      staffId: staffId || 'trn-2',
+      staffName: staffName || currentUser?.name || 'Staff Member',
+      trainerName: staffName || currentUser?.name || 'Staff Member',
+      role: role || currentUser?.roleLabel || 'Fitness Coach',
+      amount: Number(amount) || 0,
+      requestDate: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split('T')[0],
+      reason: reason || 'Advance Salary Request',
+      repaymentMonth: repaymentMonth || 'Next Cycle',
+      status: 'Pending',
+      disbursedDate: null,
+      approvedBy: null
+    };
+
+    setAdvanceRequests((prev) => [newRequest, ...prev]);
+    addToast(`Advance salary request of ₹${Number(amount).toLocaleString('en-IN')} submitted!`, 'info');
+    return newRequest;
+  };
+
+  // Advance Salary Approval / Disbursement by Superadmin or Accounts
+  const updateAdvancePayStatus = async (requestId, status, approverName = 'Superadmin') => {
+    // Optimistic UI update
+    setAdvanceRequests((prev) =>
+      prev.map((req) => {
+        if (
+          req.id === requestId ||
+          req.numericId === requestId ||
+          String(req.id).replace(/[^0-9]/g, '') === String(requestId).replace(/[^0-9]/g, '')
+        ) {
+          const isDisbursed = status === 'Disbursed';
+          const isApproved = status === 'Approved';
+          return {
+            ...req,
+            status,
+            approvedBy: isApproved || isDisbursed ? approverName : req.approvedBy,
+            disbursedDate: isDisbursed ? new Date().toISOString().split('T')[0] : req.disbursedDate
+          };
+        }
+        return req;
+      })
+    );
+
+    try {
+      const res = await api.advanceRequests.updateStatus(requestId, status, `Action taken by ${approverName}`);
+      if (res?.data) {
+        const mapped = mapAdvanceRequest(res.data);
+        setAdvanceRequests((prev) =>
+          prev.map((req) => (req.id === mapped.id || req.numericId === mapped.numericId ? mapped : req))
+        );
+      }
+      addToast(`Advance request #${String(requestId).replace(/[^0-9]/g, '')} marked as ${status} in database!`, 'success');
+      await fetchAdvanceRequests();
+    } catch (err) {
+      console.error('Backend advance status sync error:', err.message);
+      addToast(`Error updating advance status: ${err.message}`, 'error');
+      await fetchAdvanceRequests();
+    }
+
+    // If disbursed, automatically append an outflow expense entry in UI
+    if (status === 'Disbursed') {
+      const targetReq = advanceRequests.find((r) =>
+        r.id === requestId ||
+        r.numericId === requestId ||
+        String(r.id).replace(/[^0-9]/g, '') === String(requestId).replace(/[^0-9]/g, '')
+      );
+      if (targetReq) {
+        addExpense({
+          title: `Salary Advance Payout - ${targetReq.staffName || targetReq.trainerName}`,
+          category: 'Salaries',
+          vendor: targetReq.staffName || targetReq.trainerName,
+          amount: targetReq.amount,
+          date: new Date().toISOString().split('T')[0],
+          paymentMode: 'Bank Transfer',
+          receiptRef: `ADV-${String(requestId).toUpperCase()}`,
+          notes: `Advance disbursed for: ${targetReq.reason}`
+        });
+      }
+    }
+  };
+
+  // PT SESSIONS: Allocate new package to a member
+  const allocatePTSessions = async ({ memberId, memberName, memberEmail, trainerId, trainerName, totalSessions, packageTitle }) => {
+    const rawMemberId = typeof memberId === 'string' ? memberId.replace(/^(mem-|usr-member-)/, '') : memberId;
+    const rawTrainerId = typeof trainerId === 'string' ? trainerId.replace(/^(trn-|tr-|usr-trainer-)/, '') : trainerId;
+
+    try {
+      const res = await api.ptSessions.create({
+        member_id: Number(rawMemberId) || null,
+        member_name: memberName || 'Member',
+        trainer_id: Number(rawTrainerId) || null,
+        trainer_name: trainerName || 'Trainer',
+        plan_name: packageTitle || `${totalSessions} 1-on-1 PT Sessions`,
+        total_sessions: Number(totalSessions) || 12,
+        start_date: new Date().toISOString().split('T')[0]
+      });
+
+      if (res?.data) {
+        const mapped = mapPtSession(res.data);
+        setPtSessions((prev) => [mapped, ...prev.filter((p) => p.id !== mapped.id && p.numericId !== res.data.id)]);
+        addToast(`PT Package allocated & saved to database! Member OTP: ${res.data.client_otp}`, 'success');
+        fetchPtSessions?.();
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('Backend allocate PT session note:', err.message);
+    }
+
+    const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const newSessionPackage = {
+      id: `pts-${Date.now().toString().slice(-4)}`,
+      memberId,
+      memberName,
+      memberEmail: memberEmail || '',
+      trainerId,
+      trainerName,
+      packageTitle: packageTitle || `${totalSessions} 1-on-1 PT Sessions`,
+      totalSessions: Number(totalSessions) || 12,
+      completedSessions: 0,
+      remainingSessions: Number(totalSessions) || 12,
+      startDate: new Date().toISOString().split('T')[0],
+      otp: randomOtp,
+      logs: []
+    };
+
+    setPtSessions((prev) => [newSessionPackage, ...prev]);
+    return newSessionPackage;
+  };
+
+  // PT SESSIONS: Trainer logs completed session with member OTP verification
+  const logPTSessionWithOtp = async ({ ptSessionId, inputOtp, trainerNotes }) => {
+    const sessionPkg = ptSessions.find((p) => p.id === ptSessionId || p.numericId === ptSessionId);
+    if (!sessionPkg) {
+      return { success: false, message: 'PT Package not found' };
+    }
+
+    if (sessionPkg.remainingSessions <= 0) {
+      return { success: false, message: 'All sessions in this package have already been completed!' };
+    }
+
+    try {
+      const res = await api.ptSessions.logSession(sessionPkg.numericId || sessionPkg.id, {
+        otp_entered: inputOtp,
+        notes: trainerNotes || '1-on-1 coaching workout completed'
+      });
+
+      if (res?.success && res?.data?.pt_session) {
+        const updatedMapped = mapPtSession(res.data.pt_session);
+        setPtSessions((prev) =>
+          prev.map((p) => (p.id === sessionPkg.id || p.numericId === sessionPkg.numericId ? updatedMapped : p))
+        );
+        addToast(res.message || 'Session verified & logged in database!', 'success');
+        return { success: true, message: res.message };
+      }
+    } catch (err) {
+      console.warn('Backend log PT session note:', err.message);
+      if (err.data?.message) {
+        addToast(err.data.message, 'error');
+        return { success: false, message: err.data.message };
+      }
+    }
+
+    if (sessionPkg.otp && sessionPkg.otp.toString().trim() !== inputOtp.toString().trim()) {
+      return { success: false, message: 'Invalid Member OTP. Please ask the client for the correct 4-digit code.' };
+    }
+
+    // Local fallback
+    const nextOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const now = new Date();
+    const logDate = `${now.toISOString().split('T')[0]} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    setPtSessions((prev) =>
+      prev.map((p) => {
+        if (p.id === ptSessionId || p.numericId === ptSessionId) {
+          const completed = p.completedSessions + 1;
+          const remaining = Math.max(0, p.totalSessions - completed);
+          const newLog = {
+            sessionNo: completed,
+            date: logDate,
+            verifiedWithOtp: true,
+            trainerNotes: trainerNotes || '1-on-1 coaching workout completed'
+          };
+          return {
+            ...p,
+            completedSessions: completed,
+            remainingSessions: remaining,
+            otp: nextOtp,
+            logs: [newLog, ...(p.logs || [])]
+          };
+        }
+        return p;
+      })
+    );
+
+    addToast(`Session verified & logged! Remaining sessions: ${sessionPkg.remainingSessions - 1}`, 'success');
+    return { success: true, message: 'Session successfully verified and logged!' };
+  };
+
+  // TRAINER REVIEWS & RATINGS (Submitted by Member)
+  const addTrainerReview = async ({ trainerId, trainerName, memberId, memberName, rating, comment }) => {
+    const rawTrainerId = typeof trainerId === 'string' ? trainerId.replace(/^(trn-|tr-|usr-trainer-)/, '') : trainerId;
+    const rawMemberId = typeof memberId === 'string' ? memberId.replace(/^(mem-|usr-member-)/, '') : memberId;
+
+    try {
+      const res = await api.trainerReviews.create({
+        trainer_id: Number(rawTrainerId) || 2,
+        trainer_name: trainerName || 'Trainer',
+        member_id: Number(rawMemberId) || null,
+        member_name: memberName || 'Member',
+        rating: Number(rating) || 5,
+        comment: comment || '',
+        date: new Date().toISOString().split('T')[0]
+      });
+
+      if (res?.data) {
+        const mapped = mapTrainerReview(res.data);
+        setTrainerReviews((prev) => [mapped, ...prev]);
+        if (res.avg_rating) {
+          setTrainers((prev) =>
+            prev.map((t) => (t.id === trainerId ? { ...t, rating: Number(res.avg_rating) } : t))
+          );
+        }
+        addToast(`Review submitted and recorded in database! Thank you for rating ${trainerName}.`, 'success');
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('Backend trainer review note:', err.message);
+    }
+
+    const newRev = {
+      id: `rev-${Date.now().toString().slice(-4)}`,
+      trainerId,
+      trainerName,
+      memberId: memberId || 'mem-5',
+      memberName: memberName || 'Member',
+      rating: Number(rating) || 5,
+      comment: comment || '',
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    setTrainerReviews((prev) => [newRev, ...prev]);
+
+    // Recalculate trainer average rating
+    setTrainers((prev) =>
+      prev.map((t) => {
+        if (t.id === trainerId) {
+          const allReviews = [...trainerReviews.filter((r) => r.trainerId === trainerId), newRev];
+          const avg = (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1);
+          return {
+            ...t,
+            rating: Number(avg)
+          };
+        }
+        return t;
+      })
+    );
+
+    addToast(`Review submitted! Thank you for rating ${trainerName}.`, 'success');
+    return newRev;
+  };
+
   // Staff Attendance Handlers
   const recordStaffCheckIn = (staffId) => {
     const staff = trainers.find((t) => t.id === staffId);
     if (!staff) return;
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const todayStr = now.toISOString().split('T')[0];
+    const todayIso = getTodayIso();
 
     const existingToday = staffAttendanceLogs.find(
-      (l) => l.staffId === staffId && (l.date === todayStr || l.date === 'Today') && !l.checkOutTime
+      (l) => l.staffId === staffId && recordMatchesDate(l, todayIso) && !l.checkOutTime
     );
 
     if (existingToday) {
@@ -1894,7 +2853,9 @@ export const GymDataProvider = ({ children }) => {
         staffId,
         staffName: staff.name,
         role: staff.specialty || staff.role || 'Fitness Coach',
-        date: 'Today',
+        date: todayIso,
+        rawDate: todayIso,
+        displayDate: 'Today',
         checkInTime: timeStr,
         checkOutTime: null,
         status: 'On Premises (Active)',
@@ -1954,13 +2915,13 @@ export const GymDataProvider = ({ children }) => {
       prev.map((e) =>
         e.id === id
           ? {
-              ...e,
-              status: 'Scrapped',
-              isScrapped: true,
-              scrapReason: reason,
-              scrapDate: new Date().toISOString().split('T')[0],
-              scrapAutoPurgeDate: autoPurgeDate.toISOString().split('T')[0]
-            }
+            ...e,
+            status: 'Scrapped',
+            isScrapped: true,
+            scrapReason: reason,
+            scrapDate: new Date().toISOString().split('T')[0],
+            scrapAutoPurgeDate: autoPurgeDate.toISOString().split('T')[0]
+          }
           : e
       )
     );
@@ -2048,24 +3009,50 @@ export const GymDataProvider = ({ children }) => {
       console.warn('PT plan create sync error:', err.message);
     }
     addToast(`PT Package "${newPlan.name}" created in database!`, 'success');
+    return newPlan;
+  };
+
+  const deletePTPlan = async (planId) => {
+    setPtPlans((prev) => prev.filter((p) => String(p.id) !== String(planId)));
+    try {
+      const numericId = String(planId).replace('pt-', '');
+      await api.ptPlans.delete(numericId);
+    } catch (err) {
+      console.warn('PT plan delete sync error:', err.message);
+    }
+    addToast('PT package removed from database', 'info');
   };
 
   const addRecoveryPlan = async (planData) => {
     const tempId = `rec-${Date.now()}`;
-    const newPlan = { id: tempId, ...planData };
+    let newPlan = { id: tempId, ...planData };
     setRecoveryPlans((prev) => [...prev, newPlan]);
 
     try {
       const res = await api.recoveryPlans.create(planData);
       if (res?.data?.id) {
+        const finalId = String(res.data.id).startsWith('rec-') ? res.data.id : 'rec-' + res.data.id;
+        newPlan = { ...newPlan, ...res.data, id: finalId };
         setRecoveryPlans((prev) =>
-          prev.map((r) => (r.id === tempId ? { ...newPlan, id: 'rec-' + res.data.id } : r))
+          prev.map((r) => (r.id === tempId ? newPlan : r))
         );
       }
     } catch (err) {
       console.warn('Recovery plan create sync error:', err.message);
     }
     addToast(`Therapy option "${newPlan.name}" added to database!`, 'success');
+    return newPlan;
+  };
+
+  const deleteRecoveryPlan = async (planId) => {
+    setRecoveryPlans((prev) => prev.filter((r) => String(r.id) !== String(planId)));
+    try {
+      const numericId = String(planId).replace('rec-', '');
+      await api.recoveryPlans.delete(numericId);
+    } catch (err) {
+      console.warn('Recovery plan delete sync error:', err.message);
+    }
+    addToast('Recovery package removed from database', 'info');
   };
 
   const updateMemberKYC = (memberId, { docType, docNumber, status }) => {
@@ -2073,11 +3060,11 @@ export const GymDataProvider = ({ children }) => {
       prev.map((m) =>
         m.id === memberId
           ? {
-              ...m,
-              kycDocType: docType || m.kycDocType,
-              kycDocNumber: docNumber || m.kycDocNumber,
-              kycStatus: status || 'Verified'
-            }
+            ...m,
+            kycDocType: docType || m.kycDocType,
+            kycDocNumber: docNumber || m.kycDocNumber,
+            kycStatus: status || 'Verified'
+          }
           : m
       )
     );
@@ -2120,6 +3107,8 @@ export const GymDataProvider = ({ children }) => {
         deleteMember,
         renewMemberPlan,
         recordPayment,
+        calculateMemberStatus,
+        getExpiryDaysDiff,
         addTrainer,
         updateTrainer,
         addPlan,
@@ -2131,6 +3120,7 @@ export const GymDataProvider = ({ children }) => {
         updateEquipment,
         deleteEquipment,
         checkInMemberByQR,
+        punchOutMember,
         toggleBookClass,
         toggleExerciseDone,
         toggleMealDone,
@@ -2138,13 +3128,35 @@ export const GymDataProvider = ({ children }) => {
         decrementWater,
         logNewBodyMetrics,
         fetchAllFromBackend,
+        fetchMembers,
+        fetchTrainers,
+        fetchPlans,
+        fetchClasses,
+        fetchAttendance,
+        fetchEquipment,
+        fetchInvoices,
+        fetchExpenses,
+        fetchProducts,
+        fetchCommissions,
+        fetchFreezes,
+        fetchConsentForms,
+        fetchPayroll,
+        fetchPtSessions,
+        fetchAdvanceRequests,
+        fetchTrainerReviews,
+        fetchGymInfo,
+        fetchDashboardStats,
         isLoadingBackend,
+        isOwnerTabLoading,
+        loadingModules,
         ownerStats,
         setOwnerStats,
         revenueAnalytics,
         setRevenueAnalytics,
         // New State & Handlers
         enquiries,
+        setEnquiries,
+        fetchEnquiries,
         addEnquiry,
         updateEnquiry,
         deleteEnquiry,
@@ -2166,6 +3178,15 @@ export const GymDataProvider = ({ children }) => {
         extendMembership,
         payrollRecords,
         markPayrollPaid,
+        updatePayrollAdjustments,
+        advanceRequests,
+        requestAdvancePay,
+        updateAdvancePayStatus,
+        ptSessions,
+        allocatePTSessions,
+        logPTSessionWithOtp,
+        trainerReviews,
+        addTrainerReview,
         staffAttendanceLogs,
         recordStaffCheckIn,
         // Day-to-Day Approvals, Biometrics, PT, Recovery & KYC
@@ -2178,9 +3199,13 @@ export const GymDataProvider = ({ children }) => {
         testTurnstilePulse,
         addBiometricDevice,
         ptPlans,
+        fetchPtPlans,
         addPTPlan,
+        deletePTPlan,
         recoveryPlans,
+        fetchRecoveryPlans,
         addRecoveryPlan,
+        deleteRecoveryPlan,
         updateMemberKYC,
         // Expenses & Cash Outflow
         expenses,

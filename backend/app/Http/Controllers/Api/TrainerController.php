@@ -119,7 +119,7 @@ class TrainerController extends Controller
             ], 422);
         }
 
-        $gymId = $this->resolveGymId($request) ?? 1;
+        $gymId = $this->resolveGymId($request);
 
         $user = User::create([
             'name' => $request->name,

@@ -17,17 +17,34 @@ use App\Models\Invoice;
 use App\Models\Equipment;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use App\Models\Gym;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Disable FK checks during seeding to allow flexible insert ordering
+        DB::statement('PRAGMA foreign_keys = OFF');
+
+        // 0. Create the primary gym first so all FK references to gyms(id=1) work
+        $gym = Gym::firstOrCreate(['id' => 1], [
+            'name'    => 'PULSE FIT Athletic Club',
+            'email'   => 'contact@pulsefit.in',
+            'phone'   => '+91 98201 54321',
+            'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
+            'city'    => 'Mumbai',
+            'status'  => 'Active',
+        ]);
+
         // 1. Gym General Settings
         GymSetting::create([
             'name' => 'PULSE FIT ATHLETIC CLUB',
             'tagline' => "India's Premier Strength & Conditioning Hub",
             'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
             'phone' => '+91 98201 54321',
+
+
             'email' => 'contact@pulsefit.in',
             'operating_hours' => 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
             'currency' => '₹',
@@ -369,31 +386,31 @@ class DatabaseSeeder extends Seeder
             'status' => 'Confirmed',
         ]);
 
-        // 7. Attendance
+        // 7. Historical Attendance (Past sessions, today starts at zero)
         Attendance::create([
             'user_id' => $member1->id,
             'check_in_time' => '07:15:00',
-            'check_out_time' => null,
-            'date' => now()->toDateString(),
-            'status' => 'Inside Gym',
+            'check_out_time' => '08:30:00',
+            'date' => now()->subDays(2)->toDateString(),
+            'status' => 'Completed',
             'gate' => 'Main Turnstile A',
         ]);
 
         Attendance::create([
             'user_id' => $member2->id,
             'check_in_time' => '06:45:00',
-            'check_out_time' => null,
-            'date' => now()->toDateString(),
-            'status' => 'Inside Gym',
+            'check_out_time' => '08:00:00',
+            'date' => now()->subDays(2)->toDateString(),
+            'status' => 'Completed',
             'gate' => 'VIP Turnstile C',
         ]);
 
         Attendance::create([
             'user_id' => $member4->id,
             'check_in_time' => '08:30:00',
-            'check_out_time' => null,
-            'date' => now()->toDateString(),
-            'status' => 'Inside Gym',
+            'check_out_time' => '09:45:00',
+            'date' => now()->subDays(2)->toDateString(),
+            'status' => 'Completed',
             'gate' => 'Main Turnstile B',
         ]);
 
@@ -613,6 +630,10 @@ class DatabaseSeeder extends Seeder
             MultiMemberWorkoutDietSeeder::class,
             ExpensesAndEnquiriesSeeder::class,
             OperationsSeeder::class,
+            PlatformUpgradeSeeder::class,
         ]);
+
+        // Re-enable FK checks
+        DB::statement('PRAGMA foreign_keys = ON');
     }
 }

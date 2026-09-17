@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
@@ -18,10 +18,15 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 
 export const TrainerList = () => {
   const { registerAccount } = useAuth();
-  const { trainers = [], members = [], addTrainer, addToast } = useGymData();
+  const { trainers = [], members = [], fetchTrainers, addTrainer, addToast } = useGymData();
+
+  useEffect(() => {
+    fetchTrainers?.();
+  }, [fetchTrainers]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
@@ -189,76 +194,87 @@ export const TrainerList = () => {
         </div>
       </div>
 
-      {/* Trainers Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6">
-        {trainers.map((trainer) => {
-          const assignedMembers = members.filter((m) => m.trainerId === trainer.id);
+      {/* Trainers Cards Grid or Empty State */}
+      {trainers.length === 0 ? (
+        <EmptyState
+          icon={Award}
+          title="No Certified Trainers Registered Yet"
+          description="There is currently no personal trainer data for this gym. Click below to add your first certified trainer, assign specialties, and allocate athletes."
+          actionText="Register Certified Trainer"
+          onAction={() => setIsAddOpen(true)}
+          accentColor="indigo"
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6">
+          {trainers.map((trainer) => {
+            const assignedMembers = members.filter((m) => m.trainerId === trainer.id);
 
-          return (
-            <div
-              key={trainer.id}
-              className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-            >
-              <div>
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black text-base shrink-0">
-                    {trainer.name ? trainer.name.charAt(0) : 'C'}
+            return (
+              <div
+                key={trainer.id}
+                className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
+              >
+                <div>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black text-base shrink-0">
+                      {trainer.name ? trainer.name.charAt(0) : 'C'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{trainer.name}</h3>
+                      <div className="text-[11px] sm:text-xs text-emerald-700 font-medium truncate">{trainer.role}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{trainer.email}</div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{trainer.name}</h3>
-                    <div className="text-[11px] sm:text-xs text-emerald-700 font-medium truncate">{trainer.role}</div>
-                    <div className="text-[10px] text-slate-400 truncate">{trainer.email}</div>
+
+                  <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 mb-3 italic leading-relaxed">
+                    "{trainer.bio || 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.'}"
+                  </p>
+
+                  {/* Specialties & Certs Info */}
+                  <div className="space-y-1.5 text-[11px] sm:text-xs mb-3">
+                    <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <span className="text-slate-500">Specialty:</span>
+                      <span className="font-semibold text-slate-900 truncate ml-2">{trainer.specialty}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <span className="text-slate-500">Experience:</span>
+                      <span className="font-semibold text-slate-900">{trainer.experience || '5+ Years'}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <span className="text-slate-500">Assigned Clients:</span>
+                      <span className="font-bold text-emerald-700">{assignedMembers.length} Active</span>
+                    </div>
+                  </div>
+
+                  {/* Certifications badges */}
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {getCertList(trainer.certifications).map((cert, idx) => (
+                      <span
+                        key={idx}
+                        className="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                      >
+                        {cert}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
-                <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 mb-3 italic leading-relaxed">
-                  "{trainer.bio || 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.'}"
-                </p>
-
-                {/* Specialties & Certs Info */}
-                <div className="space-y-1.5 text-[11px] sm:text-xs mb-3">
-                  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="text-slate-500">Specialty:</span>
-                    <span className="font-semibold text-slate-900 truncate ml-2">{trainer.specialty}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="text-slate-500">Experience:</span>
-                    <span className="font-semibold text-slate-900">{trainer.experience || '5+ Years'}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="text-slate-500">Assigned Clients:</span>
-                    <span className="font-bold text-emerald-700">{assignedMembers.length} Active</span>
-                  </div>
-                </div>
-
-                {/* Certifications badges */}
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {getCertList(trainer.certifications).map((cert, idx) => (
-                    <span
-                      key={idx}
-                      className="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
-                    >
-                      {cert}
-                    </span>
-                  ))}
+                {/* Bottom Actions */}
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTrainer({ ...trainer, assignedMembers })}
+                    className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Users className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>View Roster ({assignedMembers.length})</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Bottom Actions */}
-              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTrainer({ ...trainer, assignedMembers })}
-                  className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                >
-                  <Users className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>View Roster ({assignedMembers.length})</span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* VIEW TRAINER MEMBERS MODAL */}
       <Modal

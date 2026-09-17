@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { GymDataProvider } from './context/GymDataContext';
+import { GymDataProvider, useGymData } from './context/GymDataContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForceChangePasswordModal } from './components/auth/ForceChangePasswordModal';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { LogoutConfirmModal } from './components/common/LogoutConfirmModal';
+import { OwnerPageLoader } from './components/common/OwnerPageLoader';
 
 // Member Views
 import { MemberDashboard } from './components/member/MemberDashboard';
@@ -25,15 +26,15 @@ import { TrainerClientList } from './components/trainer/TrainerClientList';
 import { WorkoutBuilder } from './components/trainer/WorkoutBuilder';
 import { DietBuilder } from './components/trainer/DietBuilder';
 import { TrainerProfile } from './components/trainer/TrainerProfile';
-import { ProgressLogger } from './components/trainer/ProgressLogger';
 import { TrainerCommissionsView } from './components/trainer/TrainerCommissionsView';
+import { TrainerSessionsView } from './components/trainer/TrainerSessionsView';
+import { TrainerAdvancePayView } from './components/trainer/TrainerAdvancePayView';
 
 // Owner Views
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { MemberList } from './components/owner/MemberList';
 import { PlanManager } from './components/owner/PlanManager';
 import { TrainerList } from './components/owner/TrainerList';
-import { ScheduleManager } from './components/owner/ScheduleManager';
 import { Financials } from './components/owner/Financials';
 import { EquipmentManager } from './components/owner/EquipmentManager';
 import { SettingsManager } from './components/owner/SettingsManager';
@@ -47,9 +48,19 @@ import { AttendanceTracker } from './components/owner/AttendanceTracker';
 import { InvoicesPage } from './components/owner/InvoicesPage';
 import { SuperadminApp } from './components/superadmin/SuperadminApp';
 
+// New Systems: Staff Accounts, Reports, Advance Pay, Classes, PT Sessions, Member Coaches
+import { StaffAccountManager } from './components/owner/StaffAccountManager';
+import { ReportsManager } from './components/owner/ReportsManager';
+import { AdvancePayManager } from './components/owner/AdvancePayManager';
+import { ClassAdminManager } from './components/owner/ClassAdminManager';
+import { PTSessionsManager } from './components/owner/PTSessionsManager';
+import { CoachesDirectory } from './components/member/CoachesDirectory';
+import { AnalyticsPage } from './components/owner/AnalyticsPage';
+
 
 function MainApp() {
-  const { isAuthenticated, currentRole } = useAuth();
+  const { isAuthenticated, currentRole, canAccessFinancials } = useAuth();
+  const { isOwnerTabLoading } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -191,6 +202,8 @@ function MainApp() {
         return <DietTracker setActiveTab={handleNavigateTab} />;
       case 'classes':
         return <ClassBooking setActiveTab={handleNavigateTab} />;
+      case 'coaches':
+        return <CoachesDirectory setActiveTab={handleNavigateTab} />;
       case 'profile':
         return <MemberProfile setActiveTab={handleNavigateTab} />;
       case 'invoices':
@@ -207,6 +220,10 @@ function MainApp() {
     switch (activeTab) {
       case 'dashboard':
         return <TrainerDashboard setActiveTab={handleNavigateTab} />;
+      case 'advance-request':
+        return <TrainerAdvancePayView setActiveTab={handleNavigateTab} />;
+      case 'sessions':
+        return <TrainerSessionsView setActiveTab={handleNavigateTab} />;
       case 'clients':
         return <TrainerClientList setActiveTab={handleNavigateTab} />;
       case 'workout-builder':
@@ -215,8 +232,6 @@ function MainApp() {
         return <DietBuilder setActiveTab={handleNavigateTab} />;
       case 'profile':
         return <TrainerProfile setActiveTab={handleNavigateTab} />;
-      case 'progress-logger':
-        return <ProgressLogger setActiveTab={handleNavigateTab} />;
       case 'commissions':
         return <TrainerCommissionsView />;
       default:
@@ -224,17 +239,26 @@ function MainApp() {
     }
   };
 
-  // 3. Gym Owner Operations Content Routing
+  // 3. Gym Superadmin / Accounts / Manager Operations Content Routing
   const renderOwnerContent = () => {
+    // Security Guard: Manager has no access to financial, revenue, payroll, or staff provisioning pages
+    if (currentRole === 'manager' && !canAccessFinancials) {
+      const restrictedTabs = ['financials', 'invoices', 'advance-pay', 'payroll', 'reports', 'staff-accounts'];
+      if (restrictedTabs.includes(activeTab)) {
+        return <OwnerDashboard setActiveTab={handleNavigateTab} />;
+      }
+    }
+
+    // Dynamic Owner Module Loader: Prevent blank screen while page records are hydrating
+    if (isOwnerTabLoading?.(activeTab)) {
+      return <OwnerPageLoader activeTab={activeTab} />;
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return (
           <OwnerDashboard
             setActiveTab={handleNavigateTab}
-            onOpenAddMember={() => {
-              handleNavigateTab('members');
-              setIsOpenAddMemberModal(true);
-            }}
           />
         );
       case 'members':
@@ -244,6 +268,10 @@ function MainApp() {
             setIsOpenAddModal={setIsOpenAddMemberModal}
           />
         );
+      case 'classes':
+        return <ClassAdminManager />;
+      case 'pt-sessions':
+        return <PTSessionsManager />;
       case 'enquiries':
         return (
           <EnquiriesManager
@@ -261,18 +289,26 @@ function MainApp() {
         return <MembershipFreezeManager />;
       case 'consent-forms':
         return <ConsentFormsManager />;
+      case 'staff-accounts':
+        return <StaffAccountManager />;
       case 'trainers':
         return <TrainerList />;
-      case 'commissions':
-        return <TrainerCommissions />;
+      case 'advance-pay':
+        return <AdvancePayManager />;
       case 'payroll':
         return <PayrollManager />;
-      case 'products':
-        return <ProductsManager />;
+      case 'commissions':
+        return <TrainerCommissions />;
+      case 'analytics':
+        return <AnalyticsPage />;
+      case 'reports':
+        return <ReportsManager setActiveTab={handleNavigateTab} />;
       case 'financials':
         return <Financials />;
       case 'invoices':
         return <InvoicesPage />;
+      case 'products':
+        return <ProductsManager />;
       case 'equipment':
         return <EquipmentManager />;
       case 'settings':

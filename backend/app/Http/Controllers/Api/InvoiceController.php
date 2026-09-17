@@ -17,24 +17,20 @@ class InvoiceController extends Controller
         $gymId = $this->resolveGymId($request);
         $query = Invoice::with(['user', 'plan'])->latest();
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) {
-                    $q->orWhereNull('gym_id');
-                }
-            });
+            $query->where('gym_id', $gymId);
         }
 
         $invoices = $query->get()->map(function ($inv) {
+            $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $inv->invoice_number)->first();
             return [
                 'id' => $inv->invoice_number,
                 'numericId' => $inv->id,
                 'gymId' => $inv->gym_id,
                 'memberId' => 'mem-' . $inv->user_id,
                 'memberName' => $inv->user?->name ?? 'Unknown',
-                'planName' => $inv->plan?->name ?? 'Fitness Package',
+                'planName' => $matchingInflow?->plan_name ?: ($inv->plan?->name ?? 'Fitness Package'),
                 'amount' => (float)$inv->amount,
-                'date' => $inv->date->format('Y-m-d'),
+                'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
                 'paymentMethod' => $inv->payment_method,
                 'status' => $inv->status,
                 'invoiceUrl' => $inv->invoice_url ?? '#',
@@ -91,7 +87,7 @@ class InvoiceController extends Controller
         $method = $request->payment_method ?? $request->paymentMethod ?? 'UPI';
         $status = $request->status ?? 'Paid';
 
-        $gymId = $this->resolveGymId($request) ?? $user->gym_id ?? 1;
+        $gymId = $this->resolveGymId($request) ?? $user->gym_id;
 
         $invoice = Invoice::create([
             'gym_id' => $gymId,

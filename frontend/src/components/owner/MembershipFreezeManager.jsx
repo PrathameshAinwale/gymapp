@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   PauseCircle,
@@ -12,12 +12,27 @@ import {
   User,
   ShieldCheck,
   CalendarPlus,
-  Loader2
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 
 export const MembershipFreezeManager = () => {
-  const { membershipFreezes, addFreezeRequest, unfreezeMembership, extendMembership, members } = useGymData();
+  const {
+    membershipFreezes,
+    addFreezeRequest,
+    unfreezeMembership,
+    extendMembership,
+    members,
+    fetchFreezes,
+    fetchMembers
+  } = useGymData();
+
+  useEffect(() => {
+    fetchFreezes?.();
+    fetchMembers?.();
+  }, [fetchFreezes, fetchMembers]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isFreezeModalOpen, setIsFreezeModalOpen] = useState(false);
@@ -182,8 +197,21 @@ export const MembershipFreezeManager = () => {
         {/* Mobile View: Compact Cards */}
         <div className="block sm:hidden space-y-2">
           {filteredFreezes.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
-              No membership freeze records found.
+            <div className="bg-white border border-slate-200 rounded-xl p-6">
+              <EmptyState
+                icon={PauseCircle}
+                title={searchTerm ? "No matching freeze records" : "No Memberships Frozen"}
+                description={
+                  searchTerm
+                    ? `No freeze records match "${searchTerm}".`
+                    : "Pause active member memberships for travel or medical reasons to preserve validity without losing days."
+                }
+                actionText="Freeze Member Plan"
+                onAction={() => setIsFreezeModalOpen(true)}
+                secondaryActionText={searchTerm ? "Clear Search" : undefined}
+                onSecondaryAction={searchTerm ? () => setSearchTerm('') : undefined}
+                color="amber"
+              />
             </div>
           ) : (
             filteredFreezes.map((f) => {
@@ -267,22 +295,40 @@ export const MembershipFreezeManager = () => {
 
         {/* Desktop View: Full Table */}
         <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3.5 px-5">Member Name</th>
-                  <th className="py-3.5 px-5">Membership Plan</th>
-                  <th className="py-3.5 px-5">Freeze Duration</th>
-                  <th className="py-3.5 px-5">Days Frozen</th>
-                  <th className="py-3.5 px-5">Reason</th>
-                  <th className="py-3.5 px-5">Approved By</th>
-                  <th className="py-3.5 px-5">Status</th>
-                  <th className="py-3.5 px-5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredFreezes.map((f) => {
+          {filteredFreezes.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={PauseCircle}
+                title={searchTerm ? "No matching freeze records" : "No Memberships Frozen"}
+                description={
+                  searchTerm
+                    ? `No freeze records match "${searchTerm}".`
+                    : "Pause active member memberships for travel or medical reasons to preserve validity without losing days."
+                }
+                actionText="Freeze Member Plan"
+                onAction={() => setIsFreezeModalOpen(true)}
+                secondaryActionText={searchTerm ? "Clear Search" : undefined}
+                onSecondaryAction={searchTerm ? () => setSearchTerm('') : undefined}
+                color="amber"
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-5">Member Name</th>
+                    <th className="py-3.5 px-5">Membership Plan</th>
+                    <th className="py-3.5 px-5">Freeze Duration</th>
+                    <th className="py-3.5 px-5">Days Frozen</th>
+                    <th className="py-3.5 px-5">Reason</th>
+                    <th className="py-3.5 px-5">Approved By</th>
+                    <th className="py-3.5 px-5">Status</th>
+                    <th className="py-3.5 px-5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredFreezes.map((f) => {
                   const isActive = f.status === 'Active Freeze';
 
                   return (
@@ -364,7 +410,8 @@ export const MembershipFreezeManager = () => {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
+      </div>
       </div>
 
       {/* Freeze Modal */}

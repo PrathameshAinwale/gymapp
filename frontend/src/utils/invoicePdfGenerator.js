@@ -38,10 +38,9 @@ function numberToWordsINR(amount) {
 }
 
 /**
- * Foolproof cross-browser PDF download helper
+ * Cross-browser PDF download helper
  */
 export function downloadPdfBlob(blob, fileName, doc = null) {
-  // 1. Try jsPDF's native save if doc instance is provided
   if (doc && typeof doc.save === 'function') {
     try {
       doc.save(fileName);
@@ -51,7 +50,6 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
     }
   }
 
-  // 2. DOM anchor download using Blob Object URL
   try {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -70,7 +68,6 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
     return true;
   } catch (err) {
     console.error('downloadPdfBlob anchor error:', err);
-    // Fallback: window.open as data URI / blob
     try {
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
@@ -83,7 +80,8 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
 }
 
 /**
- * Generate a standard General Tax Invoice PDF
+ * Generate a modern, elegant Gym Membership & Payment Receipt PDF
+ * (Clean fitness club format — easy to read, transparent, and aesthetically premium)
  */
 export function generateInvoicePdf({ invoice, member, gymInfo }) {
   const doc = new jsPDF({
@@ -94,10 +92,10 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
 
   const pageWidth = 210;
   const pageHeight = 297;
-  const margin = 14;
+  const margin = 16;
   const contentWidth = pageWidth - margin * 2;
 
-  const gymName = gymInfo?.name || 'PULSE FIT ATHLETIC CLUB & WELLNESS';
+  const gymName = gymInfo?.name || 'PULSEFIT ATHLETIC CLUB';
   const gymAddress = gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076';
   const gymGstin = gymInfo?.gstin || '27AAPCP1234F1Z8';
   const gymPhone = gymInfo?.phone || '+91 98201 54321';
@@ -110,259 +108,313 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
 
   const invoiceId = (invoice.id || 'INV-001').toUpperCase();
   const invoiceDate = invoice.date || new Date().toISOString().split('T')[0];
-  const paymentMode = invoice.paymentMethod || 'UPI / Net Banking';
+  const paymentMode = invoice.paymentMethod || 'UPI / Instant Transfer';
   const planName = invoice.planName || 'Comprehensive Gym Membership Pass';
   const totalAmount = Number(invoice.amount) || 0;
   const taxableBase = Math.round(totalAmount / 1.18);
-  const cgst = Math.round(taxableBase * 0.09);
-  const sgst = totalAmount - taxableBase - cgst;
+  const totalGst = totalAmount - taxableBase;
+  const cgst = Math.round(totalGst / 2);
+  const sgst = totalGst - cgst;
   const amountWords = numberToWordsINR(totalAmount);
 
-  // Outer Border Box
-  doc.setDrawColor(203, 213, 225); // slate-300
-  doc.setLineWidth(0.4);
-  doc.rect(margin, margin, contentWidth, pageHeight - margin * 2);
+  // Background subtle canvas
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-  // Top Accent Strip (Emerald Brand)
-  doc.setFillColor(5, 150, 105); // emerald-600
-  doc.rect(margin, margin, contentWidth, 4, 'F');
+  // Top Emerald Accent Bar
+  doc.setFillColor(16, 185, 129); // emerald-500
+  doc.rect(0, 0, pageWidth, 5, 'F');
 
-  // 1. HEADER SECTION
+  // 1. BRAND & RECEIPT HEADER
+  let curY = margin + 4;
+
+  // Gym Monogram / Logo Mark
+  doc.setFillColor(16, 185, 129);
+  doc.roundedRect(margin, curY, 11, 11, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text('PF', margin + 5.5, curY + 7.5, { align: 'center' });
+
+  // Gym Title
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(15, 23, 42); // slate-900
-  doc.text(gymName, margin + 5, margin + 14);
+  doc.text(gymName.toUpperCase(), margin + 15, curY + 6.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139); // slate-500
-  doc.text(gymAddress, margin + 5, margin + 19);
-  doc.text(`GSTIN: ${gymGstin}   |   State Code: 27 (Maharashtra)   |   SAC: 999723`, margin + 5, margin + 23.5);
-  doc.text(`Phone: ${gymPhone}   |   Email: ${gymEmail}`, margin + 5, margin + 28);
+  doc.text('Premium Fitness, Strength & Wellness Club', margin + 15, curY + 10.5);
 
-  // TAX INVOICE BADGE (Right aligned)
-  doc.setFillColor(240, 253, 244); // emerald-50
+  // Right Side: Receipt Status Pill
+  const pillW = 54;
+  const pillH = 14;
+  const pillX = pageWidth - margin - pillW;
+  doc.setFillColor(236, 253, 245); // emerald-50
   doc.setDrawColor(167, 243, 208); // emerald-200
-  doc.roundedRect(pageWidth - margin - 52, margin + 8, 47, 20, 2, 2, 'FD');
+  doc.roundedRect(pillX, curY - 1, pillW, pillH, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(4, 120, 87); // emerald-700
-  doc.text('TAX INVOICE', pageWidth - margin - 28.5, margin + 15, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setTextColor(5, 150, 105); // emerald-600
+  doc.text('OFFICIAL RECEIPT', pillX + pillW / 2, curY + 4.5, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`ORIGINAL FOR RECIPIENT`, pageWidth - margin - 28.5, margin + 21.5, { align: 'center' });
+  doc.setTextColor(16, 185, 129);
+  doc.text(`Payment Verified & Paid`, pillX + pillW / 2, curY + 9.5, { align: 'center' });
 
-  // Divider line
-  doc.setDrawColor(226, 232, 240);
-  doc.line(margin, margin + 32, pageWidth - margin, margin + 32);
+  // Gym Contact Sub-bar
+  curY += 16;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${gymAddress}  •  Phone: ${gymPhone}  •  GSTIN: ${gymGstin}`, margin, curY);
 
-  // 2. INVOICE META & BILL TO (TWO COLUMN BOXES)
-  const metaBoxY = margin + 35;
-  const colWidth = (contentWidth - 4) / 2;
+  // Soft Divider
+  curY += 5;
+  doc.setDrawColor(241, 245, 249);
+  doc.setLineWidth(0.6);
+  doc.line(margin, curY, pageWidth - margin, curY);
 
-  // Box 1: Billed To Customer
+  // 2. MEMBER & RECEIPT INFORMATION (TWO ELEGANT CARDS)
+  curY += 6;
+  const colW = (contentWidth - 6) / 2;
+  const cardH = 34;
+
+  // Card A: Member Info
   doc.setFillColor(248, 250, 252); // slate-50
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin + 2, metaBoxY, colWidth, 34, 1.5, 1.5, 'FD');
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.roundedRect(margin, curY, colW, cardH, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text('BILLED TO (MEMBER / ATHLETE):', margin + 5, metaBoxY + 5.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('BILLED TO MEMBER', margin + 5, curY + 6);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(memberName, margin + 5, metaBoxY + 12);
+  doc.text(memberName, margin + 5, curY + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Member ID: ${memberId}`, margin + 5, metaBoxY + 17.5);
-  doc.text(`Mobile / WhatsApp: ${memberPhone}`, margin + 5, metaBoxY + 23);
-  doc.text(`Email: ${memberEmail}`, margin + 5, metaBoxY + 28.5);
+  doc.text(`Member ID: ${memberId}`, margin + 5, curY + 19);
+  doc.text(`Mobile: ${memberPhone}`, margin + 5, curY + 24.5);
+  if (memberEmail && memberEmail !== 'N/A') {
+    doc.text(`Email: ${memberEmail}`, margin + 5, curY + 30);
+  } else {
+    doc.text(`State: Maharashtra (27)`, margin + 5, curY + 30);
+  }
 
-  // Box 2: Invoice Details
-  const box2X = margin + 2 + colWidth + 4;
+  // Card B: Receipt / Invoice Details
+  const cardBX = margin + colW + 6;
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(box2X, metaBoxY, colWidth, 34, 1.5, 1.5, 'FD');
+  doc.roundedRect(cardBX, curY, colW, cardH, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text('INVOICE & PAYMENT DETAILS:', box2X + 3, metaBoxY + 5.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('RECEIPT DETAILS', cardBX + 5, curY + 6);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(10.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Invoice No: #${invoiceId}`, box2X + 3, metaBoxY + 12);
+  doc.text(`Receipt #${invoiceId}`, cardBX + 5, curY + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Date of Issue: ${invoiceDate}`, box2X + 3, metaBoxY + 17.5);
-  doc.text(`Payment Mode: ${paymentMode}`, box2X + 3, metaBoxY + 23);
+  doc.text(`Date of Payment: ${invoiceDate}`, cardBX + 5, curY + 19);
+  doc.text(`Payment Mode: ${paymentMode}`, cardBX + 5, curY + 24.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(5, 150, 105);
-  doc.text(`Payment Status: PAID & SETTLED`, box2X + 3, metaBoxY + 28.5);
+  doc.text(`Status: Paid & Settled (Full)`, cardBX + 5, curY + 30);
 
-  // 3. SERVICE LINE ITEMS TABLE
-  const tableY = metaBoxY + 38;
-  doc.setFillColor(241, 245, 249); // slate-100
+  // 3. MEMBERSHIP PLAN & PRIVILEGES HERO CARD
+  curY += cardH + 8;
+
+  const isPT = planName.toLowerCase().includes('pt') || planName.toLowerCase().includes('personal');
+
+  // Header Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text('SUBSCRIPTION & ACCESS DETAILS', margin, curY);
+
+  curY += 3;
+  const planCardH = 46;
+  doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
-  doc.rect(margin + 2, tableY, contentWidth - 4, 8, 'FD');
+  doc.roundedRect(margin, curY, contentWidth, planCardH, 3, 3, 'FD');
 
+  // Accent badge inside card
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(margin + 4, curY + 4, 38, 6, 1.5, 1.5, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(51, 65, 85);
-  doc.text('#', margin + 5, tableY + 5.5);
-  doc.text('DESCRIPTION OF PHYSICAL FITNESS SERVICES', margin + 14, tableY + 5.5);
-  doc.text('SAC CODE', margin + 105, tableY + 5.5);
-  doc.text('QTY', margin + 130, tableY + 5.5);
-  doc.text('RATE (INR)', margin + 148, tableY + 5.5);
-  doc.text('AMOUNT (INR)', pageWidth - margin - 5, tableY + 5.5, { align: 'right' });
+  doc.setFontSize(6.5);
+  doc.setTextColor(5, 150, 105);
+  doc.text('ACTIVE MEMBERSHIP', margin + 23, curY + 8, { align: 'center' });
 
-  // Row 1
-  const rowY = tableY + 8;
-  doc.setDrawColor(226, 232, 240);
-  doc.rect(margin + 2, rowY, contentWidth - 4, 20);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  // Plan Title (Bold & Clear)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text('1', margin + 5, rowY + 6);
+  doc.text(planName, margin + 4, curY + 16.5);
 
-  doc.setFont('helvetica', 'bold');
-  doc.text(planName, margin + 14, rowY + 6);
+  // Plan Price on the Right
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 6, curY + 16.5, { align: 'right' });
 
+  // Subtle separator inside plan card
+  doc.setDrawColor(241, 245, 249);
+  doc.line(margin + 4, curY + 20.5, pageWidth - margin - 4, curY + 20.5);
+
+  // Included Privileges (Easy to read checkmarks instead of manufacturing columns)
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+
+  if (isPT) {
+    doc.text('• 1-on-1 Dedicated Certified Coach & Strength Guidance', margin + 4, curY + 26);
+    doc.text('• Individualized Nutrition, Calorie & Macro Target Plan', margin + 4, curY + 31);
+    doc.text('• Biometric Workout Logging & OTP Verification', margin + 4, curY + 36);
+    doc.text('• Full Access to Strength & Cardio Recovery Facilities', margin + 4, curY + 41);
+  } else {
+    doc.text('• Unlimited Access to Cardio, Strength & Free Weight Zones', margin + 4, curY + 26);
+    doc.text('• Automated Turnstile QR Pass on PulseFit Mobile App', margin + 4, curY + 31);
+    doc.text('• Locker Facilities, Steam Room & Shower Access', margin + 4, curY + 36);
+    doc.text('• Complimentary InBody Body Composition & BMI Assessment', margin + 4, curY + 41);
+  }
+
+  // Right side of plan card: Validity note
+  doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Includes gym floor access, cardio/strength zones, locker, turnstile pass & recovery zone.', margin + 14, rowY + 11);
-  doc.text('Facility access valid as per subscription tenure. Non-refundable & non-transferable.', margin + 14, rowY + 15);
+  doc.text('All-inclusive club pass', pageWidth - margin - 6, curY + 26, { align: 'right' });
+  doc.text('SAC Code: 999723', pageWidth - margin - 6, curY + 31, { align: 'right' });
+  doc.text('Non-transferable', pageWidth - margin - 6, curY + 36, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text('999723', margin + 105, rowY + 6);
-  doc.text('1', margin + 133, rowY + 6);
-  doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, margin + 148, rowY + 6);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rowY + 6, { align: 'right' });
+  // 4. FINANCIAL SUMMARY & AMOUNT IN WORDS
+  curY += planCardH + 8;
 
-  // 4. TAX & TOTAL CALCULATION TABLE (RIGHT BOX)
-  const calcY = rowY + 24;
-  const summaryBoxWidth = 85;
-  const summaryBoxX = pageWidth - margin - summaryBoxWidth - 2;
+  const sumBoxW = 78;
+  const sumBoxX = pageWidth - margin - sumBoxW;
+  const leftBoxW = sumBoxX - margin - 6;
+  const finH = 40;
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-
-  doc.text('Taxable Value (Base):', summaryBoxX, calcY + 5);
-  doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, calcY + 5, { align: 'right' });
-
-  doc.text('CGST @ 9.0%:', summaryBoxX, calcY + 11);
-  doc.text(`Rs. ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, calcY + 11, { align: 'right' });
-
-  doc.text('SGST @ 9.0%:', summaryBoxX, calcY + 17);
-  doc.text(`Rs. ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, calcY + 17, { align: 'right' });
-
-  // Divider
-  doc.setDrawColor(203, 213, 225);
-  doc.line(summaryBoxX, calcY + 20, pageWidth - margin - 2, calcY + 20);
-
-  // Total Settled (Bold Banner)
-  doc.setFillColor(240, 253, 244); // emerald-50
-  doc.setDrawColor(167, 243, 208);
-  doc.roundedRect(summaryBoxX, calcY + 22, summaryBoxWidth, 12, 1.5, 1.5, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('TOTAL AMOUNT:', summaryBoxX + 3, calcY + 30);
-
-  doc.setFontSize(13);
-  doc.setTextColor(4, 120, 87); // emerald-700
-  doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, calcY + 30.5, { align: 'right' });
-
-  // Amount In Words (Left box beside totals)
+  // Left Box: Amount in words & payment details
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
-  const wordsBoxWidth = summaryBoxX - margin - 6;
-  doc.roundedRect(margin + 2, calcY, wordsBoxWidth, 34, 1.5, 1.5, 'FD');
+  doc.roundedRect(margin, curY, leftBoxW, finH, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('AMOUNT CHARGEABLE (IN WORDS):', margin + 5, calcY + 7);
+  doc.text('AMOUNT IN WORDS', margin + 5, curY + 6.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  const splitWords = doc.splitTextToSize(amountWords, wordsBoxWidth - 6);
-  doc.text(splitWords, margin + 5, calcY + 13.5);
+  const wordsLines = doc.splitTextToSize(amountWords, leftBoxW - 10);
+  doc.text(wordsLines, margin + 5, curY + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Payment Gateway: Instant Settlement (UPI/Card)', margin + 5, calcY + 25);
-  doc.text('Transaction Status: 100% Verified in Banking Records', margin + 5, calcY + 29.5);
+  doc.text('Payment Gateway: Instant Settlement • Verified in Bank Records', margin + 5, curY + 27);
+  doc.text('Valid for Corporate Wellness Reimbursement & Tax Records', margin + 5, curY + 32);
 
-  // 5. TERMS & CONDITIONS & SIGNATURE
-  const footerY = calcY + 38;
+  // Right Box: Clean Transparent Financial Breakdown
+  doc.setFillColor(255, 255, 255);
   doc.setDrawColor(226, 232, 240);
-  doc.line(margin, footerY, pageWidth - margin, footerY);
+  doc.roundedRect(sumBoxX, curY, sumBoxW, finH, 2.5, 2.5, 'FD');
 
-  // Terms Box
+  let rY = curY + 6.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Plan Base Fee:', sumBoxX + 5, rY);
+  doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+  rY += 6;
+  doc.text('CGST (9%):', sumBoxX + 5, rY);
+  doc.text(`Rs. ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+  rY += 5.5;
+  doc.text('SGST (9%):', sumBoxX + 5, rY);
+  doc.text(`Rs. ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+  // Total Banner inside box
+  rY += 4;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(sumBoxX + 4, rY, pageWidth - margin - 4, rY);
+
+  rY += 2.5;
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(sumBoxX + 3, rY, sumBoxW - 6, 12, 1.5, 1.5, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('TOTAL PAID:', sumBoxX + 6, rY + 7.5);
+
+  doc.setFontSize(12.5);
+  doc.setTextColor(5, 150, 105);
+  doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 6, rY + 8, { align: 'right' });
+
+  // 5. CLUB POLICIES & DIGITAL SEAL
+  curY += finH + 10;
+  doc.setDrawColor(241, 245, 249);
+  doc.line(margin, curY, pageWidth - margin, curY);
+
+  curY += 5;
+  // Left: Friendly club guidelines
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('TERMS & CONDITIONS:', margin + 5, footerY + 6);
+  doc.text('MEMBERSHIP GUIDELINES & SUPPORT', margin, curY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('1. Membership subscriptions once processed are non-refundable and strictly non-transferable.', margin + 5, footerY + 10.5);
-  doc.text('2. Member turnstile QR Pass must be presented for automated check-in and compliance logging.', margin + 5, footerY + 14.5);
-  doc.text('3. In case of medical emergencies or freeze requests, policy terms approved by club management apply.', margin + 5, footerY + 18.5);
-  doc.text('4. This electronic invoice is generated under Indian IT Act 2000 and valid for tax deduction audits.', margin + 5, footerY + 22.5);
+  doc.text('1. Present your Mobile App QR Turnstile Pass at the front gate for entry.', margin, curY + 5);
+  doc.text('2. Membership subscriptions once processed are non-transferable & non-refundable.', margin, curY + 9.5);
+  doc.text('3. Inquiries & Freeze requests: Contact front desk or email billing@pulsefit.in.', margin, curY + 14);
 
-  // Authorized Signatory Box (Right)
-  const signBoxX = pageWidth - margin - 58;
+  // Right: Clean Digital Stamp
+  const sealX = pageWidth - margin - 52;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(signBoxX, footerY + 3, 54, 25, 1.5, 1.5, 'FD');
+  doc.roundedRect(sealX, curY - 2, 52, 22, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(5, 150, 105);
-  doc.text('PULSEFIT ATHLETIC CLUB', signBoxX + 27, footerY + 9, { align: 'center' });
+  doc.text('PULSEFIT ATHLETIC CLUB', sealX + 26, curY + 4, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Digitally Authorized & Signed', signBoxX + 27, footerY + 15, { align: 'center' });
-  doc.text('Official Club Stamp', signBoxX + 27, footerY + 19, { align: 'center' });
+  doc.text('Verified Digital Receipt', sealX + 26, curY + 9.5, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(15, 23, 42);
-  doc.text('Authorized Signatory', signBoxX + 27, footerY + 25, { align: 'center' });
+  doc.text('Authorized Signatory', sealX + 26, curY + 16, { align: 'center' });
 
-  // Bottom watermark
+  // Footer Note
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(`Page 1 of 1  •  System Generated GST Tax Invoice  •  Generated on ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - margin + 2, { align: 'center' });
+  doc.text('Thank you for choosing PulseFit Athletic Club • Official Tax Invoice & Payment Receipt', pageWidth / 2, pageHeight - margin + 2, { align: 'center' });
 
   const blob = doc.output('blob');
-  const fileName = `Invoice_${invoiceId}_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const fileName = `Receipt_${invoiceId}_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
   return {
@@ -396,31 +448,29 @@ export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToas
     const amount = Number(invoice.amount || 0).toLocaleString('en-IN');
     const planName = invoice.planName || 'Gym Membership Pass';
 
-    const messageText = `*PULSE FIT ATHLETIC CLUB - OFFICIAL TAX INVOICE*\n\nDear *${memberName}*,\nHere is your official payment tax invoice in PDF format:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan / Service:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official GST Tax Invoice PDF (${fileName}) is attached.\n\nThank you for choosing PulseFit!`;
+    const messageText = `*PULSEFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with PulseFit!`;
 
-    // 1. Try Native Web Share API with Files (Android / iOS / Mobile Chrome & Edge)
+    // 1. Native Web Share API with Files
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
       try {
         await navigator.share({
           files: [pdfFile],
-          title: `Tax Invoice #${invoiceId}`,
+          title: `Receipt #${invoiceId}`,
           text: messageText
         });
-        if (onToast) onToast(`PDF Invoice shared successfully to ${memberName}!`, 'success');
+        if (onToast) onToast(`Receipt shared successfully to ${memberName}!`, 'success');
         return true;
       } catch (shareErr) {
         if (shareErr.name === 'AbortError') {
           return false;
         }
-        console.warn('Native share failed, falling back to direct download + WhatsApp:', shareErr);
+        console.warn('Native share failed, falling back to download + WhatsApp:', shareErr);
       }
     }
 
     // 2. Reliable cross-browser fallback:
-    // First trigger the actual PDF download
     downloadPdfBlob(blob, fileName);
 
-    // Open WhatsApp with pre-filled receipt to that member's mobile number
     const targetUrl = cleanPhone
       ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
       : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
@@ -430,7 +480,7 @@ export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToas
     }, 400);
 
     if (onToast) {
-      onToast(`PDF Invoice downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success');
+      onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success');
     }
     return true;
   } catch (error) {

@@ -19,7 +19,7 @@ export const RecordPaymentModal = ({
   initialMember = null,
   initialMemberId = null
 }) => {
-  const { members, plans, recordPayment } = useGymData();
+  const { members, plans, recordPayment, fetchMembers, fetchPlans } = useGymData();
 
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState('');
@@ -41,6 +41,9 @@ export const RecordPaymentModal = ({
 
   useEffect(() => {
     if (isOpen) {
+      if (!members || members.length === 0) fetchMembers?.();
+      if (!plans || plans.length === 0) fetchPlans?.();
+
       const todayStr = formatDate(new Date());
       setPaymentDate(todayStr);
 

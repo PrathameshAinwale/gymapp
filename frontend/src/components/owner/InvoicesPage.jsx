@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import {
@@ -30,12 +31,28 @@ import {
   Download,
   ExternalLink,
   ShieldCheck,
-  Eye
+  Eye,
+  RotateCw
 } from 'lucide-react';
 
 export const InvoicesPage = () => {
-  const { invoices = [], members = [], gymInfo, ownerStats, addToast } = useGymData();
+  const {
+    invoices = [],
+    members = [],
+    gymInfo,
+    ownerStats,
+    fetchInvoices,
+    fetchMembers,
+    fetchPlans,
+    addToast
+  } = useGymData();
   const { currentUser } = useAuth();
+
+  useEffect(() => {
+    fetchInvoices?.();
+    fetchMembers?.();
+    fetchPlans?.();
+  }, [fetchInvoices, fetchMembers, fetchPlans]);
 
   // Search & Unified Dropdown Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,7 +60,7 @@ export const InvoicesPage = () => {
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceViewMode, setInvoiceViewMode] = useState('pdf'); // 'pdf' | 'sheet'
+  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [pdfGeneratedData, setPdfGeneratedData] = useState(null);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
@@ -583,18 +600,21 @@ export const InvoicesPage = () => {
       {/* 4. MEMBER INVOICES LIST (WITH ACCORDION DROPDOWNS ON NAME CLICK) */}
       <div className="space-y-2.5 sm:space-y-3">
         {filteredMembers.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-xl sm:rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium space-y-2">
-            <p>No invoices match the current search or filter criteria.</p>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm('');
-                setActiveFilter('ALL');
-              }}
-              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
-            >
-              Clear Filters
-            </button>
+          <div className="p-8 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs">
+            <EmptyState
+              icon={FileText}
+              title={searchTerm || activeFilter !== 'ALL' ? "No matching invoices found" : "No Member Invoices Yet"}
+              description={
+                searchTerm || activeFilter !== 'ALL'
+                  ? "No billing records match your search or date filter. Try clearing filters or record a new member fee payment."
+                  : "Track member billing transactions, issue GST invoices, and record fee collections."
+              }
+              actionText="Record Fee Payment"
+              onAction={() => setIsRecordPaymentOpen(true)}
+              secondaryActionText={searchTerm || activeFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || activeFilter !== 'ALL' ? () => { setSearchTerm(''); setActiveFilter('ALL'); } : undefined}
+              color="emerald"
+            />
           </div>
         ) : (
           filteredMembers.map((member) => {
@@ -950,174 +970,172 @@ export const InvoicesPage = () => {
               </div>
             )}
 
-            {/* TAB CONTENT: 2. AUTHENTIC GENERAL TAX INVOICE A4 SHEET */}
+            {/* TAB CONTENT: 2. AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
             {(invoiceViewMode === 'sheet' || !pdfPreviewUrl) && (
-              <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-5 print:p-0 print:border-none">
+              <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-6 print:p-0 print:border-none">
                 
-                {/* Gym Header Branding & Tax Invoice Badge */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-200 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
-                        PF
-                      </div>
-                      <div>
-                        <h2 className="font-bold text-base sm:text-xl text-slate-900 tracking-tight uppercase">
-                          {gymInfo?.name || 'PULSE FIT ATHLETIC CLUB & WELLNESS'}
-                        </h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076'}
-                        </p>
-                      </div>
+                {/* Gym Header Branding & Receipt Pill */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
+                      PF
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-2 font-mono">
-                      <span>GSTIN: <strong>{gymInfo?.gstin || '27AAPCP1234F1Z8'}</strong></span>
-                      <span>•</span>
-                      <span>State: <strong>27 (Maharashtra)</strong></span>
-                      <span>•</span>
-                      <span>SAC: <strong>999723</strong></span>
+                    <div>
+                      <h2 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
+                        {gymInfo?.name || 'PULSEFIT ATHLETIC CLUB'}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076'}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                        <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || '27AAPCP1234F1Z8'}</strong></span>
+                        <span>•</span>
+                        <span>Phone: <strong className="text-slate-600">{gymInfo?.phone || '+91 98201 54321'}</strong></span>
+                      </div>
                     </div>
                   </div>
 
                   <div className="text-left sm:text-right shrink-0">
-                    <span className="px-3 py-1 rounded-md text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
-                      TAX INVOICE
+                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      Payment Verified
                     </span>
-                    <div className="text-xs font-mono font-bold text-slate-700 mt-1">
-                      ORIGINAL FOR RECIPIENT
+                    <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
+                      Receipt #{selectedInvoice.id?.toUpperCase()}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5">
-                      #{selectedInvoice.id?.toUpperCase()}
+                      Issued: {selectedInvoice.date || 'Today'}
                     </div>
                   </div>
                 </div>
 
-                {/* Two-Column Info: Billed To & Invoice Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  
+                {/* Two-Column Info: Billed Member & Payment Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   {/* Billed To Customer */}
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1">
+                  <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Billed To (Member / Athlete):
+                      Member Information
                     </span>
                     <div className="font-bold text-slate-900 text-sm">
                       {selectedInvoiceMember?.name || selectedInvoice.memberName}
                     </div>
                     <div className="text-slate-600 flex items-center gap-1.5 pt-0.5">
-                      <User className="w-3 h-3 text-slate-400" />
-                      <span>Member ID: <strong>{selectedInvoiceMember?.id || selectedInvoice.memberId || 'PF-M-101'}</strong></span>
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'PF-M-101'}</strong></span>
                     </div>
                     <div className="text-slate-600 flex items-center gap-1.5">
-                      <Phone className="w-3 h-3 text-slate-400" />
-                      <span>Mobile: <strong>{selectedInvoiceMember?.phone || selectedInvoice.phone || 'N/A'}</strong></span>
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Mobile: <strong className="text-slate-800">{selectedInvoiceMember?.phone || selectedInvoice.phone || 'N/A'}</strong></span>
                     </div>
                     {selectedInvoiceMember?.email && (
                       <div className="text-slate-600 flex items-center gap-1.5 truncate">
-                        <Mail className="w-3 h-3 text-slate-400" />
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
                         <span>Email: {selectedInvoiceMember.email}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Invoice Meta */}
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1">
+                  {/* Payment Details */}
+                  <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Invoice & Payment Details:
+                      Payment Verification
                     </span>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Invoice Number:</span>
+                      <span className="text-slate-500">Receipt No:</span>
                       <strong className="text-slate-900 font-mono">#{selectedInvoice.id?.toUpperCase()}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Invoice Date:</span>
+                      <span className="text-slate-500">Date Paid:</span>
                       <strong className="text-slate-800">{selectedInvoice.date || 'Today'}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Payment Mode:</span>
-                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI Transfer'}</strong>
+                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI / Instant Transfer'}</strong>
                     </div>
-                    <div className="flex justify-between pt-0.5 border-t border-slate-200/60">
-                      <span className="text-slate-500">Status:</span>
+                    <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-500">Settlement Status:</span>
                       <strong className="text-emerald-700 flex items-center gap-1 font-bold">
-                        <CheckCircle className="w-3 h-3" />
-                        <span>{selectedInvoice.status || 'Paid & Settled'}</span>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Paid & Active</span>
                       </strong>
                     </div>
                   </div>
                 </div>
 
-                {/* Service Line Items Table */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 tracking-wider">
-                      <tr>
-                        <th className="py-2.5 px-3">#</th>
-                        <th className="py-2.5 px-3">Description of Services</th>
-                        <th className="py-2.5 px-3 text-center">SAC Code</th>
-                        <th className="py-2.5 px-3 text-center">Qty</th>
-                        <th className="py-2.5 px-3 text-right">Rate</th>
-                        <th className="py-2.5 px-3 text-right">Taxable Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      <tr>
-                        <td className="py-3 px-3 text-slate-400 font-medium">1</td>
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                            {selectedInvoice.planName}
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                            Includes unlimited gym floor access, cardio/strength zones, locker, biometric turnstile QR pass & recovery facility.
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-center text-slate-500 font-mono text-[11px]">999723</td>
-                        <td className="py-3 px-3 text-center text-slate-700 font-bold">1</td>
-                        <td className="py-3 px-3 text-right text-slate-700">
-                          ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
-                        </td>
-                        <td className="py-3 px-3 text-right font-bold text-slate-900">
-                          ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Financial Calculation & Amount in Words */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start text-xs pt-1">
-                  
-                  {/* Left: Notes and Words */}
-                  <div className="sm:col-span-6 bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                      Amount In Words:
-                    </span>
-                    <div className="font-bold text-slate-900 italic text-[11px]">
-                      Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
+                {/* Membership Plan Highlight Card (Modern Fitness Receipt format) */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                        Active Membership Subscription
+                      </span>
+                      <h3 className="font-bold text-base sm:text-lg text-slate-900 mt-1">
+                        {selectedInvoice.planName || 'Comprehensive Gym Membership Pass'}
+                      </h3>
                     </div>
-                    <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
-                      Electronic tax invoice generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-900">
+                        ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
+                      </span>
                     </div>
                   </div>
 
+                  {/* Included Privileges Checkmarks */}
+                  <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Full cardio, strength & free-weight floor access</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Turnstile QR Pass on PulseFit Mobile App</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Locker, steam room & recovery zone facilities</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Complimentary InBody body composition scan</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Summary & Amount in Words */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start text-xs">
+                  {/* Left: Notes and Words */}
+                  <div className="sm:col-span-7 bg-slate-50 p-4 rounded-xl border border-slate-200/70 space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                      Amount In Words
+                    </span>
+                    <div className="font-bold text-slate-900 text-xs">
+                      Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
+                    </div>
+                    <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                      Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
+                    </p>
+                  </div>
+
                   {/* Right: Tax Breakdown */}
-                  <div className="sm:col-span-6 space-y-1.5 text-xs text-slate-600 sm:pl-3">
+                  <div className="sm:col-span-5 space-y-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-slate-200">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Taxable Value (Base Amount):</span>
+                      <span className="text-slate-500">Plan Base Fee:</span>
                       <span className="font-semibold text-slate-800">
                         ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>CGST (9.0%):</span>
-                      <span>₹{Math.round((Number(selectedInvoice.amount || 0) / 1.18) * 0.09).toLocaleString('en-IN')}</span>
+                      <span>CGST (9%):</span>
+                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>SGST (9.0%):</span>
-                      <span>₹{Math.round((Number(selectedInvoice.amount || 0) / 1.18) * 0.09).toLocaleString('en-IN')}</span>
+                      <span>SGST (9%):</span>
+                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
-                      <span className="font-bold text-slate-900 text-sm">Total Amount Settled:</span>
-                      <span className="text-2xl font-black text-emerald-700">
+                      <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
+                      <span className="text-2xl font-black text-emerald-600 font-mono">
                         ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -1125,18 +1143,18 @@ export const InvoicesPage = () => {
                 </div>
 
                 {/* Terms & Official Seal Signature */}
-                <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[10px] text-slate-500">
-                  <div className="space-y-0.5">
-                    <p>• Membership subscriptions once processed are non-refundable and non-transferable.</p>
-                    <p>• Check-in QR Pass is mandatory for turnstile access. Subject to Mumbai Jurisdiction.</p>
+                <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
+                  <div className="space-y-1">
+                    <p>• Membership passes are non-transferable & non-refundable once activated.</p>
+                    <p>• Turnstile QR Pass is required for gym floor access.</p>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[170px]">
-                    <div className="text-emerald-700 font-bold uppercase text-[9px] flex items-center justify-center gap-1">
-                      <ShieldCheck className="w-3 h-3" />
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[180px]">
+                    <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Digitally Verified</span>
                     </div>
-                    <div className="font-bold text-slate-800 text-[11px] mt-0.5">Authorized Signatory</div>
-                    <div className="text-[9px] text-slate-400">PulseFit Athletic Club</div>
+                    <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
+                    <div className="text-[10px] text-slate-400">PulseFit Athletic Club</div>
                   </div>
                 </div>
               </div>

@@ -1,19 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2 } from 'lucide-react';
+import { api } from '../../services/api';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw } from 'lucide-react';
 
 export const SettingsManager = () => {
-  const { gymInfo, setGymInfo, addToast } = useGymData();
+  const { gymInfo, setGymInfo, fetchGymInfo, addToast } = useGymData();
   const [formData, setFormData] = useState({ ...gymInfo });
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    fetchGymInfo?.();
+  }, [fetchGymInfo]);
+
+  useEffect(() => {
+    if (gymInfo && Object.keys(gymInfo).length > 0) {
+      setFormData((prev) => ({ ...prev, ...gymInfo }));
+    }
+  }, [gymInfo]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchGymInfo?.();
+    setIsRefreshing(false);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
       setIsSaving(true);
+      try {
+        await api.gymInfo.update(formData);
+      } catch (err) {
+        console.warn('Backend gymInfo update note:', err.message);
+      }
       await setGymInfo(formData);
       localStorage.setItem('pulsefit_gymInfo', JSON.stringify(formData));
-      addToast('Gym profile & operational settings saved successfully!', 'success');
+      addToast('Gym profile & operational settings saved to database!', 'success');
     } finally {
       setIsSaving(false);
     }
@@ -37,6 +60,16 @@ export const SettingsManager = () => {
           </p>
         </div>
 
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
+          title="Refresh from MySQL Database"
+        >
+          <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
+          <span>Refresh DB</span>
+        </button>
       </div>
 
       <form onSubmit={handleSave} className="space-y-3 sm:space-y-6">

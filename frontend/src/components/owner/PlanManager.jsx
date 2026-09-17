@@ -22,20 +22,46 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
+
+const safeFeatures = (features) => {
+  if (Array.isArray(features)) return features;
+  if (typeof features === 'string') {
+    try {
+      const parsed = JSON.parse(features);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+    return features.split('\n').map((f) => f.trim()).filter(Boolean);
+  }
+  return [];
+};
 
 export const PlanManager = () => {
   const {
     plans,
     classes,
+    fetchPlans,
+    fetchClasses,
     addPlan,
     updatePlan,
     deletePlan,
     ptPlans,
     addPTPlan,
+    deletePTPlan,
+    fetchPtPlans,
     recoveryPlans,
     addRecoveryPlan,
+    deleteRecoveryPlan,
+    fetchRecoveryPlans,
     addToast
   } = useGymData();
+
+  useEffect(() => {
+    fetchPlans?.();
+    fetchClasses?.();
+    fetchRecoveryPlans?.();
+    fetchPtPlans?.();
+  }, [fetchPlans, fetchClasses, fetchRecoveryPlans, fetchPtPlans]);
 
   const [activeTab, setActiveTab] = useState('memberships'); // memberships | pt | classes | recovery
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -64,6 +90,8 @@ export const PlanManager = () => {
           ]
         }))
       );
+    } else {
+      setClassPlans([]);
     }
   }, [classes]);
 
@@ -96,7 +124,7 @@ export const PlanManager = () => {
       period: plan.period,
       durationMonths: plan.durationMonths || 1,
       popular: plan.popular || false,
-      featuresText: (plan.features || []).join('\n')
+      featuresText: safeFeatures(plan.features).join('\n')
     });
   };
 
@@ -273,7 +301,7 @@ export const PlanManager = () => {
           }`}
         >
           <Dumbbell className="w-3.5 h-3.5" />
-          <span>PT Packages ({ptPlans?.length || 3})</span>
+          <span>PT Packages ({ptPlans?.length || 0})</span>
         </button>
 
         <button
@@ -299,266 +327,344 @@ export const PlanManager = () => {
           }`}
         >
           <HeartPulse className="w-3.5 h-3.5" />
-          <span>Recovery ({recoveryPlans?.length || 3})</span>
+          <span>Recovery ({recoveryPlans?.length || 0})</span>
         </button>
       </div>
 
       {/* TAB 1: GYM MEMBERSHIPS */}
       {activeTab === 'memberships' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border flex flex-col justify-between transition-all duration-300 hover:shadow-md ${
-                plan.popular
-                  ? 'border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
-                  : 'border-slate-200'
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm whitespace-nowrap">
-                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Most Popular Tier
-                </div>
-              )}
-
-              <div>
-                {/* Title & Subscribers */}
-                <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{plan.name}</h3>
-                    <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{plan.period}</div>
+        plans.length === 0 ? (
+          <EmptyState
+            icon={CreditCard}
+            title="No Membership Plans Created"
+            description="There are currently no gym membership tiers configured. Click below to add monthly, quarterly, or annual plans to enroll members."
+            actionText="Add Membership Plan"
+            onAction={() => setIsAddOpen(true)}
+            accentColor="emerald"
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className={`relative rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border flex flex-col justify-between transition-all duration-300 hover:shadow-md ${
+                  plan.popular
+                    ? 'border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
+                    : 'border-slate-200'
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm whitespace-nowrap">
+                    <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Most Popular Tier
                   </div>
-                  <span className="text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg border border-slate-200 shrink-0 font-semibold">
-                    <Users className="w-3 h-3 text-emerald-600" />
-                    {plan.activeSubscribers ?? 0}
-                  </span>
-                </div>
+                )}
 
-                {/* Price in INR */}
-                <div className="my-2 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">Package Fee</div>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-xl sm:text-3xl font-black text-emerald-600">
-                      ₹{plan.price.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-[10px] sm:text-xs text-slate-500 font-medium">/{plan.durationMonths || 1}mo</span>
-                  </div>
-                </div>
-
-                {/* Features */}
-                <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs mb-3 sm:mb-6">
-                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Plan Inclusions</div>
-                  {(plan.features || []).map((feat, idx) => (
-                    <div key={idx} className="flex items-start gap-1.5 sm:gap-2 text-slate-700">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                      <span className="leading-tight text-[11px] sm:text-xs">{feat}</span>
+                <div>
+                  {/* Title & Subscribers */}
+                  <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{plan.name}</h3>
+                      <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{plan.period}</div>
                     </div>
-                  ))}
+                    <span className="text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg border border-slate-200 shrink-0 font-semibold">
+                      <Users className="w-3 h-3 text-emerald-600" />
+                      {plan.activeSubscribers ?? 0}
+                    </span>
+                  </div>
+
+                  {/* Price in INR */}
+                  <div className="my-2 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">Package Fee</div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-xl sm:text-3xl font-black text-emerald-600">
+                        ₹{plan.price.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 font-medium">/{plan.durationMonths || 1}mo</span>
+                    </div>
+                  </div>
+
+                  {/* Features */}
+                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs mb-3 sm:mb-6">
+                    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Plan Inclusions</div>
+                    {safeFeatures(plan.features).map((feat, idx) => (
+                      <div key={idx} className="flex items-start gap-1.5 sm:gap-2 text-slate-700">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                        <span className="leading-tight text-[11px] sm:text-xs">{feat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2.5 sm:pt-4 border-t border-slate-100 flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(plan)}
+                    className="flex-1 py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
+                        deletePlan(plan.id);
+                      }
+                    }}
+                    title="Delete Plan"
+                    className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-
-              {/* Actions */}
-              <div className="pt-2.5 sm:pt-4 border-t border-slate-100 flex items-center gap-1.5 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenEdit(plan)}
-                  className="flex-1 py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5 transition-colors cursor-pointer active:scale-95"
-                >
-                  <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                  <span>Edit</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
-                      deletePlan(plan.id);
-                    }
-                  }}
-                  title="Delete Plan"
-                  className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer active:scale-95"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* TAB 2: PERSONAL TRAINING (PT) PACKAGES */}
       {activeTab === 'pt' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
-          {(ptPlans || []).map((pt) => (
-            <div
-              key={pt.id}
-              className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                    {pt.trainerLevel}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
-                    Validity: {pt.validityDays} Days
-                  </span>
-                </div>
-
-                <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{pt.name}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{pt.description}</p>
-
-                <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                    Package Price ({pt.sessions} Sessions)
-                  </div>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-xl sm:text-3xl font-black text-purple-700">
-                      ₹{pt.price.toLocaleString('en-IN')}
+        (!ptPlans || ptPlans.length === 0) ? (
+          <EmptyState
+            icon={Dumbbell}
+            title="No Personal Training Packages Created"
+            description="You have not added any 1-on-1 personal training packages yet. Create packages with session allotments and trainer tier levels."
+            actionText="Add PT Package"
+            onAction={() => setIsAddOpen(true)}
+            accentColor="purple"
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
+            {ptPlans.map((pt) => (
+              <div
+                key={pt.id}
+                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                      {pt.trainerLevel}
                     </span>
-                    <span className="text-[10px] sm:text-xs text-slate-500 font-medium">
-                      (~₹{Math.round(pt.price / pt.sessions)}/session)
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
+                      Validity: {pt.validityDays} Days
                     </span>
                   </div>
+
+                  <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{pt.name}</h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{pt.description}</p>
+
+                  <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      Package Price ({pt.sessions} Sessions)
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-xl sm:text-3xl font-black text-purple-700">
+                        ₹{pt.price.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 font-medium">
+                        (~₹{Math.round(pt.price / pt.sessions)}/session)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-700">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
+                      <span>Dedicated 1-on-1 coach attention</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-700">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
+                      <span>Body fat & weekly logs</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-700">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
+                      <span>Customized nutrition plan</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                    <span>Dedicated 1-on-1 coach attention</span>
+                <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete "${pt.name}"?`)) {
+                          deletePTPlan(pt.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Delete PT Package"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] sm:text-[11px] text-emerald-600 font-bold">Commission: 40%</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                    <span>Body fat & weekly logs</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                    <span>Customized nutrition plan</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addToast(`PT Package "${pt.name}" ready for member enrollment!`, 'info')}
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
+                  >
+                    Enroll Member
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] sm:text-[11px] text-emerald-600 font-bold">Commission: 40%</span>
-                <button
-                  type="button"
-                  onClick={() => addToast(`PT Package "${pt.name}" ready for member enrollment!`, 'info')}
-                  className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
-                >
-                  Enroll Member
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* TAB 3: ZUMBA & YOGA CLASSES */}
       {activeTab === 'classes' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
-          {classPlans.map((cls) => (
-            <div
-              key={cls.id}
-              className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                    Group Studio
-                  </span>
-                  <span className="text-[9px] sm:text-[10px] font-bold text-slate-400">Coach: {cls.instructor}</span>
-                </div>
-
-                <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1.5 sm:mt-2">{cls.name}</h3>
-                <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{cls.schedule}</div>
-
-                <div className="my-2.5 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                    {cls.sessions}
+        classPlans.length === 0 ? (
+          <EmptyState
+            icon={Flame}
+            title="No Group Class Packages Configured"
+            description="There are currently no studio class passes or fitness batches configured. Click below to add Zumba, Yoga, or HIIT class tiers."
+            actionText="Add Class Package"
+            onAction={() => setIsAddOpen(true)}
+            accentColor="amber"
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
+            {classPlans.map((cls) => (
+              <div
+                key={cls.id}
+                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      Group Studio
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400">Coach: {cls.instructor}</span>
                   </div>
-                  <div className="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">
-                    ₹{cls.price.toLocaleString('en-IN')}
-                  </div>
-                </div>
 
-                <div className="space-y-1 sm:space-y-1.5 text-[11px] sm:text-xs">
-                  {cls.features.map((f, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-slate-700">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                      <span className="leading-tight">{f}</span>
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1.5 sm:mt-2">{cls.name}</h3>
+                  <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{cls.schedule}</div>
+
+                  <div className="my-2.5 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      {cls.sessions}
                     </div>
-                  ))}
+                    <div className="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">
+                      ₹{cls.price.toLocaleString('en-IN')}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 sm:space-y-1.5 text-[11px] sm:text-xs">
+                    {safeFeatures(cls.features).map((f, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-slate-700">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                        <span className="leading-tight">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2.5 sm:pt-4 mt-2.5 sm:mt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => addToast(`Class pass for "${cls.name}" activated!`, 'success')}
+                    className="w-full py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border border-slate-200 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer active:scale-95"
+                  >
+                    Book Class Pass
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-2.5 sm:pt-4 mt-2.5 sm:mt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => addToast(`Class pass for "${cls.name}" activated!`, 'success')}
-                  className="w-full py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border border-slate-200 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer active:scale-95"
-                >
-                  Book Class Pass
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* TAB 4: MASSAGE & RECOVERY THERAPIES */}
       {activeTab === 'recovery' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
-          {(recoveryPlans || []).map((rec) => (
-            <div
-              key={rec.id}
-              className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                    {rec.type}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
-                    Session: {rec.duration}
-                  </span>
+        (!recoveryPlans || recoveryPlans.length === 0) ? (
+          <EmptyState
+            icon={HeartPulse}
+            title="No Recovery Therapies Configured"
+            description="There are currently no recovery or therapy packages created. Click below to add ice bath, sauna, or physio therapy services."
+            actionText="Add Recovery Service"
+            onAction={() => setIsAddOpen(true)}
+            accentColor="cyan"
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
+            {recoveryPlans.map((rec) => (
+              <div
+                key={rec.id}
+                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                      {rec.type || 'Therapy'}
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
+                      Session: {rec.duration || '45 Mins'}
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{rec.name}</h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
+                    {rec.description || (Array.isArray(rec.features) ? rec.features.join('. ') : '') || 'Full recovery & therapy session.'}
+                  </p>
+
+                  <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      Therapy Fee / Session
+                    </div>
+                    <div className="text-xl sm:text-3xl font-black text-cyan-700 mt-0.5">
+                      ₹{Number(rec.price).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
+                    {Array.isArray(rec.features) && rec.features.length > 0 ? (
+                      rec.features.slice(0, 3).map((feat, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 text-slate-700">
+                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
+                          <span>{feat}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
+                          <span>Reduces DOMS & accelerates repair</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
+                          <span>Locker, dry towels & robe included</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{rec.name}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{rec.description}</p>
-
-                <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                    Therapy Fee / Session
-                  </div>
-                  <div className="text-xl sm:text-3xl font-black text-cyan-700 mt-0.5">
-                    ₹{rec.price.toLocaleString('en-IN')}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
-                    <span>Reduces DOMS & accelerates repair</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
-                    <span>Locker, dry towels & robe included</span>
-                  </div>
+                <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => deleteRecoveryPlan(rec.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                    title="Delete Package"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addToast(`Therapy session booked for "${rec.name}"!`, 'success')}
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
+                  >
+                    Schedule Session
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] sm:text-[11px] text-slate-500">Available Daily</span>
-                <button
-                  type="button"
-                  onClick={() => addToast(`Therapy session booked for "${rec.name}"!`, 'success')}
-                  className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
-                >
-                  Schedule Session
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* EDIT MEMBERSHIP PLAN MODAL */}

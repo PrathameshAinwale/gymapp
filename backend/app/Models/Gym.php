@@ -28,6 +28,17 @@ class Gym extends Model
         'initial_password',
     ];
 
+    protected $hidden = [
+        'initial_password',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'initial_password' => 'hashed',
+        ];
+    }
+
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');

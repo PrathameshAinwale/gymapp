@@ -47,20 +47,10 @@ class SuperadminController extends Controller
             
             // Count accounts tied to this gym
             $membersCount = User::where('role', 'member')
-                ->where(function ($q) use ($gym, $isDefaultGym) {
-                    $q->where('gym_id', $gym->id);
-                    if ($isDefaultGym) {
-                        $q->orWhereNull('gym_id');
-                    }
-                })->count();
+                ->where('gym_id', $gym->id)->count();
 
             $trainersCount = User::where('role', 'trainer')
-                ->where(function ($q) use ($gym, $isDefaultGym) {
-                    $q->where('gym_id', $gym->id);
-                    if ($isDefaultGym) {
-                        $q->orWhereNull('gym_id');
-                    }
-                })->count();
+                ->where('gym_id', $gym->id)->count();
 
             $owner = $gym->owner;
 
@@ -80,7 +70,7 @@ class SuperadminController extends Controller
                 'maxTrainers' => $gym->max_trainers ?? 7,
                 'maxBranches' => $gym->max_branches ?? 1,
                 'status' => $gym->status ?? 'Active',
-                'initialPassword' => $gym->initial_password ?? $owner?->initial_password ?? 'admin123',
+                'initialPassword' => '••••••••',
                 'createdAt' => $gym->created_at?->format('Y-m-d'),
                 'owner' => [
                     'id' => $owner?->id,
@@ -89,7 +79,7 @@ class SuperadminController extends Controller
                     'phone' => $owner?->phone ?? $gym->phone,
                     'avatar' => $owner?->avatar,
                     'role' => 'owner',
-                    'loginPassword' => $owner?->initial_password ?? $gym->initial_password ?? 'admin123',
+                    'loginPassword' => '••••••••',
                 ],
                 'accounts' => [
                     'members' => $membersCount,
@@ -143,7 +133,7 @@ class SuperadminController extends Controller
                 'name' => $request->owner_name,
                 'email' => $request->owner_email,
                 'password' => Hash::make($request->owner_password),
-                'initial_password' => $request->owner_password,
+                'initial_password' => Hash::make($request->owner_password),
                 'must_change_password' => true,
                 'phone' => $request->owner_phone,
                 'role' => 'owner',
@@ -174,7 +164,7 @@ class SuperadminController extends Controller
                 'max_trainers' => $request->max_trainers ?? 7,
                 'max_branches' => $request->max_branches ?? 1,
                 'status' => 'Active',
-                'initial_password' => $request->owner_password,
+                'initial_password' => Hash::make($request->owner_password),
             ]);
 
             // 3. Link owner's gym_id
@@ -185,10 +175,11 @@ class SuperadminController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Gym Owner and Gym registered successfully!',
+                'message' => 'Gym and Owner provisioned successfully',
                 'gym' => [
                     'id' => $gym->id,
                     'name' => $gym->name,
+                    'tagline' => $gym->tagline,
                     'address' => $gym->address,
                     'city' => $gym->city,
                     'phone' => $gym->phone,
@@ -201,14 +192,14 @@ class SuperadminController extends Controller
                     'maxTrainers' => $gym->max_trainers,
                     'maxBranches' => $gym->max_branches,
                     'status' => $gym->status,
-                    'initialPassword' => $gym->initial_password,
+                    'initialPassword' => '••••••••',
                     'createdAt' => $gym->created_at?->format('Y-m-d'),
                     'owner' => [
                         'id' => $owner->id,
                         'name' => $owner->name,
                         'email' => $owner->email,
                         'phone' => $owner->phone,
-                        'loginPassword' => $owner->initial_password,
+                        'loginPassword' => '••••••••',
                     ],
                     'accounts' => [
                         'members' => 0,
@@ -282,10 +273,10 @@ class SuperadminController extends Controller
 
         // If updating password
         if ($request->filled('new_password')) {
-            $gym->initial_password = $request->new_password;
+            $gym->initial_password = Hash::make($request->new_password);
             if ($gym->owner) {
                 $gym->owner->password = Hash::make($request->new_password);
-                $gym->owner->initial_password = $request->new_password;
+                $gym->owner->initial_password = Hash::make($request->new_password);
                 $gym->owner->save();
             }
         }

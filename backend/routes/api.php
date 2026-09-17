@@ -18,32 +18,39 @@ use App\Http\Controllers\Api\SuperadminController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\OperationsController;
+// New Feature Controllers
+use App\Http\Controllers\Api\StaffController;
+use App\Http\Controllers\Api\PtSessionController;
+use App\Http\Controllers\Api\TrainerReviewController;
+use App\Http\Controllers\Api\AdvanceRequestController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\RevenueBillingController;
 
 // API Health Check
 Route::get('/health', function () {
     return response()->json([
-        'status' => 'online',
-        'app' => 'PulseFit Pro API',
+        'status'    => 'online',
+        'app'       => 'PulseFit Pro API',
         'timestamp' => now()->toIso8601String(),
-        'database' => 'MySQL connected',
+        'database'  => config('database.default') . ' connected (' . config('database.connections.' . config('database.default') . '.database') . ')',
     ]);
 });
 
 Route::prefix('v1')->group(function () {
-    // Health check for v1
+
     Route::get('/health', function () {
         return response()->json([
-            'status' => 'online',
-            'version' => 'v1',
+            'status'    => 'online',
+            'version'   => 'v1',
             'timestamp' => now()->toIso8601String(),
         ]);
     });
 
-    // Public / Auth Routes
+    // ── Auth ──────────────────────────────────────
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
         Route::post('/register', [AuthController::class, 'register']);
-        
+
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
             Route::post('/logout', [AuthController::class, 'logout']);
@@ -76,9 +83,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/classes/{id}/book', [GymClassController::class, 'book']);
     Route::post('/classes/{id}/cancel', [GymClassController::class, 'cancel']);
 
-    // Attendance & QR Scanner
+    // Attendance & QR Scanner (with punch-out + duration)
     Route::get('/attendance', [AttendanceController::class, 'index']);
     Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn']);
+    Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut']);
     Route::post('/attendance/{id}/check-out', [AttendanceController::class, 'checkOut']);
 
     // Workout Routines
@@ -97,6 +105,14 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('expenses', ExpenseController::class);
     Route::get('/financials/cashflow-summary', [ExpenseController::class, 'cashflowSummary']);
 
+    // Dedicated Revenue & Billing (Inflows & Outflows)
+    Route::get('/revenue-billing/inflow', [RevenueBillingController::class, 'inflowIndex']);
+    Route::get('/revenue-billing/outflow', [RevenueBillingController::class, 'outflowIndex']);
+    Route::get('/revenue-billing/summary', [RevenueBillingController::class, 'summary']);
+    Route::post('/revenue-billing/inflow', [RevenueBillingController::class, 'storeInflow']);
+    Route::post('/revenue-billing/outflow', [RevenueBillingController::class, 'storeOutflow']);
+    Route::delete('/revenue-billing/{id}', [RevenueBillingController::class, 'destroy']);
+
     // Enquiries & Leads CRM
     Route::apiResource('enquiries', EnquiryController::class);
     Route::patch('/enquiries/{id}/priority', [EnquiryController::class, 'updatePriority']);
@@ -108,7 +124,6 @@ Route::prefix('v1')->group(function () {
     // Equipment & Maintenance
     Route::apiResource('equipment', EquipmentController::class);
 
-    // Operations & Modules
     // Pro Shop Products
     Route::get('/products', [OperationsController::class, 'getProducts']);
     Route::post('/products', [OperationsController::class, 'storeProduct']);
@@ -131,9 +146,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/consent-forms', [OperationsController::class, 'storeConsentForm']);
     Route::patch('/consent-forms/{id}/status', [OperationsController::class, 'updateConsentStatus']);
 
-    // Payroll & Salaries
+    // Payroll & Salaries (with manual adjustment endpoint)
     Route::get('/payroll', [OperationsController::class, 'getPayroll']);
     Route::patch('/payroll/{id}/pay', [OperationsController::class, 'markPayrollPaid']);
+    Route::patch('/payroll/{id}/adjust', [OperationsController::class, 'adjustPayroll']);
 
     // Biometrics & Gate Overrides
     Route::get('/biometrics/devices', [OperationsController::class, 'getBiometricDevices']);
@@ -144,11 +160,43 @@ Route::prefix('v1')->group(function () {
     Route::post('/gate-overrides/{id}/approve', [OperationsController::class, 'approveGateEntry']);
     Route::post('/gate-overrides/{id}/deny', [OperationsController::class, 'denyGateEntry']);
 
-    // PT & Recovery Packages
+    // PT & Recovery Packages (catalog)
     Route::get('/pt-plans', [OperationsController::class, 'getPtPlans']);
     Route::post('/pt-plans', [OperationsController::class, 'storePtPlan']);
+    Route::delete('/pt-plans/{id}', [OperationsController::class, 'deletePtPlan']);
     Route::get('/recovery-plans', [OperationsController::class, 'getRecoveryPlans']);
     Route::post('/recovery-plans', [OperationsController::class, 'storeRecoveryPlan']);
+    Route::delete('/recovery-plans/{id}', [OperationsController::class, 'deleteRecoveryPlan']);
+
+    // ─────────────────────────────────────────────────────────────
+    // NEW FEATURE ROUTES
+    // ─────────────────────────────────────────────────────────────
+
+    // Staff Account Provisioning
+    Route::get('/staff', [StaffController::class, 'index']);
+    Route::post('/staff', [StaffController::class, 'store']);
+    Route::put('/staff/{id}', [StaffController::class, 'update']);
+    Route::delete('/staff/{id}', [StaffController::class, 'destroy']);
+
+    // PT Sessions (active packages + OTP-verified session logging)
+    Route::get('/pt-sessions', [PtSessionController::class, 'index']);
+    Route::post('/pt-sessions', [PtSessionController::class, 'store']);
+    Route::post('/pt-sessions/{id}/log-session', [PtSessionController::class, 'logSession']);
+    Route::post('/pt-sessions/{id}/regenerate-otp', [PtSessionController::class, 'regenerateOtp']);
+    Route::get('/pt-sessions/{id}/logs', [PtSessionController::class, 'getLogs']);
+
+    // Trainer Reviews & Star Ratings
+    Route::get('/trainer-reviews', [TrainerReviewController::class, 'index']);
+    Route::post('/trainer-reviews', [TrainerReviewController::class, 'store']);
+    Route::delete('/trainer-reviews/{id}', [TrainerReviewController::class, 'destroy']);
+
+    // Advance Pay Requests
+    Route::get('/advance-requests', [AdvanceRequestController::class, 'index']);
+    Route::post('/advance-requests', [AdvanceRequestController::class, 'store']);
+    Route::match(['patch', 'post', 'put'], '/advance-requests/{id}/status', [AdvanceRequestController::class, 'updateStatus']);
+
+    // Reports & Analytics
+    Route::get('/reports/summary', [ReportController::class, 'summary']);
 
     // Superadmin Platform Control
     Route::prefix('superadmin')->group(function () {

@@ -70,7 +70,7 @@ class AuthController extends Controller
             if ($existingUser->role === 'member') {
                 if ($request->filled('password')) {
                     $existingUser->password = Hash::make($request->password);
-                    $existingUser->initial_password = $request->password;
+                    $existingUser->initial_password = Hash::make($request->password);
                     $existingUser->must_change_password = true;
                     $existingUser->save();
                 }

@@ -19,6 +19,10 @@ class Payroll extends Model
         'bonus',
         'deductions',
         'net_pay',
+        'commission_earned',
+        'incentives',
+        'adjusted_by',
+        'notes',
         'status',
         'pay_date',
     ];
@@ -28,6 +32,8 @@ class Payroll extends Model
         'bonus' => 'float',
         'deductions' => 'float',
         'net_pay' => 'float',
+        'commission_earned' => 'float',
+        'incentives' => 'float',
         'pay_date' => 'date:Y-m-d',
     ];
 

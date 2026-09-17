@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   TrendingUp,
@@ -17,12 +17,29 @@ import {
   FileText,
   Printer,
   Download,
-  Loader2
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
 
 export const TrainerCommissions = () => {
-  const { commissions, addCommissionRecord, markCommissionPaid, trainers, members } = useGymData();
+  const {
+    commissions,
+    addCommissionRecord,
+    markCommissionPaid,
+    trainers,
+    members,
+    fetchCommissions,
+    fetchTrainers,
+    fetchMembers
+  } = useGymData();
+
+  useEffect(() => {
+    fetchCommissions?.();
+    fetchTrainers?.();
+    fetchMembers?.();
+  }, [fetchCommissions, fetchTrainers, fetchMembers]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -199,11 +216,24 @@ export const TrainerCommissions = () => {
         </div>
       </div>
 
-      {/* Commissions Mobile Cards View */}
+      {/* Mobile View: Cards */}
       <div className="block sm:hidden space-y-2.5">
         {filteredCommissions.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-            No commission records found.
+          <div className="p-6 bg-white rounded-2xl border border-slate-200">
+            <EmptyState
+              icon={TrendingUp}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching commissions" : "No Commissions Logged"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No trainer commission earnings match your current filter or search criteria."
+                  : "Track personal training commissions, referral bonuses, and service earnings for certified coaches."
+              }
+              actionText="Log Commission"
+              onAction={() => setIsAddModalOpen(true)}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
           </div>
         ) : (
           filteredCommissions.map((com) => {
@@ -281,22 +311,40 @@ export const TrainerCommissions = () => {
 
       {/* Commissions Table (Desktop View) */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl lg:rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3.5 px-4">Coach / Trainer</th>
-                <th className="py-3.5 px-4">Member / Client</th>
-                <th className="py-3.5 px-4">Service / PT Program</th>
-                <th className="py-3.5 px-4">Service Amount</th>
-                <th className="py-3.5 px-4">Rate %</th>
-                <th className="py-3.5 px-4">Earned Commission</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredCommissions.map((com) => {
+        {filteredCommissions.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={TrendingUp}
+              title={searchTerm || statusFilter !== 'ALL' ? "No matching commissions" : "No Commissions Logged"}
+              description={
+                searchTerm || statusFilter !== 'ALL'
+                  ? "No trainer commission earnings match your current filter or search criteria."
+                  : "Track personal training commissions, referral bonuses, and service earnings for certified coaches."
+              }
+              actionText="Log Commission"
+              onAction={() => setIsAddModalOpen(true)}
+              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
+              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              color="emerald"
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3.5 px-4">Coach / Trainer</th>
+                  <th className="py-3.5 px-4">Member / Client</th>
+                  <th className="py-3.5 px-4">Service / PT Program</th>
+                  <th className="py-3.5 px-4">Service Amount</th>
+                  <th className="py-3.5 px-4">Rate %</th>
+                  <th className="py-3.5 px-4">Earned Commission</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredCommissions.map((com) => {
                 const isPaid = com.status === 'Paid';
 
                 return (
@@ -372,7 +420,8 @@ export const TrainerCommissions = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Log Commission Modal */}
       <Modal

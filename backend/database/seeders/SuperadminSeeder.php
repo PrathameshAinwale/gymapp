@@ -17,7 +17,7 @@ class SuperadminSeeder extends Seeder
             [
                 'name' => 'Arch DevOps Superadmin',
                 'password' => Hash::make('111111'),
-                'initial_password' => '111111',
+                'initial_password' => Hash::make('111111'),
                 'role' => 'superadmin',
                 'phone' => '+91 99999 88888',
                 'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
@@ -39,13 +39,13 @@ class SuperadminSeeder extends Seeder
                     'email' => $owner->email ?? 'owner@pulsefit.in',
                     'package' => 'Enterprise Platinum',
                     'status' => 'Active',
-                    'initial_password' => 'admin123',
+                    'initial_password' => Hash::make('admin123'),
                 ]
             );
 
             // Assign all existing users to Gym 1
             User::whereNull('gym_id')->where('role', '!=', 'superadmin')->update(['gym_id' => $gym->id]);
-            $owner->initial_password = 'admin123';
+            $owner->initial_password = Hash::make('admin123');
             $owner->gym_id = $gym->id;
             $owner->save();
         }

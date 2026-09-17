@@ -449,7 +449,8 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
               <div className="block sm:hidden divide-y divide-slate-800/80">
                 {filteredGyms.map((gym) => {
                   const isPassVisible = !!visiblePasswords[gym.id];
-                  const ownerPassword = gym.owner?.loginPassword || gym.initialPassword || 'admin123';
+                  const rawPass = gym.owner?.loginPassword || gym.initialPassword;
+                  const ownerPassword = (!rawPass || rawPass.startsWith('$2y$') || rawPass.startsWith('$2a$') || rawPass.length >= 50) ? '••••••••' : rawPass;
                   const isDefaultGym = gym.id === 1;
                   const planTier = gym.packageTier || gym.package || 'Growth';
                   const planConfig = getPlanByTier(planTier);
@@ -609,7 +610,8 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                   <tbody className="divide-y divide-slate-800/60">
                     {filteredGyms.map((gym) => {
                       const isPassVisible = !!visiblePasswords[gym.id];
-                      const ownerPassword = gym.owner?.loginPassword || gym.initialPassword || 'admin123';
+                      const rawPass = gym.owner?.loginPassword || gym.initialPassword;
+                      const ownerPassword = (!rawPass || rawPass.startsWith('$2y$') || rawPass.startsWith('$2a$') || rawPass.length >= 50) ? '••••••••' : rawPass;
                       const isDefaultGym = gym.id === 1;
 
                       return (
@@ -1379,7 +1381,12 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                 </div>
                 <div className="flex items-center justify-between text-xs py-1">
                   <span className="text-slate-400">Login Password:</span>
-                  <span className="font-mono text-emerald-400 font-black">{selectedGym.owner?.loginPassword || selectedGym.initialPassword || 'admin123'}</span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    {(() => {
+                      const p = selectedGym.owner?.loginPassword || selectedGym.initialPassword;
+                      return (!p || p.startsWith('$2y$') || p.startsWith('$2a$') || p.length >= 50) ? '•••••••• (Encrypted)' : p;
+                    })()}
+                  </span>
                 </div>
               </div>
 

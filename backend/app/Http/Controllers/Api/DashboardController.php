@@ -18,6 +18,7 @@ class DashboardController extends Controller
     public function getOwnerStats(Request $request)
     {
         $gymId = $this->resolveGymId($request);
+        MemberController::syncAllMemberStatuses();
 
         $membersQuery = User::where('role', 'member');
         $trainersQuery = User::where('role', 'trainer');
@@ -48,10 +49,7 @@ class DashboardController extends Controller
         // Enquiries / Leads from database
         $enquiriesQuery = Enquiry::query();
         if ($gymId) {
-            $enquiriesQuery->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $enquiriesQuery->where('gym_id', $gymId);
         }
         $totalLeads = $enquiriesQuery->count();
         $hotLeads = (clone $enquiriesQuery)->where('priority', 'Hot')->count();
@@ -59,22 +57,14 @@ class DashboardController extends Controller
         // Calculate revenue for this gym
         $invoicesQuery = Invoice::where('status', 'Paid');
         if ($gymId) {
-            $invoicesQuery->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) {
-                    $q->orWhereNull('gym_id');
-                }
-            });
+            $invoicesQuery->where('gym_id', $gymId);
         }
         $dbRevenue = (float)$invoicesQuery->sum('amount');
 
         // Calculate real expenses from database
         $expensesQuery = Expense::query();
         if ($gymId) {
-            $expensesQuery->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
-            });
+            $expensesQuery->where('gym_id', $gymId);
         }
         $dbExpenses = (float)$expensesQuery->sum('amount');
 
@@ -91,19 +81,13 @@ class DashboardController extends Controller
 
             $mRevQuery = Invoice::where('status', 'Paid')->where('date', 'like', "{$yearMonth}%");
             if ($gymId) {
-                $mRevQuery->where(function ($q) use ($gymId) {
-                    $q->where('gym_id', $gymId);
-                    if ($gymId == 1) $q->orWhereNull('gym_id');
-                });
+                $mRevQuery->where('gym_id', $gymId);
             }
             $mRev = (float)$mRevQuery->sum('amount');
 
             $mExpQuery = Expense::where('date', 'like', "{$yearMonth}%");
             if ($gymId) {
-                $mExpQuery->where(function ($q) use ($gymId) {
-                    $q->where('gym_id', $gymId);
-                    if ($gymId == 1) $q->orWhereNull('gym_id');
-                });
+                $mExpQuery->where('gym_id', $gymId);
             }
             $mExp = (float)$mExpQuery->sum('amount');
 

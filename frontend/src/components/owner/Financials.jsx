@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -25,7 +25,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Search,
-  X
+  X,
+  RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
@@ -33,13 +34,48 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 export const Financials = () => {
   const {
     invoices = [],
+    members = [],
+    plans = [],
     gymInfo,
     ownerStats,
     revenueAnalytics = [],
     expenses = [],
     addExpense,
-    deleteExpense
+    deleteExpense,
+    fetchExpenses,
+    fetchInvoices,
+    fetchDashboardStats,
+    fetchMembers,
+    fetchPlans,
+    isLoadingBackend
   } = useGymData();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+  const [expenseError, setExpenseError] = useState('');
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        fetchExpenses?.(),
+        fetchInvoices?.(),
+        fetchDashboardStats?.(),
+        fetchMembers?.(),
+        fetchPlans?.()
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenses?.();
+    fetchInvoices?.();
+    fetchDashboardStats?.();
+    fetchMembers?.();
+    fetchPlans?.();
+  }, [fetchExpenses, fetchInvoices, fetchDashboardStats, fetchMembers, fetchPlans]);
   const { currentUser } = useAuth();
   const isDefaultGym = !currentUser?.gymId || currentUser?.gymId === 1;
 
@@ -70,10 +106,7 @@ export const Financials = () => {
   const paidInvoices = (invoices || []).filter((inv) => inv.status?.toLowerCase() === 'paid');
   const currentPaidInvoicesSum = paidInvoices.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
 
-  const totalInflow = Math.max(
-    ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0 ? ownerStats.monthlyRevenue : 0,
-    currentPaidInvoicesSum
-  );
+  const totalInflow = currentPaidInvoicesSum > 0 ? currentPaidInvoicesSum : (ownerStats?.monthlyRevenue || 0);
 
   // Dynamic Expenses (Cash Outflow) Calculation
   const totalOutflow = expenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
@@ -122,26 +155,34 @@ export const Financials = () => {
   });
 
   // Handle Add Expense Submit
-  const handleAddExpenseSubmit = (e) => {
+  const handleAddExpenseSubmit = async (e) => {
     e.preventDefault();
     if (!expenseForm.title || !expenseForm.amount) return;
 
-    addExpense({
-      ...expenseForm,
-      amount: Number(expenseForm.amount)
-    });
+    setIsSubmittingExpense(true);
+    setExpenseError('');
+    try {
+      await addExpense({
+        ...expenseForm,
+        amount: Number(expenseForm.amount)
+      });
 
-    setIsAddExpenseOpen(false);
-    setExpenseForm({
-      title: '',
-      category: 'Electricity & Utilities',
-      vendor: '',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      paymentMode: 'UPI / Net Banking',
-      receiptRef: '',
-      notes: ''
-    });
+      setIsAddExpenseOpen(false);
+      setExpenseForm({
+        title: '',
+        category: 'Electricity & Utilities',
+        vendor: '',
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        paymentMode: 'UPI / Net Banking',
+        receiptRef: '',
+        notes: ''
+      });
+    } catch (err) {
+      setExpenseError(err?.message || 'Failed to save expense to database');
+    } finally {
+      setIsSubmittingExpense(false);
+    }
   };
 
   // Category Icon & Color Helper
@@ -184,6 +225,17 @@ export const Financials = () => {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh and sync data directly from database"
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] sm:text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden md:inline">Sync</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsAddExpenseOpen(true)}
@@ -538,29 +590,39 @@ export const Financials = () => {
 
           {filteredInvoices.length === 0 ? (
             <div className="py-12 text-center">
-              <FileText className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-900 mb-1">No Invoices Found</p>
-              <p className="text-xs text-slate-500 mb-4 max-w-sm mx-auto">
-                {memberSearchTerm
-                  ? `No invoices found matching member name "${memberSearchTerm}".`
-                  : 'No fee transactions or billing records match this status.'}
-              </p>
-              {memberSearchTerm ? (
-                <button
-                  type="button"
-                  onClick={() => setMemberSearchTerm('')}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer"
-                >
-                  Clear Search Filter
-                </button>
+              {isRefreshing || (isLoadingBackend && invoices.length === 0) ? (
+                <div className="py-4">
+                  <RotateCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-900 mb-1">Loading Invoices from Database...</p>
+                  <p className="text-xs text-slate-500">Retrieving live billing records and receipts.</p>
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsRecordPaymentOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow cursor-pointer"
-                >
-                  + Record Fee Payment
-                </button>
+                <>
+                  <FileText className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-900 mb-1">No Invoices Found</p>
+                  <p className="text-xs text-slate-500 mb-4 max-w-sm mx-auto">
+                    {memberSearchTerm
+                      ? `No invoices found matching member name "${memberSearchTerm}".`
+                      : 'No fee transactions or billing records match this status.'}
+                  </p>
+                  {memberSearchTerm ? (
+                    <button
+                      type="button"
+                      onClick={() => setMemberSearchTerm('')}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer"
+                    >
+                      Clear Search Filter
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsRecordPaymentOpen(true)}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow cursor-pointer"
+                    >
+                      + Record Fee Payment
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -699,18 +761,28 @@ export const Financials = () => {
 
           {filteredExpenses.length === 0 ? (
             <div className="py-12 text-center">
-              <Receipt className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-900 mb-1">No Expenses Recorded</p>
-              <p className="text-xs text-slate-500 mb-4 max-w-sm mx-auto">
-                No expense entries match this category filter.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow cursor-pointer"
-              >
-                + Record New Expense
-              </button>
+              {isRefreshing || (isLoadingBackend && expenses.length === 0) ? (
+                <div className="py-4">
+                  <RotateCw className="w-8 h-8 text-rose-600 animate-spin mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-900 mb-1">Loading Expenses from Database...</p>
+                  <p className="text-xs text-slate-500">Retrieving live facility expense records.</p>
+                </div>
+              ) : (
+                <>
+                  <Receipt className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-900 mb-1">No Expenses Recorded</p>
+                  <p className="text-xs text-slate-500 mb-4 max-w-sm mx-auto">
+                    No expense entries match this category filter.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddExpenseOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow cursor-pointer"
+                  >
+                    + Record New Expense
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -947,19 +1019,37 @@ export const Financials = () => {
             />
           </div>
 
+          {expenseError && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{expenseError}</span>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsAddExpenseOpen(false)}
+              onClick={() => {
+                setIsAddExpenseOpen(false);
+                setExpenseError('');
+              }}
               className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              disabled={isSubmittingExpense}
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
-              Record Expense
+              {isSubmittingExpense ? (
+                <>
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Record Expense</span>
+              )}
             </button>
           </div>
         </form>

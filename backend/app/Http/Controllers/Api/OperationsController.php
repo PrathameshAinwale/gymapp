@@ -31,7 +31,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $products = $query->get()->map(function ($p) {
@@ -70,7 +69,7 @@ class OperationsController extends Controller
         $status = $stock <= 0 ? 'Out of Stock' : ($stock <= $minStock ? 'Low Stock' : 'In Stock');
 
         $product = Product::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'name' => $request->name,
             'category' => $request->category,
             'price' => (float)$request->price,
@@ -156,7 +155,7 @@ class OperationsController extends Controller
 
         $totalAmount = (float)$product->price * $qty;
         $inv = Invoice::create([
-            'gym_id' => $product->gym_id ?? 1,
+            'gym_id' => $product->gym_id ?? $this->resolveGymId($request),
             'invoice_number' => 'INV-PROD-' . strtoupper(substr(uniqid(), -6)),
             'user_id' => 1,
             'amount' => $totalAmount,
@@ -184,7 +183,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $records = $query->orderBy('date', 'desc')->get()->map(function ($c) {
@@ -221,7 +219,7 @@ class OperationsController extends Controller
         $ratePercent = (float)($request->ratePercent ?? $request->rate_percent ?? $request->commissionPct ?? 20);
 
         $c = Commission::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'trainer_id' => $trainerId,
             'trainer_name' => $request->trainerName ?? $request->trainer_name ?? 'Trainer',
             'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
@@ -270,7 +268,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $freezes = $query->orderBy('id', 'desc')->get()->map(function ($f) {
@@ -301,7 +298,7 @@ class OperationsController extends Controller
         $freezeEndDate = $request->freezeEndDate ?? $request->freeze_end_date ?? now()->addDays($daysFrozen)->toDateString();
 
         $freeze = MembershipFreeze::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'member_id' => $memberId,
             'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
             'plan_name' => $request->planName ?? $request->plan_name ?? 'Membership Plan',
@@ -369,7 +366,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $forms = $query->get()->map(function ($cf) {
@@ -399,7 +395,7 @@ class OperationsController extends Controller
         $status = $request->status ?? 'Pending';
 
         $cf = ConsentForm::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'member_id' => $memberId,
             'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
             'phone' => $request->phone ?? '',
@@ -453,7 +449,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $payrolls = $query->orderBy('id', 'desc')->get()->map(function ($p) {
@@ -469,11 +464,13 @@ class OperationsController extends Controller
                 'period' => $p->month ?? 'Current Cycle',
                 'baseSalary' => (float)$p->base_salary,
                 'bonus' => (float)$p->bonus,
-                'commissions' => (float)($p->commissions ?? 0),
+                'commissions' => (float)($p->commission_earned ?? $p->commissions ?? 0),
                 'deductions' => (float)$p->deductions,
                 'netPay' => (float)$p->net_pay,
                 'status' => $p->status,
                 'payDate' => $p->pay_date?->format('Y-m-d') ?? (string)$p->pay_date,
+                'notes' => $p->notes,
+                'adjustedBy' => $p->adjusted_by,
             ];
         });
 
@@ -488,6 +485,74 @@ class OperationsController extends Controller
         return response()->json(['success' => true, 'message' => 'Payroll disbursed in database']);
     }
 
+    public function adjustPayroll(Request $request, $id)
+    {
+        $numericId = (int)str_replace('pay-', '', $id);
+        $p = Payroll::findOrFail($numericId);
+
+        $baseSalary = $request->has('baseSalary') || $request->has('base_salary')
+            ? (float)($request->baseSalary ?? $request->base_salary)
+            : (float)$p->base_salary;
+
+        $bonus = $request->has('bonus') || $request->has('incentives')
+            ? (float)($request->bonus ?? $request->incentives)
+            : (float)$p->bonus;
+
+        $commission = $request->has('commissions') || $request->has('commission_earned')
+            ? (float)($request->commissions ?? $request->commission_earned)
+            : (float)($p->commission_earned ?? 0);
+
+        $deductions = $request->has('deductions')
+            ? (float)$request->deductions
+            : (float)$p->deductions;
+
+        $netPay = $request->has('netPay') || $request->has('net_pay')
+            ? (float)($request->netPay ?? $request->net_pay)
+            : ($baseSalary + $bonus + $commission - $deductions);
+
+        $updates = [
+            'base_salary' => $baseSalary,
+            'bonus' => $bonus,
+            'commission_earned' => $commission,
+            'deductions' => $deductions,
+            'net_pay' => max(0, $netPay),
+        ];
+
+        if ($request->has('notes')) {
+            $updates['notes'] = $request->notes;
+        }
+        if ($request->has('adjustedBy') || $request->has('adjusted_by')) {
+            $updates['adjusted_by'] = $request->adjustedBy ?? $request->adjusted_by;
+        }
+        if ($request->has('status')) {
+            $updates['status'] = $request->status;
+        }
+
+        $p->update($updates);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payroll adjustments updated in database',
+            'data' => [
+                'id' => 'pay-' . $p->id,
+                'numericId' => $p->id,
+                'employeeId' => 'tr-' . $p->employee_id,
+                'employeeName' => $p->employee_name,
+                'role' => $p->role,
+                'month' => $p->month,
+                'baseSalary' => (float)$p->base_salary,
+                'bonus' => (float)$p->bonus,
+                'commissions' => (float)($p->commission_earned ?? 0),
+                'deductions' => (float)$p->deductions,
+                'netPay' => (float)$p->net_pay,
+                'status' => $p->status,
+                'payDate' => $p->pay_date?->format('Y-m-d') ?? (string)$p->pay_date,
+                'notes' => $p->notes,
+                'adjustedBy' => $p->adjusted_by,
+            ]
+        ]);
+    }
+
     // ==========================================
     // 6. BIOMETRIC DEVICES & TURNSTILES
     // ==========================================
@@ -498,7 +563,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $devices = $query->get()->map(function ($d) {
@@ -522,7 +586,7 @@ class OperationsController extends Controller
     public function storeBiometricDevice(Request $request)
     {
         $dev = BiometricDevice::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'name' => $request->name,
             'ip_address' => $request->ipAddress ?? '192.168.1.10' . rand(1, 9),
             'serial_no' => $request->serialNo ?? ('PF-TURN-' . rand(1000, 9999)),
@@ -542,7 +606,7 @@ class OperationsController extends Controller
         $dev = BiometricDevice::find($numericId) ?? BiometricDevice::first();
 
         $log = BiometricLog::create([
-            'gym_id' => $dev?->gym_id ?? 1,
+            'gym_id' => $dev?->gym_id ?? $this->resolveGymId($request),
             'device_id' => 'bio-dev-' . ($dev?->id ?? 1),
             'device_name' => $dev?->name ?? 'Main Entrance Turnstile #1',
             'person_name' => 'Owner Remote Command',
@@ -571,7 +635,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $logs = $query->orderBy('id', 'desc')->limit(30)->get()->map(function ($l) {
@@ -598,7 +661,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $approvals = $query->get()->map(function ($a) {
@@ -626,7 +688,7 @@ class OperationsController extends Controller
         $approval->update(['status' => 'Approved']);
 
         BiometricLog::create([
-            'gym_id' => $approval->gym_id ?? 1,
+            'gym_id' => $approval->gym_id ?? $this->resolveGymId($request),
             'device_id' => 'bio-dev-1',
             'device_name' => $approval->gate ?? 'Main Entrance Turnstile',
             'person_name' => $approval->member_name,
@@ -658,7 +720,6 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $plans = $query->get()->map(function ($p) {
@@ -680,7 +741,7 @@ class OperationsController extends Controller
     public function storePtPlan(Request $request)
     {
         $plan = PtPlan::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'name' => $request->name,
             'price' => (float)$request->price,
             'sessions' => (int)$request->sessions,
@@ -693,6 +754,13 @@ class OperationsController extends Controller
         return response()->json(['success' => true, 'data' => $plan], 201);
     }
 
+    public function deletePtPlan(Request $request, $id)
+    {
+        $cleanId = str_replace('pt-', '', $id);
+        PtPlan::where('id', $cleanId)->delete();
+        return response()->json(['success' => true, 'message' => 'PT plan deleted']);
+    }
+
     public function getRecoveryPlans(Request $request)
     {
         $gymId = $this->resolveGymId($request);
@@ -700,19 +768,21 @@ class OperationsController extends Controller
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
-                if ($gymId == 1) $q->orWhereNull('gym_id');
             });
         }
         $plans = $query->get()->map(function ($r) {
+            $features = $r->features ?? [];
             return [
                 'id' => 'rec-' . $r->id,
                 'name' => $r->name,
                 'price' => (float)$r->price,
-                'duration' => $r->duration,
-                'sessions' => (int)$r->sessions,
+                'duration' => $r->duration ?? '45 Mins',
+                'sessions' => (int)($r->sessions ?? 1),
                 'popular' => (bool)$r->popular,
                 'color' => $r->color,
-                'features' => $r->features ?? [],
+                'type' => 'Therapy',
+                'description' => !empty($features) ? (is_array($features) ? implode('. ', $features) : $features) : 'Full recovery & wellness therapy session.',
+                'features' => is_array($features) ? $features : [],
             ];
         });
 
@@ -721,17 +791,47 @@ class OperationsController extends Controller
 
     public function storeRecoveryPlan(Request $request)
     {
+        $features = $request->features;
+        if (empty($features) && !empty($request->description)) {
+            $features = array_values(array_filter(array_map('trim', explode('.', $request->description))));
+            if (empty($features)) {
+                $features = [$request->description];
+            }
+        }
+
         $plan = RecoveryPlan::create([
-            'gym_id' => $this->resolveGymId($request) ?? 1,
+            'gym_id' => $this->resolveGymId($request),
             'name' => $request->name,
             'price' => (float)$request->price,
             'duration' => $request->duration ?? '45 Mins',
             'sessions' => (int)($request->sessions ?? 1),
             'popular' => (bool)($request->popular ?? false),
             'color' => $request->color ?? 'from-blue-500/20 to-teal-500/20 border-blue-500/40',
-            'features' => $request->features ?? [],
+            'features' => $features ?? [],
         ]);
 
-        return response()->json(['success' => true, 'data' => $plan], 201);
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => 'rec-' . $plan->id,
+                'name' => $plan->name,
+                'price' => (float)$plan->price,
+                'duration' => $plan->duration ?? '45 Mins',
+                'sessions' => (int)($plan->sessions ?? 1),
+                'popular' => (bool)$plan->popular,
+                'color' => $plan->color,
+                'type' => $request->type ?? 'Therapy',
+                'description' => $request->description ?? (!empty($plan->features) ? implode('. ', $plan->features) : 'Recovery therapy session.'),
+                'features' => $plan->features ?? [],
+            ]
+        ], 201);
+    }
+
+    public function deleteRecoveryPlan(Request $request, $id)
+    {
+        $cleanId = str_replace('rec-', '', $id);
+        RecoveryPlan::where('id', $cleanId)->delete();
+        return response()->json(['success' => true, 'message' => 'Recovery plan deleted']);
     }
 }
+

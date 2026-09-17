@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   CalendarCheck,
@@ -11,21 +11,49 @@ import {
   Calendar,
   FileText,
   Printer,
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  RotateCw,
+  Sparkles,
+  Info,
+  CalendarDays
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { EmptyState } from '../common/EmptyState';
+import {
+  getTodayIso,
+  getYesterdayIso,
+  formatDateDisplay,
+  recordMatchesDate
+} from '../../utils/dateUtils';
 
 export const AttendanceTracker = () => {
   const {
-    attendance,
+    attendance = [],
     checkInMemberByQR,
-    staffAttendanceLogs,
+    punchOutMember,
+    staffAttendanceLogs = [],
     recordStaffCheckIn,
-    members,
-    trainers,
+    members = [],
+    trainers = [],
+    fetchAttendance,
+    fetchMembers,
+    fetchTrainers,
     addToast
   } = useGymData();
 
+  useEffect(() => {
+    fetchAttendance?.();
+    fetchMembers?.();
+    fetchTrainers?.();
+  }, [fetchAttendance, fetchMembers, fetchTrainers]);
+
+  const todayIso = getTodayIso();
+  const yesterdayIso = getYesterdayIso();
+
+  const [selectedDate, setSelectedDate] = useState(todayIso);
   const [activeTab, setActiveTab] = useState('members'); // 'members' | 'staff'
   const [searchTerm, setSearchTerm] = useState('');
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
@@ -34,20 +62,68 @@ export const AttendanceTracker = () => {
   const [loadingStaffId, setLoadingStaffId] = useState(null);
   const [isCheckingInManual, setIsCheckingInManual] = useState(false);
 
-  // Live Metrics
-  const staffOnDuty = staffAttendanceLogs.filter(
-    (s) => s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime)
-  ).length;
+  const isToday = selectedDate === todayIso;
+  const isYesterday = selectedDate === yesterdayIso;
 
-  const filteredMemberAttendance = attendance.filter((a) =>
+  // Step 1 Day Backward
+  const handlePrevDay = () => {
+    try {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const prev = new Date(y, m - 1, d);
+      prev.setDate(prev.getDate() - 1);
+      const prevIso = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+      setSelectedDate(prevIso);
+    } catch (e) {
+      setSelectedDate(yesterdayIso);
+    }
+  };
+
+  // Step 1 Day Forward (capped at today)
+  const handleNextDay = () => {
+    if (selectedDate >= todayIso) return;
+    try {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const next = new Date(y, m - 1, d);
+      next.setDate(next.getDate() + 1);
+      const nextIso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+      if (nextIso > todayIso) {
+        setSelectedDate(todayIso);
+      } else {
+        setSelectedDate(nextIso);
+      }
+    } catch (e) {
+      setSelectedDate(todayIso);
+    }
+  };
+
+  // Filter records strictly by selectedDate
+  const dayMemberAttendance = attendance.filter((a) =>
+    recordMatchesDate(a, selectedDate)
+  );
+
+  const dayStaffAttendance = staffAttendanceLogs.filter((s) =>
+    recordMatchesDate(s, selectedDate)
+  );
+
+  // Search filter
+  const filteredMemberAttendance = dayMemberAttendance.filter((a) =>
     (a.memberName || a.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (a.planName || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredStaffAttendance = staffAttendanceLogs.filter((s) =>
+  const filteredStaffAttendance = dayStaffAttendance.filter((s) =>
     (s.staffName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (s.role || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Metrics for selectedDate
+  const staffOnDuty = isToday
+    ? dayStaffAttendance.filter(
+        (s) => s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime)
+      ).length
+    : dayStaffAttendance.length;
+
+  const totalDayCheckins = dayMemberAttendance.length + dayStaffAttendance.length;
 
   const handleManualMemberCheckIn = async (e) => {
     e.preventDefault();
@@ -74,52 +150,167 @@ export const AttendanceTracker = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-12 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <CalendarCheck className="w-5 h-5" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
-              Attendance Tracker
-            </h1>
+            <div>
+              <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                Attendance Tracker
+              </h1>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Daily member turnstile check-ins & coach shift tracking.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Real-time check-in logs for gym members and shift punch in/out tracking for trainers.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
           >
             <FileText className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Muster Report</span>
-            <span className="inline sm:hidden">Report</span>
+            <span>Muster Report</span>
           </button>
+
+          {isToday ? (
+            <button
+              type="button"
+              onClick={() => setIsMemberCheckInModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm shadow-emerald-600/20"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Punch In Member</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayIso)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Switch to Live Today</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* INTERACTIVE DATE TRACKER CONTROL BAR */}
+      <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Left: Date Navigator Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 text-slate-700 font-bold text-xs mr-1">
+              <CalendarDays className="w-4 h-4 text-emerald-600" />
+              <span>Attendance Date:</span>
+            </div>
+
+            {/* Prev Day Button */}
+            <button
+              type="button"
+              onClick={handlePrevDay}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1 transition-colors cursor-pointer active:scale-95"
+              title="View Previous Day"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Prev Day</span>
+            </button>
+
+            {/* Native Date Input Picker */}
+            <div className="relative inline-flex items-center">
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayIso}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all cursor-pointer shadow-2xs"
+              />
+            </div>
+
+            {/* Next Day Button (Disabled if already at today) */}
+            <button
+              type="button"
+              onClick={handleNextDay}
+              disabled={selectedDate >= todayIso}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1 transition-colors cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="View Next Day"
+            >
+              <span className="hidden sm:inline">Next Day</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Quick Chips: Today & Yesterday */}
+            <div className="flex items-center gap-1 ml-1">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayIso)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                  isToday
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
+              >
+                Today
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedDate(yesterdayIso)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                  isYesterday
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
+              >
+                Yesterday
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards (Filtered strictly for selectedDate) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Today's Total Check-ins</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{attendance.length + staffAttendanceLogs.length}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Turnstile & staff punches</span>
+        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            {isToday ? "Today's Total Footfall" : `Total Footfall (${formatDateDisplay(selectedDate, { withRelative: true })})`}
+          </span>
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+            {totalDayCheckins}
+          </div>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">
+            {isToday ? 'Turnstile & staff punches (starts at 0)' : `Recorded on ${formatDateDisplay(selectedDate)}`}
+          </span>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Members Present</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{attendance.length} Members</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">Marked present today</span>
+
+        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            {isToday ? 'Members Present' : 'Members Attended'}
+          </span>
+          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">
+            {dayMemberAttendance.length} Members
+          </div>
+          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">
+            {isToday ? 'Marked present today' : `Checked in on ${formatDateDisplay(selectedDate)}`}
+          </span>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Staff on Duty</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{staffOnDuty} Coaches</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">Active duty shifts</span>
+
+        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            {isToday ? 'Staff on Duty' : 'Staff On Shift'}
+          </span>
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+            {staffOnDuty} Coaches
+          </div>
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">
+            {isToday ? 'Active duty shifts' : `Coaches logged on ${formatDateDisplay(selectedDate)}`}
+          </span>
         </div>
       </div>
 
@@ -136,7 +327,7 @@ export const AttendanceTracker = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Members ({attendance.length})
+            Members ({dayMemberAttendance.length})
           </button>
           <button
             type="button"
@@ -147,7 +338,7 @@ export const AttendanceTracker = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Trainer Shifts ({staffAttendanceLogs.length})
+            Trainer Shifts ({dayStaffAttendance.length})
           </button>
         </div>
 
@@ -180,8 +371,23 @@ export const AttendanceTracker = () => {
           {/* Mobile View: Member Cards */}
           <div className="block sm:hidden space-y-2">
             {filteredMemberAttendance.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
-                No member check-ins recorded.
+              <div className="bg-white border border-slate-200 rounded-xl p-6">
+                <EmptyState
+                  icon={CalendarCheck}
+                  title={searchTerm ? "No matching member attendance" : `No Attendance Recorded for ${formatDateDisplay(selectedDate)}`}
+                  description={
+                    searchTerm
+                      ? `No member records match "${searchTerm}".`
+                      : isToday
+                      ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
+                      : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
+                  }
+                  actionText={isToday ? "Check In Member" : undefined}
+                  onAction={isToday ? () => setIsMemberCheckInModalOpen(true) : undefined}
+                  secondaryActionText={!isToday ? "Switch to Today" : (searchTerm ? "Clear Search" : undefined)}
+                  onSecondaryAction={!isToday ? () => setSelectedDate(todayIso) : (searchTerm ? () => setSearchTerm('') : undefined)}
+                  color="emerald"
+                />
               </div>
             ) : (
               filteredMemberAttendance.map((log, idx) => (
@@ -193,20 +399,35 @@ export const AttendanceTracker = () => {
                     </div>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <CheckCircle2 className="w-2.5 h-2.5" />
-                      <span>Present</span>
+                      <span>{log.status === 'Inside Gym' ? 'Inside Gym' : 'Present'}</span>
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch In Time</span>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">In Time</span>
                       <span className="font-semibold text-emerald-700">{log.checkInTime || log.punchInTime || '07:15 AM'}</span>
                     </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Out Time</span>
+                      <span className="font-semibold text-slate-700">{log.checkOutTime || '--'}</span>
+                    </div>
                     <div className="text-right">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Date</span>
-                      <span className="font-medium text-slate-600">{log.date || 'Today'}</span>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
+                      <span className="font-medium text-slate-600">{log.duration || (log.checkOutTime ? '1h 15m' : 'In gym')}</span>
                     </div>
                   </div>
+
+                  {isToday && (!log.checkOutTime || log.checkOutTime === '--' || log.status === 'Inside Gym') && (
+                    <button
+                      type="button"
+                      onClick={() => punchOutMember(log.id)}
+                      className="w-full mt-1.5 py-1.5 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Punch Out Member</span>
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -214,26 +435,42 @@ export const AttendanceTracker = () => {
 
           {/* Desktop View: Member Table */}
           <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3.5 px-5">Member Name</th>
-                    <th className="py-3.5 px-5">Plan</th>
-                    <th className="py-3.5 px-5">Date</th>
-                    <th className="py-3.5 px-5">Punch In Time</th>
-                    <th className="py-3.5 px-5">Attendance Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredMemberAttendance.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400 text-xs font-medium">
-                        No member check-ins recorded.
-                      </td>
+            {filteredMemberAttendance.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={CalendarCheck}
+                  title={searchTerm ? "No matching member attendance" : `No Attendance Recorded for ${formatDateDisplay(selectedDate)}`}
+                  description={
+                    searchTerm
+                      ? `No member records match "${searchTerm}".`
+                      : isToday
+                      ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
+                      : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
+                  }
+                  actionText={isToday ? "Check In Member" : undefined}
+                  onAction={isToday ? () => setIsMemberCheckInModalOpen(true) : undefined}
+                  secondaryActionText={!isToday ? "Switch to Today" : (searchTerm ? "Clear Search" : undefined)}
+                  onSecondaryAction={!isToday ? () => setSelectedDate(todayIso) : (searchTerm ? () => setSearchTerm('') : undefined)}
+                  color="emerald"
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-3.5 px-5">Member Name</th>
+                      <th className="py-3.5 px-5">Plan</th>
+                      <th className="py-3.5 px-5">Date</th>
+                      <th className="py-3.5 px-5">Punch In</th>
+                      <th className="py-3.5 px-5">Punch Out</th>
+                      <th className="py-3.5 px-5">Duration</th>
+                      <th className="py-3.5 px-5">Status</th>
+                      <th className="py-3.5 px-5 text-right">Action</th>
                     </tr>
-                  ) : (
-                    filteredMemberAttendance.map((log, idx) => (
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredMemberAttendance.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3.5 px-5 font-bold text-slate-900 text-xs">
                           {log.memberName || log.name || 'Member'}
@@ -244,24 +481,51 @@ export const AttendanceTracker = () => {
                         <td className="py-3.5 px-5 text-slate-700">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{log.date || 'Today'}</span>
+                            <span>{log.displayDate || formatDateDisplay(log.date || log.rawDate, { withRelative: true }) || 'Today'}</span>
                           </div>
                         </td>
                         <td className="py-3.5 px-5 text-emerald-700 font-bold">
                           {log.checkInTime || log.punchInTime || '07:15 AM'}
                         </td>
+                        <td className="py-3.5 px-5 text-slate-700 font-semibold">
+                          {log.checkOutTime || '--'}
+                        </td>
+                        <td className="py-3.5 px-5 text-slate-500 font-medium">
+                          {log.duration || (log.checkOutTime ? '1h 15m' : <span className="text-emerald-600 font-bold">In Progress</span>)}
+                        </td>
                         <td className="py-3.5 px-5">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Present</span>
-                          </span>
+                          {(!log.checkOutTime || log.checkOutTime === '--' || log.status === 'Inside Gym') ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>Inside Gym</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              <CheckCircle2 className="w-3 h-3 text-slate-400" />
+                              <span>Completed</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 text-right">
+                          {isToday && (!log.checkOutTime || log.checkOutTime === '--' || log.status === 'Inside Gym') ? (
+                            <button
+                              type="button"
+                              onClick={() => punchOutMember(log.id)}
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                            >
+                              <Clock className="w-3 h-3 text-rose-600" />
+                              <span>Punch Out</span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-mono">Archived</span>
+                          )}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -269,12 +533,23 @@ export const AttendanceTracker = () => {
           {/* Mobile View: Trainer Staff Cards */}
           <div className="block sm:hidden space-y-2">
             {filteredStaffAttendance.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
-                No trainer shift logs found.
+              <div className="bg-white border border-slate-200 rounded-xl p-6">
+                <EmptyState
+                  icon={Award}
+                  title={searchTerm ? "No matching coach records" : `No Trainer Shifts for ${formatDateDisplay(selectedDate)}`}
+                  description={
+                    searchTerm
+                      ? `No coach shift records match "${searchTerm}".`
+                      : "Trainer shifts and floor check-ins will appear here once logged."
+                  }
+                  secondaryActionText={!isToday ? "Switch to Today" : (searchTerm ? "Clear Search" : undefined)}
+                  onSecondaryAction={!isToday ? () => setSelectedDate(todayIso) : (searchTerm ? () => setSearchTerm('') : undefined)}
+                  color="teal"
+                />
               </div>
             ) : (
               filteredStaffAttendance.map((stf) => {
-                const isOnDuty = stf.status === 'On Premises (Active)' || (stf.checkInTime && !stf.checkOutTime);
+                const isOnDuty = isToday && (stf.status === 'On Premises (Active)' || (stf.checkInTime && !stf.checkOutTime));
                 const isPunchedOut = Boolean(stf.checkOutTime && stf.checkOutTime !== '--' && stf.checkOutTime !== 'null');
 
                 return (
@@ -297,7 +572,7 @@ export const AttendanceTracker = () => {
                         }`}
                       >
                         {isOnDuty ? <Clock className="w-2.5 h-2.5" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
-                        <span>{isOnDuty ? 'On Duty' : isPunchedOut ? 'Shift Completed' : 'Scheduled'}</span>
+                        <span>{isOnDuty ? 'On Duty' : isPunchedOut ? 'Shift Completed' : 'Completed'}</span>
                       </span>
                     </div>
 
@@ -314,41 +589,37 @@ export const AttendanceTracker = () => {
                       </div>
                       <div className="text-right">
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Total Hours</span>
-                        <span className="font-bold text-emerald-700">{stf.totalHours || (isOnDuty ? 'In progress' : '0h')}</span>
+                        <span className="font-bold text-emerald-700">{stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}</span>
                       </div>
                     </div>
 
-                    {/* Action Footer: If Punched Out, NO Punch Out button is shown */}
-                    {isOnDuty ? (
+                    {isToday && (
                       <div className="flex justify-end pt-1 border-t border-slate-100">
-                        <button
-                          type="button"
-                          disabled={loadingStaffId === stf.staffId}
-                          onClick={() => handleRecordPunch(stf.staffId)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
-                        >
-                          {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
-                          <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
-                        </button>
-                      </div>
-                    ) : isPunchedOut ? (
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
-                        <span className="text-slate-400">Punched out at {stf.checkOutTime}</span>
-                        <span className="text-emerald-700 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Done
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end pt-1 border-t border-slate-100">
-                        <button
-                          type="button"
-                          disabled={loadingStaffId === stf.staffId}
-                          onClick={() => handleRecordPunch(stf.staffId)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
-                        >
-                          {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
-                          <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
-                        </button>
+                        {isOnDuty ? (
+                          <button
+                            type="button"
+                            disabled={loadingStaffId === stf.staffId}
+                            onClick={() => handleRecordPunch(stf.staffId)}
+                            className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
+                          >
+                            {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                            <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
+                          </button>
+                        ) : isPunchedOut ? (
+                          <span className="text-emerald-700 font-bold text-[10px] flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Shift Completed
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={loadingStaffId === stf.staffId}
+                            onClick={() => handleRecordPunch(stf.staffId)}
+                            className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
+                          >
+                            {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                            <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -359,30 +630,39 @@ export const AttendanceTracker = () => {
 
           {/* Desktop View: Trainer Staff Table */}
           <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3.5 px-5">Trainer / Staff</th>
-                    <th className="py-3.5 px-5">Role</th>
-                    <th className="py-3.5 px-5">Date</th>
-                    <th className="py-3.5 px-5">Punch In</th>
-                    <th className="py-3.5 px-5">Punch Out</th>
-                    <th className="py-3.5 px-5">Total Hours</th>
-                    <th className="py-3.5 px-5">Shift Status</th>
-                    <th className="py-3.5 px-5 text-right">Quick Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredStaffAttendance.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-medium">
-                        No trainer shift logs found.
-                      </td>
+            {filteredStaffAttendance.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={Award}
+                  title={searchTerm ? "No matching coach records" : `No Trainer Shifts for ${formatDateDisplay(selectedDate)}`}
+                  description={
+                    searchTerm
+                      ? `No coach shift records match "${searchTerm}".`
+                      : "Trainer shifts and floor check-ins will appear here once logged."
+                  }
+                  secondaryActionText={!isToday ? "Switch to Today" : (searchTerm ? "Clear Search" : undefined)}
+                  onSecondaryAction={!isToday ? () => setSelectedDate(todayIso) : (searchTerm ? () => setSearchTerm('') : undefined)}
+                  color="teal"
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-3.5 px-5">Trainer / Staff</th>
+                      <th className="py-3.5 px-5">Role</th>
+                      <th className="py-3.5 px-5">Date</th>
+                      <th className="py-3.5 px-5">Punch In</th>
+                      <th className="py-3.5 px-5">Punch Out</th>
+                      <th className="py-3.5 px-5">Total Hours</th>
+                      <th className="py-3.5 px-5">Shift Status</th>
+                      <th className="py-3.5 px-5 text-right">Action</th>
                     </tr>
-                  ) : (
-                    filteredStaffAttendance.map((stf) => {
-                      const isOnDuty = stf.status === 'On Premises (Active)' || (stf.checkInTime && !stf.checkOutTime);
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredStaffAttendance.map((stf) => {
+                      const isOnDuty = isToday && (stf.status === 'On Premises (Active)' || (stf.checkInTime && !stf.checkOutTime));
                       const isPunchedOut = Boolean(stf.checkOutTime && stf.checkOutTime !== '--' && stf.checkOutTime !== 'null');
 
                       return (
@@ -397,73 +677,74 @@ export const AttendanceTracker = () => {
                           <td className="py-3.5 px-5 text-slate-700">
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{stf.date || 'Today'}</span>
+                              <span>{stf.displayDate || formatDateDisplay(stf.date || stf.rawDate, { withRelative: true }) || 'Today'}</span>
                             </div>
                           </td>
                           <td className="py-3.5 px-5 text-emerald-700 font-semibold">
                             {stf.checkInTime || '—'}
                           </td>
                           <td className="py-3.5 px-5 text-slate-700 font-semibold">
-                            {stf.checkOutTime || (isOnDuty ? <span className="text-amber-600 font-medium">In Progress</span> : '—')}
+                            {stf.checkOutTime || (isOnDuty ? '--' : '—')}
                           </td>
-                          <td className="py-3.5 px-5 font-bold text-slate-900">
-                            {isPunchedOut ? (
-                              <span className="text-emerald-700 font-bold">{stf.totalHours}</span>
-                            ) : isOnDuty ? (
-                              <span className="text-amber-600 font-medium">In progress</span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                          <td className="py-3.5 px-5 text-slate-600">
+                            {stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}
                           </td>
                           <td className="py-3.5 px-5">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                isOnDuty
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : isPunchedOut
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}
-                            >
-                              {isOnDuty ? <Clock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                              <span>{isOnDuty ? 'On Duty' : isPunchedOut ? 'Shift Completed' : 'Scheduled'}</span>
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-5 text-right">
                             {isOnDuty ? (
-                              <button
-                                type="button"
-                                disabled={loadingStaffId === stf.staffId}
-                                onClick={() => handleRecordPunch(stf.staffId)}
-                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
-                              >
-                                {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
-                                <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
-                              </button>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                <span>On Duty</span>
+                              </span>
                             ) : isPunchedOut ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Punched Out ({stf.checkOutTime})</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Shift Completed</span>
                               </span>
                             ) : (
-                              <button
-                                type="button"
-                                disabled={loadingStaffId === stf.staffId}
-                                onClick={() => handleRecordPunch(stf.staffId)}
-                                className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
-                              >
-                                {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
-                                <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
-                              </button>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span>Completed</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            {isToday ? (
+                              isOnDuty ? (
+                                <button
+                                  type="button"
+                                  disabled={loadingStaffId === stf.staffId}
+                                  onClick={() => handleRecordPunch(stf.staffId)}
+                                  className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
+                                >
+                                  {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                                  <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
+                                </button>
+                              ) : isPunchedOut ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Punched Out ({stf.checkOutTime})</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={loadingStaffId === stf.staffId}
+                                  onClick={() => handleRecordPunch(stf.staffId)}
+                                  className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
+                                >
+                                  {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                                  <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
+                                </button>
+                              )
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-mono">Archived</span>
                             )}
                           </td>
                         </tr>
                       );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -521,7 +802,7 @@ export const AttendanceTracker = () => {
         </form>
       </Modal>
 
-      {/* Unified Attendance Muster Roll & Shift Report Modal */}
+      {/* Unified Attendance Muster Roll & Shift Report Modal for Selected Date */}
       <Modal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
@@ -539,7 +820,7 @@ export const AttendanceTracker = () => {
                 PULSE FIT Athletic Club
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Audited check-in & shift logs for members and trainers.
+                Audited check-in & shift logs for <strong>{formatDateDisplay(selectedDate, { includeWeekday: true })}</strong>.
               </p>
             </div>
 
@@ -556,17 +837,60 @@ export const AttendanceTracker = () => {
           {/* KPI Summary Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <div className="text-[9px] uppercase font-bold text-slate-400">Total Punches</div>
-              <div className="text-base font-black text-slate-900 mt-0.5">{attendance.length + staffAttendanceLogs.length}</div>
+              <div className="text-[9px] uppercase font-bold text-slate-400">Total Day Punches</div>
+              <div className="text-base font-black text-slate-900 mt-0.5">{totalDayCheckins}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <div className="text-[9px] uppercase font-bold text-slate-400">Members Present</div>
-              <div className="text-base font-black text-emerald-600 mt-0.5">{attendance.length}</div>
+              <div className="text-base font-black text-emerald-600 mt-0.5">{dayMemberAttendance.length}</div>
             </div>
             <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <div className="text-[9px] uppercase font-bold text-slate-400">Staff On Duty</div>
+              <div className="text-[9px] uppercase font-bold text-slate-400">Staff On Duty/Shift</div>
               <div className="text-base font-black text-purple-600 mt-0.5">{staffOnDuty}</div>
             </div>
+          </div>
+
+          {/* Member table for Muster */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-100 text-slate-600 font-bold uppercase text-[9px]">
+                  <th className="py-2 px-3">Name</th>
+                  <th className="py-2 px-3">Plan / Role</th>
+                  <th className="py-2 px-3">Punch In</th>
+                  <th className="py-2 px-3">Punch Out</th>
+                  <th className="py-2 px-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {dayMemberAttendance.length === 0 && dayStaffAttendance.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-slate-400">No logs for this date.</td>
+                  </tr>
+                ) : (
+                  <>
+                    {dayMemberAttendance.map((m) => (
+                      <tr key={m.id}>
+                        <td className="py-2 px-3 font-semibold">{m.memberName || m.name}</td>
+                        <td className="py-2 px-3 text-slate-500">{m.planName}</td>
+                        <td className="py-2 px-3 text-emerald-700 font-bold">{m.checkInTime}</td>
+                        <td className="py-2 px-3 text-slate-500">{m.checkOutTime || '--'}</td>
+                        <td className="py-2 px-3 text-emerald-600 font-bold">{m.status}</td>
+                      </tr>
+                    ))}
+                    {dayStaffAttendance.map((s) => (
+                      <tr key={s.id} className="bg-slate-50/50">
+                        <td className="py-2 px-3 font-semibold text-purple-900">{s.staffName} (Staff)</td>
+                        <td className="py-2 px-3 text-slate-500">{s.role}</td>
+                        <td className="py-2 px-3 text-purple-700 font-bold">{s.checkInTime}</td>
+                        <td className="py-2 px-3 text-slate-500">{s.checkOutTime || '--'}</td>
+                        <td className="py-2 px-3 text-purple-600 font-bold">{s.status}</td>
+                      </tr>
+                    ))}
+                  </>
+                )}
+              </tbody>
+            </table>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-400">

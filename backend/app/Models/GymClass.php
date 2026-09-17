@@ -13,6 +13,7 @@ class GymClass extends Model
         'gym_id',
         'name',
         'trainer_id',
+        'instructor_name',
         'time',
         'days',
         'capacity',
@@ -20,6 +21,10 @@ class GymClass extends Model
         'category',
         'room',
         'difficulty',
+        'duration',
+        'status',
+        'color',
+        'icon',
     ];
 
     public function gym()
