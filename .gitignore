@@ -47,3 +47,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Deployment keys
+hostinger_deploy_key*

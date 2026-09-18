@@ -1,0 +1,134 @@
+name: Deploy to Hostinger Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production_deployment
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Hostinger
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Step 1: Checkout Repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js for React (Vite) Build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      # Step 3: Install Dependencies & Build Frontend
+      - name: Build React Frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_URL || '' }}
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # Step 4: Copy Frontend Dist Build into Laravel Public Directory
+      - name: Copy Frontend Assets to Laravel Public
+        run: |
+          echo "Copying compiled React assets from frontend/dist/ to backend/public/..."
+          cp -r frontend/dist/* backend/public/
+          ls -la backend/public/
+
+      # Step 5: Set up PHP for Composer Dependencies
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, curl, zip
+          coverage: none
+
+      # Step 6: Install Composer Dependencies (Production only, no dev)
+      - name: Install Composer Dependencies
+        working-directory: ./backend
+        run: |
+          composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      # Step 7: Configure SSH Keys for Hostinger
+      - name: Setup SSH Connection
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          PORT="${{ secrets.SSH_PORT || '65002' }}"
+          ssh-keyscan -p $PORT -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 644 ~/.ssh/known_hosts
+
+      # Step 8: Sync Application Files to Hostinger via Rsync
+      - name: Sync Files to Hostinger via Rsync
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
+          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR || 'public_html' }}
+        run: |
+          echo "Starting rsync deployment to $SSH_USER@$SSH_HOST:$TARGET_DIR ..."
+          
+          rsync -avz --delete \
+            -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
+            --exclude='.env' \
+            --exclude='.git*' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='storage/app/public/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/logs/*' \
+            backend/ "$SSH_USER@$SSH_HOST:$TARGET_DIR/"
+
+      # Step 9: Post-Deploy Remote Commands on Hostinger
+      - name: Execute Post-Deployment Commands via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 65002 }}
+          script: |
+            TARGET="${{ secrets.SSH_TARGET_DIR || 'public_html' }}"
+            cd "$TARGET"
+            
+            echo "Working in directory: $(pwd)"
+            
+            # 1. Ensure required storage and cache directories exist
+            mkdir -p storage/framework/{sessions,views,cache/data} storage/logs bootstrap/cache
+            
+            # 2. Fix directory permissions (775 for storage and cache)
+            chmod -R 775 storage bootstrap/cache
+            
+            # 3. Create storage symlink if not already created
+            php artisan storage:link || true
+            
+            # 4. Run database migrations safely
+            echo "Running Laravel database migrations..."
+            php artisan migrate --force
+            
+            # 5. Optimize configuration, routes, and view caches
+            echo "Caching configuration and routes for production..."
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            
+            # 6. Restart background queue workers if configured
+            php artisan queue:restart || true
+            
+            echo "Deployment to Hostinger completed successfully!"
