@@ -70,4 +70,7 @@ require $backendPath . '/vendor/autoload.php';
 /** @var \Illuminate\Foundation\Application $app */
 $app = require_once $backendPath . '/bootstrap/app.php';
 
+// Prevent Symfony prepared base URL from stripping /api
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+
 $app->handleRequest(\Illuminate\Http\Request::capture());
