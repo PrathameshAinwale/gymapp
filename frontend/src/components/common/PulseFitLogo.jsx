@@ -48,24 +48,29 @@ export const ArchFitLogo = ({
     );
   }
 
-  // Variant 2: FULL HERO BRANDING (Hero Banner + Glowing Effect + Tagline)
+  // Variant 2: FULL HERO BRANDING (Hero Emblem + Glowing Effect + ARCHFIT Wordmark + Tagline)
   if (variant === 'full') {
     return (
       <div
         className={`flex flex-col items-center justify-center text-center select-none ${className}`}
         onClick={onClick}
       >
-        {/* Glowing Logo Banner */}
-        <div className="relative mb-3 flex items-center justify-center">
-          <div className="absolute -inset-4 bg-lime-500/20 rounded-2xl blur-xl pointer-events-none" />
-          <div className="relative px-4 py-2 rounded-2xl bg-black border border-lime-500/40 shadow-xl shadow-lime-950/40">
+        {/* Glowing Logo Card */}
+        <div className="relative mb-2 flex items-center justify-center">
+          <div className="absolute -inset-3 bg-lime-500/25 rounded-2xl blur-xl pointer-events-none" />
+          <div className="relative p-2.5 rounded-2xl bg-black border border-lime-500/40 shadow-xl shadow-lime-950/40">
             <img
               src={archFitLogoImg}
-              alt="ArchFit"
-              className={`${currentSize.heroH} w-auto object-contain drop-shadow-[0_0_12px_rgba(132,204,22,0.4)]`}
+              alt="ArchFit Logo"
+              className="h-20 sm:h-24 w-20 sm:w-24 object-contain drop-shadow-[0_0_12px_rgba(132,204,22,0.4)]"
               loading="eager"
             />
           </div>
+        </div>
+
+        {/* Brand Wordmark */}
+        <div className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 mt-1">
+          ARCH<span className="text-lime-500">FIT</span>
         </div>
 
         {/* Tagline 1 */}
@@ -88,11 +93,11 @@ export const ArchFitLogo = ({
   // Variant 3: HORIZONTAL (Navbar & Sidebar layout)
   return (
     <div
-      className={`inline-flex items-center gap-2 select-none min-w-0 ${className}`}
+      className={`inline-flex items-center gap-2.5 select-none min-w-0 ${className}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
     >
-      <div className={`relative px-2.5 py-1 rounded-xl bg-black border border-lime-500/35 shadow-xs shadow-lime-950/20 flex items-center shrink-0 ${animate ? 'hover:scale-102 transition-transform duration-200' : ''}`}>
+      <div className={`relative p-1 rounded-xl bg-black border border-lime-500/35 shadow-xs shadow-lime-950/20 flex items-center justify-center shrink-0 ${animate ? 'hover:scale-102 transition-transform duration-200' : ''}`}>
         <img
           src={archFitLogoImg}
           alt="ArchFit"
@@ -101,8 +106,17 @@ export const ArchFitLogo = ({
         />
       </div>
 
+      <div className="flex flex-col justify-center leading-none">
+        <div className="flex items-center text-sm sm:text-base font-black tracking-tight text-slate-900">
+          <span>ARCH</span><span className="text-lime-500">FIT</span>
+        </div>
+        <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 tracking-wider uppercase mt-0.5">
+          Athletic Club
+        </span>
+      </div>
+
       {showTagline && (
-        <span className="text-[9px] font-black tracking-widest text-lime-600 uppercase truncate hidden sm:inline">
+        <span className="text-[9px] font-black tracking-widest text-lime-600 uppercase truncate hidden sm:inline ml-2 pl-2 border-l border-slate-200">
           MANAGE • MOTIVATE • GROW
         </span>
       )}
