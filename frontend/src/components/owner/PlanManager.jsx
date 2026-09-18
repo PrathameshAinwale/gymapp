@@ -102,7 +102,7 @@ export const PlanManager = () => {
     period: 'Monthly (1 Month)',
     durationMonths: 1,
     popular: false,
-    featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nPulseFit Mobile App Access\n1 Free Fitness & BMI Assessment'
+    featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nArchFit Mobile App Access\n1 Free Fitness & BMI Assessment'
   });
 
   // Form State for Add PT / Recovery / Class
@@ -156,7 +156,7 @@ export const PlanManager = () => {
         period: 'Monthly (1 Month)',
         durationMonths: 1,
         popular: false,
-        featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nPulseFit Mobile App Access\n1 Free Fitness & BMI Assessment'
+        featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nArchFit Mobile App Access\n1 Free Fitness & BMI Assessment'
       });
       addToast('New gym membership package published successfully!', 'success');
     } finally {

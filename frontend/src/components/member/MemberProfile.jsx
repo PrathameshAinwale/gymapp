@@ -320,7 +320,7 @@ export const MemberProfile = () => {
           className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0"
         >
           <LogOut className="w-4 h-4" />
-          <span>Sign Out of PulseFit</span>
+          <span>Sign Out of ArchFit</span>
         </button>
       </div>
 

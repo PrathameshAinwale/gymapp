@@ -11,10 +11,10 @@ const isRunningInCapacitor = () => {
 
 const getDefaultHosts = () => {
   if (typeof window === 'undefined') return ['http://127.0.0.1:8000/api/v1'];
-  
+
   const inCapacitor = isRunningInCapacitor();
   const currentHost = window.location.hostname;
-  
+
   const hosts = [];
 
   // If running in browser with a specific IP or domain (e.g. 192.168.1.48 or custom domain)
@@ -107,16 +107,16 @@ const apiFetch = async (urlOrPath, options = {}) => {
   const isLocal = typeof window !== 'undefined' && (currentHost === 'localhost' || currentHost === '127.0.0.1');
   const hostsToTry = isLocal
     ? Array.from(new Set([
-        `http://${currentHost}:8000/api/v1`,
-        'http://127.0.0.1:8000/api/v1',
-        'http://localhost:8000/api/v1'
-      ]))
+      `http://${currentHost}:8000/api/v1`,
+      'http://127.0.0.1:8000/api/v1',
+      'http://localhost:8000/api/v1'
+    ]))
     : Array.from(new Set([
-        activeBaseUrl,
-        ...CANDIDATE_API_HOSTS,
-        'http://127.0.0.1:8000/api/v1',
-        'http://localhost:8000/api/v1'
-      ])).filter(Boolean);
+      activeBaseUrl,
+      ...CANDIDATE_API_HOSTS,
+      'http://127.0.0.1:8000/api/v1',
+      'http://localhost:8000/api/v1'
+    ])).filter(Boolean);
 
   let lastError = null;
   const timeoutMs = isLocal ? 6000 : 10000;

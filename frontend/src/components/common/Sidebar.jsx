@@ -267,15 +267,10 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
           <div className="drawer-panel border-r border-slate-200">
             {/* Drawer Header */}
             <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 safe-top shrink-0">
-              <div className="flex items-center gap-2.5">
-                <PulseFitLogo variant="icon" size={36} />
-                <div>
-                  <div className="font-heading font-black tracking-tight text-sm text-slate-900 leading-tight">
-                    PULSE<span className="text-emerald-600">FIT</span>
-                  </div>
-                  <div className={`text-[10px] font-bold ${accent.text} uppercase tracking-wide`}>
-                    {accent.label}
-                  </div>
+              <div className="flex items-center gap-2">
+                <PulseFitLogo variant="horizontal" size="sm" />
+                <div className={`text-[10px] font-bold ${accent.text} uppercase tracking-wide ml-1`}>
+                  {accent.label}
                 </div>
               </div>
 

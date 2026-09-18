@@ -989,11 +989,11 @@ export const InvoicesPage = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
-                      PF
+                      AF
                     </div>
                     <div>
                       <h2 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
-                        {gymInfo?.name || 'PULSEFIT ATHLETIC CLUB'}
+                        {gymInfo?.name || 'ARCHFIT ATHLETIC CLUB'}
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
                         {gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076'}
@@ -1032,7 +1032,7 @@ export const InvoicesPage = () => {
                     </div>
                     <div className="text-slate-600 flex items-center gap-1.5 pt-0.5">
                       <User className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'PF-M-101'}</strong></span>
+                      <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'AF-M-101'}</strong></span>
                     </div>
                     <div className="text-slate-600 flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-slate-400" />
@@ -1100,7 +1100,7 @@ export const InvoicesPage = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Turnstile QR Pass on PulseFit Mobile App</span>
+                      <span>Turnstile QR Pass on ArchFit Mobile App</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1165,7 +1165,7 @@ export const InvoicesPage = () => {
                       <span>Digitally Verified</span>
                     </div>
                     <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
-                    <div className="text-[10px] text-slate-400">PulseFit Athletic Club</div>
+                    <div className="text-[10px] text-slate-400">ArchFit Athletic Club</div>
                   </div>
                 </div>
               </div>

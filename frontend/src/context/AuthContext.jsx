@@ -12,12 +12,12 @@ export const defaultAccounts = [
     name: "Vikramaditya Singhania",
     role: "superadmin",
     roleLabel: "Superadmin & General Director",
-    email: "owner@pulsefit.in",
+    email: "owner@archfit.in",
     username: "owner",
     password: "admin123",
     mustChangePassword: false,
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
-    gymName: "PULSE FIT Athletic Club",
+    gymName: "ARCHFIT Athletic Club",
     badge: "Superadmin Access"
   },
   {
@@ -28,12 +28,12 @@ export const defaultAccounts = [
     name: "Rajesh K. Mehta",
     role: "manager",
     roleLabel: "Operations Manager",
-    email: "manager@pulsefit.in",
+    email: "manager@archfit.in",
     username: "manager",
     password: "manager123",
     mustChangePassword: false,
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80",
-    gymName: "PULSE FIT Athletic Club",
+    gymName: "ARCHFIT Athletic Club",
     badge: "Manager Access"
   },
   {
@@ -44,12 +44,12 @@ export const defaultAccounts = [
     name: "Sunita Deshmukh",
     role: "accounts",
     roleLabel: "Senior Finance Officer",
-    email: "accounts@pulsefit.in",
+    email: "accounts@archfit.in",
     username: "accounts",
     password: "accounts123",
     mustChangePassword: false,
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80",
-    gymName: "PULSE FIT Athletic Club",
+    gymName: "ARCHFIT Athletic Club",
     badge: "Accounts Access"
   },
   {
@@ -60,12 +60,12 @@ export const defaultAccounts = [
     name: "Coach Alex Rivers",
     role: "trainer",
     roleLabel: "Senior Coach & CPT",
-    email: "trainer@pulsefit.in",
+    email: "trainer@archfit.in",
     username: "trainer",
     password: "trainer123",
     mustChangePassword: false,
     avatar: "https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80",
-    gymName: "PULSE FIT Athletic Club",
+    gymName: "ARCHFIT Athletic Club",
     badge: "Trainer Access",
     specialty: "Hypertrophy & Powerlifting"
   },
@@ -77,16 +77,16 @@ export const defaultAccounts = [
     name: "Aarav Sharma",
     role: "member",
     roleLabel: "Gold Club Member",
-    email: "member@pulsefit.in",
+    email: "member@archfit.in",
     username: "member",
     password: "member123",
     mustChangePassword: false,
     avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
-    gymName: "PULSE FIT Athletic Club",
+    gymName: "ARCHFIT Athletic Club",
     badge: "Member Pass",
     planName: "Gold Quarterly Fitness",
     attendanceStreak: 14,
-    qrPassCode: "PF-M-101-AARAV"
+    qrPassCode: "AF-M-101-AARAV"
   }
 ];
 

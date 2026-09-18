@@ -95,14 +95,14 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   const margin = 16;
   const contentWidth = pageWidth - margin * 2;
 
-  const gymName = gymInfo?.name || 'PULSEFIT ATHLETIC CLUB';
+  const gymName = gymInfo?.name || 'ARCHFIT ATHLETIC CLUB';
   const gymAddress = gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076';
   const gymGstin = gymInfo?.gstin || '27AAPCP1234F1Z8';
   const gymPhone = gymInfo?.phone || '+91 98201 54321';
-  const gymEmail = gymInfo?.email || 'billing@pulsefit.in';
+  const gymEmail = gymInfo?.email || 'billing@archfit.in';
 
   const memberName = member?.name || invoice.memberName || invoice.member_name || 'Valued Member';
-  const memberId = member?.id || invoice.memberId || 'PF-M-101';
+  const memberId = member?.id || invoice.memberId || 'AF-M-101';
   const memberPhone = member?.phone || invoice.phone || 'N/A';
   const memberEmail = member?.email || invoice.email || 'N/A';
 
@@ -286,7 +286,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
     doc.text('• Full Access to Strength & Cardio Recovery Facilities', margin + 4, curY + 41);
   } else {
     doc.text('• Unlimited Access to Cardio, Strength & Free Weight Zones', margin + 4, curY + 26);
-    doc.text('• Automated Turnstile QR Pass on PulseFit Mobile App', margin + 4, curY + 31);
+    doc.text('• Automated Turnstile QR Pass on ArchFit Mobile App', margin + 4, curY + 31);
     doc.text('• Locker Facilities, Steam Room & Shower Access', margin + 4, curY + 36);
     doc.text('• Complimentary InBody Body Composition & BMI Assessment', margin + 4, curY + 41);
   }
@@ -384,7 +384,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setTextColor(100, 116, 139);
   doc.text('1. Present your Mobile App QR Turnstile Pass at the front gate for entry.', margin, curY + 5);
   doc.text('2. Membership subscriptions once processed are non-transferable & non-refundable.', margin, curY + 9.5);
-  doc.text('3. Inquiries & Freeze requests: Contact front desk or email billing@pulsefit.in.', margin, curY + 14);
+  doc.text('3. Inquiries & Freeze requests: Contact front desk or email billing@archfit.in.', margin, curY + 14);
 
   // Right: Clean Digital Stamp
   const sealX = pageWidth - margin - 52;
@@ -395,7 +395,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(5, 150, 105);
-  doc.text('PULSEFIT ATHLETIC CLUB', sealX + 26, curY + 4, { align: 'center' });
+  doc.text('ARCHFIT ATHLETIC CLUB', sealX + 26, curY + 4, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(6.5);
@@ -411,7 +411,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('Thank you for choosing PulseFit Athletic Club • Official Tax Invoice & Payment Receipt', pageWidth / 2, pageHeight - margin + 2, { align: 'center' });
+  doc.text('Thank you for choosing ArchFit Athletic Club • Official Tax Invoice & Payment Receipt', pageWidth / 2, pageHeight - margin + 2, { align: 'center' });
 
   const blob = doc.output('blob');
   const fileName = `Receipt_${invoiceId}_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
@@ -448,7 +448,7 @@ export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToas
     const amount = Number(invoice.amount || 0).toLocaleString('en-IN');
     const planName = invoice.planName || 'Gym Membership Pass';
 
-    const messageText = `*PULSEFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with PulseFit!`;
+    const messageText = `*ARCHFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`;
 
     // 1. Native Web Share API with Files
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {

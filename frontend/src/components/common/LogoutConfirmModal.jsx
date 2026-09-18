@@ -46,7 +46,7 @@ export const LogoutConfirmModal = () => {
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xs mx-auto">
             {isLoggingOut
               ? 'Securing session and clearing credentials, please wait...'
-              : 'Are you sure you want to log out of your PulseFit account?'}
+              : 'Are you sure you want to log out of your ArchFit account?'}
           </p>
         </div>
 

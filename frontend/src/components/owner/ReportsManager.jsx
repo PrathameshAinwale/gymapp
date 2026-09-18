@@ -154,7 +154,7 @@ export const ReportsManager = ({ setActiveTab }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `PulseFit_Report_${reportCategory}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `ArchFit_Report_${reportCategory}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     addToast(`Exported ${currentData.length} records to CSV!`, 'success');

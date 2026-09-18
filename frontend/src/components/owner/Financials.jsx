@@ -122,8 +122,8 @@ export const Financials = () => {
   const totalInflow = currentInflowSum > 0
     ? currentInflowSum
     : (ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0
-        ? Number(ownerStats.monthlyRevenue)
-        : 0);
+      ? Number(ownerStats.monthlyRevenue)
+      : 0);
 
   // Dynamic Expenses (Cash Outflow) Calculation
   const isFixedCategory = (cat = '') => {
@@ -237,7 +237,7 @@ export const Financials = () => {
 
   return (
     <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
-      
+
       {/* 1. HEADER BANNER */}
       <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
         <div className="min-w-0">
@@ -290,7 +290,7 @@ export const Financials = () => {
 
       {/* 2. CASH INFLOW VS OUTFLOW HIGH-IMPACT METRIC CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
-        
+
         {/* Total Cash Inflow */}
         <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
@@ -339,11 +339,10 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('cashflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            financialTab === 'cashflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${financialTab === 'cashflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
-          }`}
+            }`}
         >
           Overview
         </button>
@@ -351,11 +350,10 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('inflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-            financialTab === 'inflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'inflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
-          }`}
+            }`}
         >
           <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
           <span>Inflow ({invoices.length})</span>
@@ -364,11 +362,10 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('outflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-            financialTab === 'outflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'outflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
-          }`}
+            }`}
         >
           <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
           <span>Outflow ({expenses.length})</span>
@@ -378,7 +375,7 @@ export const Financials = () => {
       {/* TAB 1: CASH FLOW OVERVIEW (INFLOW VS OUTFLOW) */}
       {financialTab === 'cashflow' && (
         <div className="space-y-3 sm:space-y-6">
-          
+
           {/* Visual Inflow vs Outflow Comparison Bar */}
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm space-y-3 sm:space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -456,7 +453,7 @@ export const Financials = () => {
 
           {/* Side-by-Side Recent Cash Movements */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-            
+
             {/* Left: Recent Cash Inflows (Invoices) */}
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between pb-2 sm:pb-3 border-b border-slate-100">

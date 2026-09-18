@@ -380,7 +380,7 @@ export const StaffAccountManager = () => {
               <input
                 type="email"
                 required
-                placeholder="e.g. manager@pulsefit.in"
+                placeholder="e.g. manager@archfit.in"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
@@ -524,7 +524,7 @@ export const StaffAccountManager = () => {
               type="button"
               onClick={() => {
                 copyToClipboard(
-                  `PulseFit Login Credentials:\nRole: ${createdCredentials.roleLabel}\nLogin ID: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`,
+                  `ArchFit Login Credentials:\nRole: ${createdCredentials.roleLabel}\nLogin ID: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`,
                   'created'
                 );
               }}

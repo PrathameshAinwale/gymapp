@@ -366,7 +366,7 @@ export const TrainerList = () => {
                 <input
                   type="email"
                   required
-                  placeholder="coach@pulsefit.com"
+                  placeholder="coach@archfit.in"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"

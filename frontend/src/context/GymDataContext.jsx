@@ -60,7 +60,7 @@ const SEED_PLANS = [
     features: [
       "Access to all cardio & strength training zones",
       "Locker, steam room & shower facilities",
-      "PulseFit Mobile App QR Turnstile Pass",
+      "ArchFit Mobile App QR Turnstile Pass",
       "1 Initial InBody body composition scan"
     ],
     activeSubscribers: 142
@@ -111,7 +111,7 @@ const SEED_PLANS = [
       "24/7 VIP Gym floor, Lounge & Steam access",
       "Weekly 1-on-1 Personal Training Session",
       "Customized Indian Vegetarian / Non-Veg Macro Diet",
-      "Free PulseFit Athlete Kit (Duffel Bag, Shaker & Towel)",
+      "Free ArchFit Athlete Kit (Duffel Bag, Shaker & Towel)",
       "Complimentary Post-Workout Protein Shakes"
     ],
     activeSubscribers: 94
@@ -123,7 +123,7 @@ const SEED_TRAINERS = [
     id: "trn-2",
     userId: 2,
     name: "Coach Alex Rivers",
-    email: "trainer@pulsefit.in",
+    email: "trainer@archfit.in",
     phone: "+91 98201 11223",
     specialty: "Hypertrophy & Powerlifting",
     experience: "8+ Years",
@@ -138,7 +138,7 @@ const SEED_TRAINERS = [
     id: "trn-3",
     userId: 3,
     name: "Coach Elena Rostova",
-    email: "elena.r@pulsefit.com",
+    email: "elena.r@archfit.in",
     phone: "+91 98201 22334",
     specialty: "Fat Loss & Functional Movement",
     experience: "6 Years",
@@ -153,7 +153,7 @@ const SEED_TRAINERS = [
     id: "trn-4",
     userId: 4,
     name: "Coach Marcus Thorne",
-    email: "marcus.t@pulsefit.com",
+    email: "marcus.t@archfit.in",
     phone: "+91 98201 33445",
     specialty: "Yoga, Mobility & Spine Rehab",
     experience: "10 Years",
@@ -171,7 +171,7 @@ const SEED_MEMBERS = [
     id: "mem-5",
     userId: 5,
     name: "Aarav Sharma",
-    email: "member@pulsefit.in",
+    email: "member@archfit.in",
     phone: "+91 98765 43210",
     avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
     planId: "plan-2",
@@ -442,7 +442,7 @@ const SEED_ENQUIRIES = [
 const SEED_PRODUCTS = [
   { id: "prd-1", numericId: 1, name: "Optimum Nutrition Gold Standard 100% Whey (5 lbs)", category: "Supplements", price: 6899, costPrice: 5200, stock: 18, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80" },
   { id: "prd-2", numericId: 2, name: "MuscleBlaze Micronized Creatine Monohydrate (250g)", category: "Supplements", price: 999, costPrice: 650, stock: 26, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?w=200&auto=format&fit=crop&q=80" },
-  { id: "prd-3", numericId: 3, name: "PulseFit Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200&auto=format&fit=crop&q=80" },
+  { id: "prd-3", numericId: 3, name: "ArchFit Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200&auto=format&fit=crop&q=80" },
   { id: "prd-4", numericId: 4, name: "Cellucor C4 Original Pre-Workout (30 Servings)", category: "Supplements", price: 2399, costPrice: 1700, stock: 14, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=200&auto=format&fit=crop&q=80" },
   { id: "prd-5", numericId: 5, name: "Raw Electrolyte & Hydration Drink (500ml)", category: "Beverages", price: 120, costPrice: 75, stock: 60, minStockAlert: 15, status: "In Stock", image: "https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=200&auto=format&fit=crop&q=80" }
 ];
@@ -450,7 +450,7 @@ const SEED_PRODUCTS = [
 const SEED_EXPENSES = [
   { id: "exp-1", title: "Facility Commercial Lease - Powai Club", category: "Rent", vendor: "Hiranandani Realtors Pvt Ltd", amount: 120000, date: "2026-08-01", paymentMode: "Bank Transfer", refNo: "LEASE-AUG-2026", notes: "Monthly commercial premises rent." },
   { id: "exp-2", title: "Adani Electricity Powai HT Commercial", category: "Utilities", vendor: "Adani Electricity Mumbai Ltd", amount: 45000, date: "2026-08-05", paymentMode: "UPI", refNo: "BILL-AUG-9912", notes: "HVAC central cooling & power." },
-  { id: "exp-3", title: "Trainer & Staff Commissions Payout", category: "Salaries", vendor: "Pulse Fit Payroll Disbursement", amount: 48000, date: "2026-08-07", paymentMode: "Bank Transfer", refNo: "SAL-AUG-01", notes: "Trainer commissions & staff." },
+  { id: "exp-3", title: "Trainer & Staff Commissions Payout", category: "Salaries", vendor: "ArchFit Payroll Disbursement", amount: 48000, date: "2026-08-07", paymentMode: "Bank Transfer", refNo: "SAL-AUG-01", notes: "Trainer commissions & staff." },
   { id: "exp-4", title: "Life Fitness & Technogym AMC Inspection", category: "Equipment AMC", vendor: "Fitness World Services Mumbai", amount: 14500, date: "2026-08-10", paymentMode: "Card", refNo: "AMC-Q3-004", notes: "Quarterly cable & belt lubrication." }
 ];
 
@@ -835,11 +835,11 @@ export const GymDataProvider = ({ children }) => {
   const { currentUser } = useAuth();
 
   const [gymInfo, setGymInfo] = useState({
-    name: "PULSE FIT ATHLETIC CLUB",
+    name: "ARCHFIT ATHLETIC CLUB",
     tagline: "India's Premier Strength & Conditioning Hub",
     address: "Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076",
     phone: "+91 98201 54321",
-    email: "contact@pulsefit.in",
+    email: "contact@archfit.in",
     operatingHours: "Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM",
     currency: "₹"
   });

@@ -78,7 +78,7 @@ export const LoginPage = () => {
                 <input
                   type="email"
                   required
-                  placeholder="name@pulsefit.in"
+                  placeholder="user@archfit.in or your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500 transition-all font-medium"

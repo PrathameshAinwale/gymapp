@@ -202,7 +202,7 @@ export const AddMemberModal = ({
           features: [
             'Access to gym floor & cardio machines',
             'Locker, steam room & shower access',
-            'PulseFit Mobile App Access'
+            'ArchFit Mobile App Access'
           ]
         });
         if (created?.id) {

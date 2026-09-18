@@ -33,8 +33,8 @@ class DatabaseSeeder extends Seeder
 
         // 0. Create the primary gym first so all FK references to gyms(id=1) work
         $gym = Gym::firstOrCreate(['id' => 1], [
-            'name'    => 'PULSE FIT Athletic Club',
-            'email'   => 'contact@pulsefit.in',
+            'name'    => 'ARCHFIT Athletic Club',
+            'email'   => 'contact@archfit.in',
             'phone'   => '+91 98201 54321',
             'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
             'city'    => 'Mumbai',
@@ -43,13 +43,13 @@ class DatabaseSeeder extends Seeder
 
         // 1. Gym General Settings
         GymSetting::create([
-            'name' => 'PULSE FIT ATHLETIC CLUB',
+            'name' => 'ARCHFIT ATHLETIC CLUB',
             'tagline' => "India's Premier Strength & Conditioning Hub",
             'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
             'phone' => '+91 98201 54321',
 
 
-            'email' => 'contact@pulsefit.in',
+            'email' => 'contact@archfit.in',
             'operating_hours' => 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
             'currency' => '₹',
         ]);
@@ -65,7 +65,7 @@ class DatabaseSeeder extends Seeder
             'features' => [
                 'Access to all cardio & strength training zones',
                 'Locker, steam room & shower facilities',
-                'PulseFit Mobile App QR Turnstile Pass',
+                'ArchFit Mobile App QR Turnstile Pass',
                 '1 Initial InBody body composition scan'
             ],
             'active_subscribers' => 142,
@@ -116,7 +116,7 @@ class DatabaseSeeder extends Seeder
                 '24/7 VIP Gym floor, Lounge & Steam access',
                 'Weekly 1-on-1 Personal Training Session',
                 'Customized Indian Vegetarian / Non-Veg Macro Diet',
-                'Free PulseFit Athlete Kit (Duffel Bag, Shaker & Towel)',
+                'Free ArchFit Athlete Kit (Duffel Bag, Shaker & Towel)',
                 'Complimentary Post-Workout Protein Shakes'
             ],
             'active_subscribers' => 94,
@@ -125,7 +125,7 @@ class DatabaseSeeder extends Seeder
         // 3. Owner Account
         $owner = User::create([
             'name' => 'Vikramaditya Singhania',
-            'email' => 'owner@pulsefit.in',
+            'email' => 'owner@archfit.in',
             'role' => 'owner',
             'password' => Hash::make('admin123'),
             'phone' => '+91 98201 54321',

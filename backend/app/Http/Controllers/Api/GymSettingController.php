@@ -30,11 +30,11 @@ class GymSettingController extends Controller
         }
 
         $setting = GymSetting::firstOrCreate([], [
-            'name' => 'PULSE FIT ATHLETIC CLUB',
+            'name' => 'ARCHFIT ATHLETIC CLUB',
             'tagline' => "India's Premier Strength & Conditioning Hub",
             'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
             'phone' => '+91 98201 54321',
-            'email' => 'contact@pulsefit.in',
+            'email' => 'contact@archfit.in',
             'operating_hours' => 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
             'currency' => '₹',
         ]);

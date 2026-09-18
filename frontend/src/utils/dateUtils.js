@@ -1,5 +1,5 @@
 /**
- * PulseFit Date & Attendance Utility Functions
+ * ArchFit Date & Attendance Utility Functions
  */
 
 export const getTodayIso = () => {

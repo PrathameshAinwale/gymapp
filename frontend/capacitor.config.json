@@ -1,6 +1,6 @@
 {
-  "appId": "in.pulsefit.app",
-  "appName": "PulseFit",
+  "appId": "in.archfit.app",
+  "appName": "ArchFit",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
