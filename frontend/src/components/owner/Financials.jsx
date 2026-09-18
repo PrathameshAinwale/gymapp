@@ -288,8 +288,8 @@ export const Financials = () => {
         </div>
       </div>
 
-      {/* 2. CASH INFLOW & OUTFLOW COMPACT METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+      {/* 2. CASH INFLOW & OUTFLOW METRIC CARDS (HALF AND HALF FULL WIDTH) */}
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 w-full">
         {/* Total Cash Inflow */}
         <div
           onClick={() => setFinancialTab('inflow')}
