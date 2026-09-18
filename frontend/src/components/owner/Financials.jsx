@@ -288,48 +288,121 @@ export const Financials = () => {
         </div>
       </div>
 
-      {/* 2. CASH INFLOW VS OUTFLOW HIGH-IMPACT METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
-
+      {/* 2. CASH INFLOW & OUTFLOW COMPACT METRIC CARDS (Dashboard Customize Card Style) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Cash Inflow */}
-        <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">
-              Cash Inflow
-            </span>
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <ArrowDownLeft className="w-3 h-3 sm:w-4 sm:h-4" />
+        <div
+          onClick={() => setFinancialTab('inflow')}
+          className="group relative bg-white border border-slate-200 hover:border-emerald-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                Cash Inflow
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 inline-block">
+                Subscriptions
+              </span>
+            </div>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+              <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="my-1.5 sm:my-2.5">
-            <div className="text-xl sm:text-3xl font-black text-emerald-600">
+          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
+            <div className="text-lg sm:text-xl font-black text-emerald-600 tracking-tight">
               ₹{totalInflow.toLocaleString('en-IN')}
             </div>
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 pt-1.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="hidden sm:inline">Inflow Source:</span>
-            <span className="font-semibold text-slate-600 truncate">Subscriptions</span>
+            <div className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+              <span>View</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
           </div>
         </div>
 
         {/* Total Cash Outflow */}
-        <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 truncate">
-              Cash Outflow
-            </span>
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
-              <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
+        <div
+          onClick={() => setFinancialTab('outflow')}
+          className="group relative bg-white border border-slate-200 hover:border-rose-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                Cash Outflow
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 inline-block">
+                Overheads & Rent
+              </span>
+            </div>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
+              <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="my-1.5 sm:my-2.5">
-            <div className="text-xl sm:text-3xl font-black text-rose-600">
+          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
+            <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">
               ₹{totalOutflow.toLocaleString('en-IN')}
             </div>
+            <div className="flex items-center gap-0.5 text-[10px] font-bold text-rose-700 group-hover:translate-x-0.5 transition-transform">
+              <span>View</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
           </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 pt-1.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="hidden sm:inline">Major Outflow:</span>
-            <span className="font-semibold text-slate-600 truncate">Rent & Overheads</span>
+        </div>
+
+        {/* Net Cash Balance */}
+        <div
+          onClick={() => setFinancialTab('cashflow')}
+          className="group relative bg-white border border-slate-200 hover:border-blue-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                Net Cash Balance
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200 inline-block">
+                Margin: {netMarginPct}%
+              </span>
+            </div>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+              <Wallet className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
+            <div className={`text-lg sm:text-xl font-black tracking-tight ${netProfit >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+              ₹{netProfit.toLocaleString('en-IN')}
+            </div>
+            <div className="flex items-center gap-0.5 text-[10px] font-bold text-blue-700 group-hover:translate-x-0.5 transition-transform">
+              <span>Overview</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
+          </div>
+        </div>
+
+        {/* Total Inflow Collections Count */}
+        <div
+          onClick={() => setFinancialTab('inflow')}
+          className="group relative bg-white border border-slate-200 hover:border-purple-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                Receipts / Ledger
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-purple-50 text-purple-700 border-purple-200 inline-block">
+                {gymInvoices.length} Paid
+              </span>
+            </div>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+              <Receipt className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
+            <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+              {gymInvoices.length + gymExpenses.length}
+            </div>
+            <div className="flex items-center gap-0.5 text-[10px] font-bold text-purple-700 group-hover:translate-x-0.5 transition-transform">
+              <span>Ledger</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
           </div>
         </div>
       </div>

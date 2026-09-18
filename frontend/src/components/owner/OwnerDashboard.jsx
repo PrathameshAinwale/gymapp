@@ -69,6 +69,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     trainers = [],
     plans = [],
     invoices = [],
+    expenses = [],
     ownerStats,
     revenueAnalytics,
     attendance = [],
@@ -338,6 +339,16 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
         { month: 'Current', revenue: totalRevenue }
       ];
 
+  const gymExpensesSum = (expenses || [])
+    .filter((exp) => {
+      if (!currentGymId) return true;
+      const expGym = Number(exp.gymId || exp.gym_id);
+      return !expGym || expGym === currentGymId;
+    })
+    .reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+  const netCashBalance = (totalRevenue || gymInflowSum) - gymExpensesSum;
+
   // Dynamic values lookup map for all available stat cards
   const cardValuesMap = {
     active_members: activeMembersCount,
@@ -345,6 +356,8 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     renewals_due: expiredMembersCount,
     hot_leads: enquiries.length,
     monthly_revenue: `₹${totalRevenue.toLocaleString('en-IN')}`,
+    cash_outflow: `₹${gymExpensesSum.toLocaleString('en-IN')}`,
+    net_cashflow: `₹${netCashBalance.toLocaleString('en-IN')}`,
     today_checkins: todayAttendance.length,
     pt_sessions: ptSessions.length,
     classes_today: classes.length,

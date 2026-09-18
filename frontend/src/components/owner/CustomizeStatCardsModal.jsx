@@ -19,7 +19,9 @@ import {
   PauseCircle,
   FileText,
   Award,
-  Layers
+  Layers,
+  ArrowUpRight,
+  TrendingUp
 } from 'lucide-react';
 
 export const ALL_STAT_CARD_DEFINITIONS = [
@@ -74,6 +76,32 @@ export const ALL_STAT_CARD_DEFINITIONS = [
     tab: 'financials',
     defaultActive: true,
     restricted: true // Hidden for managers
+  },
+  {
+    id: 'cash_outflow',
+    label: 'Cash Outflow / Expenses',
+    shortLabel: 'Outflow',
+    category: 'Finance',
+    description: 'Total operating expenditures, utilities, equipment maintenance, and overheads',
+    icon: ArrowUpRight,
+    color: 'rose',
+    badge: 'Finance',
+    tab: 'financials',
+    defaultActive: false,
+    restricted: true
+  },
+  {
+    id: 'net_cashflow',
+    label: 'Net Cash Balance',
+    shortLabel: 'Net Balance',
+    category: 'Finance',
+    description: 'Net remaining cash balance (Cash Inflow minus Cash Outflow)',
+    icon: TrendingUp,
+    color: 'blue',
+    badge: 'Finance',
+    tab: 'financials',
+    defaultActive: false,
+    restricted: true
   },
   {
     id: 'total_members',
