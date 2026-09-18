@@ -115,13 +115,15 @@ jobs:
           echo "Testing SSH connection to Hostinger ($SSH_USER@$SSH_HOST:$SSH_PORT)..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "echo 'SSH connection to Hostinger successful! Server user:' && whoami"
 
-      # Step 8: Sync Application Files to Hostinger via Rsync
-      - name: Sync Files to Hostinger via Rsync
+      # Step 8: Upload Application Files to Hostinger via SCP
+      - name: Upload Files to Hostinger via SCP
         run: |
-          echo "Starting rsync deployment to $SSH_USER@$SSH_HOST:$TARGET_DIR ..."
+          echo "Creating deployment archive (excluding .env, storage data, node_modules, tests)..."
           
-          rsync -avz --delete \
-            -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+          cd backend
+          
+          # Create tar archive excluding files that should stay on server
+          tar czf /tmp/deploy.tar.gz \
             --exclude='.env' \
             --exclude='.git*' \
             --exclude='node_modules' \
@@ -129,42 +131,59 @@ jobs:
             --exclude='storage/app/public/*' \
             --exclude='storage/framework/sessions/*' \
             --exclude='storage/framework/views/*' \
-            --exclude='storage/framework/cache/*' \
-            --exclude='storage/logs/*' \
-            backend/ "$SSH_USER@$SSH_HOST:$TARGET_DIR/"
+            --exclude='storage/framework/cache/data/*' \
+            --exclude='storage/logs/*.log' \
+            .
+          
+          cd ..
+          
+          ARCHIVE_SIZE=$(du -h /tmp/deploy.tar.gz | cut -f1)
+          echo "Archive size: $ARCHIVE_SIZE"
+          
+          echo "Uploading archive to Hostinger via SCP..."
+          scp -o StrictHostKeyChecking=no -P $SSH_PORT -i ~/.ssh/deploy_key \
+            /tmp/deploy.tar.gz "$SSH_USER@$SSH_HOST:~/deploy.tar.gz"
+          
+          echo "Upload complete. Extracting on server..."
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "
+            cd ~/$TARGET_DIR || cd ~/public_html
+            echo 'Extracting deployment archive in: '\$(pwd)
+            tar xzf ~/deploy.tar.gz --overwrite
+            rm -f ~/deploy.tar.gz
+            echo 'Extraction complete!'
+          "
 
       # Step 9: Post-Deploy Remote Commands on Hostinger
       - name: Execute Post-Deployment Commands via SSH
         run: |
           echo "Executing remote post-deployment commands on Hostinger..."
-          ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" << 'EOF'
-            TARGET="${SSH_TARGET_DIR:-public_html}"
-            [ -d "$TARGET" ] && cd "$TARGET" || cd public_html
-            
-            echo "Working in directory: $(pwd)"
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "
+            cd ~/$TARGET_DIR || cd ~/public_html
+            echo 'Working in directory: '\$(pwd)
             
             # 1. Ensure required storage and cache directories exist
-            mkdir -p storage/framework/{sessions,views,cache/data} storage/logs bootstrap/cache
+            mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data storage/logs bootstrap/cache
             
             # 2. Fix directory permissions (775 for storage and cache)
             chmod -R 775 storage bootstrap/cache
             
             # 3. Create storage symlink if not already created
-            php artisan storage:link || true
+            php artisan storage:link 2>/dev/null || true
             
             # 4. Run database migrations safely
-            echo "Running Laravel database migrations..."
+            echo 'Running Laravel database migrations...'
             php artisan migrate --force
             
             # 5. Optimize configuration, routes, and view caches
-            echo "Caching configuration and routes for production..."
+            echo 'Caching configuration and routes for production...'
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
             
             # 6. Restart background queue workers if configured
-            php artisan queue:restart || true
+            php artisan queue:restart 2>/dev/null || true
             
-            echo "Deployment to Hostinger completed successfully!"
-          EOF
+            echo 'Deployment to Hostinger completed successfully!'
+          "
+
