@@ -288,8 +288,8 @@ export const Financials = () => {
         </div>
       </div>
 
-      {/* 2. CASH INFLOW & OUTFLOW COMPACT METRIC CARDS (Dashboard Customize Card Style) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+      {/* 2. CASH INFLOW & OUTFLOW COMPACT METRIC CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Cash Inflow */}
         <div
           onClick={() => setFinancialTab('inflow')}
@@ -343,64 +343,6 @@ export const Financials = () => {
             </div>
             <div className="flex items-center gap-0.5 text-[10px] font-bold text-rose-700 group-hover:translate-x-0.5 transition-transform">
               <span>View</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-        </div>
-
-        {/* Net Cash Balance */}
-        <div
-          onClick={() => setFinancialTab('cashflow')}
-          className="group relative bg-white border border-slate-200 hover:border-blue-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
-        >
-          <div className="flex items-center justify-between gap-1">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-                Net Cash Balance
-              </span>
-              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200 inline-block">
-                Margin: {netMarginPct}%
-              </span>
-            </div>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Wallet className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
-            <div className={`text-lg sm:text-xl font-black tracking-tight ${netProfit >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
-              ₹{netProfit.toLocaleString('en-IN')}
-            </div>
-            <div className="flex items-center gap-0.5 text-[10px] font-bold text-blue-700 group-hover:translate-x-0.5 transition-transform">
-              <span>Overview</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-        </div>
-
-        {/* Total Inflow Collections Count */}
-        <div
-          onClick={() => setFinancialTab('inflow')}
-          className="group relative bg-white border border-slate-200 hover:border-purple-300 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]"
-        >
-          <div className="flex items-center justify-between gap-1">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-                Receipts / Ledger
-              </span>
-              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-purple-50 text-purple-700 border-purple-200 inline-block">
-                {gymInvoices.length} Paid
-              </span>
-            </div>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
-              <Receipt className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
-            <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-              {gymInvoices.length + gymExpenses.length}
-            </div>
-            <div className="flex items-center gap-0.5 text-[10px] font-bold text-purple-700 group-hover:translate-x-0.5 transition-transform">
-              <span>Ledger</span>
               <ChevronRight className="w-3 h-3" />
             </div>
           </div>
