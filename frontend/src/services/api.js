@@ -19,7 +19,12 @@ const getDefaultHosts = () => {
 
   // If running in browser with a specific IP or domain (e.g. 192.168.1.48 or custom domain)
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-    hosts.push(`http://${currentHost}:8000/api/v1`);
+    if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
+      hosts.push(`http://${currentHost}:8000/api/v1`);
+    } else {
+      // Production domain: API is served from same origin (no port 8000)
+      hosts.push(`${window.location.origin}/api/v1`);
+    }
   }
 
   if (inCapacitor) {

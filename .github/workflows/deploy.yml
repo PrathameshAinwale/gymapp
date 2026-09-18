@@ -1,0 +1,141 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build React Frontend
+        working-directory: frontend
+        run: |
+          npm ci || npm install
+          npm run build
+
+      - name: Inject Frontend into Laravel
+        run: cp -r frontend/dist/* backend/public/
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, pdo_mysql, bcmath, curl, zip
+
+      - name: Install Composer Dependencies
+        working-directory: backend
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Prepare SSH Key
+        env:
+          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          
+          # Write key using Node to handle any formatting issues from GitHub Secrets
+          node -e "
+            const fs = require('fs');
+            let k = (process.env.KEY || '').trim();
+            if (!k) { console.error('ERROR: SSH_PRIVATE_KEY secret is empty!'); process.exit(1); }
+            k = k.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            if (k.split('\n').length <= 3) {
+              const m = k.match(/(-----BEGIN [^-]+-----)\s+([\s\S]+?)\s+(-----END [^-]+-----)/);
+              if (m) k = m[1]+'\n'+m[2].trim().split(/\s+/).join('\n')+'\n'+m[3]+'\n';
+            }
+            if (!k.endsWith('\n')) k += '\n';
+            fs.writeFileSync(process.env.HOME+'/.ssh/deploy_key', k, {mode:0o600});
+            console.log('Key written OK');
+          "
+          
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null || { echo "Invalid SSH key!"; exit 1; }
+          echo "SSH key validated successfully."
+
+      - name: Test SSH Connection
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER: ${{ secrets.SSH_USERNAME }}
+          PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          ssh-keyscan -p $PORT -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "echo 'Connected to Hostinger!' && pwd"
+
+      - name: Upload & Extract on Server
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER: ${{ secrets.SSH_USERNAME }}
+          PORT: ${{ secrets.SSH_PORT }}
+          DIR: ${{ secrets.SSH_TARGET_DIR }}
+        run: |
+          cd backend
+          tar czf /tmp/deploy.tar.gz \
+            --exclude='.env' \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='storage/app/public/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            --exclude='storage/framework/cache/data/*' \
+            --exclude='storage/logs/*.log' \
+            .
+          cd ..
+          
+          echo "Archive: $(du -h /tmp/deploy.tar.gz | cut -f1)"
+          
+          scp -o StrictHostKeyChecking=no -P $PORT -i ~/.ssh/deploy_key \
+            /tmp/deploy.tar.gz "$USER@$HOST:~/deploy.tar.gz"
+          
+          ssh -o StrictHostKeyChecking=no -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "
+            cd ~/$DIR
+            tar xzf ~/deploy.tar.gz
+            rm -f ~/deploy.tar.gz
+            echo 'Files extracted in:' \$(pwd)
+          "
+
+      - name: Run Migrations & Optimize
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER: ${{ secrets.SSH_USERNAME }}
+          PORT: ${{ secrets.SSH_PORT }}
+          DIR: ${{ secrets.SSH_TARGET_DIR }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "
+            cd ~/$DIR
+            
+            mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data storage/logs bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+            
+            php artisan storage:link 2>/dev/null || true
+            
+            echo '--- Running migrations ---'
+            php artisan migrate --force
+            
+            echo '--- Optimizing for production ---'
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            
+            php artisan queue:restart 2>/dev/null || true
+            
+            echo 'Deployment complete!'
+          "
