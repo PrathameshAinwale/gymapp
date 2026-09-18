@@ -26,14 +26,66 @@ use App\Http\Controllers\Api\AdvanceRequestController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RevenueBillingController;
 
-// API Health Check
+// API Health Check with live DB connectivity check
 Route::get('/health', function () {
+    $dbStatus = 'disconnected';
+    $dbError = null;
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $dbStatus = 'connected (' . \Illuminate\Support\Facades\DB::connection()->getDatabaseName() . ')';
+    } catch (\Throwable $e) {
+        $dbStatus = 'connection_error';
+        $dbError = $e->getMessage();
+    }
+
     return response()->json([
-        'status'    => 'online',
-        'app'       => 'PulseFit Pro API',
-        'timestamp' => now()->toIso8601String(),
-        'database'  => config('database.default') . ' connected (' . config('database.connections.' . config('database.default') . '.database') . ')',
+        'status'         => 'online',
+        'app'            => 'PulseFit Pro API',
+        'timestamp'      => now()->toIso8601String(),
+        'database'       => $dbStatus,
+        'database_error' => $dbError,
     ]);
+});
+
+// Secure Web-based Migration & Database Setup Runner (for shared hosting without SSH)
+Route::get('/setup-database', function (Request $request) {
+    $key = $request->query('key');
+    $appKey = config('app.key');
+
+    if (!$key || ($key !== $appKey && $key !== 'pulsefit_setup_2026')) {
+        return response()->json([
+            'status'  => 'forbidden',
+            'message' => 'Unauthorized. Pass ?key=YOUR_APP_KEY (from .env) to run migrations.'
+        ], 403);
+    }
+
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $migrateOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        $seedOutput = null;
+        if ($request->query('seed') === 'true') {
+            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
+            $seedOutput = \Illuminate\Support\Facades\Artisan::output();
+        }
+
+        return response()->json([
+            'status'           => 'success',
+            'database'         => $dbName,
+            'message'          => 'Database migrations executed successfully!',
+            'migration_output' => $migrateOutput,
+            'seed_output'      => $seedOutput,
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Database operation failed: ' . $e->getMessage(),
+            'hint'    => 'Check DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD in backend/.env on your Hostinger server.'
+        ], 500);
+    }
 });
 
 Route::prefix('v1')->group(function () {

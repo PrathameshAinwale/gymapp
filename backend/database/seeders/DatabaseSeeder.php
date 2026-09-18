@@ -25,7 +25,11 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Disable FK checks during seeding to allow flexible insert ordering
-        DB::statement('PRAGMA foreign_keys = OFF');
+        if (DB::getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = OFF');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+        }
 
         // 0. Create the primary gym first so all FK references to gyms(id=1) work
         $gym = Gym::firstOrCreate(['id' => 1], [
@@ -634,6 +638,10 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Re-enable FK checks
-        DB::statement('PRAGMA foreign_keys = ON');
+        if (DB::getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = ON');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+        }
     }
 }
