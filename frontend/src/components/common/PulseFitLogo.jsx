@@ -110,9 +110,6 @@ export const ArchFitLogo = ({
         <div className="flex items-center text-sm sm:text-base font-black tracking-tight text-slate-900">
           <span>ARCH</span><span className="text-lime-500">FIT</span>
         </div>
-        <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 tracking-wider uppercase mt-0.5">
-          Athletic Club
-        </span>
       </div>
 
       {showTagline && (
