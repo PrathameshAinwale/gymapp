@@ -19,8 +19,12 @@ abstract class Controller
                 return (int) $user->gym_id;
             }
             if ($user->role === 'owner') {
-                $ownedGym = Gym::where('owner_id', $user->id)->first();
+                $ownedGym = Gym::where('owner_id', $user->id)->first() ?? Gym::first();
                 if ($ownedGym) {
+                    if (!$ownedGym->owner_id) {
+                        $ownedGym->owner_id = $user->id;
+                        $ownedGym->save();
+                    }
                     $user->gym_id = $ownedGym->id;
                     $user->save();
                     return (int) $ownedGym->id;

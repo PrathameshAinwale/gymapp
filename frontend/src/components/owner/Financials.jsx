@@ -119,15 +119,30 @@ export const Financials = () => {
 
   // Dynamic Revenue (Cash Inflow) Calculation
   const currentInflowSum = gymInvoices.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
-  const totalInflow = ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0
-    ? Number(ownerStats.monthlyRevenue)
-    : currentInflowSum;
+  const totalInflow = currentInflowSum > 0
+    ? currentInflowSum
+    : (ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0
+        ? Number(ownerStats.monthlyRevenue)
+        : 0);
 
   // Dynamic Expenses (Cash Outflow) Calculation
+  const isFixedCategory = (cat = '') => {
+    const c = String(cat).toLowerCase();
+    return c.includes('rent') || c.includes('lease') || c.includes('utilit') || c.includes('electric') || c.includes('water') || c.includes('internet') || c.includes('wifi') || c.includes('maintenance') || c.includes('software');
+  };
+
+  const fixedExpensesList = gymExpenses.filter((exp) => isFixedCategory(exp.category));
+  const fixedCosts = fixedExpensesList.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+  const variableExpensesList = gymExpenses.filter((exp) => !isFixedCategory(exp.category));
+  const variableCosts = variableExpensesList.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
   const totalOutflow = gymExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
-  // Net Cash Flow (Operating Surplus)
-  const netCashFlow = Math.max(0, totalInflow - totalOutflow);
+  // Net Cash Flow (Operating Surplus / Deficit)
+  const netProfit = totalInflow - totalOutflow;
+  const isProfitable = netProfit >= 0;
+  const netCashFlow = Math.max(0, netProfit);
   const netMarginPct = totalInflow > 0 ? (((totalInflow - totalOutflow) / totalInflow) * 100).toFixed(1) : '0.0';
 
   // Month & Financial Year
@@ -406,25 +421,35 @@ export const Financials = () => {
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
                 <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Total Fees</div>
                 <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{totalInflow.toLocaleString('en-IN')}</div>
-                <div className="text-[9px] sm:text-[10px] text-emerald-600 font-semibold">100% Tax Compliant</div>
+                <div className="text-[9px] sm:text-[10px] text-emerald-600 font-semibold truncate">
+                  {gymInvoices.length} {gymInvoices.length === 1 ? 'Collection' : 'Collections'} • 100% Tax Compliant
+                </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
                 <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Fixed Costs</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹1,65,000</div>
-                <div className="text-[9px] sm:text-[10px] text-slate-500">Rent & Utilities</div>
+                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{fixedCosts.toLocaleString('en-IN')}</div>
+                <div className="text-[9px] sm:text-[10px] text-slate-500 truncate">
+                  {fixedExpensesList.length > 0 ? `${fixedExpensesList.length} Items (Rent & Power)` : 'Rent & Utilities'}
+                </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
                 <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Variable Costs</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹75,000</div>
-                <div className="text-[9px] sm:text-[10px] text-slate-500">Trainers & AMC</div>
+                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{variableCosts.toLocaleString('en-IN')}</div>
+                <div className="text-[9px] sm:text-[10px] text-slate-500 truncate">
+                  {variableExpensesList.length > 0 ? `${variableExpensesList.length} Items (Trainers & Stock)` : 'Trainers & AMC'}
+                </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
                 <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Retained Profit</div>
-                <div className="text-sm sm:text-base font-black text-emerald-700 mt-0.5">₹{netCashFlow.toLocaleString('en-IN')}</div>
-                <div className="text-[9px] sm:text-[10px] text-emerald-600 font-semibold">{netMarginPct}% Margin</div>
+                <div className={`text-sm sm:text-base font-black mt-0.5 ${isProfitable ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {isProfitable ? `₹${netProfit.toLocaleString('en-IN')}` : `-₹${Math.abs(netProfit).toLocaleString('en-IN')}`}
+                </div>
+                <div className={`text-[9px] sm:text-[10px] font-semibold ${isProfitable ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {netMarginPct}% {isProfitable ? 'Margin' : 'Deficit'}
+                </div>
               </div>
             </div>
           </div>
@@ -449,25 +474,31 @@ export const Financials = () => {
                   onClick={() => setFinancialTab('inflow')}
                   className="text-[11px] sm:text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                 >
-                  View All ({invoices.length}) →
+                  View All ({gymInvoices.length}) →
                 </button>
               </div>
 
               <div className="divide-y divide-slate-100 text-[11px] sm:text-xs">
-                {invoices.slice(0, 4).map((inv) => (
-                  <div key={inv.id} className="py-2 flex items-center justify-between">
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-slate-900 truncate">{inv.memberName}</div>
-                      <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{inv.planName} • {inv.date}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-emerald-600">
-                        +₹{Number(inv.amount).toLocaleString('en-IN')}
-                      </div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-400">{inv.paymentMethod}</span>
-                    </div>
+                {gymInvoices.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs">
+                    No fee payments recorded yet
                   </div>
-                ))}
+                ) : (
+                  gymInvoices.slice(0, 4).map((inv) => (
+                    <div key={inv.id || inv._id || inv.invoiceNumber} className="py-2 flex items-center justify-between">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-slate-900 truncate">{inv.memberName || inv.member_name || 'Member'}</div>
+                        <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{inv.planName || inv.plan_name || 'Membership'} • {inv.date}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold text-emerald-600">
+                          +₹{Number(inv.amount).toLocaleString('en-IN')}
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] text-slate-400">{inv.paymentMethod || inv.payment_mode || 'Paid'}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -488,25 +519,31 @@ export const Financials = () => {
                   onClick={() => setFinancialTab('outflow')}
                   className="text-[11px] sm:text-xs font-bold text-rose-700 hover:text-rose-800 cursor-pointer"
                 >
-                  View All ({expenses.length}) →
+                  View All ({gymExpenses.length}) →
                 </button>
               </div>
 
               <div className="divide-y divide-slate-100 text-[11px] sm:text-xs">
-                {expenses.slice(0, 4).map((exp) => (
-                  <div key={exp.id} className="py-2 flex items-center justify-between">
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-slate-900 truncate">{exp.title}</div>
-                      <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{exp.vendor} • {exp.date}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-rose-600">
-                        -₹{Number(exp.amount).toLocaleString('en-IN')}
-                      </div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-400">{exp.paymentMode}</span>
-                    </div>
+                {gymExpenses.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs">
+                    No expense outflows recorded yet
                   </div>
-                ))}
+                ) : (
+                  gymExpenses.slice(0, 4).map((exp) => (
+                    <div key={exp.id || exp._id} className="py-2 flex items-center justify-between">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-slate-900 truncate">{exp.title}</div>
+                        <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{exp.vendor || exp.category} • {exp.date}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold text-rose-600">
+                          -₹{Number(exp.amount).toLocaleString('en-IN')}
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] text-slate-400">{exp.paymentMode || exp.payment_mode || 'Expense'}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
