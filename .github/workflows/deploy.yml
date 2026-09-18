@@ -15,6 +15,12 @@ jobs:
     name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.SSH_KEY || secrets.PRIVATE_KEY || secrets.DEPLOY_KEY || secrets.SSH_DEPLOY_KEY }}
+      SSH_HOST: ${{ secrets.SSH_HOST || secrets.HOST || secrets.HOSTINGER_HOST }}
+      SSH_USER: ${{ secrets.SSH_USERNAME || secrets.SSH_USER || secrets.HOSTINGER_USER || secrets.USERNAME }}
+      SSH_PORT: ${{ secrets.SSH_PORT || secrets.PORT || '65002' }}
+      TARGET_DIR: ${{ secrets.SSH_TARGET_DIR || secrets.TARGET_DIR || 'public_html' }}
 
     steps:
       # Step 1: Checkout Repository
@@ -62,11 +68,6 @@ jobs:
 
       # Step 7: Configure SSH Key for Hostinger
       - name: Setup SSH Connection
-        env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USERNAME }}
         run: |
           mkdir -p ~/.ssh
           
@@ -116,11 +117,6 @@ jobs:
 
       # Step 8: Sync Application Files to Hostinger via Rsync
       - name: Sync Files to Hostinger via Rsync
-        env:
-          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USERNAME }}
-          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR || 'public_html' }}
         run: |
           echo "Starting rsync deployment to $SSH_USER@$SSH_HOST:$TARGET_DIR ..."
           
@@ -139,11 +135,6 @@ jobs:
 
       # Step 9: Post-Deploy Remote Commands on Hostinger
       - name: Execute Post-Deployment Commands via SSH
-        env:
-          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USERNAME }}
-          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR || 'public_html' }}
         run: |
           echo "Executing remote post-deployment commands on Hostinger..."
           ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" << 'EOF'
