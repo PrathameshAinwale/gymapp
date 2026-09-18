@@ -1,8 +1,9 @@
-name: Deploy to Hostinger
+name: Deploy to Hostinger (FTP)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -10,9 +11,192 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build & Deploy
+  deploy-backend:
+    name: Build & Deploy Backend (Laravel)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      target_dir: ${{ steps.detect-target.outputs.target_dir }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, pdo_mysql, bcmath, curl, zip
+
+      - name: Install Composer Dependencies
+        working-directory: backend
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Archive vendor into vendor.zip
+        working-directory: backend
+        run: |
+          echo "Compressing vendor directory into vendor.zip..."
+          zip -r -q vendor.zip vendor/
+          echo "Vendor archive created: $(du -h vendor.zip | cut -f1)"
+
+      - name: Generate Vendor Extraction Helper
+        working-directory: backend
+        run: |
+          TOKEN=$(openssl rand -hex 16)
+          echo "EXTRACT_TOKEN=$TOKEN" >> $GITHUB_ENV
+          cat << 'EOF' > extract_vendor.php
+          <?php
+          error_reporting(E_ALL);
+          ini_set('display_errors', 1);
+          set_time_limit(300);
+
+          $expectedToken = '__EXTRACT_TOKEN__';
+          if (!isset($_GET['token']) || $_GET['token'] !== $expectedToken) {
+              http_response_code(403);
+              exit('Forbidden: Invalid extraction token.');
+          }
+
+          $baseDir = __DIR__;
+          $zipFile = $baseDir . '/vendor.zip';
+          if (!file_exists($zipFile)) {
+              // Check parent directory if placed in public/
+              $zipFile = dirname($baseDir) . '/vendor.zip';
+              $baseDir = dirname($baseDir);
+          }
+
+          if (!file_exists($zipFile)) {
+              http_response_code(404);
+              exit('vendor.zip not found on server.');
+          }
+
+          if (!class_exists('ZipArchive')) {
+              http_response_code(500);
+              exit('ZipArchive PHP extension is not enabled.');
+          }
+
+          $zip = new ZipArchive;
+          $res = $zip->open($zipFile);
+          if ($res === TRUE) {
+              $zip->extractTo($baseDir);
+              $zip->close();
+              @unlink($zipFile);
+              @unlink(__FILE__);
+              if (file_exists($baseDir . '/public/extract_vendor.php')) {
+                  @unlink($baseDir . '/public/extract_vendor.php');
+              }
+              echo "SUCCESS: vendor.zip extracted and cleaned up successfully.";
+          } else {
+              http_response_code(500);
+              exit('Failed to extract vendor.zip. Code: ' . $res);
+          }
+          EOF
+          sed -i "s/__EXTRACT_TOKEN__/$TOKEN/g" extract_vendor.php
+          mkdir -p public
+          cp extract_vendor.php public/extract_vendor.php
+
+      - name: Auto-Detect Hostinger FTP Root Directory
+        id: detect-target
+        env:
+          FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          FTP_USER: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          OVERRIDE_DIR: ${{ secrets.HOSTINGER_SERVER_DIR }}
+        run: |
+          python3 - << 'PYEOF'
+          import os, ftplib, sys
+
+          override = os.environ.get('OVERRIDE_DIR', '').strip()
+          if override:
+              if not override.endswith('/'):
+                  override += '/'
+              print(f"Using explicitly configured HOSTINGER_SERVER_DIR: {override}")
+              target = override
+          else:
+              server = os.environ.get('FTP_SERVER', '').strip()
+              user = os.environ.get('FTP_USER', '').strip()
+              password = os.environ.get('FTP_PASS', '').strip()
+              target = ''
+              try:
+                  ftp = ftplib.FTP(timeout=20)
+                  ftp.connect(server, 21)
+                  ftp.login(user, password)
+                  files = ftp.nlst()
+                  print("FTP Root contents:", files)
+                  if 'public_html' in files:
+                      target = 'public_html/'
+                      print("Detected public_html directory at FTP root.")
+                  else:
+                      print("FTP root appears to be document root directly.")
+                  ftp.quit()
+              except Exception as e:
+                  print(f"Warning during FTP detection: {e}. Falling back to default.")
+                  target = ''
+
+          # Write to GITHUB_OUTPUT
+          github_output = os.environ.get('GITHUB_OUTPUT')
+          if github_output:
+              with open(github_output, 'a') as f:
+                  f.write(f"target_dir={target}\n")
+          print(f"Target web root dir: '{target}'")
+          PYEOF
+
+      - name: FTP Upload Backend
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          server-dir: ${{ steps.detect-target.outputs.target_dir }}backend/
+          local-dir: ./backend/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.env*
+            **/storage/**
+            **/node_modules/**
+            **/tests/**
+            **/vendor/**
+
+      - name: Trigger Server-side Vendor Extraction
+        env:
+          FTP_HOST: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          APP_URL: ${{ secrets.HOSTINGER_APP_URL || secrets.APP_URL }}
+        run: |
+          CLEAN_HOST="${FTP_HOST#ftp.}"
+          TOKEN="${{ env.EXTRACT_TOKEN }}"
+          echo "Attempting to trigger vendor extraction helper on server..."
+
+          URLS=()
+          if [ -n "$APP_URL" ]; then
+            URLS+=("${APP_URL%/}/backend/public/extract_vendor.php?token=${TOKEN}")
+            URLS+=("${APP_URL%/}/extract_vendor.php?token=${TOKEN}")
+          fi
+          URLS+=(
+            "https://${CLEAN_HOST}/backend/public/extract_vendor.php?token=${TOKEN}"
+            "https://${CLEAN_HOST}/extract_vendor.php?token=${TOKEN}"
+            "http://${CLEAN_HOST}/backend/public/extract_vendor.php?token=${TOKEN}"
+            "http://${CLEAN_HOST}/extract_vendor.php?token=${TOKEN}"
+          )
+
+          TRIGGERED=false
+          for URL in "${URLS[@]}"; do
+            echo "Testing URL: $URL"
+            RESP=$(curl -s -k --max-time 20 "$URL" || true)
+            if echo "$RESP" | grep -q "SUCCESS"; then
+              echo "Vendor extraction confirmed successfully via $URL"
+              TRIGGERED=true
+              break
+            fi
+          done
+
+          if [ "$TRIGGERED" = false ]; then
+            echo "Remote extraction trigger finished. If domain DNS or SSL is pending, index.php auto-extracts vendor.zip on first incoming web request."
+          fi
+
+  deploy-frontend:
+    name: Deploy Frontend (React Vite SPA)
+    runs-on: ubuntu-latest
+    needs: deploy-backend
     timeout-minutes: 20
 
     steps:
@@ -26,116 +210,32 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+
       - name: Build React Frontend
         working-directory: frontend
+        run: npm run build
+
+      - name: Verify Production .htaccess in dist
+        working-directory: frontend
         run: |
-          npm ci || npm install
-          npm run build
+          if [ ! -f dist/.htaccess ]; then
+            echo "Copying public/.htaccess to dist/.htaccess..."
+            cp public/.htaccess dist/.htaccess
+          fi
+          test -f dist/.htaccess && echo ".htaccess confirmed in dist/"
 
-      - name: Inject Frontend into Laravel
-        run: cp -r frontend/dist/* backend/public/
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: FTP Upload Frontend
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          php-version: '8.2'
-          extensions: mbstring, xml, ctype, iconv, pdo_mysql, bcmath, curl, zip
-
-      - name: Install Composer Dependencies
-        working-directory: backend
-        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
-
-      - name: Prepare SSH Key
-        env:
-          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          
-          # Write key using Node to handle any formatting issues from GitHub Secrets
-          node -e "
-            const fs = require('fs');
-            let k = (process.env.KEY || '').trim();
-            if (!k) { console.error('ERROR: SSH_PRIVATE_KEY secret is empty!'); process.exit(1); }
-            k = k.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            if (k.split('\n').length <= 3) {
-              const m = k.match(/(-----BEGIN [^-]+-----)\s+([\s\S]+?)\s+(-----END [^-]+-----)/);
-              if (m) k = m[1]+'\n'+m[2].trim().split(/\s+/).join('\n')+'\n'+m[3]+'\n';
-            }
-            if (!k.endsWith('\n')) k += '\n';
-            fs.writeFileSync(process.env.HOME+'/.ssh/deploy_key', k, {mode:0o600});
-            console.log('Key written OK');
-          "
-          
-          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null || { echo "Invalid SSH key!"; exit 1; }
-          echo "SSH key validated successfully."
-
-      - name: Test SSH Connection
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          USER: ${{ secrets.SSH_USERNAME }}
-          PORT: ${{ secrets.SSH_PORT }}
-        run: |
-          ssh-keyscan -p $PORT -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "echo 'Connected to Hostinger!' && pwd"
-
-      - name: Upload & Extract on Server
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          USER: ${{ secrets.SSH_USERNAME }}
-          PORT: ${{ secrets.SSH_PORT }}
-          DIR: ${{ secrets.SSH_TARGET_DIR }}
-        run: |
-          cd backend
-          tar czf /tmp/deploy.tar.gz \
-            --exclude='.env' \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='tests' \
-            --exclude='storage/app/public/*' \
-            --exclude='storage/framework/sessions/*' \
-            --exclude='storage/framework/views/*' \
-            --exclude='storage/framework/cache/data/*' \
-            --exclude='storage/logs/*.log' \
-            .
-          cd ..
-          
-          echo "Archive: $(du -h /tmp/deploy.tar.gz | cut -f1)"
-          
-          scp -o StrictHostKeyChecking=no -P $PORT -i ~/.ssh/deploy_key \
-            /tmp/deploy.tar.gz "$USER@$HOST:~/deploy.tar.gz"
-          
-          ssh -o StrictHostKeyChecking=no -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "
-            cd ~/$DIR
-            tar xzf ~/deploy.tar.gz
-            rm -f ~/deploy.tar.gz
-            echo 'Files extracted in:' \$(pwd)
-          "
-
-      - name: Run Migrations & Optimize
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          USER: ${{ secrets.SSH_USERNAME }}
-          PORT: ${{ secrets.SSH_PORT }}
-          DIR: ${{ secrets.SSH_TARGET_DIR }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -p $PORT -i ~/.ssh/deploy_key "$USER@$HOST" "
-            cd ~/$DIR
-            
-            mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data storage/logs bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
-            
-            php artisan storage:link 2>/dev/null || true
-            
-            echo '--- Running migrations ---'
-            php artisan migrate --force
-            
-            echo '--- Optimizing for production ---'
-            php artisan optimize:clear
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            
-            php artisan queue:restart 2>/dev/null || true
-            
-            echo 'Deployment complete!'
-          "
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          server-dir: ${{ needs.deploy-backend.outputs.target_dir || './' }}
+          local-dir: ./frontend/dist/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
