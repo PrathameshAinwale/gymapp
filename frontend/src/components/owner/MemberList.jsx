@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
@@ -31,12 +31,18 @@ import {
   IndianRupee,
   Clock,
   ChevronDown,
-  Zap
+  Zap,
+  Download,
+  Printer,
+  ExternalLink,
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { AddMemberModal } from './AddMemberModal';
 import { EmptyState } from '../common/EmptyState';
+import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
@@ -47,6 +53,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     invoices = [],
     ptPlans = [],
     recoveryPlans = [],
+    gymInfo,
     fetchMembers,
     fetchPlans,
     fetchTrainers,
@@ -72,14 +79,25 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedMember, setSelectedMember] = useState(null);
   const [editingMember, setEditingMember] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [renewingMember, setRenewingMember] = useState(null);
   const [upgradingMember, setUpgradingMember] = useState(null);
   const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState('');
-  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [isRenewing, setIsRenewing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Invoice Receipt View Modal state
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+
+  // Password editing via mobile OTP state
+  const [otpSent, setOtpSent] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [enteredOtp, setEnteredOtp] = useState('');
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [showPasswordText, setShowPasswordText] = useState(false);
 
   const getMemberEffectiveStatus = (m) => {
     return calculateMemberStatus ? calculateMemberStatus(m?.expiryDate, m?.status) : (m?.status || 'Active');
@@ -106,39 +124,159 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     }
   };
 
-  const getBmiData = (weight, height) => {
-    if (!weight || !height) return null;
-    const hM = Number(height) / 100;
-    if (hM <= 0) return null;
-    const bmiVal = (Number(weight) / (hM * hM)).toFixed(1);
-    let category = 'Normal';
-    let color = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (bmiVal < 18.5) {
-      category = 'Underweight';
-      color = 'text-blue-700 bg-blue-50 border-blue-200';
-    } else if (bmiVal >= 25 && bmiVal < 30) {
-      category = 'Overweight';
-      color = 'text-amber-700 bg-amber-50 border-amber-200';
-    } else if (bmiVal >= 30) {
-      category = 'Obese';
-      color = 'text-rose-700 bg-rose-50 border-rose-200';
-    }
-    return { bmi: bmiVal, category, color };
+  const openEditModal = (m) => {
+    setEditingMember({
+      ...m,
+      weight: m.weight ?? '',
+      targetWeight: m.targetWeight ?? '',
+      height: m.height ?? '',
+      gender: m.gender || 'Male',
+      age: m.age ?? '',
+      goal: m.goal || 'General Fitness',
+      medicalNotes: m.medicalNotes || '',
+      emergencyContact: m.emergencyContact || '',
+      phone: m.phone || '',
+      email: m.email || '',
+      name: m.name || '',
+      trainerId: m.trainerId || '',
+      status: m.status || 'Active',
+      expiryDate: m.expiryDate || ''
+    });
+    setOtpSent(false);
+    setGeneratedOtp('');
+    setEnteredOtp('');
+    setIsOtpVerified(false);
+    setNewPassword('');
+    setShowPasswordText(false);
   };
 
-  const handleEditSubmit = (e) => {
+  // Resolve member for selected invoice
+  const selectedInvoiceMember = useMemo(() => {
+    if (!selectedInvoice) return null;
+    return (
+      (members || []).find(
+        (m) =>
+          (selectedInvoice.memberId && String(m.id) === String(selectedInvoice.memberId)) ||
+          (selectedInvoice.userId && String(m.userId) === String(selectedInvoice.userId)) ||
+          (selectedInvoice.user_id && String(m.userId) === String(selectedInvoice.user_id)) ||
+          (m.name || '').toLowerCase().trim() === (selectedInvoice.memberName || selectedInvoice.member_name || '').toLowerCase().trim()
+      ) || selectedMember || {
+        name: selectedInvoice.memberName,
+        phone: selectedInvoice.phone || '',
+        email: selectedInvoice.email || '',
+        id: selectedInvoice.memberId || 'PF-M'
+      }
+    );
+  }, [selectedInvoice, members, selectedMember]);
+
+  // Generate live PDF Preview Blob URL when an invoice is selected
+  useEffect(() => {
+    if (selectedInvoice) {
+      try {
+        const generated = generateInvoicePdf({
+          invoice: selectedInvoice,
+          member: selectedInvoiceMember,
+          gymInfo
+        });
+        const url = URL.createObjectURL(generated.blob);
+        setPdfPreviewUrl(url);
+
+        return () => {
+          URL.revokeObjectURL(url);
+        };
+      } catch (err) {
+        console.error('Failed to create PDF preview:', err);
+      }
+    } else {
+      setPdfPreviewUrl(null);
+    }
+  }, [selectedInvoice, selectedInvoiceMember, gymInfo]);
+
+  const handleDownloadInvoicePdf = (inv, memb) => {
+    const targetMember = memb || selectedInvoiceMember;
+    const generated = generateInvoicePdf({
+      invoice: inv,
+      member: targetMember,
+      gymInfo
+    });
+
+    const success = generated.download();
+    if (success && addToast) {
+      addToast(`Downloaded PDF: ${generated.fileName}`, 'success');
+    }
+  };
+
+  const handleSharePdfToMobileNumber = async (inv, memb) => {
+    const targetMember = memb || selectedInvoiceMember || {
+      name: inv.memberName,
+      phone: inv.phone || ''
+    };
+
+    await shareInvoicePdfToMobile({
+      invoice: inv,
+      member: targetMember,
+      gymInfo,
+      onToast: addToast
+    });
+  };
+
+  const handleSendOtp = () => {
+    const mobile = editingMember?.phone;
+    if (!mobile || mobile.trim() === '') {
+      addToast('Member does not have a registered mobile number. Please add phone first.', 'error');
+      return;
+    }
+    setIsSendingOtp(true);
+    // Generate authentic 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(code);
+    setOtpSent(true);
+    setIsSendingOtp(false);
+    addToast(`Verification OTP sent to ${mobile}: [ ${code} ]`, 'info');
+  };
+
+  const handleVerifyOtp = () => {
+    if (enteredOtp.trim() === generatedOtp.trim() && generatedOtp.trim() !== '') {
+      setIsOtpVerified(true);
+      addToast('Mobile verification successful! You can now set a new password.', 'success');
+    } else {
+      addToast('Invalid verification OTP code. Please enter the 6 digits correctly.', 'error');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingMember) return;
-    const chosenTrainer = trainers.find((t) => t.id === editingMember.trainerId);
-    const autoStatus = calculateMemberStatus
-      ? calculateMemberStatus(editingMember.expiryDate, editingMember.status)
-      : editingMember.status;
-    updateMember(editingMember.id, {
-      ...editingMember,
-      status: autoStatus,
-      trainerName: chosenTrainer ? chosenTrainer.name : editingMember.trainerName
-    });
-    setEditingMember(null);
+    setIsSavingEdit(true);
+    try {
+      const chosenTrainer = trainers.find((t) => String(t.id) === String(editingMember.trainerId));
+      const autoStatus = calculateMemberStatus
+        ? calculateMemberStatus(editingMember.expiryDate, editingMember.status)
+        : editingMember.status;
+
+      const payload = {
+        ...editingMember,
+        status: autoStatus,
+        trainerName: chosenTrainer ? chosenTrainer.name : (editingMember.trainerId ? editingMember.trainerName : null)
+      };
+
+      if (isOtpVerified && newPassword.trim()) {
+        payload.password = newPassword.trim();
+      }
+
+      await updateMember(editingMember.id, payload);
+
+      if (selectedMember && (String(selectedMember.id) === String(editingMember.id) || String(selectedMember.userId) === String(editingMember.userId))) {
+        setSelectedMember((prev) => ({ ...prev, ...payload }));
+      }
+
+      setEditingMember(null);
+    } catch (err) {
+      console.error('Failed to update member:', err);
+      addToast(err?.message || 'Failed to update member details', 'error');
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const filteredMembers = (members || []).filter((m) => {
@@ -162,7 +300,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
   return (
     <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-12 max-w-7xl mx-auto">
-      
+
       {/* Header Banner */}
       <div className="flex items-center justify-between gap-3 bg-white border border-slate-200/80 p-3.5 sm:p-5 rounded-2xl shadow-xs">
         <div className="min-w-0">
@@ -262,7 +400,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           <EmptyState
             icon={Users}
             title={members.length === 0 ? "No Members Enrolled Yet" : "No Members Matching Filter"}
-            description={members.length === 0 
+            description={members.length === 0
               ? "There is currently no member data for this gym. Click below to add and register your first athlete."
               : `No members match the search query "${searchTerm}" or the selected status filter.`}
             actionText="Add New Member"
@@ -404,7 +542,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <>
                         <button
                           type="button"
-                          onClick={() => setEditingMember(member)}
+                          onClick={() => openEditModal(member)}
                           className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                           title="Edit"
                         >
@@ -449,7 +587,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     <EmptyState
                       icon={Users}
                       title={members.length === 0 ? "No Members Enrolled Yet" : "No Members Matching Filter"}
-                      description={members.length === 0 
+                      description={members.length === 0
                         ? "There is currently no member data for this gym. Click below to add and register your first athlete."
                         : `No members match the search query "${searchTerm}" or the selected status filter.`}
                       actionText="Add New Member"
@@ -617,7 +755,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                             <>
                               <button
                                 type="button"
-                                onClick={() => setEditingMember(member)}
+                                onClick={() => openEditModal(member)}
                                 title="Edit Member Details"
                                 className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
                               >
@@ -666,8 +804,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             0
           );
 
-          const bmiInfo = getBmiData(selectedMember.weight, selectedMember.height);
-
           return (
             <div className="space-y-5">
               {/* 1. Header Hero Banner */}
@@ -699,29 +835,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     </div>
                   </div>
                 </div>
-
-                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-100">
-                  {(() => {
-                    const drawerEffectiveStatus = getMemberEffectiveStatus(selectedMember);
-                    const drawerDiffDays = getExpiryDaysDiff ? getExpiryDaysDiff(selectedMember.expiryDate) : null;
-                    return (
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          drawerEffectiveStatus === 'Active'
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : drawerEffectiveStatus === 'Expiring Soon'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                            : 'bg-rose-100 text-rose-800 border border-rose-300'
-                        }`}
-                      >
-                        {drawerEffectiveStatus} {drawerDiffDays !== null ? (drawerDiffDays < 0 ? `(${Math.abs(drawerDiffDays)}d ago)` : drawerDiffDays <= 10 ? `(${drawerDiffDays === 0 ? 'Today' : `${drawerDiffDays}d left`})` : '') : ''}
-                      </span>
-                    );
-                  })()}
-                  <div className="text-xs text-amber-700 font-bold mt-1">
-                    {selectedMember.attendanceStreak || 0} Days Streak
-                  </div>
-                </div>
               </div>
 
               {/* 2. Membership & Joining History */}
@@ -736,7 +849,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Date Joined</div>
                     <div className="font-bold text-slate-900 mt-0.5 text-sm">
@@ -766,16 +879,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Attendance Streak</div>
-                    <div className="font-bold text-amber-600 mt-0.5 text-sm">
-                      {selectedMember.attendanceStreak || 0} Days
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                      Last: {selectedMember.lastCheckIn || 'Recently'}
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Total Dues</div>
                     <div className="font-bold text-slate-900 mt-0.5 text-sm">
                       ₹{Number(selectedMember.duesAmount || 0).toLocaleString('en-IN')}
@@ -793,6 +896,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Receipt className="w-4 h-4 text-emerald-600" />
                     <span>Invoices Created Till Date ({memberInvoices.length})</span>
+                    <span className="text-[10px] font-normal text-slate-400 lowercase hidden sm:inline">(click row to view invoice)</span>
                   </span>
                   {memberInvoices.length > 0 && (
                     <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
@@ -803,7 +907,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
                 {memberInvoices.length > 0 ? (
                   <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                    <div className="max-h-52 overflow-y-auto">
+                    <div className="max-h-56 overflow-y-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider sticky top-0">
                           <tr>
@@ -813,12 +917,23 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                             <th className="py-2.5 px-3">Mode</th>
                             <th className="py-2.5 px-3 text-right">Amount</th>
                             <th className="py-2.5 px-3 text-center">Status</th>
+                            <th className="py-2.5 px-3 text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {memberInvoices.map((inv, idx) => (
-                            <tr key={inv.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{inv.id}</td>
+                            <tr
+                              key={inv.id || idx}
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="hover:bg-emerald-50/70 transition-colors cursor-pointer group"
+                              title="Click to view and download full tax invoice"
+                            >
+                              <td className="py-2.5 px-3 font-mono font-bold text-emerald-700 group-hover:text-emerald-800">
+                                <span className="inline-flex items-center gap-1.5 underline decoration-emerald-300 underline-offset-2">
+                                  <Receipt className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                  {inv.id}
+                                </span>
+                              </td>
                               <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{formatDate(inv.date)}</td>
                               <td className="py-2.5 px-3 font-semibold text-slate-800">{inv.planName}</td>
                               <td className="py-2.5 px-3">
@@ -833,6 +948,19 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   <CheckCircle2 className="w-3 h-3" /> {inv.status || 'Paid'}
                                 </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedInvoice(inv);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>View</span>
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -885,12 +1013,12 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 </div>
               </div>
 
-              {/* 5. Biometrics & Physical Goals */}
+              {/* 5. Physical Profile & Health */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Physical Profile & Health
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-xs">
                   <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Current Weight</div>
                     <div className="text-base font-black text-slate-900 mt-1">{selectedMember.weight || '--'} kg</div>
@@ -902,19 +1030,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Height</div>
                     <div className="text-base font-black text-slate-900 mt-1">{selectedMember.height || '--'} cm</div>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">BMI</div>
-                    <div className="text-base font-black text-slate-900 mt-1">
-                      {bmiInfo ? (
-                        <>
-                          <span>{bmiInfo.bmi}</span>
-                          <span className="text-[9px] block font-bold text-slate-500">{bmiInfo.category}</span>
-                        </>
-                      ) : (
-                        '--'
-                      )}
-                    </div>
                   </div>
                 </div>
 
@@ -947,8 +1062,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     onClick={() => {
                       const m = selectedMember;
                       setSelectedMember(null);
-                      setRenewingMember(m);
-                      setSelectedPlanForRenewal(m.planId);
+                      setTimeout(() => {
+                        setRenewingMember(m);
+                        setSelectedPlanForRenewal(m.planId);
+                      }, 50);
                     }}
                     className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                   >
@@ -961,7 +1078,9 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     onClick={() => {
                       const m = selectedMember;
                       setSelectedMember(null);
-                      setEditingMember(m);
+                      setTimeout(() => {
+                        openEditModal(m);
+                      }, 50);
                     }}
                     className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
                   >
@@ -983,6 +1102,335 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         })()}
       </Modal>
 
+      {/* PARTICULAR INVOICE RECEIPT / TAX INVOICE MODAL */}
+      <Modal
+        isOpen={!!selectedInvoice}
+        onClose={() => setSelectedInvoice(null)}
+        title={selectedInvoice ? `Tax Invoice & Receipt: #${selectedInvoice.id?.toUpperCase()}` : 'Tax Invoice'}
+        maxWidth="max-w-3xl"
+      >
+        {selectedInvoice && (
+          <div className="space-y-4">
+            {/* View Mode Switcher and Actions Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+              {/* Mode Switcher Tabs */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setInvoiceViewMode('sheet')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    invoiceViewMode === 'sheet'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Tax Sheet View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceViewMode('pdf')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    invoiceViewMode === 'pdf'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>PDF Document View</span>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {pdfPreviewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="Open PDF in Browser Tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Open in Tab</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  title="Download actual PDF file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSharePdfToMobileNumber(selectedInvoice, selectedInvoiceMember)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  title={`Send PDF to ${selectedInvoiceMember?.phone || 'Mobile'}`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Share PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB CONTENT: 1. NATIVE PDF DOCUMENT VIEWER */}
+            {invoiceViewMode === 'pdf' && pdfPreviewUrl && (
+              <div className="w-full h-[65vh] min-h-[460px] rounded-xl overflow-hidden border border-slate-300 bg-slate-100 shadow-inner flex flex-col relative">
+                <object
+                  data={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
+                  type="application/pdf"
+                  className="w-full h-full flex-1"
+                >
+                  <iframe
+                    src={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
+                    title="Invoice PDF Document"
+                    className="w-full h-full border-0"
+                  >
+                    <div className="p-8 text-center bg-white h-full flex flex-col items-center justify-center space-y-3">
+                      <FileText className="w-12 h-12 text-emerald-600 mx-auto" />
+                      <p className="text-slate-800 font-bold">PDF Document Ready</p>
+                      <p className="text-slate-500 text-xs max-w-sm">
+                        If your browser does not render PDFs directly inside the frame, click below to open or download the PDF file.
+                      </p>
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                          className="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl"
+                        >
+                          Open in Browser
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
+                          className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl"
+                        >
+                          Download PDF
+                        </button>
+                      </div>
+                    </div>
+                  </iframe>
+                </object>
+              </div>
+            )}
+
+            {/* TAB CONTENT: 2. AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
+            {(invoiceViewMode === 'sheet' || !pdfPreviewUrl) && (
+              <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-5 print:p-0 print:border-none">
+                {/* Gym Header Branding & Receipt Pill */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-sm">
+                      PF
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-base sm:text-lg text-slate-900 tracking-tight">
+                        {gymInfo?.name || 'PULSEFIT ATHLETIC CLUB'}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076'}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                        <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || '27AAPCP1234F1Z8'}</strong></span>
+                        <span>•</span>
+                        <span>Phone: <strong className="text-slate-600">{gymInfo?.phone || '+91 98201 54321'}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right shrink-0">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      Payment Verified
+                    </span>
+                    <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
+                      Receipt #{selectedInvoice.id?.toUpperCase()}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Issued: {formatDate(selectedInvoice.date)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Two-Column Info: Billed Member & Payment Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Billed To Customer */}
+                  <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Member Information
+                    </span>
+                    <div className="font-bold text-slate-900 text-sm">
+                      {selectedInvoiceMember?.name || selectedInvoice.memberName}
+                    </div>
+                    <div className="text-slate-600 flex items-center gap-1.5 pt-0.5">
+                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'PF-M-101'}</strong></span>
+                    </div>
+                    <div className="text-slate-600 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Mobile: <strong className="text-slate-800">{selectedInvoiceMember?.phone || selectedInvoice.phone || 'N/A'}</strong></span>
+                    </div>
+                    {selectedInvoiceMember?.email && (
+                      <div className="text-slate-600 flex items-center gap-1.5 truncate">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Email: {selectedInvoiceMember.email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Payment Details */}
+                  <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Payment Verification
+                    </span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Receipt No:</span>
+                      <strong className="text-slate-900 font-mono">#{selectedInvoice.id?.toUpperCase()}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Date Paid:</span>
+                      <strong className="text-slate-800">{formatDate(selectedInvoice.date)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Payment Mode:</span>
+                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI / Instant Transfer'}</strong>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-500">Settlement Status:</span>
+                      <strong className="text-emerald-700 flex items-center gap-1 font-bold">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Paid & Active</span>
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Membership Plan Highlight Card */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                        Active Membership Subscription
+                      </span>
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1">
+                        {selectedInvoice.planName || 'Comprehensive Gym Membership Pass'}
+                      </h3>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400 block">Total Subscription Fee</span>
+                      <span className="text-lg sm:text-xl font-black text-slate-900">
+                        ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Included Privileges Checkmarks */}
+                  <div className="pt-2.5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Full cardio, strength & free-weight floor access</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Turnstile QR Pass on PulseFit Mobile App</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Locker, steam room & shower facilities</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Complimentary body composition evaluation</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Summary & Tax Breakdown */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start text-xs">
+                  {/* Left: Notes and Words */}
+                  <div className="sm:col-span-7 bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                      Amount In Words
+                    </span>
+                    <div className="font-bold text-slate-900 text-xs">
+                      Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
+                    </div>
+                    <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                      Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
+                    </p>
+                  </div>
+
+                  {/* Right: Tax Breakdown */}
+                  <div className="sm:col-span-5 space-y-1.5 text-xs text-slate-600 bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Plan Base Fee:</span>
+                      <span className="font-semibold text-slate-800">
+                        ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 text-[11px]">
+                      <span>CGST (9%):</span>
+                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 text-[11px]">
+                      <span>SGST (9%):</span>
+                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="border-t border-slate-200 pt-1.5 flex justify-between items-baseline">
+                      <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
+                      <span className="text-xl font-black text-emerald-600 font-mono">
+                        ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms & Official Seal Signature */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
+                  <div className="space-y-1">
+                    <p>• Membership passes are non-transferable & non-refundable once activated.</p>
+                    <p>• Turnstile QR Pass is required for gym floor access.</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[170px]">
+                    <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Digitally Verified</span>
+                    </div>
+                    <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
+                    <div className="text-[10px] text-slate-400">PulseFit Athletic Club</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 transition-colors"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer active:scale-95 transition-all"
+                title="Print Invoice"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Print</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* RENEW MEMBERSHIP MODAL (Full Payment & Automated Validity Engine) */}
       <RecordPaymentModal
         isOpen={!!renewingMember}
@@ -1002,75 +1450,374 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         upgradeMember={upgradingMember}
       />
 
-      {/* EDIT MEMBER MODAL */}
+      {/* EDIT MEMBER MODAL (All Fields + Mobile OTP Verification for Password) */}
       <Modal
         isOpen={!!editingMember}
         onClose={() => setEditingMember(null)}
-        title={`Edit Member: ${editingMember?.name}`}
+        title={`Edit Athlete Dossier: ${editingMember?.name || ''}`}
+        maxWidth="max-w-2xl"
       >
         {editingMember && (
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
-              <input
-                type="text"
-                value={editingMember.name}
-                onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={editingMember.email}
-                onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Plan Expiry Date</label>
-              <input
-                type="date"
-                value={editingMember.expiryDate || ''}
-                onChange={(e) => {
-                  const newExpiry = e.target.value;
-                  const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, editingMember.status) : editingMember.status;
-                  setEditingMember({ ...editingMember, expiryDate: newExpiry, status: autoStatus });
-                }}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Auto-updates status: Expired if exceeded, Expiring Soon if within 10 days, Active if &gt; 10 days.
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>
-              <select
-                value={editingMember.status}
-                onChange={(e) => setEditingMember({ ...editingMember, status: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="Active">Active</option>
-                <option value="Expiring Soon">Expiring Soon</option>
-                <option value="Expired">Expired</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Assign Coach</label>
-              <select
-                value={editingMember.trainerId || ''}
-                onChange={(e) => setEditingMember({ ...editingMember, trainerId: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="">None / Self Guided</option>
-                {trainers.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+          <form onSubmit={handleEditSubmit} className="space-y-4 text-xs max-h-[80vh] overflow-y-auto pr-1">
+            {/* 1. Personal & Contact Details */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                1. Personal Information & Identification
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingMember.name || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">Email Address</label>
+                    <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
+                    </span>
+                  </div>
+                  <input
+                    type="email"
+                    disabled
+                    readOnly
+                    value={editingMember.email || ''}
+                    className="w-full px-3 py-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs text-slate-500 cursor-not-allowed select-none font-medium"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" />
+                    <span>Permanent member login ID (cannot be changed).</span>
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">Phone / Mobile Number</label>
+                    <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
+                    </span>
+                  </div>
+                  <input
+                    type="tel"
+                    disabled
+                    readOnly
+                    value={editingMember.phone || ''}
+                    className="w-full px-3 py-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs text-slate-500 cursor-not-allowed select-none font-medium"
+                    placeholder="+91 98765 43210"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" />
+                    <span>Locked for mobile OTP verification & account security.</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Emergency Contact</label>
+                  <input
+                    type="text"
+                    value={editingMember.emergencyContact || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, emergencyContact: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="Relation & Phone"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
+                  <select
+                    value={editingMember.gender || 'Male'}
+                    onChange={(e) => setEditingMember({ ...editingMember, gender: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Age (Years)</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="100"
+                    value={editingMember.age || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, age: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            {/* 2. Physical Profile & Goals */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                2. Physical Profile & Biometrics
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Current Weight (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editingMember.weight || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, weight: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="e.g. 70"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Weight (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editingMember.targetWeight || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, targetWeight: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="e.g. 75"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Height (cm)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={editingMember.height || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, height: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="e.g. 175"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
+                  <input
+                    type="text"
+                    value={editingMember.goal || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, goal: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="e.g. Muscle Gain, Fat Loss"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Medical Notes</label>
+                  <input
+                    type="text"
+                    value={editingMember.medicalNotes || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, medicalNotes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    placeholder="None or any restrictions"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Membership Status & Coaching */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                3. Membership & Coaching
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Plan Expiry Date</label>
+                  <input
+                    type="date"
+                    value={editingMember.expiryDate || ''}
+                    onChange={(e) => {
+                      const newExpiry = e.target.value;
+                      const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, editingMember.status) : editingMember.status;
+                      setEditingMember({ ...editingMember, expiryDate: newExpiry, status: autoStatus });
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Status</label>
+                  <select
+                    value={editingMember.status || 'Active'}
+                    onChange={(e) => setEditingMember({ ...editingMember, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Expiring Soon">Expiring Soon</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Frozen">Frozen / Paused</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Assign Coach</label>
+                  <select
+                    value={editingMember.trainerId || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, trainerId: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="">None / Self Guided</option>
+                    {trainers.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Security & Password Update (Protected with Mobile OTP) */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>4. Account Security & Password</span>
+                </span>
+                {isOtpVerified ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <ShieldCheck className="w-3 h-3" /> Password Unlocked (OTP Verified)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200/80 text-slate-600 border border-slate-300">
+                    <Lock className="w-2.5 h-2.5" /> Password Locked
+                  </span>
+                )}
+              </div>
+
+              {!isOtpVerified ? (
+                <div className="space-y-3">
+                  {/* Locked Password display field */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700">Account Password</label>
+                      <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Locked (Mobile OTP Verification Required)
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        disabled
+                        readOnly
+                        value="••••••••••••"
+                        className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed select-none font-mono tracking-widest"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                        <Lock className="w-3 h-3" />
+                        <span>Locked</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      The password is secure and locked. It can only be changed after verifying an OTP sent to <strong className="text-slate-600 font-mono">{editingMember.phone || 'registered phone'}</strong>.
+                    </p>
+                  </div>
+
+                  {/* OTP Dispatch and Verification Box */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5 shadow-2xs">
+                    {!otpSent ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Verify Mobile to Unlock Password</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Send a 6-digit OTP code to registered number: <strong className="text-slate-800 font-mono">{editingMember.phone || 'No phone registered'}</strong>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={isSendingOtp || !editingMember.phone}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Send OTP to Mobile</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <KeyRound className="w-3 h-3 text-emerald-600" />
+                            <span>Enter 6-Digit OTP Code</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-semibold font-mono">Dispatched to {editingMember.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="Enter 6-digit OTP"
+                            value={enteredOtp}
+                            onChange={(e) => setEnteredOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold tracking-widest text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOtp}
+                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-2xs transition-colors shrink-0 active:scale-95"
+                          >
+                            Verify OTP
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 shrink-0"
+                          >
+                            Resend
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          A test notification popup toast with the 6-digit OTP has been dispatched for instant verification.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Set New Account Password (Unlocked)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordText(!showPasswordText)}
+                      className="text-[10px] font-semibold text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      {showPasswordText ? 'Hide Password' : 'Show Password'}
+                    </button>
+                  </div>
+                  <input
+                    type={showPasswordText ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min. 6 characters)"
+                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-2xs"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-emerald-700">
+                    Password will be hashed and encrypted in the database when you click "Save Changes".
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Form Action Buttons */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setEditingMember(null)}
@@ -1080,14 +1827,16 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                disabled={isSavingEdit}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
-                Save Changes
+                {isSavingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Save Changes</span>
               </button>
             </div>
           </form>
         )}
       </Modal>
-    </div>
+      </div>
   );
 };

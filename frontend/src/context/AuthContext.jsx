@@ -129,18 +129,19 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('pulsefit_accounts_v2', JSON.stringify(accounts));
   }, [accounts]);
 
-  // Hydrate staff accounts from Laravel SQLite backend
+  // Hydrate staff accounts from Laravel SQLite backend for the active gym
   useEffect(() => {
-    if (api.staff?.getAll) {
-      api.staff.getAll().then((res) => {
+    const currentGymId = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
+    if (api.staff?.getAll && currentGymId) {
+      api.staff.getAll({ gym_id: currentGymId }).then((res) => {
         if (Array.isArray(res?.data) && res.data.length > 0) {
           const backendStaff = res.data.map((u) => {
             const role = (u.role || 'manager').toLowerCase();
             return {
               id: `usr-${role}-${u.id}`,
               userId: u.id,
-              gymId: u.gym_id || 1,
-              gym_id: u.gym_id || 1,
+              gymId: u.gym_id || currentGymId,
+              gym_id: u.gym_id || currentGymId,
               name: u.name,
               role: role,
               roleLabel:
@@ -192,7 +193,7 @@ export const AuthProvider = ({ children }) => {
         }
       }).catch((err) => console.warn('Failed to load staff accounts:', err.message));
     }
-  }, []);
+  }, [currentUser?.gymId, currentUser?.gym_id]);
 
   useEffect(() => {
     localStorage.setItem('pulsefit_isAuth', isAuthenticated.toString());
@@ -311,6 +312,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('pulsefit_gym_id');
     localStorage.removeItem('pulsefit_currentUser_v2');
     localStorage.removeItem('pulsefit_token');
+    localStorage.removeItem('pulsefit_invoices');
+    localStorage.removeItem('pulsefit_expenses');
+    localStorage.removeItem('pulsefit_enquiries');
+    localStorage.removeItem('pulsefit_accounts_v2');
   };
 
   // LOGOUT FUNCTION (Triggers confirmation popup)
@@ -383,8 +388,9 @@ export const AuthProvider = ({ children }) => {
     return newAccount;
   };
 
-  // CREATE STAFF ACCOUNT (Superadmin creates manager, accounts, or trainer account)
-  const createStaffAccount = async ({ name, email, password, role, phone }) => {
+  // CREATE STAFF ACCOUNT (Owner creates manager, accounts, or trainer account for active gym)
+  const createStaffAccount = async ({ name, email, password, role, phone, gym_id, gymId }) => {
+    const activeGymId = gym_id || gymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || 1;
     const roleNormalized = role.toLowerCase();
     let backendUser = null;
     try {
@@ -394,7 +400,7 @@ export const AuthProvider = ({ children }) => {
         password: password || 'staff123',
         role: roleNormalized,
         phone: phone || '',
-        gym_id: 1
+        gym_id: Number(activeGymId)
       });
       if (res?.data) {
         backendUser = res.data;
@@ -407,7 +413,8 @@ export const AuthProvider = ({ children }) => {
           email,
           password: password || 'staff123',
           role: roleNormalized,
-          phone: phone || ''
+          phone: phone || '',
+          gym_id: Number(activeGymId)
         });
       } catch (regErr) {}
     }
@@ -436,8 +443,9 @@ export const AuthProvider = ({ children }) => {
           : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80'),
       badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Staff Access',
       phone: phone || '',
-      gymName: 'PULSE FIT Athletic Club',
-      gymId: 1
+      gymName: currentUser?.gymName || 'PULSE FIT Athletic Club',
+      gymId: Number(activeGymId),
+      gym_id: Number(activeGymId)
     };
 
     setAccounts((prev) => [newStaff, ...prev.filter((a) => a.email?.toLowerCase() !== email.toLowerCase())]);

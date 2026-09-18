@@ -186,9 +186,18 @@ class OperationsController extends Controller
             });
         }
         $records = $query->orderBy('date', 'desc')->get()->map(function ($c) {
-            $amt = (float)$c->amount;
-            $rate = (float)$c->rate_percent;
-            $packageAmt = $rate > 0 ? round($amt / ($rate / 100)) : $amt;
+            $rate = (float)($c->rate_percent ?? 0);
+
+            // Package amount is the PT plan / service price
+            $packageAmt = $c->package_amount !== null
+                ? (float)$c->package_amount
+                : (float)$c->amount;
+
+            // Commission earned is the trainer incentive: (packageAmount * rate) / 100
+            $commissionEarned = $c->commission_earned !== null
+                ? (float)$c->commission_earned
+                : round(($packageAmt * $rate) / 100, 2);
+
             return [
                 'id' => 'com-' . $c->id,
                 'numericId' => $c->id,
@@ -202,7 +211,7 @@ class OperationsController extends Controller
                 'commissionPct' => $rate,
                 'amount' => $packageAmt,
                 'packageAmount' => $packageAmt,
-                'commissionEarned' => $amt,
+                'commissionEarned' => $commissionEarned,
                 'date' => $c->date?->format('Y-m-d') ?? (string)$c->date,
                 'status' => $c->status,
             ];
@@ -215,8 +224,13 @@ class OperationsController extends Controller
     {
         $trainerIdRaw = $request->trainerId ?? $request->trainer_id;
         $trainerId = $trainerIdRaw ? (int)str_replace(['trn-', 'tr-'], '', $trainerIdRaw) : null;
-        $amount = (float)($request->amount ?? $request->packageAmount ?? 0);
+        $packageAmount = (float)($request->packageAmount ?? $request->amount ?? 0);
         $ratePercent = (float)($request->ratePercent ?? $request->rate_percent ?? $request->commissionPct ?? 20);
+
+        // Commission earned is explicitly passed or calculated as (packageAmount * ratePercent) / 100
+        $commissionEarned = $request->has('commissionEarned') && (float)$request->commissionEarned > 0
+            ? (float)$request->commissionEarned
+            : round(($packageAmount * $ratePercent) / 100, 2);
 
         $c = Commission::create([
             'gym_id' => $this->resolveGymId($request),
@@ -226,7 +240,9 @@ class OperationsController extends Controller
             'plan_name' => $request->planName ?? $request->plan_name ?? $request->serviceType ?? 'Personal Training (PT)',
             'session_type' => $request->sessionType ?? $request->session_type ?? $request->serviceType ?? 'Personal Training (PT)',
             'rate_percent' => $ratePercent,
-            'amount' => $amount,
+            'package_amount' => $packageAmount,
+            'commission_earned' => $commissionEarned,
+            'amount' => $packageAmount,
             'date' => $request->date ?? now()->toDateString(),
             'status' => $request->status ?? 'Pending',
         ]);
@@ -243,7 +259,10 @@ class OperationsController extends Controller
                 'planName' => $c->plan_name,
                 'sessionType' => $c->session_type,
                 'ratePercent' => (float)$c->rate_percent,
-                'amount' => (float)$c->amount,
+                'commissionPct' => (float)$c->rate_percent,
+                'packageAmount' => (float)$c->package_amount,
+                'amount' => (float)$c->package_amount,
+                'commissionEarned' => (float)$c->commission_earned,
                 'date' => $c->date?->format('Y-m-d') ?? (string)$c->date,
                 'status' => $c->status,
             ]

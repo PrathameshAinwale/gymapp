@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
+let programmaticBackCount = 0;
+
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' }) => {
   const hasPushedHistoryRef = useRef(false);
   const onCloseRef = useRef(onClose);
@@ -18,6 +20,10 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
     };
 
     const handlePopState = () => {
+      if (programmaticBackCount > 0) {
+        programmaticBackCount--;
+        return;
+      }
       // Back pressed while modal was open
       hasPushedHistoryRef.current = false;
       onCloseRef.current?.();
@@ -40,7 +46,11 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
       if (hasPushedHistoryRef.current) {
         hasPushedHistoryRef.current = false;
         if (window.history.state?.isModal) {
+          programmaticBackCount++;
           window.history.back();
+          setTimeout(() => {
+            if (programmaticBackCount > 0) programmaticBackCount--;
+          }, 300);
         }
       }
     };

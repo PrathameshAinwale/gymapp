@@ -64,6 +64,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
   const [isCustomizeCardsOpen, setIsCustomizeCardsOpen] = useState(false);
 
   const {
+    gymInfo,
     members = [],
     trainers = [],
     plans = [],
@@ -256,24 +257,60 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
   const lowStockProducts = products.filter((p) => p.stock <= (p.minStockAlert || 5));
   const pendingAdvances = advanceRequests.filter((r) => r.status === 'Pending');
 
+  // Dynamic Revenue / Inflow calculation from real database inflows & stats
+  const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
+
   // Live Check-ins strictly for TODAY (resets to 0 each morning)
   const todayIso = getTodayIso();
-  const todayAttendance = (attendance || []).filter((a) => recordMatchesDate(a, todayIso));
-  const recentCheckIns = todayAttendance.slice(0, 4).map((a) => ({
-    id: a.id,
-    personName: a.memberName || a.name || 'Member',
-    time: a.time || a.checkInTime || 'Today',
-    mode: 'QR Pass Check-In'
-  }));
+  const todayAttendance = (attendance || []).filter((a) => {
+    if (!recordMatchesDate(a, todayIso)) return false;
+    if (currentGymId) {
+      const attGym = Number(a.gymId || a.gym_id);
+      if (attGym && attGym !== currentGymId) return false;
+    }
+    return true;
+  });
 
-  // Dynamic Revenue calculation from real database invoices & stats
-  const currentPaidInvoicesSum = (invoices || [])
-    .filter((inv) => (inv.status || '').toLowerCase() === 'paid')
+  // Live Gym Floor: Members who have punched in today and NOT punched out yet
+  const currentlyInsideMembers = todayAttendance.filter((a) => {
+    const isCompleted = (a.status || '').toLowerCase() === 'completed' || (a.status || '').toLowerCase() === 'checked out';
+    const hasCheckedOut = a.checkOutTime && a.checkOutTime !== '--' && a.checkOutTime !== 'null';
+    const hasPunchedOut = a.punchOutTime && a.punchOutTime !== '--' && a.punchOutTime !== 'null';
+    return !isCompleted && !hasCheckedOut && !hasPunchedOut;
+  });
+
+  const liveOccupancyCount = currentlyInsideMembers.length;
+  const totalGymMembersCount = totalMembersCount > 0 ? totalMembersCount : 0;
+  const liveOccupancyPct = totalGymMembersCount > 0
+    ? Math.min(100, Math.round((liveOccupancyCount / totalGymMembersCount) * 100))
+    : 0;
+
+  const recentCheckIns = todayAttendance.slice(0, 5).map((a) => {
+    const isCompleted = (a.status || '').toLowerCase() === 'completed' || (a.status || '').toLowerCase() === 'checked out';
+    const hasCheckedOut = a.checkOutTime && a.checkOutTime !== '--' && a.checkOutTime !== 'null';
+    const hasPunchedOut = a.punchOutTime && a.punchOutTime !== '--' && a.punchOutTime !== 'null';
+    const isInside = !isCompleted && !hasCheckedOut && !hasPunchedOut;
+    return {
+      id: a.id,
+      personName: a.memberName || a.name || 'Member',
+      time: a.checkInTime || a.time || 'Today',
+      checkOutTime: a.checkOutTime && a.checkOutTime !== '--' ? a.checkOutTime : a.punchOutTime,
+      isInside,
+      mode: isInside ? 'Active on Floor' : 'Punched Out'
+    };
+  });
+  const gymInflowSum = (invoices || [])
+    .filter((inv) => {
+      if (!currentGymId) return true;
+      const invGym = Number(inv.gymId || inv.gym_id);
+      return !invGym || invGym === currentGymId;
+    })
     .reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
+
   const totalRevenue =
     ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0
-      ? ownerStats.monthlyRevenue
-      : currentPaidInvoicesSum;
+      ? Number(ownerStats.monthlyRevenue)
+      : gymInflowSum;
 
   const previousMonthRevenue = revenueAnalytics && revenueAnalytics.length >= 2
     ? (revenueAnalytics[revenueAnalytics.length - 2]?.revenue || 0)
@@ -307,7 +344,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     total_members: totalMembersCount,
     renewals_due: expiredMembersCount,
     hot_leads: enquiries.length,
-    monthly_revenue: `₹${(totalRevenue / 100000).toFixed(2)}L`,
+    monthly_revenue: `₹${totalRevenue.toLocaleString('en-IN')}`,
     today_checkins: todayAttendance.length,
     pt_sessions: ptSessions.length,
     classes_today: classes.length,
@@ -1267,9 +1304,13 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
                 <h3 className="text-sm font-bold text-slate-900">Live Gym Floor</h3>
                 <p className="text-xs text-slate-500">Real-time athlete presence</p>
               </div>
-              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Active Floor
+              <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                liveOccupancyCount > 0
+                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  : 'text-slate-500 bg-slate-100 border-slate-200'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${liveOccupancyCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                {liveOccupancyCount > 0 ? `${liveOccupancyCount} Inside Now` : 'Floor Empty'}
               </span>
             </div>
 
@@ -1278,14 +1319,20 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-500 font-medium">Floor Occupancy</span>
                 <span className="font-bold text-slate-900">
-                  {Math.min(attendance.length > 0 ? attendance.length : 42, 60)} / 60 Athletes ({Math.round(((attendance.length > 0 ? attendance.length : 42) / 60) * 100)}%)
+                  {liveOccupancyCount} / {totalGymMembersCount} {totalGymMembersCount === 1 ? 'Member' : 'Members'} ({liveOccupancyPct}%)
                 </span>
               </div>
               <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.round(((attendance.length > 0 ? attendance.length : 42) / 60) * 100))}%` }}
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    liveOccupancyPct > 85 ? 'bg-rose-500' : liveOccupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${liveOccupancyPct}%` }}
                 ></div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                <span>{liveOccupancyCount === 1 ? '1 member currently working out' : `${liveOccupancyCount} members currently working out`}</span>
+                <span>{Math.max(0, totalGymMembersCount - liveOccupancyCount)} not in gym</span>
               </div>
             </div>
 
@@ -1316,17 +1363,22 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
             <div className="divide-y divide-slate-100 text-xs">
               {recentCheckIns.length === 0 ? (
-                <div className="py-4 text-center text-slate-400 text-xs">No recent check-ins recorded yet.</div>
+                <div className="py-4 text-center text-slate-400 text-xs">No member check-ins recorded today.</div>
               ) : (
                 recentCheckIns.map((log) => (
                   <div key={log.id} className="py-2 flex items-center justify-between">
                     <div className="min-w-0 pr-2">
                       <div className="font-bold text-slate-900 truncate">{log.personName}</div>
-                      <div className="text-[10px] text-slate-400 truncate">{log.mode}</div>
+                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${log.isInside ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                        <span>{log.mode}</span>
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {log.time}
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        log.isInside ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'
+                      }`}>
+                        {log.isInside ? `In: ${log.time}` : `Out: ${log.checkOutTime || log.time}`}
                       </span>
                     </div>
                   </div>

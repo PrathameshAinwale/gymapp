@@ -11,7 +11,8 @@ import {
   Sparkles,
   Search,
   Plus,
-  RotateCw
+  RotateCw,
+  Trash2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -25,6 +26,7 @@ export const PTSessionsManager = () => {
     fetchTrainers,
     fetchMembers,
     allocatePTSessions,
+    deletePTSession,
     addToast
   } = useGymData();
 
@@ -64,7 +66,22 @@ export const PTSessionsManager = () => {
     addToast(`PT Package allocated for ${mem?.name} with ${trn?.name}!`, 'success');
   };
 
-  const filteredSessions = ptSessions.filter((pt) =>
+  // Deduplicate any duplicate active packages for the same member
+  const uniqueSessions = [];
+  const seenMemberActive = new Set();
+  for (const pt of ptSessions) {
+    const key = `${pt.memberId || pt.memberName}-${pt.status}`;
+    if (pt.status === 'Active' && (Number(pt.completedSessions) || 0) === 0) {
+      if (!seenMemberActive.has(key)) {
+        seenMemberActive.add(key);
+        uniqueSessions.push(pt);
+      }
+    } else {
+      uniqueSessions.push(pt);
+    }
+  }
+
+  const filteredSessions = uniqueSessions.filter((pt) =>
     (pt.memberName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (pt.trainerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (pt.packageTitle || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -195,13 +212,29 @@ export const PTSessionsManager = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSessionPkg(pt)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
-                        >
-                          View Logs ({(pt.logs || []).length})
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSessionPkg(pt)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
+                          >
+                            View Logs ({(pt.logs || []).length})
+                          </button>
+                          {deletePTSession && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Remove PT package for ${pt.memberName}?`)) {
+                                  deletePTSession(pt.numericId || pt.id);
+                                }
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+                              title="Delete Package"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

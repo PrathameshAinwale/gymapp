@@ -102,14 +102,29 @@ export const Financials = () => {
     notes: ''
   });
 
-  // Dynamic Revenue (Cash Inflow) Calculation
-  const paidInvoices = (invoices || []).filter((inv) => inv.status?.toLowerCase() === 'paid');
-  const currentPaidInvoicesSum = paidInvoices.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
+  const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
 
-  const totalInflow = currentPaidInvoicesSum > 0 ? currentPaidInvoicesSum : (ownerStats?.monthlyRevenue || 0);
+  // Tenant-scoped Invoices & Expenses
+  const gymInvoices = (invoices || []).filter((inv) => {
+    if (!currentGymId) return true;
+    const invGym = Number(inv.gymId || inv.gym_id);
+    return !invGym || invGym === currentGymId;
+  });
+
+  const gymExpenses = (expenses || []).filter((exp) => {
+    if (!currentGymId) return true;
+    const expGym = Number(exp.gym_id || exp.gymId);
+    return !expGym || expGym === currentGymId;
+  });
+
+  // Dynamic Revenue (Cash Inflow) Calculation
+  const currentInflowSum = gymInvoices.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
+  const totalInflow = ownerStats?.monthlyRevenue != null && ownerStats.monthlyRevenue > 0
+    ? Number(ownerStats.monthlyRevenue)
+    : currentInflowSum;
 
   // Dynamic Expenses (Cash Outflow) Calculation
-  const totalOutflow = expenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+  const totalOutflow = gymExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
   // Net Cash Flow (Operating Surplus)
   const netCashFlow = Math.max(0, totalInflow - totalOutflow);
@@ -133,7 +148,7 @@ export const Financials = () => {
     : (totalInflow > 0 ? '+100.0' : '0.0');
 
   // Filtered Invoices & Member Search
-  const filteredInvoices = (invoices || [])
+  const filteredInvoices = gymInvoices
     .filter((inv) => {
       const matchesStatus = invoiceFilter === 'ALL' || inv.status?.toLowerCase() === invoiceFilter.toLowerCase();
       const term = (memberSearchTerm || '').trim().toLowerCase();
@@ -149,7 +164,7 @@ export const Financials = () => {
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   // Filtered Expenses
-  const filteredExpenses = expenses.filter((exp) => {
+  const filteredExpenses = gymExpenses.filter((exp) => {
     if (expenseCategoryFilter === 'ALL') return true;
     return exp.category === expenseCategoryFilter;
   });

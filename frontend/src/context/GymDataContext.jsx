@@ -854,12 +854,31 @@ export const GymDataProvider = ({ children }) => {
   const [dietPlan, setDietPlan] = useState(SEED_DEFAULT_DIET_PLAN);
   const [dietPlans, setDietPlans] = useState([SEED_DEFAULT_DIET_PLAN]);
   const [waterGlasses, setWaterGlasses] = useState(8);
-  const [bodyMetrics, setBodyMetrics] = useState(SEED_BODY_METRICS);
+  const [bodyMetrics, setBodyMetrics] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('pulsefit_body_metrics');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      { month: 'Apr', weight: 84.5, bodyFat: 19.8, muscleMass: 35.0, chest: 104, waist: 88, biceps: 36.5 },
+      { month: 'May', weight: 83.0, bodyFat: 18.5, muscleMass: 35.8, chest: 105, waist: 86, biceps: 37.0 },
+      { month: 'Jun', weight: 81.2, bodyFat: 17.2, muscleMass: 36.5, chest: 106, waist: 84, biceps: 37.5 },
+      { month: 'Jul', weight: 79.8, bodyFat: 16.0, muscleMass: 37.2, chest: 107.5, waist: 82.5, biceps: 38.0 },
+      { month: 'Aug', weight: 78.5, bodyFat: 15.1, muscleMass: 37.8, chest: 108.5, waist: 81.5, biceps: 38.5 },
+      { month: 'Sep', weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0 }
+    ];
+  });
+  const activeGymKey = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : 'default');
   const [invoices, setInvoices] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('pulsefit_invoices');
-        if (saved) return JSON.parse(saved);
+        const saved = localStorage.getItem(`pulsefit_invoices_${activeGymKey}`) || localStorage.getItem('pulsefit_invoices');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed.filter((i) => !i.gymId || i.gymId === Number(activeGymKey)) : [];
+        }
       } catch (e) {}
     }
     return [];
@@ -867,8 +886,11 @@ export const GymDataProvider = ({ children }) => {
   const [expenses, setExpenses] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('pulsefit_expenses');
-        if (saved) return JSON.parse(saved);
+        const saved = localStorage.getItem(`pulsefit_expenses_${activeGymKey}`) || localStorage.getItem('pulsefit_expenses');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed.filter((e) => !e.gym_id || e.gym_id === Number(activeGymKey)) : [];
+        }
       } catch (e) {}
     }
     return [];
@@ -1065,33 +1087,35 @@ export const GymDataProvider = ({ children }) => {
 
   const fetchInvoices = useCallback(async () => {
     try {
+      const activeGym = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
       const res = api.revenueBilling?.getInflows
-        ? await api.revenueBilling.getInflows()
-        : await api.invoices.getAll();
+        ? await api.revenueBilling.getInflows({ gym_id: activeGym })
+        : await api.invoices.getAll({ gym_id: activeGym });
       if (Array.isArray(res?.data)) {
         setInvoices(res.data);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('pulsefit_invoices', JSON.stringify(res.data));
+          localStorage.setItem(`pulsefit_invoices_${activeGym || 'default'}`, JSON.stringify(res.data));
         }
       }
       return res?.data;
     } catch (e) { console.warn('Fetch invoices error:', e.message); }
-  }, []);
+  }, [currentUser?.gymId, currentUser?.gym_id]);
 
   const fetchExpenses = useCallback(async () => {
     try {
+      const activeGym = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
       const res = api.revenueBilling?.getOutflows
-        ? await api.revenueBilling.getOutflows()
-        : await api.expenses.getAll();
+        ? await api.revenueBilling.getOutflows({ gym_id: activeGym })
+        : await api.expenses.getAll({ gym_id: activeGym });
       if (Array.isArray(res?.data)) {
         setExpenses(res.data);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('pulsefit_expenses', JSON.stringify(res.data));
+          localStorage.setItem(`pulsefit_expenses_${activeGym || 'default'}`, JSON.stringify(res.data));
         }
       }
       return res?.data;
     } catch (e) { console.warn('Fetch expenses error:', e.message); }
-  }, []);
+  }, [currentUser?.gymId, currentUser?.gym_id]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -1324,6 +1348,37 @@ export const GymDataProvider = ({ children }) => {
   }, [isLoadingBackend, loadingModules]);
 
   useEffect(() => {
+    // Reset state before loading data for the active gym to prevent any cross-tenant data leakage
+    setMembers([]);
+    setTrainers([]);
+    setInvoices([]);
+    setExpenses([]);
+    setEnquiries([]);
+    setAttendance([]);
+    setBookedClasses([]);
+    setPtSessions([]);
+    setProducts([]);
+    setCommissions([]);
+    setMembershipFreezes([]);
+    setConsentForms([]);
+    setPayrollRecords([]);
+    setAdvanceRequests([]);
+    setTrainerReviews([]);
+    setOwnerStats({
+      totalMembers: 0,
+      activeMembers: 0,
+      expiringMembers: 0,
+      expiredMembers: 0,
+      totalTrainers: 0,
+      todayAttendance: 0,
+      monthlyRevenue: 0,
+      monthlyExpenses: 0,
+      monthlyProfit: 0,
+      totalLeads: 0,
+      hotLeads: 0
+    });
+    setRevenueAnalytics([]);
+
     fetchAllFromBackend();
   }, [fetchAllFromBackend, currentUser?.gymId, currentUser?.userId]);
 
@@ -1339,6 +1394,7 @@ export const GymDataProvider = ({ children }) => {
         await fetchMembers();
         await fetchInvoices();
         await fetchDashboardStats();
+        await fetchPtSessions?.();
         addToast(`New member "${res.data.name}" registered successfully & saved to database!`, 'success');
         return res.data;
       }
@@ -1353,6 +1409,7 @@ export const GymDataProvider = ({ children }) => {
   const updateMember = async (id, updatedData) => {
     try {
       await api.members.update(id, updatedData);
+      await fetchPtSessions?.();
     } catch (e) {
       console.warn('Backend update member fallback:', e.message);
     }
@@ -2667,6 +2724,18 @@ export const GymDataProvider = ({ children }) => {
     return newSessionPackage;
   };
 
+  const deletePTSession = async (id) => {
+    try {
+      if (api.ptSessions?.delete) {
+        await api.ptSessions.delete(id);
+      }
+    } catch (err) {
+      console.warn('Delete PT session error:', err.message);
+    }
+    setPtSessions((prev) => prev.filter((p) => p.id !== id && p.numericId !== id));
+    addToast('PT Session package removed', 'info');
+  };
+
   // PT SESSIONS: Trainer logs completed session with member OTP verification
   const logPTSessionWithOtp = async ({ ptSessionId, inputOtp, trainerNotes }) => {
     const sessionPkg = ptSessions.find((p) => p.id === ptSessionId || p.numericId === ptSessionId);
@@ -3184,6 +3253,7 @@ export const GymDataProvider = ({ children }) => {
         updateAdvancePayStatus,
         ptSessions,
         allocatePTSessions,
+        deletePTSession,
         logPTSessionWithOtp,
         trainerReviews,
         addTrainerReview,

@@ -59,13 +59,20 @@ export const TrainerCommissions = () => {
     commissionPct: 25
   });
 
-  const totalCommissions = commissions.reduce((acc, c) => acc + (Number(c.commissionEarned || c.amount) || 0), 0);
+  const getCommissionEarned = (c) => {
+    if (c.commissionEarned !== undefined && c.commissionEarned !== null) return Number(c.commissionEarned);
+    const pkg = Number(c.packageAmount || c.amount) || 0;
+    const rate = Number(c.commissionPct || c.ratePercent) || 20;
+    return Math.round((pkg * rate) / 100);
+  };
+
+  const totalCommissions = commissions.reduce((acc, c) => acc + getCommissionEarned(c), 0);
   const pendingCommissions = commissions
     .filter((c) => c.status === 'Pending')
-    .reduce((acc, c) => acc + (Number(c.commissionEarned || c.amount) || 0), 0);
+    .reduce((acc, c) => acc + getCommissionEarned(c), 0);
   const paidCommissions = commissions
     .filter((c) => c.status === 'Paid')
-    .reduce((acc, c) => acc + (Number(c.commissionEarned || c.amount) || 0), 0);
+    .reduce((acc, c) => acc + getCommissionEarned(c), 0);
 
   const filteredCommissions = commissions.filter((c) => {
     const matchesSearch =
@@ -99,7 +106,9 @@ export const TrainerCommissions = () => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const earned = Math.round((Number(formData.amount) * Number(formData.commissionPct)) / 100);
+      const pkgAmt = Number(formData.amount);
+      const pct = Number(formData.commissionPct);
+      const earned = Math.round((pkgAmt * pct) / 100);
 
       await addCommissionRecord({
         trainerId: formData.trainerId || trainers[0]?.id,
@@ -107,8 +116,11 @@ export const TrainerCommissions = () => {
         memberId: formData.memberId || members[0]?.id,
         memberName: formData.memberName || members[0]?.name,
         serviceType: formData.serviceType,
-        amount: Number(formData.amount),
-        commissionPct: Number(formData.commissionPct),
+        planName: formData.serviceType,
+        amount: pkgAmt,
+        packageAmount: pkgAmt,
+        ratePercent: pct,
+        commissionPct: pct,
         commissionEarned: earned
       });
 
@@ -276,7 +288,7 @@ export const TrainerCommissions = () => {
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Commission ({com.commissionPct || com.ratePercent || 20}%)</span>
-                    <span className="font-black text-emerald-600 text-xs">₹{Number(com.commissionEarned || com.amount || 0).toLocaleString('en-IN')}</span>
+                    <span className="font-black text-emerald-600 text-xs">₹{getCommissionEarned(com).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
@@ -376,7 +388,7 @@ export const TrainerCommissions = () => {
                     </td>
 
                     <td className="py-3.5 px-4 font-black text-emerald-600 text-sm">
-                      ₹{Number(com.commissionEarned || com.amount || 0).toLocaleString('en-IN')}
+                      ₹{getCommissionEarned(com).toLocaleString('en-IN')}
                     </td>
 
                     <td className="py-3.5 px-4">
@@ -566,7 +578,7 @@ export const TrainerCommissions = () => {
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
               <div className="text-[10px] uppercase font-bold text-slate-400">Total Volume</div>
               <div className="text-lg font-black text-slate-900 mt-0.5">
-                ₹{commissions.reduce((a, c) => a + (Number(c.amount) || 0), 0).toLocaleString('en-IN')}
+                ₹{commissions.reduce((a, c) => a + (Number(c.packageAmount || c.amount) || 0), 0).toLocaleString('en-IN')}
               </div>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">

@@ -17,6 +17,8 @@ class Commission extends Model
         'plan_name',
         'session_type',
         'rate_percent',
+        'package_amount',
+        'commission_earned',
         'amount',
         'date',
         'status',
@@ -24,6 +26,8 @@ class Commission extends Model
 
     protected $casts = [
         'rate_percent' => 'float',
+        'package_amount' => 'float',
+        'commission_earned' => 'float',
         'amount' => 'float',
         'date' => 'date:Y-m-d',
     ];

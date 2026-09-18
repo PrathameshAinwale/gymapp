@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useGymData } from '../../context/GymDataContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   FileText,
   Download,
@@ -35,6 +36,9 @@ export const ReportsManager = ({ setActiveTab }) => {
     addToast
   } = useGymData();
 
+  const { currentUser } = useAuth();
+  const currentGymId = currentUser?.gymId || currentUser?.gym_id || localStorage.getItem('pulsefit_gym_id');
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -47,6 +51,32 @@ export const ReportsManager = ({ setActiveTab }) => {
     setIsRefreshing(false);
   };
 
+  // Scoped datasets by currentGymId
+  const gymMembers = useMemo(() => {
+    if (!currentGymId) return members;
+    return members.filter(m => !m.gymId || String(m.gymId) === String(currentGymId));
+  }, [members, currentGymId]);
+
+  const gymInvoices = useMemo(() => {
+    if (!currentGymId) return invoices;
+    return invoices.filter(inv => !inv.gymId || String(inv.gymId) === String(currentGymId));
+  }, [invoices, currentGymId]);
+
+  const gymAttendance = useMemo(() => {
+    if (!currentGymId) return attendance;
+    return attendance.filter(a => !a.gymId || String(a.gymId) === String(currentGymId));
+  }, [attendance, currentGymId]);
+
+  const gymPtSessions = useMemo(() => {
+    if (!currentGymId) return ptSessions;
+    return ptSessions.filter(p => !p.gymId || String(p.gymId) === String(currentGymId));
+  }, [ptSessions, currentGymId]);
+
+  const gymPayrollRecords = useMemo(() => {
+    if (!currentGymId) return payrollRecords;
+    return payrollRecords.filter(p => !p.gymId || String(p.gymId) === String(currentGymId));
+  }, [payrollRecords, currentGymId]);
+
   // Active Report Category
   const [reportCategory, setReportCategory] = useState('members'); // 'members' | 'revenue' | 'attendance' | 'pt' | 'payroll'
   const [dateRange, setDateRange] = useState('ALL'); // 'ALL' | 'THIS_MONTH' | 'LAST_30_DAYS'
@@ -58,7 +88,7 @@ export const ReportsManager = ({ setActiveTab }) => {
     const term = searchTerm.toLowerCase();
 
     if (reportCategory === 'members') {
-      return members.filter((m) => {
+      return gymMembers.filter((m) => {
         const matchesTerm = (m.name || '').toLowerCase().includes(term) || (m.email || '').toLowerCase().includes(term);
         const effectiveStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : (m.status || 'Active');
         const matchesType = filterType === 'ALL' || effectiveStatus.toLowerCase() === filterType.toLowerCase();
@@ -67,7 +97,7 @@ export const ReportsManager = ({ setActiveTab }) => {
     }
 
     if (reportCategory === 'revenue') {
-      return invoices.filter((inv) => {
+      return gymInvoices.filter((inv) => {
         const matchesTerm = (inv.memberName || '').toLowerCase().includes(term) || (inv.planName || '').toLowerCase().includes(term);
         const matchesType = filterType === 'ALL' || (inv.status || '').toLowerCase() === filterType.toLowerCase();
         return matchesTerm && matchesType;
@@ -75,22 +105,22 @@ export const ReportsManager = ({ setActiveTab }) => {
     }
 
     if (reportCategory === 'attendance') {
-      return attendance.filter((a) => {
+      return gymAttendance.filter((a) => {
         const matchesTerm = (a.memberName || a.name || '').toLowerCase().includes(term) || (a.planName || '').toLowerCase().includes(term);
-        const matchesType = filterType === 'ALL' || (a.status || '').toLowerCase().includes(filterType.toLowerCase());
+        const matchesType = filterType === 'ALL' || (a.status || '').toLowerCase() === filterType.toLowerCase();
         return matchesTerm && matchesType;
       });
     }
 
     if (reportCategory === 'pt') {
-      return ptSessions.filter((pt) => {
+      return gymPtSessions.filter((pt) => {
         const matchesTerm = (pt.memberName || '').toLowerCase().includes(term) || (pt.trainerName || '').toLowerCase().includes(term);
         return matchesTerm;
       });
     }
 
     if (reportCategory === 'payroll') {
-      return payrollRecords.filter((p) => {
+      return gymPayrollRecords.filter((p) => {
         const matchesTerm = (p.trainerName || p.employeeName || p.name || '').toLowerCase().includes(term) || (p.role || '').toLowerCase().includes(term);
         const matchesType = filterType === 'ALL' || p.status === filterType;
         return matchesTerm && matchesType;
@@ -192,11 +222,11 @@ export const ReportsManager = ({ setActiveTab }) => {
       {/* Category Tabs */}
       <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar gap-1">
         {[
-          { id: 'members', label: 'Members Report', icon: Users, count: members.length },
-          { id: 'revenue', label: 'Revenue & Inflow', icon: IndianRupee, count: invoices.length },
-          { id: 'attendance', label: 'Attendance & Punch Out', icon: CalendarCheck, count: attendance.length },
-          { id: 'pt', label: 'PT Sessions & OTP', icon: Dumbbell, count: ptSessions.length },
-          { id: 'payroll', label: 'Staff Payroll & Advances', icon: Wallet, count: payrollRecords.length }
+          { id: 'members', label: 'Members Report', icon: Users, count: gymMembers.length },
+          { id: 'revenue', label: 'Revenue & Inflow', icon: IndianRupee, count: gymInvoices.length },
+          { id: 'attendance', label: 'Attendance & Punch Out', icon: CalendarCheck, count: gymAttendance.length },
+          { id: 'pt', label: 'PT Sessions & OTP', icon: Dumbbell, count: gymPtSessions.length },
+          { id: 'payroll', label: 'Staff Payroll & Advances', icon: Wallet, count: gymPayrollRecords.length }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = reportCategory === tab.id;

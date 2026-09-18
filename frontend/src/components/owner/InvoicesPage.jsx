@@ -129,11 +129,22 @@ export const InvoicesPage = () => {
     return true;
   };
 
+  const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
+
+  // Filter invoices strictly to the active gym
+  const gymInvoices = useMemo(() => {
+    return (invoices || []).filter((inv) => {
+      if (!currentGymId) return true;
+      const invGym = Number(inv.gymId || inv.gym_id);
+      return !invGym || invGym === currentGymId;
+    });
+  }, [invoices, currentGymId]);
+
   // Group all invoices by member
   const memberInvoicesMap = useMemo(() => {
     const map = new Map();
 
-    (invoices || []).forEach((inv) => {
+    gymInvoices.forEach((inv) => {
       const matchedMember = (members || []).find(
         (m) =>
           (inv.memberId && String(m.id) === String(inv.memberId)) ||
@@ -233,16 +244,16 @@ export const InvoicesPage = () => {
 
   // Overall KPIs
   const totalBilledRevenue = useMemo(() => {
-    return (invoices || []).reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
-  }, [invoices]);
+    return gymInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  }, [gymInvoices]);
 
   const totalPaidInvoicesCount = useMemo(() => {
-    return (invoices || []).filter((i) => (i.status || '').toLowerCase() === 'paid').length;
-  }, [invoices]);
+    return gymInvoices.filter((i) => (i.status || '').toLowerCase() === 'paid').length;
+  }, [gymInvoices]);
 
   const totalPendingInvoicesCount = useMemo(() => {
-    return (invoices || []).filter((i) => (i.status || '').toLowerCase() !== 'paid').length;
-  }, [invoices]);
+    return gymInvoices.filter((i) => (i.status || '').toLowerCase() !== 'paid').length;
+  }, [gymInvoices]);
 
   // Filtered members based on search term AND active unified dropdown filter
   const filteredMembers = useMemo(() => {

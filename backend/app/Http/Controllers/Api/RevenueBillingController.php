@@ -20,11 +20,16 @@ class RevenueBillingController extends Controller
     public function inflowIndex(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = RevenueBilling::inflow();
-
-        if ($gymId) {
-            $query->forGym($gymId);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'total' => 0,
+                'count' => 0,
+            ]);
         }
+
+        $query = RevenueBilling::inflow()->forGym($gymId);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -63,11 +68,16 @@ class RevenueBillingController extends Controller
     public function outflowIndex(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = RevenueBilling::outflow();
-
-        if ($gymId) {
-            $query->forGym($gymId);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'total' => 0,
+                'count' => 0,
+            ]);
         }
+
+        $query = RevenueBilling::outflow()->forGym($gymId);
 
         if ($request->filled('category') && $request->category !== 'All' && $request->category !== 'ALL') {
             $query->where('category', $request->category);
@@ -110,14 +120,24 @@ class RevenueBillingController extends Controller
     public function summary(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-
-        $inflowQuery = RevenueBilling::inflow();
-        $outflowQuery = RevenueBilling::outflow();
-
-        if ($gymId) {
-            $inflowQuery->forGym($gymId);
-            $outflowQuery->forGym($gymId);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'summary' => [
+                    'totalInflow' => 0,
+                    'totalOutflow' => 0,
+                    'netCashFlow' => 0,
+                    'marginPercent' => 0,
+                    'totalVolume' => 0,
+                    'inflowRatio' => 100,
+                    'outflowRatio' => 0,
+                    'categories' => [],
+                ]
+            ]);
         }
+
+        $inflowQuery = RevenueBilling::inflow()->forGym($gymId);
+        $outflowQuery = RevenueBilling::outflow()->forGym($gymId);
 
         $totalInflow = (float)$inflowQuery->sum('amount');
         $totalOutflow = (float)$outflowQuery->sum('amount');
@@ -150,6 +170,7 @@ class RevenueBillingController extends Controller
                 'totalOutflow' => $totalOutflow,
                 'netCashFlow' => $netCashFlow,
                 'marginPercent' => $marginPercent,
+                'totalVolume' => $totalVolume,
                 'inflowRatio' => $inflowRatio,
                 'outflowRatio' => $outflowRatio,
                 'categories' => $categories,
@@ -186,6 +207,13 @@ class RevenueBillingController extends Controller
         }
 
         $gymId = $this->resolveGymId($request);
+        if (!$gymId && $userId) {
+            $user = User::find($userId);
+            $gymId = $user?->gym_id;
+        }
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym ID is required to record inflow.'], 422);
+        }
 
         $rawUserId = $request->user_id ?? $request->memberId ?? $request->member_id;
         $userId = $rawUserId ? (int)str_replace('mem-', '', $rawUserId) : null;
@@ -273,6 +301,9 @@ class RevenueBillingController extends Controller
         }
 
         $gymId = $this->resolveGymId($request);
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym ID is required to record expense outflow.'], 422);
+        }
         $refNo = $request->ref_no ?? $request->refNo ?? ('EXP-' . strtoupper(substr(uniqid(), -6)));
         $paymentMode = $request->payment_mode ?? $request->paymentMode ?? 'UPI';
 

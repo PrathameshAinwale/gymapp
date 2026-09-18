@@ -66,12 +66,29 @@ export const AnalyticsPage = () => {
     calculateMemberStatus
   } = useGymData();
 
-  const { canAccessFinancials } = useAuth();
+  const { canAccessFinancials, currentUser } = useAuth();
+  const currentGymId = currentUser?.gymId || currentUser?.gym_id || localStorage.getItem('pulsefit_gym_id');
   const [activeTab, setActiveTab] = useState('overview');
   const [dbData, setDbData] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const tabsScrollRef = useRef(null);
+
+  // Scoped fallback data
+  const gymInvoices = useMemo(() => {
+    if (!currentGymId) return invoices;
+    return invoices.filter(inv => !inv.gymId || String(inv.gymId) === String(currentGymId));
+  }, [invoices, currentGymId]);
+
+  const gymExpenses = useMemo(() => {
+    if (!currentGymId) return expenses;
+    return expenses.filter(exp => !exp.gymId || String(exp.gymId) === String(currentGymId));
+  }, [expenses, currentGymId]);
+
+  const gymMembers = useMemo(() => {
+    if (!currentGymId) return members;
+    return members.filter(m => !m.gymId || String(m.gymId) === String(currentGymId));
+  }, [members, currentGymId]);
 
   // Fetch real database aggregations from backend API
   const fetchDbAnalytics = async (showRefresh = false) => {
@@ -79,7 +96,7 @@ export const AnalyticsPage = () => {
 
     try {
       const [repRes] = await Promise.allSettled([
-        api.reports.getSummary(),
+        api.reports.getSummary({ gym_id: currentGymId }),
         fetchInvoices?.(),
         fetchExpenses?.(),
         fetchMembers?.(),
@@ -98,7 +115,7 @@ export const AnalyticsPage = () => {
 
   useEffect(() => {
     fetchDbAnalytics();
-  }, []);
+  }, [currentGymId]);
 
   // Category navigation tabs
   const CATEGORY_TABS = [
@@ -150,8 +167,8 @@ export const AnalyticsPage = () => {
   // 1. FINANCIAL DATA (Prioritizing Database API Data)
   const financialData = useMemo(() => {
     const rawFin = dbData?.financial;
-    const totalInflow = rawFin?.total_revenue ?? invoices.filter((i) => i.status === 'Paid').reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-    const totalExpenses = rawFin?.total_expenses ?? expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const totalInflow = rawFin?.total_revenue ?? gymInvoices.filter((i) => i.status === 'Paid').reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const totalExpenses = rawFin?.total_expenses ?? gymExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const netProfit = rawFin?.net_profit ?? (totalInflow - totalExpenses);
 
     // Monthly Trend from DB
@@ -198,16 +215,16 @@ export const AnalyticsPage = () => {
       revenueStreams,
       expenseCategories
     };
-  }, [dbData, invoices, expenses]);
+  }, [dbData, gymInvoices, gymExpenses]);
 
   // 2. MEMBER DATA (From Database)
   const memberData = useMemo(() => {
     const rawMem = dbData?.members;
     const getS = (m) => (calculateMemberStatus ? calculateMemberStatus(m?.expiryDate, m?.status) : (m?.status || 'Active'));
-    const active = rawMem?.active ?? members.filter((m) => getS(m).toLowerCase() === 'active').length;
-    const expiring = rawMem?.expiring_soon ?? members.filter((m) => getS(m).toLowerCase() === 'expiring soon').length;
-    const expired = rawMem?.expired ?? members.filter((m) => getS(m).toLowerCase() === 'expired').length;
-    const frozen = rawMem?.frozen ?? members.filter((m) => getS(m).toLowerCase() === 'frozen' || getS(m).toLowerCase() === 'on hold').length;
+    const active = rawMem?.active ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'active').length;
+    const expiring = rawMem?.expiring_soon ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'expiring soon').length;
+    const expired = rawMem?.expired ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'expired').length;
+    const frozen = rawMem?.frozen ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'frozen' || getS(m).toLowerCase() === 'on hold').length;
 
     const statusBreakdown = [
       { name: 'Active', value: active, fill: PALETTE.emerald },
@@ -233,7 +250,7 @@ export const AnalyticsPage = () => {
       statusBreakdown,
       planDistribution
     };
-  }, [dbData, members]);
+  }, [dbData, gymMembers]);
 
   // 3. ATTENDANCE FOOTFALL DATA (From Database)
   const attendanceData = useMemo(() => {

@@ -24,13 +24,15 @@ import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 
 export const StaffAccountManager = () => {
-  const { accounts, createStaffAccount, currentRole } = useAuth();
+  const { accounts, createStaffAccount, currentRole, currentUser } = useAuth();
   const { addToast } = useGymData();
+
+  const activeGymId = currentUser?.gymId || currentUser?.gym_id;
 
   const [dbStaff, setDbStaff] = useState([]);
   const fetchStaffFromDb = async () => {
     try {
-      const res = await api.staff.getAll();
+      const res = await api.staff.getAll({ gym_id: activeGymId });
       if (res?.data && Array.isArray(res.data)) {
         setDbStaff(res.data);
       }
@@ -41,7 +43,7 @@ export const StaffAccountManager = () => {
 
   useEffect(() => {
     fetchStaffFromDb();
-  }, []);
+  }, [activeGymId]);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -56,33 +58,65 @@ export const StaffAccountManager = () => {
     phone: ''
   });
 
-  // Merge database staff accounts with auth accounts, prioritizing live database records
+  // Merge database staff accounts with auth accounts, strictly isolated to active gym
   const staffList = React.useMemo(() => {
     const map = new Map();
-    // Add auth context accounts
-    accounts.filter(
-      (acc) => acc.role === 'manager' || acc.role === 'accounts' || acc.role === 'superadmin' || acc.role === 'owner'
-    ).forEach(a => map.set(a.email?.toLowerCase(), a));
+    const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
 
-    // Overlay database records
-    dbStaff.forEach(stf => {
-      const emailKey = stf.email?.toLowerCase();
-      const existing = map.get(emailKey) || {};
-      map.set(emailKey, {
-        ...existing,
-        id: existing.id || `usr-${stf.role}-${stf.id}`,
-        userId: stf.id,
-        name: stf.name,
-        email: stf.email,
-        role: stf.role,
-        phone: stf.phone || existing.phone,
-        avatar: stf.avatar || existing.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-        password: existing.password || '••••••••'
+    // Add auth context accounts belonging to this gym
+    accounts
+      .filter((acc) => {
+        const accGym = Number(acc.gymId || acc.gym_id);
+        if (currentGymId && accGym && accGym !== currentGymId) {
+          return false;
+        }
+        // Exclude other owners or superadmins; only include the owner if it is the current logged-in user
+        if (acc.role === 'superadmin' || acc.role === 'owner') {
+          return (
+            (acc.userId && acc.userId === currentUser?.userId) ||
+            (acc.email && acc.email?.toLowerCase() === currentUser?.email?.toLowerCase())
+          );
+        }
+        return acc.role === 'manager' || acc.role === 'accounts' || acc.role === 'trainer';
+      })
+      .forEach((a) => map.set(a.email?.toLowerCase(), a));
+
+    // Overlay database records belonging to this gym
+    dbStaff
+      .filter((stf) => {
+        const stfGym = Number(stf.gym_id);
+        if (currentGymId && stfGym && stfGym !== currentGymId) {
+          return false;
+        }
+        // Exclude other owners or superadmins
+        if (stf.role === 'superadmin' || stf.role === 'owner') {
+          return (
+            (stf.id && stf.id === currentUser?.userId) ||
+            (stf.email && stf.email?.toLowerCase() === currentUser?.email?.toLowerCase())
+          );
+        }
+        return stf.role === 'manager' || stf.role === 'accounts' || stf.role === 'trainer';
+      })
+      .forEach((stf) => {
+        const emailKey = stf.email?.toLowerCase();
+        const existing = map.get(emailKey) || {};
+        map.set(emailKey, {
+          ...existing,
+          id: existing.id || `usr-${stf.role}-${stf.id}`,
+          userId: stf.id,
+          name: stf.name,
+          email: stf.email,
+          role: stf.role,
+          phone: stf.phone || existing.phone,
+          avatar: stf.avatar || existing.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+          password: existing.password || '••••••••',
+          gymId: stf.gym_id || currentGymId,
+          gym_id: stf.gym_id || currentGymId
+        });
       });
-    });
 
     return Array.from(map.values());
-  }, [accounts, dbStaff]);
+  }, [accounts, dbStaff, currentUser]);
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -97,7 +131,9 @@ export const StaffAccountManager = () => {
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        phone: formData.phone
+        phone: formData.phone,
+        gym_id: activeGymId,
+        gymId: activeGymId
       });
 
       setIsCreateModalOpen(false);

@@ -79,12 +79,11 @@ class MemberController extends Controller
         self::syncAllMemberStatuses();
 
         $gymId = $this->resolveGymId($request);
-
-        $query = User::where('role', 'member')->with(['memberProfile.plan', 'memberProfile.trainer']);
-
-        if ($gymId) {
-            $query->where('gym_id', $gymId);
+        if (!$gymId) {
+            return response()->json(['success' => true, 'data' => []]);
         }
+
+        $query = User::where('role', 'member')->where('gym_id', $gymId)->with(['memberProfile.plan', 'memberProfile.trainer']);
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -369,26 +368,29 @@ class MemberController extends Controller
         $trainingType = $request->input('training_type', $request->input('trainingType'));
         $ptSessionsCount = (int)($request->input('pt_sessions', $request->input('ptSessions', $request->input('ptSessionsCount', 0))));
         if ($trainingType === 'pt' || $ptSessionsCount > 0) {
-            $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
-            $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
-            $trainerUser = $trainerId ? User::find($trainerId) : null;
-            $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
+            $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
+            if (!$existingPt) {
+                $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
+                $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+                $trainerUser = $trainerId ? User::find($trainerId) : null;
+                $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
 
-            PtSession::create([
-                'gym_id' => $gymId,
-                'member_id' => $user->id,
-                'member_name' => $user->name,
-                'member_avatar' => $user->avatar,
-                'trainer_id' => $trainerId,
-                'trainer_name' => $trainerName,
-                'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
-                'total_sessions' => $sessions,
-                'completed_sessions' => 0,
-                'remaining_sessions' => $sessions,
-                'client_otp' => $ptOtp,
-                'status' => 'Active',
-                'start_date' => now()->toDateString(),
-            ]);
+                PtSession::create([
+                    'gym_id' => $gymId,
+                    'member_id' => $user->id,
+                    'member_name' => $user->name,
+                    'member_avatar' => $user->avatar,
+                    'trainer_id' => $trainerId,
+                    'trainer_name' => $trainerName,
+                    'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
+                    'total_sessions' => $sessions,
+                    'completed_sessions' => 0,
+                    'remaining_sessions' => $sessions,
+                    'client_otp' => $ptOtp,
+                    'status' => 'Active',
+                    'start_date' => now()->toDateString(),
+                ]);
+            }
         }
 
         // If an enquiry ID is linked, delete it so it is removed from the enquiries page and database
@@ -431,6 +433,7 @@ class MemberController extends Controller
         if ($request->has('email')) $user->email = $request->email;
         if ($request->has('phone')) $user->phone = $request->phone;
         if ($request->has('avatar')) $user->avatar = $request->avatar;
+        if ($request->filled('password')) $user->password = Hash::make($request->password);
         $user->save();
 
         if ($request->has('plan_id') || $request->has('planId')) {
@@ -451,12 +454,20 @@ class MemberController extends Controller
         if (!in_array($profile->status, ['Frozen', 'On Hold']) && $profile->expiry_date) {
             $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status);
         }
-        if ($request->has('weight')) $profile->weight = $request->weight;
-        if ($request->has('target_weight')) $profile->target_weight = $request->target_weight;
-        if ($request->has('height')) $profile->height = $request->height;
+        if ($request->has('gender')) $profile->gender = $request->gender;
+        if ($request->has('age')) $profile->age = (int)$request->age;
+        if ($request->has('weight')) $profile->weight = (float)$request->weight;
+        if ($request->has('target_weight') || $request->has('targetWeight')) {
+            $profile->target_weight = (float)($request->target_weight ?? $request->targetWeight);
+        }
+        if ($request->has('height')) $profile->height = (float)$request->height;
         if ($request->has('goal')) $profile->goal = $request->goal;
-        if ($request->has('medical_notes')) $profile->medical_notes = $request->medical_notes;
-        if ($request->has('emergency_contact')) $profile->emergency_contact = $request->emergency_contact;
+        if ($request->has('medical_notes') || $request->has('medicalNotes')) {
+            $profile->medical_notes = $request->medical_notes ?? $request->medicalNotes;
+        }
+        if ($request->has('emergency_contact') || $request->has('emergencyContact')) {
+            $profile->emergency_contact = $request->emergency_contact ?? $request->emergencyContact;
+        }
         if ($request->has('dues_amount') || $request->has('duesAmount')) {
             $profile->dues_amount = (float)($request->dues_amount ?? $request->duesAmount);
         }

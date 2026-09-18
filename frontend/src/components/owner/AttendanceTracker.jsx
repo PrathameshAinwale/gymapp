@@ -117,6 +117,13 @@ export const AttendanceTracker = () => {
   );
 
   // Metrics for selectedDate
+  const currentlyInsideCount = dayMemberAttendance.filter((a) => {
+    const isCompleted = (a.status || '').toLowerCase() === 'completed' || (a.status || '').toLowerCase() === 'checked out';
+    const hasCheckedOut = a.checkOutTime && a.checkOutTime !== '--' && a.checkOutTime !== 'null';
+    const hasPunchedOut = a.punchOutTime && a.punchOutTime !== '--' && a.punchOutTime !== 'null';
+    return !isCompleted && !hasCheckedOut && !hasPunchedOut;
+  }).length;
+
   const staffOnDuty = isToday
     ? dayStaffAttendance.filter(
         (s) => s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime)
@@ -291,13 +298,13 @@ export const AttendanceTracker = () => {
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-            {isToday ? 'Members Present' : 'Members Attended'}
+            {isToday ? 'Currently on Floor' : 'Members Attended'}
           </span>
           <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">
-            {dayMemberAttendance.length} Members
+            {isToday ? `${currentlyInsideCount} Inside Now` : `${dayMemberAttendance.length} Members`}
           </div>
           <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">
-            {isToday ? 'Marked present today' : `Checked in on ${formatDateDisplay(selectedDate)}`}
+            {isToday ? `${dayMemberAttendance.length} total check-ins today` : `Checked in on ${formatDateDisplay(selectedDate)}`}
           </span>
         </div>
 

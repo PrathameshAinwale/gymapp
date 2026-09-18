@@ -47,17 +47,24 @@ export const TrainerCommissionsView = () => {
     return matchesSearch && c.status === statusFilter;
   });
 
+  const getCommissionEarned = (c) => {
+    if (c.commissionEarned !== undefined && c.commissionEarned !== null) return Number(c.commissionEarned);
+    const pkg = Number(c.packageAmount || c.amount) || 0;
+    const rate = Number(c.commissionPct || c.ratePercent) || 20;
+    return Math.round((pkg * rate) / 100);
+  };
+
   // Metric calculations
   const totalEarned = displayCommissions.reduce(
-    (acc, c) => acc + (Number(c.commissionEarned || c.commission_amount || c.amount) || 0),
+    (acc, c) => acc + getCommissionEarned(c),
     0
   );
   const paidEarned = displayCommissions
     .filter((c) => c.status === 'Paid')
-    .reduce((acc, c) => acc + (Number(c.commissionEarned || c.commission_amount || c.amount) || 0), 0);
+    .reduce((acc, c) => acc + getCommissionEarned(c), 0);
   const pendingEarned = displayCommissions
     .filter((c) => c.status === 'Pending')
-    .reduce((acc, c) => acc + (Number(c.commissionEarned || c.commission_amount || c.amount) || 0), 0);
+    .reduce((acc, c) => acc + getCommissionEarned(c), 0);
 
   const uniqueClientsCount = new Set(displayCommissions.map((c) => c.memberName || c.memberId)).size;
 
@@ -195,9 +202,9 @@ export const TrainerCommissionsView = () => {
         ) : (
           filteredCommissions.map((comm) => {
             const isPaid = comm.status === 'Paid';
-            const earnedAmount = Number(comm.commissionEarned || comm.commission_amount || comm.amount) || 0;
-            const packageAmount = Number(comm.amount || comm.packagePrice) || earnedAmount;
-            const rate = comm.commissionPct || comm.commissionRate || 25;
+            const earnedAmount = getCommissionEarned(comm);
+            const packageAmount = Number(comm.packageAmount || comm.amount || comm.packagePrice) || 0;
+            const rate = comm.commissionPct || comm.ratePercent || comm.commissionRate || 20;
 
             return (
               <div

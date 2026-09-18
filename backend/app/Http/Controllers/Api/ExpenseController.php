@@ -16,11 +16,15 @@ class ExpenseController extends Controller
     public function index(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = Expense::query();
-
-        if ($gymId) {
-            $query->where('gym_id', $gymId);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'totalAmount' => 0,
+            ]);
         }
+
+        $query = Expense::where('gym_id', $gymId);
 
         // Category filter
         if ($request->filled('category') && $request->category !== 'All') {
@@ -63,20 +67,20 @@ class ExpenseController extends Controller
     }
 
     /**
-     * Store a newly created expense.
+     * Store a newly created expense in database.
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'required|string|max:100',
-            'vendor' => 'nullable|string|max:255',
             'amount' => 'required|numeric|min:1',
             'date' => 'required|date',
-            'paymentMode' => 'nullable|string',
+            'vendor' => 'nullable|string|max:255',
             'payment_mode' => 'nullable|string',
-            'refNo' => 'nullable|string|max:100',
+            'paymentMode' => 'nullable|string',
             'ref_no' => 'nullable|string|max:100',
+            'refNo' => 'nullable|string|max:100',
             'receiptRef' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
@@ -84,12 +88,14 @@ class ExpenseController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $gymId = $this->resolveGymId($request);
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym ID is required to record expense.'], 422);
+        }
         $userId = auth('sanctum')->id();
 
         $expense = Expense::create([
@@ -196,20 +202,28 @@ class ExpenseController extends Controller
     public function cashflowSummary(Request $request)
     {
         $gymId = $this->resolveGymId($request);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'summary' => [
+                    'totalInflow' => 0,
+                    'totalOutflow' => 0,
+                    'netCashFlow' => 0,
+                    'marginPercent' => 0,
+                    'inflowRatio' => 100,
+                    'outflowRatio' => 0,
+                    'categories' => [],
+                ]
+            ]);
+        }
 
         // 1. Cash Inflow (Paid fee invoices)
-        $invoicesQuery = Invoice::where('status', 'Paid');
-        if ($gymId) {
-            $invoicesQuery->where('gym_id', $gymId);
-        }
+        $invoicesQuery = Invoice::where('gym_id', $gymId)->where('status', 'Paid');
         $dbInflow = (float)$invoicesQuery->sum('amount');
         $totalInflow = $dbInflow;
 
         // 2. Cash Outflow (Operating expenses)
-        $expensesQuery = Expense::query();
-        if ($gymId) {
-            $expensesQuery->where('gym_id', $gymId);
-        }
+        $expensesQuery = Expense::where('gym_id', $gymId);
         $totalOutflow = (float)$expensesQuery->sum('amount');
 
         // 3. Net Cash Flow & Metrics

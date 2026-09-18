@@ -31,6 +31,25 @@ class PtSessionController extends Controller
 
         $sessions = $query->orderBy('created_at', 'desc')->get();
 
+        // Auto-cleanup any duplicate active sessions created for the same member with 0 completed sessions
+        $seenMemberActive = [];
+        $duplicatesToDelete = [];
+        foreach ($sessions as $session) {
+            if ($session->status === 'Active' && (int)$session->completed_sessions === 0 && !empty($session->member_id)) {
+                $key = (string)$session->member_id;
+                if (isset($seenMemberActive[$key])) {
+                    $duplicatesToDelete[] = $session->id;
+                } else {
+                    $seenMemberActive[$key] = $session->id;
+                }
+            }
+        }
+        if (!empty($duplicatesToDelete)) {
+            PtSessionLog::whereIn('pt_session_id', $duplicatesToDelete)->delete();
+            PtSession::whereIn('id', $duplicatesToDelete)->delete();
+            $sessions = $sessions->reject(fn($s) => in_array($s->id, $duplicatesToDelete))->values();
+        }
+
         // Append progress percent to each session
         $sessions->each(function ($s) {
             $s->progress_percent = $s->getProgressPercent();
@@ -80,6 +99,21 @@ class PtSessionController extends Controller
             $trainerUser = User::find($validated['trainer_id']);
             if ($trainerUser) {
                 $validated['trainer_name'] = $trainerUser->name;
+            }
+        }
+
+        // Guard against duplicate active package creation within 60 seconds for the same member
+        if (!empty($validated['member_id'])) {
+            $existingPt = PtSession::where('member_id', $validated['member_id'])
+                ->where('status', 'Active')
+                ->latest()
+                ->first();
+            if ($existingPt && $existingPt->created_at && $existingPt->created_at->diffInSeconds(now()) < 60) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "PT package already allocated. Client OTP: {$existingPt->client_otp}",
+                    'data'    => $existingPt,
+                ], 200);
             }
         }
 
@@ -190,6 +224,21 @@ class PtSessionController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $ptSession->logs()->orderBy('created_at', 'desc')->get(),
+        ]);
+    }
+
+    /**
+     * Delete a PT session package and its logs
+     */
+    public function destroy(int $id)
+    {
+        $ptSession = PtSession::findOrFail($id);
+        $ptSession->logs()->delete();
+        $ptSession->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PT session package deleted successfully',
         ]);
     }
 }

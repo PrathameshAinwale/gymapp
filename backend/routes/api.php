@@ -181,6 +181,7 @@ Route::prefix('v1')->group(function () {
     // PT Sessions (active packages + OTP-verified session logging)
     Route::get('/pt-sessions', [PtSessionController::class, 'index']);
     Route::post('/pt-sessions', [PtSessionController::class, 'store']);
+    Route::delete('/pt-sessions/{id}', [PtSessionController::class, 'destroy']);
     Route::post('/pt-sessions/{id}/log-session', [PtSessionController::class, 'logSession']);
     Route::post('/pt-sessions/{id}/regenerate-otp', [PtSessionController::class, 'regenerateOtp']);
     Route::get('/pt-sessions/{id}/logs', [PtSessionController::class, 'getLogs']);

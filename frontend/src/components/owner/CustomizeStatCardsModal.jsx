@@ -64,10 +64,10 @@ export const ALL_STAT_CARD_DEFINITIONS = [
   },
   {
     id: 'monthly_revenue',
-    label: 'Monthly Collections / Revenue',
-    shortLabel: 'Revenue',
+    label: 'Cash Inflow / Revenue',
+    shortLabel: 'Inflow',
     category: 'Finance',
-    description: 'Total membership fees and invoices collected this month',
+    description: 'Total membership fees, subscriptions, and cash inflow collected',
     icon: IndianRupee,
     color: 'emerald',
     badge: 'Finance',

@@ -18,14 +18,13 @@ class StaffController extends Controller
     {
         $gymId = $this->resolveGymId($request);
 
-        $staff = User::where(function ($q) use ($gymId) {
-                if ($gymId) {
-                    $q->where('gym_id', $gymId);
-                }
-            })
-            ->whereIn('role', ['superadmin', 'owner', 'manager', 'accounts', 'trainer'])
+        if (!$gymId) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $staff = User::where('gym_id', $gymId)
+            ->whereIn('role', ['owner', 'manager', 'accounts', 'trainer'])
             ->orderByRaw("CASE role
-                WHEN 'superadmin' THEN 1
                 WHEN 'owner'      THEN 1
                 WHEN 'accounts'   THEN 2
                 WHEN 'manager'    THEN 3
@@ -52,6 +51,9 @@ class StaffController extends Controller
         ]);
 
         $gymId = $validated['gym_id'] ?? $this->resolveGymId($request);
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym ID is required to create a staff account.'], 422);
+        }
 
         // Default avatars by role
         $avatarMap = [

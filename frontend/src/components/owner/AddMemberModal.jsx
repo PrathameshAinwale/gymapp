@@ -96,6 +96,7 @@ export const AddMemberModal = ({
   const [trainingType, setTrainingType] = useState('self'); // 'self', 'general', 'pt'
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
   const [ptCustomSessions, setPtCustomSessions] = useState(12);
+  const [selectedPtPlanId, setSelectedPtPlanId] = useState('');
   const [ptPackageFee, setPtPackageFee] = useState(3000);
   const [recoveryPlanId, setRecoveryPlanId] = useState('');
   const [commissionType, setCommissionType] = useState('percent'); // 'percent' | 'fixed'
@@ -222,7 +223,7 @@ export const AddMemberModal = ({
         }
         addToast(`Recovery plan "${quickPlanForm.name}" created and selected!`, 'success');
       } else if (quickAddPlanType === 'pt') {
-        await addPTPlan({
+        const created = await addPTPlan({
           name: quickPlanForm.name.trim(),
           sessions: Number(quickPlanForm.sessions) || 12,
           validityDays: Number(quickPlanForm.validityDays) || 30,
@@ -230,6 +231,9 @@ export const AddMemberModal = ({
           trainerLevel: quickPlanForm.instructorOrType || 'Master Coach',
           description: quickPlanForm.description || '1-on-1 PT coaching'
         });
+        if (created?.id) {
+          setSelectedPtPlanId(String(created.id));
+        }
         setPtCustomSessions(Number(quickPlanForm.sessions) || 12);
         setPtPackageFee(Number(quickPlanForm.price) || 3000);
         addToast(`PT package "${quickPlanForm.name}" created and applied!`, 'success');
@@ -318,16 +322,27 @@ export const AddMemberModal = ({
     }
   }, [plans, formData.planId]);
 
+  // Keep PT plan selected if PT is chosen
+  useEffect(() => {
+    if (trainingType === 'pt' && !selectedPtPlanId && ptPlans && ptPlans.length > 0) {
+      const defaultPt = ptPlans[0];
+      setSelectedPtPlanId(String(defaultPt.id));
+      setPtCustomSessions(Number(defaultPt.sessions) || 12);
+      setPtPackageFee(Number(defaultPt.price) || 0);
+    }
+  }, [trainingType, selectedPtPlanId, ptPlans]);
+
   // Coach & PT Logic
   const isCoachSelected = Boolean(formData.trainerId && formData.trainerId !== 'general');
   const chosenTrainer = isCoachSelected ? trainers.find((t) => t.id === formData.trainerId) : null;
 
   // Live Price Calculations
   const chosenPlan = plans.find((p) => p.id === formData.planId) || plans[0];
+  const chosenPtPlan = ptPlans.find((p) => String(p.id) === String(selectedPtPlanId));
   const basePrice = isUpgradeMode
     ? (isUpgradingBasePlan ? (Number(chosenPlan?.price) || 0) : 0)
     : (Number(chosenPlan?.price) || 0);
-  const ptPrice = trainingType === 'pt' ? (Number(ptPackageFee) || 0) : 0;
+  const ptPrice = trainingType === 'pt' ? (Number(chosenPtPlan?.price) || Number(ptPackageFee) || 0) : 0;
   const chosenRecoveryPlan = recoveryPlans.find((r) => String(r.id) === String(recoveryPlanId));
   const recoveryPrice = Number(chosenRecoveryPlan?.price) || 0;
   const totalCalculatedAmount = basePrice + ptPrice + recoveryPrice;
@@ -336,9 +351,10 @@ export const AddMemberModal = ({
     : (customPaidAmount === '' ? 0 : Math.max(0, Number(customPaidAmount)));
   const calculatedBalanceDue = Math.max(0, totalCalculatedAmount - effectivePaidAmount);
 
+  const effectivePtPrice = ptPrice > 0 ? ptPrice : (Number(chosenPtPlan?.price) || 0);
   const ptCommissionAmount = trainingType === 'pt' && (chosenTrainer || selectedTrainerId)
     ? (commissionType === 'percent'
-      ? Math.round(((ptPrice > 0 ? ptPrice : (basePrice > 0 ? basePrice : 3000)) * (Number(ptCommissionPercent) || 0)) / 100)
+      ? Math.round((effectivePtPrice * (Number(ptCommissionPercent) || 0)) / 100)
       : (Number(ptFixedCommission) || 0))
     : 0;
 
@@ -571,6 +587,8 @@ export const AddMemberModal = ({
           trainingType: trainingType,
           trainerId: finalTrainerId || targetMember.trainerId,
           trainerName: resolvedTrainerName !== 'None / Self Guided' ? resolvedTrainerName : targetMember.trainerName,
+          ptPlanId: trainingType === 'pt' ? (selectedPtPlanId || 'custom-pt') : targetMember.ptPlanId,
+          ptPlanName: trainingType === 'pt' ? (chosenPtPlan?.name || `${ptCustomSessions} Sessions 1-on-1 PT`) : targetMember.ptPlanName,
           ptSessions: trainingType === 'pt'
             ? ((Number(targetMember.ptSessions) || 0) + Number(ptCustomSessions))
             : targetMember.ptSessions,
@@ -592,32 +610,19 @@ export const AddMemberModal = ({
           await updateMember(targetMember.id, memberUpdates);
         }
 
-        // 3. Allocate PT Sessions in tracker if PT was chosen
-        if (trainingType === 'pt' && resolvedTrainer && allocatePTSessions) {
-          allocatePTSessions({
-            memberId: targetMember.id,
-            memberName: targetMember.name,
-            memberEmail: targetMember.email,
-            trainerId: resolvedTrainer.id,
-            trainerName: resolvedTrainer.name,
-            totalSessions: Number(ptCustomSessions) || 12,
-            packageTitle: `${ptCustomSessions} 1-on-1 PT Sessions`
-          });
-        }
-
-        // 4. Log Trainer Commission if applicable
+        // 3. Log Trainer Commission if applicable
         if (resolvedTrainer && trainingType === 'pt' && ptCommissionAmount > 0 && addCommissionRecord) {
           await addCommissionRecord({
             trainerId: resolvedTrainer.id,
             trainerName: resolvedTrainer.name,
             memberName: targetMember.name,
-            planName: `1-on-1 PT (${ptCustomSessions} Sessions)`,
+            planName: chosenPtPlan ? chosenPtPlan.name : `1-on-1 PT (${ptCustomSessions} Sessions)`,
             sessionType: 'Personal Training (PT)',
             serviceType: 'Personal Training (PT)',
             ratePercent: commissionType === 'percent' ? Number(ptCommissionPercent) : 0,
             commissionPct: commissionType === 'percent' ? Number(ptCommissionPercent) : 0,
-            amount: ptPrice > 0 ? ptPrice : basePrice,
-            packageAmount: ptPrice > 0 ? ptPrice : basePrice,
+            amount: effectivePtPrice,
+            packageAmount: effectivePtPrice,
             commissionEarned: ptCommissionAmount,
             date: new Date().toISOString().split('T')[0],
             status: 'Pending'
@@ -709,7 +714,7 @@ export const AddMemberModal = ({
       let invoiceTitle = chosenPlan?.name || 'Gym Membership';
       const additions = [];
       if (trainingType === 'pt') {
-        additions.push(`1-on-1 Personal Training (${ptCustomSessions} Sessions)`);
+        additions.push(chosenPtPlan ? chosenPtPlan.name : `1-on-1 Personal Training (${ptCustomSessions} Sessions)`);
       }
       if (chosenRecoveryPlan) additions.push(chosenRecoveryPlan.name);
       if (additions.length > 0) invoiceTitle += ` + ${additions.join(' + ')}`;
@@ -739,8 +744,8 @@ export const AddMemberModal = ({
         trainerId: finalTrainerId,
         trainerName: resolvedTrainerName,
         trainingType: trainingType, // 'self', 'general', 'pt'
-        ptPlanId: trainingType === 'pt' ? 'custom-pt' : null,
-        ptPlanName: trainingType === 'pt' ? `${ptCustomSessions} Sessions 1-on-1 PT` : null,
+        ptPlanId: trainingType === 'pt' ? (selectedPtPlanId || 'custom-pt') : null,
+        ptPlanName: trainingType === 'pt' ? (chosenPtPlan?.name || `${ptCustomSessions} Sessions 1-on-1 PT`) : null,
         ptSessions: trainingType === 'pt' ? Number(ptCustomSessions) : 0,
         recoveryPlanId: chosenRecoveryPlan ? chosenRecoveryPlan.id : null,
         recoveryPlanName: chosenRecoveryPlan ? chosenRecoveryPlan.name : null,
@@ -762,19 +767,6 @@ export const AddMemberModal = ({
       const linkedEnquiryId = initialData?.enquiryId || formData.enquiryId;
       if (linkedEnquiryId && deleteEnquiry) {
         deleteEnquiry(linkedEnquiryId);
-      }
-
-      // 1b. If PT was chosen, automatically allocate PT Sessions in the PTSessions tracker with member OTP
-      if (trainingType === 'pt' && resolvedTrainer) {
-        allocatePTSessions({
-          memberId: createdMember.id,
-          memberName: formData.name,
-          memberEmail: formData.email,
-          trainerId: resolvedTrainer.id,
-          trainerName: resolvedTrainer.name,
-          totalSessions: Number(ptCustomSessions) || 12,
-          packageTitle: `${ptCustomSessions} 1-on-1 PT Sessions`
-        });
       }
 
       // 2. Provision Login Account in Auth Database
@@ -809,13 +801,13 @@ export const AddMemberModal = ({
           trainerId: resolvedTrainer.id,
           trainerName: resolvedTrainer.name,
           memberName: formData.name,
-          planName: `1-on-1 PT (${ptCustomSessions} Sessions)`,
+          planName: chosenPtPlan ? chosenPtPlan.name : `1-on-1 PT (${ptCustomSessions} Sessions)`,
           sessionType: 'Personal Training (PT)',
           serviceType: 'Personal Training (PT)',
           ratePercent: commissionType === 'percent' ? Number(ptCommissionPercent) : 0,
           commissionPct: commissionType === 'percent' ? Number(ptCommissionPercent) : 0,
-          amount: ptPrice > 0 ? ptPrice : basePrice,
-          packageAmount: ptPrice > 0 ? ptPrice : basePrice,
+          amount: effectivePtPrice,
+          packageAmount: effectivePtPrice,
           commissionEarned: ptCommissionAmount,
           date: today.toISOString().split('T')[0],
           status: 'Pending'
@@ -1271,13 +1263,13 @@ export const AddMemberModal = ({
             </div>
           )}
 
-          {/* 1-ON-1 PERSONAL TRAINING SESSIONS & COMMISSION (WHEN PT SELECTED) */}
+          {/* 1-ON-1 PERSONAL TRAINING PLAN (WHEN PT SELECTED) */}
           {trainingType === 'pt' && (
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/40 border border-emerald-200 space-y-3.5">
               <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <Dumbbell className="w-4 h-4 text-emerald-600" />
-                  <span>1-on-1 Personal Training (PT) Sessions & Fee</span>
+                  <span>1-on-1 Personal Training (PT) Plan</span>
                 </span>
                 <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
                   1-on-1 PT Active
@@ -1285,74 +1277,33 @@ export const AddMemberModal = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* PT Sessions Count */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Number of PT Sessions
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={120}
-                      value={ptCustomSessions}
-                      onChange={(e) => setPtCustomSessions(Math.max(1, Number(e.target.value)))}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                    />
-                    <div className="flex gap-1">
-                      {[12, 24, 36].map((cnt) => (
-                        <button
-                          key={cnt}
-                          type="button"
-                          onClick={() => setPtCustomSessions(cnt)}
-                          className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                            ptCustomSessions === cnt
-                              ? 'bg-emerald-600 text-white border-emerald-600'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {cnt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Tracked in PT Sessions module with member OTP verification.
-                  </p>
-                </div>
-
-                {/* PT Additional Fee Input */}
+                {/* PT Plan Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-[11px] font-bold text-slate-700">
-                      PT Package Fee (₹)
+                      PT Plan Selection
                     </label>
-                    <div className="flex items-center gap-2">
-                      {ptPrice > 0 && (
-                        <span className="text-emerald-700 font-bold text-[11px]">+₹{ptPrice.toLocaleString('en-IN')}</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenQuickAdd('pt')}
-                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Add Plan</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenQuickAdd('pt')}
+                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Plan</span>
+                    </button>
                   </div>
 
                   {(!ptPlans || ptPlans.length === 0) ? (
-                    <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 space-y-1 mb-2">
+                    <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 space-y-1">
                       <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
-                          <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>No PT plans found</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleOpenQuickAdd('pt')}
-                          className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                          className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                           <span>Add PT Plan</span>
@@ -1360,20 +1311,22 @@ export const AddMemberModal = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="mb-2">
+                    <div className="space-y-1.5">
                       <select
+                        value={selectedPtPlanId}
                         onChange={(e) => {
                           if (e.target.value === '__ADD_NEW__') {
                             handleOpenQuickAdd('pt');
-                          } else if (e.target.value) {
-                            const selectedPt = ptPlans.find((p) => String(p.id) === e.target.value);
+                          } else {
+                            setSelectedPtPlanId(e.target.value);
+                            const selectedPt = ptPlans.find((p) => String(p.id) === String(e.target.value));
                             if (selectedPt) {
                               setPtCustomSessions(Number(selectedPt.sessions) || 12);
                               setPtPackageFee(Number(selectedPt.price) || 0);
                             }
                           }
                         }}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                       >
                         <option value="">Select Saved PT Package...</option>
                         {ptPlans.map((pkg) => (
@@ -1385,42 +1338,33 @@ export const AddMemberModal = ({
                           + Add New PT Plan...
                         </option>
                       </select>
+
+                      <p className="text-[10px] text-slate-500">
+                        Assigned Trainer: <strong>{trainers.find((t) => t.id === selectedTrainerId)?.name || 'Selected Coach'}</strong>
+                      </p>
                     </div>
                   )}
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={100}
-                        value={ptPackageFee}
-                        onChange={(e) => setPtPackageFee(Math.max(0, Number(e.target.value)))}
-                        placeholder="0"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                      />
+                {/* Predefined PT Plan Summary */}
+                <div className="flex flex-col justify-between p-3 rounded-xl bg-white border border-emerald-100 shadow-2xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Predefined Plan Price</span>
+                      {chosenPtPlan && (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                          {chosenPtPlan.sessions} Sessions Included
+                        </span>
+                      )}
                     </div>
-                    <div className="flex gap-1">
-                      {[0, 3000, 5000].map((fee) => (
-                        <button
-                          key={fee}
-                          type="button"
-                          onClick={() => setPtPackageFee(fee)}
-                          className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                            ptPackageFee === fee
-                              ? 'bg-emerald-600 text-white border-emerald-600'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {fee === 0 ? 'Free' : `₹${fee / 1000}k`}
-                        </button>
-                      ))}
+                    <div className="text-xl font-black text-slate-900">
+                      ₹{Number(chosenPtPlan?.price || 0).toLocaleString('en-IN')}
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Assigned Trainer: <strong>{trainers.find((t) => t.id === selectedTrainerId)?.name || 'Selected Coach'}</strong>
-                  </p>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Plan: <strong>{chosenPtPlan?.name || 'No Plan Selected'}</strong></span>
+                    <span className="text-emerald-600 font-semibold">Predefined Fee Applied</span>
+                  </div>
                 </div>
               </div>
 
@@ -1492,7 +1436,7 @@ export const AddMemberModal = ({
                     </div>
                     <p className="text-[10px] text-slate-400">
                       {commissionType === 'percent'
-                        ? `Calculated on ${ptPrice > 0 ? 'PT fee (₹' + ptPrice.toLocaleString('en-IN') + ')' : 'base membership plan'}`
+                        ? `Calculated on PT plan fee (₹${effectivePtPrice.toLocaleString('en-IN')})`
                         : 'Direct flat commission payout'}
                     </p>
                   </div>

@@ -15,10 +15,15 @@ class InvoiceController extends Controller
     public function index(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = Invoice::with(['user', 'plan'])->latest();
-        if ($gymId) {
-            $query->where('gym_id', $gymId);
+        if (!$gymId) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'totalRevenue' => 0,
+            ]);
         }
+
+        $query = Invoice::with(['user', 'plan'])->where('gym_id', $gymId)->latest();
 
         $invoices = $query->get()->map(function ($inv) {
             $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $inv->invoice_number)->first();
@@ -88,6 +93,9 @@ class InvoiceController extends Controller
         $status = $request->status ?? 'Paid';
 
         $gymId = $this->resolveGymId($request) ?? $user->gym_id;
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym ID is required to create invoice.'], 422);
+        }
 
         $invoice = Invoice::create([
             'gym_id' => $gymId,

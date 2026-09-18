@@ -134,15 +134,31 @@ const apiFetch = async (urlOrPath, options = {}) => {
   throw lastError || new Error('Network error: Unable to connect to backend server');
 };
 
-const getHeaders = () => {
+export const getActiveGymId = () => {
+  if (typeof window === 'undefined') return null;
+  const id = localStorage.getItem('pulsefit_gym_id');
+  return id ? parseInt(id, 10) : null;
+};
+
+const withGymParam = (params = {}) => {
+  const gymId = params.gym_id || params.gymId || getActiveGymId();
+  if (gymId && !params.gym_id) {
+    return { ...params, gym_id: gymId };
+  }
+  return params;
+};
+
+const getHeaders = (customHeaders = {}) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_token') : null;
   const gymId = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null;
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    ...customHeaders,
   };
   if (gymId) {
-    headers['X-Gym-ID'] = gymId;
+    headers['X-Gym-Id'] = String(gymId);
+    headers['X-Gym-ID'] = String(gymId);
   }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -664,8 +680,9 @@ export const api = {
 
   // Invoices & Billing Endpoints
   invoices: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/invoices`, { headers: getHeaders() });
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/invoices${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     create: async (invoiceData) => {
@@ -688,8 +705,9 @@ export const api = {
 
   // Expenses Endpoints
   expenses: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/expenses`, { headers: getHeaders() });
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/expenses${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     create: async (expenseData) => {
@@ -822,6 +840,15 @@ export const api = {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(commData),
+      });
+      return handleResponse(res);
+    },
+    updateStatus: async (id, status = 'Paid') => {
+      const numericId = String(id).replace('com-', '');
+      const res = await apiFetch(`${API_BASE_URL}/commissions/${numericId}/status`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ status }),
       });
       return handleResponse(res);
     },
@@ -978,7 +1005,7 @@ export const api = {
   // Staff Account Provisioning
   staff: {
     getAll: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/staff${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
@@ -1046,6 +1073,14 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/pt-sessions/${numericId}/logs`, { headers: getHeaders() });
       return handleResponse(res);
     },
+    delete: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace('pts-', '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/pt-sessions/${numericId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Advance Salary Requests
@@ -1102,7 +1137,7 @@ export const api = {
   // Reports & Analytics
   reports: {
     getSummary: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/reports/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
@@ -1126,8 +1161,9 @@ export const api = {
 
   // Dashboard Telemetry
   dashboard: {
-    getOwnerStats: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/dashboard/owner-stats`, { headers: getHeaders() });
+    getOwnerStats: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/dashboard/owner-stats${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
   },
@@ -1135,17 +1171,18 @@ export const api = {
   // Dedicated Revenue & Billing (Inflow & Outflow)
   revenueBilling: {
     getInflows: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/revenue-billing/inflow${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     getOutflows: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/revenue-billing/outflow${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    getSummary: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/summary`, { headers: getHeaders() });
+    getSummary: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/revenue-billing/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     addInflow: async (data) => {

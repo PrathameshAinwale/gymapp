@@ -14,6 +14,7 @@ use App\Models\TrainerReview;
 use App\Models\FinancialTransaction;
 use App\Models\GymClass;
 use App\Models\Product;
+use App\Models\RevenueBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -28,6 +29,23 @@ class ReportController extends Controller
         $category = $request->query('category', 'all'); // all, members, financial, attendance, pt, payroll, classes, store
         $dateFrom = $request->query('from');
         $dateTo   = $request->query('to');
+
+        if (!$gymId) {
+            return response()->json([
+                'success'   => true,
+                'category'  => $category,
+                'generated_at' => now()->toIso8601String(),
+                'data'      => [
+                    'members' => ['total' => 0, 'active' => 0, 'expiring_soon' => 0, 'expired' => 0, 'frozen' => 0, 'by_plan' => [], 'by_goal' => []],
+                    'financial' => ['total_revenue' => 0, 'total_expenses' => 0, 'net_profit' => 0, 'paid_invoices' => 0, 'pending_invoices' => 0, 'monthly_trend' => [], 'revenue_streams' => [], 'expenses_by_cat' => []],
+                    'attendance' => ['total_checkins' => 0, 'total_checkouts' => 0, 'currently_inside' => 0, 'avg_daily_traffic' => 0, 'busiest_day' => null, 'weekly_traffic' => [], 'time_windows' => []],
+                    'pt_sessions' => ['total_packages' => 0, 'active' => 0, 'completed' => 0, 'total_sessions' => 0, 'sessions_completed' => 0, 'sessions_remaining' => 0, 'clients' => [], 'trainer_loads' => []],
+                    'classes' => ['total_classes' => 0, 'total_booked' => 0, 'class_loads' => []],
+                    'store' => ['total_revenue' => 0, 'total_units' => 0, 'categories' => []],
+                    'payroll' => ['total_disbursed' => 0, 'total_pending' => 0, 'total_bonuses' => 0, 'total_deductions' => 0, 'paid_count' => 0, 'pending_count' => 0],
+                ]
+            ]);
+        }
 
         $result = [];
 
@@ -61,22 +79,29 @@ class ReportController extends Controller
 
         // ── Financial Revenue ──
         if (in_array($category, ['all', 'financial'])) {
-            $invoices = Invoice::where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-            });
+            $inflowQuery = RevenueBilling::inflow()->forGym($gymId);
+            if ($dateFrom) $inflowQuery->whereDate('date', '>=', $dateFrom);
+            if ($dateTo)   $inflowQuery->whereDate('date', '<=', $dateTo);
+            $inflowSum = (float)$inflowQuery->sum('amount');
+
+            $invoices = Invoice::where('gym_id', $gymId)->where('status', 'Paid');
             if ($dateFrom) $invoices->whereDate('created_at', '>=', $dateFrom);
             if ($dateTo)   $invoices->whereDate('created_at', '<=', $dateTo);
-            $invoiceData = $invoices->get();
+            $invoiceSum = (float)$invoices->sum('amount');
 
-            $expenses = Expense::where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-            });
+            $totalRev = round($inflowSum > 0 ? $inflowSum : $invoiceSum, 2);
+
+            $outflowQuery = RevenueBilling::outflow()->forGym($gymId);
+            if ($dateFrom) $outflowQuery->whereDate('date', '>=', $dateFrom);
+            if ($dateTo)   $outflowQuery->whereDate('date', '<=', $dateTo);
+            $outflowSum = (float)$outflowQuery->sum('amount');
+
+            $expenses = Expense::where('gym_id', $gymId);
             if ($dateFrom) $expenses->whereDate('date', '>=', $dateFrom);
             if ($dateTo)   $expenses->whereDate('date', '<=', $dateTo);
-            $expenseData = $expenses->get();
+            $expenseSum = (float)$expenses->sum('amount');
 
-            $totalRev = round($invoiceData->where('status', 'Paid')->sum('amount'), 2);
-            $totalExp = round($expenseData->sum('amount'), 2);
+            $totalExp = round($outflowSum > 0 ? $outflowSum : $expenseSum, 2);
             $netProf  = round($totalRev - $totalExp, 2);
 
             // 6-Month Monthly Trend
@@ -87,12 +112,22 @@ class ReportController extends Controller
                 $monthName = $m->format('M');
                 $ym = $m->format('Y-m');
 
-                $mRev = (float) Invoice::where('status', 'Paid')
+                $mInflow = (float) RevenueBilling::inflow()->forGym($gymId)
                     ->where('date', 'like', "{$ym}%")
                     ->sum('amount');
-
-                $mExp = (float) Expense::where('date', 'like', "{$ym}%")
+                $mInvoice = (float) Invoice::where('gym_id', $gymId)
+                    ->where('status', 'Paid')
+                    ->where('date', 'like', "{$ym}%")
                     ->sum('amount');
+                $mRev = $mInflow > 0 ? $mInflow : $mInvoice;
+
+                $mOutflow = (float) RevenueBilling::outflow()->forGym($gymId)
+                    ->where('date', 'like', "{$ym}%")
+                    ->sum('amount');
+                $mExpense = (float) Expense::where('gym_id', $gymId)
+                    ->where('date', 'like', "{$ym}%")
+                    ->sum('amount');
+                $mExp = $mOutflow > 0 ? $mOutflow : $mExpense;
 
                 $monthlyTrend[] = [
                     'month' => $monthName,
@@ -103,40 +138,65 @@ class ReportController extends Controller
             }
 
             // Revenue Streams
-            $membershipRev = (float) Invoice::where('status', 'Paid')
-                ->where(function ($q) {
-                    $q->whereDoesntHave('plan')
-                      ->orWhereHas('plan', fn($pq) => $pq->where('name', 'not like', '%PT%')->where('name', 'not like', '%Personal%'));
-                })->sum('amount');
+            $rbMembership = (float) RevenueBilling::inflow()->forGym($gymId)->where('category', 'like', '%Membership%')->sum('amount');
+            $rbPt = (float) RevenueBilling::inflow()->forGym($gymId)->where('category', 'like', '%Personal%')->sum('amount');
+            $rbStore = (float) RevenueBilling::inflow()->forGym($gymId)->where(function ($q) {
+                $q->where('category', 'like', '%Product%')
+                  ->orWhere('category', 'like', '%Store%')
+                  ->orWhere('category', 'like', '%Supplement%');
+            })->sum('amount');
 
-            $ptRev = (float) Invoice::where('status', 'Paid')
-                ->whereHas('plan', function ($pq) {
-                    $pq->where('name', 'like', '%PT%')
-                      ->orWhere('name', 'like', '%Personal%');
-                })->sum('amount');
+            if ($rbMembership > 0 || $rbPt > 0 || $rbStore > 0) {
+                $membershipRev = $rbMembership;
+                $ptRev = $rbPt;
+                $storeRev = $rbStore;
+            } else {
+                $membershipRev = (float) Invoice::where('gym_id', $gymId)
+                    ->where('status', 'Paid')
+                    ->where(function ($q) {
+                        $q->whereDoesntHave('plan')
+                          ->orWhereHas('plan', fn($pq) => $pq->where('name', 'not like', '%PT%')->where('name', 'not like', '%Personal%'));
+                    })->sum('amount');
 
-            if ($ptRev == 0 && $totalRev > 0) {
-                $ptRev = round($totalRev * 0.18, 2);
-                $membershipRev = max(0, $totalRev - $ptRev);
+                $ptRev = (float) Invoice::where('gym_id', $gymId)
+                    ->where('status', 'Paid')
+                    ->whereHas('plan', function ($pq) {
+                        $pq->where('name', 'like', '%PT%')
+                          ->orWhere('name', 'like', '%Personal%');
+                    })->sum('amount');
+
+                if ($ptRev == 0 && $totalRev > 0) {
+                    $ptRev = round($totalRev * 0.18, 2);
+                    $membershipRev = max(0, $totalRev - $ptRev);
+                }
+
+                $storeRev = max(0, $totalRev - $membershipRev - $ptRev);
             }
 
-            $storeRev = max(0, $totalRev - $membershipRev - $ptRev);
+            $inflowRecords = $inflowQuery->get();
+            $outflowRecords = $outflowQuery->get();
+
+            $expenseCats = $outflowRecords->count() > 0
+                ? $outflowRecords->groupBy('category')
+                    ->map(fn($g, $k) => ['category' => $k, 'total' => round($g->sum('amount'), 2)])
+                    ->values()
+                : $expenses->get()->groupBy('category')
+                    ->map(fn($g, $k) => ['category' => $k, 'total' => round($g->sum('amount'), 2)])
+                    ->values();
 
             $result['financial'] = [
                 'total_revenue'      => $totalRev,
                 'total_expenses'     => $totalExp,
                 'net_profit'         => $netProf,
-                'paid_invoices'      => $invoiceData->where('status', 'Paid')->count(),
-                'pending_invoices'   => $invoiceData->where('status', 'Unpaid')->count(),
+                'paid_invoices'      => $inflowRecords->where('status', 'Paid')->count() ?: $invoices->where('status', 'Paid')->count(),
+                'pending_invoices'   => $inflowRecords->where('status', 'Partial')->count() ?: $invoices->where('status', 'Unpaid')->count(),
                 'monthly_trend'      => $monthlyTrend,
                 'revenue_streams'    => [
                     ['name' => 'Memberships', 'value' => $membershipRev ?: round($totalRev * 0.75, 2)],
                     ['name' => 'Personal Training (PT)', 'value' => $ptRev ?: round($totalRev * 0.18, 2)],
                     ['name' => 'Store & Supplements', 'value' => $storeRev ?: round($totalRev * 0.07, 2)],
                 ],
-                'expenses_by_cat'    => $expenseData->groupBy('category')
-                    ->map(fn($g, $k) => ['category' => $k, 'total' => round($g->sum('amount'), 2)])
-                    ->values(),
+                'expenses_by_cat'    => $expenseCats,
             ];
         }
 
