@@ -69,10 +69,42 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USERNAME }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           
-          # Also copy to id_ed25519 and id_rsa as standard fallbacks
+          # Normalize and repair private key formatting (handles collapsed newlines, spaces, CRLF, base64)
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          let key = (process.env.SSH_KEY || '').trim();
+          if (!key) {
+            console.error('ERROR: SSH_PRIVATE_KEY secret is empty! Please configure it in GitHub Settings > Secrets.');
+            process.exit(1);
+          }
+          if (!key.includes('BEGIN') && !key.includes('PRIVATE KEY')) {
+            try { key = Buffer.from(key, 'base64').toString('utf8'); } catch(e){}
+          }
+          key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          if (!key.includes('\n') || key.split('\n').length <= 2) {
+            const match = key.match(/(-----BEGIN [^-]+-----)\s+(.+)\s+(-----END [^-]+-----)/);
+            if (match) {
+              const header = match[1];
+              const bodyWords = match[2].trim().split(/\s+/);
+              const footer = match[3];
+              key = header + '\n' + bodyWords.join('\n') + '\n' + footer + '\n';
+            }
+          }
+          if (!key.endsWith('\n')) key += '\n';
+          const keyPath = path.join(process.env.HOME, '.ssh', 'deploy_key');
+          fs.writeFileSync(keyPath, key, { mode: 0o600 });
+          console.log('SSH key successfully written and permissions set to 600.');
+          "
+          
+          # Validate key syntax
+          echo "Validating SSH key syntax with ssh-keygen..."
+          ssh-keygen -y -f ~/.ssh/deploy_key || {
+            echo "ERROR: The SSH key could not be parsed by ssh-keygen."
+            exit 1
+          }
+          
           cp ~/.ssh/deploy_key ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           

@@ -50,3 +50,4 @@ Thumbs.db
 
 # Deployment keys
 hostinger_deploy_key*
+hostinger_rsa_key*
