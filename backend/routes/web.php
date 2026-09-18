@@ -2,8 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Register API routes for environments where web server rewrites strip /api prefix
-require __DIR__.'/api.php';
+// Register API routes with api middleware for environments where web server rewrites strip /api prefix
+Route::middleware('api')->group(function () {
+    require __DIR__.'/api.php';
+});
 
 // SPA fallback: serve React's index.html for non-API routes in production
 Route::get('/{any}', function () {
