@@ -60,16 +60,27 @@ jobs:
         run: |
           composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
-      # Step 7: Configure SSH Keys for Hostinger
+      # Step 7: Configure SSH Key for Hostinger
       - name: Setup SSH Connection
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           
-          PORT="${{ secrets.SSH_PORT || '65002' }}"
-          ssh-keyscan -p $PORT -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Also copy to id_ed25519 and id_rsa as standard fallbacks
+          cp ~/.ssh/deploy_key ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          ssh-keyscan -p $SSH_PORT -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           chmod 644 ~/.ssh/known_hosts
+          
+          echo "Testing SSH connection to Hostinger ($SSH_USER@$SSH_HOST:$SSH_PORT)..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "echo 'SSH connection to Hostinger successful! Server user:' && whoami"
 
       # Step 8: Sync Application Files to Hostinger via Rsync
       - name: Sync Files to Hostinger via Rsync
@@ -82,7 +93,7 @@ jobs:
           echo "Starting rsync deployment to $SSH_USER@$SSH_HOST:$TARGET_DIR ..."
           
           rsync -avz --delete \
-            -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
+            -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             --exclude='.env' \
             --exclude='.git*' \
             --exclude='node_modules' \
@@ -96,15 +107,16 @@ jobs:
 
       # Step 9: Post-Deploy Remote Commands on Hostinger
       - name: Execute Post-Deployment Commands via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 65002 }}
-          script: |
-            TARGET="${{ secrets.SSH_TARGET_DIR || 'public_html' }}"
-            cd "$TARGET"
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || '65002' }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
+          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR || 'public_html' }}
+        run: |
+          echo "Executing remote post-deployment commands on Hostinger..."
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" << 'EOF'
+            TARGET="${SSH_TARGET_DIR:-public_html}"
+            [ -d "$TARGET" ] && cd "$TARGET" || cd public_html
             
             echo "Working in directory: $(pwd)"
             
@@ -132,3 +144,4 @@ jobs:
             php artisan queue:restart || true
             
             echo "Deployment to Hostinger completed successfully!"
+          EOF
