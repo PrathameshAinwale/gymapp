@@ -28,8 +28,12 @@ use App\Http\Controllers\Api\RevenueBillingController;
 
 // API Health Check with live DB connectivity check
 Route::get('/health', function () {
+    $envExists = file_exists(base_path('.env'));
+    $dbDriver = config('database.default');
+    $dbName = config('database.connections.' . $dbDriver . '.database');
     $dbStatus = 'disconnected';
     $dbError = null;
+
     try {
         \Illuminate\Support\Facades\DB::connection()->getPdo();
         $dbStatus = 'connected (' . \Illuminate\Support\Facades\DB::connection()->getDatabaseName() . ')';
@@ -41,9 +45,12 @@ Route::get('/health', function () {
     return response()->json([
         'status'         => 'online',
         'app'            => 'PulseFit Pro API',
-        'timestamp'      => now()->toIso8601String(),
+        'env_exists'     => $envExists,
+        'db_driver'      => $dbDriver,
+        'db_target'      => $dbName,
         'database'       => $dbStatus,
         'database_error' => $dbError,
+        'timestamp'      => now()->toIso8601String(),
     ]);
 });
 
@@ -55,19 +62,95 @@ Route::get('/setup-database', function (Request $request) {
     if (!$key || ($key !== $appKey && $key !== 'pulsefit_setup_2026')) {
         return response()->json([
             'status'  => 'forbidden',
-            'message' => 'Unauthorized. Pass ?key=YOUR_APP_KEY (from .env) to run migrations.'
+            'message' => 'Unauthorized. Pass ?key=pulsefit_setup_2026'
         ], 403);
     }
 
-    try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
-        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+    // 1. Auto-copy .env from outside folders if missing locally
+    $copiedFrom = null;
+    if (!file_exists(base_path('.env'))) {
+        $possibleEnvs = [
+            dirname(base_path()) . '/backend/.env',
+            dirname(base_path()) . '/.env',
+            dirname(dirname(base_path())) . '/backend/.env',
+            dirname(dirname(base_path())) . '/.env',
+            '/home/u773098752/domains/archfit.archenterprises.co.in/backend/.env',
+            '/home/u773098752/backend/.env',
+        ];
+        foreach ($possibleEnvs as $envFile) {
+            if ($envFile && file_exists($envFile)) {
+                if (@copy($envFile, base_path('.env'))) {
+                    $copiedFrom = $envFile;
+                    break;
+                }
+            }
+        }
+    }
 
+    // 2. Write or ensure MySQL configuration in .env if missing or requested
+    $wroteEnv = false;
+    if ($request->has('db_pass') || $request->has('db_user') || !file_exists(base_path('.env'))) {
+        $dbHost = $request->query('db_host', '127.0.0.1');
+        $dbPort = $request->query('db_port', '3306');
+        $dbDatabase = $request->query('db_name', 'u773098752_gym_app_db');
+        $dbUsername = $request->query('db_user', 'u773098752_gym_app_db');
+        $dbPassword = $request->query('db_pass', 'H^8vSpq5');
+        $appKeyToUse = $appKey ?: 'base64:EUO0bb6aNrvYaP7VnriI1Unq7waE+wAX8NYAxBULxUk=';
+
+        $envContent = "APP_NAME=\"PulseFit Pro\"\n"
+            . "APP_ENV=production\n"
+            . "APP_KEY={$appKeyToUse}\n"
+            . "APP_DEBUG=false\n"
+            . "APP_URL=https://archfit.archenterprises.co.in\n"
+            . "FRONTEND_URL=https://archfit.archenterprises.co.in\n\n"
+            . "DB_CONNECTION=mysql\n"
+            . "DB_HOST={$dbHost}\n"
+            . "DB_PORT={$dbPort}\n"
+            . "DB_DATABASE={$dbDatabase}\n"
+            . "DB_USERNAME={$dbUsername}\n"
+            . "DB_PASSWORD={$dbPassword}\n\n"
+            . "SESSION_DRIVER=file\n"
+            . "SESSION_LIFETIME=120\n"
+            . "CACHE_STORE=file\n"
+            . "FILESYSTEM_DISK=local\n"
+            . "QUEUE_CONNECTION=sync\n";
+
+        if (@file_put_contents(base_path('.env'), $envContent)) {
+            $wroteEnv = true;
+        }
+    }
+
+    // Clear runtime configuration cache so Laravel reads the fresh .env
+    try {
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+    } catch (\Throwable $t) {}
+
+    try {
+        $dbHost = env('DB_HOST', $request->query('db_host', '127.0.0.1'));
+        $dbName = env('DB_DATABASE', $request->query('db_name', 'u773098752_gym_app_db'));
+        $dbUser = env('DB_USERNAME', $request->query('db_user', 'u773098752_gym_app_db'));
+        $dbPass = env('DB_PASSWORD', $request->query('db_pass', 'H^8vSpq5'));
+
+        config([
+            'database.default' => 'mysql',
+            'database.connections.mysql.host' => $dbHost,
+            'database.connections.mysql.database' => $dbName,
+            'database.connections.mysql.username' => $dbUser,
+            'database.connections.mysql.password' => $dbPass,
+        ]);
+        \Illuminate\Support\Facades\DB::purge('mysql');
+        \Illuminate\Support\Facades\DB::reconnect('mysql');
+
+        // Test PDO connection to MySQL
+        \Illuminate\Support\Facades\DB::connection('mysql')->getPdo();
+
+        // Run database migrations
         \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
         $migrateOutput = \Illuminate\Support\Facades\Artisan::output();
 
+        // Run seeder by default
         $seedOutput = null;
-        if ($request->query('seed') === 'true') {
+        if ($request->query('seed', 'true') === 'true') {
             \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
             $seedOutput = \Illuminate\Support\Facades\Artisan::output();
         }
@@ -75,15 +158,19 @@ Route::get('/setup-database', function (Request $request) {
         return response()->json([
             'status'           => 'success',
             'database'         => $dbName,
-            'message'          => 'Database migrations executed successfully!',
+            'env_created'      => $wroteEnv,
+            'copied_from'      => $copiedFrom,
+            'message'          => 'Database connected and migrations executed successfully!',
             'migration_output' => $migrateOutput,
             'seed_output'      => $seedOutput,
         ]);
     } catch (\Throwable $e) {
         return response()->json([
-            'status'  => 'error',
-            'message' => 'Database operation failed: ' . $e->getMessage(),
-            'hint'    => 'Check DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD in backend/.env on your Hostinger server.'
+            'status'      => 'error',
+            'env_created' => $wroteEnv,
+            'copied_from' => $copiedFrom,
+            'message'     => 'Database operation failed: ' . $e->getMessage(),
+            'hint'        => 'If 127.0.0.1 connection is refused, pass ?db_host=localhost'
         ], 500);
     }
 });

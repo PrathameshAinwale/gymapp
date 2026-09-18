@@ -22,6 +22,24 @@ if (!file_exists(__DIR__.'/../vendor/autoload.php') && file_exists(__DIR__.'/../
     }
 }
 
+// Auto-detect and copy .env from outside backend folder (Hostinger shared hosting)
+if (!file_exists(__DIR__ . '/../.env')) {
+    $possibleEnvs = [
+        dirname(__DIR__, 2) . '/backend/.env',
+        dirname(__DIR__, 3) . '/backend/.env',
+        dirname(__DIR__, 2) . '/.env',
+        dirname(__DIR__, 3) . '/.env',
+        '/home/u773098752/domains/archfit.archenterprises.co.in/backend/.env',
+        '/home/u773098752/backend/.env',
+    ];
+    foreach ($possibleEnvs as $envFile) {
+        if ($envFile && file_exists($envFile)) {
+            @copy($envFile, __DIR__ . '/../.env');
+            break;
+        }
+    }
+}
+
 // Register the Composer autoloader...
 require __DIR__.'/../vendor/autoload.php';
 

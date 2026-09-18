@@ -22,16 +22,16 @@
     # Block direct web access to backend internals (protects app, bootstrap, config, storage)
     RewriteRule ^backend/(?!public/).* - [F,L]
 
-    # 1. Route /api/* requests to Laravel backend front controller
+    # 1. Route /api/* requests to public_html/api/index.php (Bridges to backend outside public_html)
     RewriteCond %{REQUEST_URI} ^/api(/.*)?$ [NC]
-    RewriteRule ^api/(.*)$ backend/public/index.php [L,QSA]
+    RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
 
-    # 2. Route /storage/* requests to Laravel public storage
+    # 2. Route /storage/* requests to backend public storage
     RewriteCond %{REQUEST_URI} ^/storage(/.*)?$ [NC]
-    RewriteRule ^storage/(.*)$ backend/public/storage/$1 [L]
+    RewriteRule ^storage/(.*)$ api/storage/$1 [L]
 
     # 3. Route extract_vendor.php helper if requested
-    RewriteRule ^extract_vendor\.php$ backend/extract_vendor.php [L,QSA]
+    RewriteRule ^extract_vendor\.php$ extract_vendor.php [L,QSA]
 
     # 4. Existing files and directories are served directly (JS, CSS, images, fonts)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
