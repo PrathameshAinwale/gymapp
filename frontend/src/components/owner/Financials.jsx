@@ -12,7 +12,6 @@ import {
   ChevronRight,
   TrendingUp,
   Printer,
-  Trash2,
   Building2,
   Zap,
   Users,
@@ -867,14 +866,6 @@ export const Financials = () => {
                         <div className="font-bold text-slate-900 text-xs truncate">{exp.title}</div>
                         <div className="text-[10px] text-slate-500">{exp.vendor || 'Vendor'} • {exp.date}</div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteExpense(exp.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -892,7 +883,6 @@ export const Financials = () => {
                       <th className="py-3 px-4">Outflow (₹)</th>
                       <th className="py-3 px-4">Payment Date</th>
                       <th className="py-3 px-4">Payment Mode</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -925,16 +915,6 @@ export const Financials = () => {
                           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200">
                             {exp.paymentMode || 'Bank Transfer'}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => deleteExpense(exp.id)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete Expense Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </td>
                       </tr>
                     ))}
