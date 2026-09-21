@@ -166,29 +166,14 @@ jobs:
 
               # 2. Check for legacy backend inside public_html
               legacy_path = f"{frontend_dir}backend"
-              legacy_exists = False
               try:
                   legacy_items = ftp.nlst(legacy_path)
-                  if legacy_items and len(legacy_items) > 0:
-                      legacy_exists = True
-                      print(f"Detected legacy backend directory in web root: {legacy_path}")
+                  has_legacy = bool(legacy_items)
               except Exception:
-                  legacy_exists = False
+                  has_legacy = False
 
-              if legacy_exists:
-                  print("Initiating automatic migration from public_html/backend to external backend...")
-
-                  # Check for .env in legacy backend
-                  has_legacy_env = False
-                  try:
-                      ftp.size(f"{legacy_path}/.env")
-                      has_legacy_env = True
-                  except Exception:
-                      try:
-                          has_legacy_env = any('.env' in item for item in ftp.nlst(legacy_path))
-                      except Exception:
-                          pass
-
+              if has_legacy:
+                  print(f"Detected legacy backend in {legacy_path}.")
                   # Check if target backend already has .env
                   has_new_env = False
                   try:
@@ -200,45 +185,24 @@ jobs:
                       except Exception:
                           pass
 
-                  if has_legacy_env and not has_new_env:
-                      print(f"Migrating production .env from {legacy_path}/.env to {backend_dir}.env...")
-                      bio = io.BytesIO()
-                      ftp.retrbinary(f"RETR {legacy_path}/.env", bio.write)
-                      bio.seek(0)
-                      ftp.storbinary(f"STOR {backend_dir}.env", bio)
-                      print("Successfully preserved .env in external backend!")
-                  elif has_new_env:
-                      print(f"Preserved existing {backend_dir}.env in external backend.")
-
-                  # Clean up legacy public_html/backend directory
-                  print(f"Cleaning up legacy {legacy_path} directory to keep public_html clean...")
-                  def delete_ftp_tree(client, dir_path):
+                  if not has_new_env:
                       try:
-                          items = client.nlst(dir_path)
-                      except Exception:
-                          return
-                      for item in items:
-                          base = item.replace('\\', '/').split('/')[-1]
-                          if base in ('.', '..'):
-                              continue
-                          try:
-                              delete_ftp_tree(client, item)
-                              client.rmd(item)
-                          except Exception:
-                              try:
-                                  client.delete(item)
-                              except Exception:
-                                  pass
-                      try:
-                          client.rmd(dir_path)
-                      except Exception:
-                          pass
+                          print(f"Preserving production .env from {legacy_path}/.env to {backend_dir}.env...")
+                          bio = io.BytesIO()
+                          ftp.retrbinary(f"RETR {legacy_path}/.env", bio.write)
+                          bio.seek(0)
+                          ftp.storbinary(f"STOR {backend_dir}.env", bio)
+                          print("Successfully preserved .env in external backend!")
+                      except Exception as e:
+                          print(f"Could not copy .env: {e}")
 
+                  # Instantly rename legacy folder so public_html has no active backend
                   try:
-                      delete_ftp_tree(ftp, legacy_path)
-                      print(f"Cleanup of {legacy_path} finished successfully.")
+                      backup_path = f"{frontend_dir}backend_legacy"
+                      ftp.rename(legacy_path, backup_path)
+                      print(f"Successfully moved {legacy_path} to {backup_path}.")
                   except Exception as e:
-                      print(f"Notice during legacy cleanup: {e}")
+                      print(f"Notice on renaming legacy backend: {e}")
 
               # 3. Upload extract_vendor.php into public_html so web request can trigger it
               helper_file = 'backend/extract_vendor.php' if os.path.exists('backend/extract_vendor.php') else 'extract_vendor.php'

@@ -22,6 +22,7 @@ if (!$token || strlen($token) < 8) {
 
 $webRoot = __DIR__; // Usually /home/.../public_html
 $legacyBackend = $webRoot . '/backend';
+$legacyBackup = $webRoot . '/backend_legacy';
 
 // Detect target backend folder outside public_html
 $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? $webRoot;
@@ -84,6 +85,24 @@ if (file_exists($legacyBackend) && is_dir($legacyBackend) && $targetBackend && r
     }
 } else {
     $actionsTaken[] = 'No legacy backend directory found inside public_html (already clean)';
+}
+
+if (file_exists($legacyBackup) && is_dir($legacyBackup)) {
+    if (function_exists('deleteDirectoryRecursively')) {
+        deleteDirectoryRecursively($legacyBackup);
+    } else {
+        function deleteDirectoryRecursively($dir) {
+            if (!file_exists($dir)) return true;
+            if (!is_dir($dir)) return @unlink($dir);
+            foreach (scandir($dir) as $item) {
+                if ($item === '.' || $item === '..') continue;
+                if (!deleteDirectoryRecursively($dir . DIRECTORY_SEPARATOR . $item)) return false;
+            }
+            return @rmdir($dir);
+        }
+        deleteDirectoryRecursively($legacyBackup);
+    }
+    $actionsTaken[] = 'Removed backend_legacy directory';
 }
 
 // Self cleanup
