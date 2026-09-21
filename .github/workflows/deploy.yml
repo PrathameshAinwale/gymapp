@@ -140,29 +140,46 @@ jobs:
 
               clean_files = [f.replace('\\', '/').split('/')[-1] for f in raw_files]
 
-              # Determine if we are at home root (contains DO_NOT_UPLOAD_HERE or public_html and backend)
-              is_home_root = 'DO_NOT_UPLOAD_HERE' in clean_files or ('public_html' in clean_files and 'backend' in clean_files)
+              # Determine if we are at home root (identified ONLY by the DO_NOT_UPLOAD_HERE marker)
+              is_home_root = 'DO_NOT_UPLOAD_HERE' in clean_files
 
-              if not is_home_root:
+              if is_home_root:
+                  print("FTP root is Home Directory (🏠).")
+                  frontend_dir = 'public_html/'
+                  backend_dir = 'backend/'
+              else:
+                  print("FTP root is NOT Home Directory (currently inside public_html).")
+                  can_reach_parent = False
                   try:
                       ftp.cwd('..')
                       parent_clean = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst()]
                       print(f"Parent directory contents: {parent_clean}")
-                      if 'DO_NOT_UPLOAD_HERE' in parent_clean or 'public_html' in parent_clean:
-                          print("Successfully navigated to home root from initial directory!")
-                          is_home_root = True
-                          clean_files = parent_clean
-                      else:
-                          ftp.cwd(pwd)
+                      if 'DO_NOT_UPLOAD_HERE' in parent_clean:
+                          print("Successfully verified parent directory is Home Root (🏠)!")
+                          can_reach_parent = True
+                      ftp.cwd(pwd)
                   except Exception as e:
-                      print(f"Notice on parent navigation: {e}")
+                      print(f"Notice on checking parent directory: {e}")
+
+                  if can_reach_parent:
+                      print("Navigating outside public_html: backend='../backend/', frontend='./'")
+                      backend_dir = '../backend/'
+                      frontend_dir = './'
+                  else:
+                      print("WARNING: FTP account appears restricted to public_html directly.")
+                      backend_dir = '../backend/'
+                      frontend_dir = './'
 
               if override:
                   override_clean = override.strip('/')
                   print(f"HOSTINGER_SERVER_DIR provided: '{override}'")
-                  if override_clean in ('public_html', './public_html', '/public_html'):
-                      frontend_dir = 'public_html/'
-                      backend_dir = 'backend/'
+                  if override_clean in ('public_html', './public_html', '/public_html', ''):
+                      if is_home_root:
+                          frontend_dir = 'public_html/'
+                          backend_dir = 'backend/'
+                      else:
+                          frontend_dir = './'
+                          backend_dir = '../backend/'
                   elif 'public_html' in override_clean:
                       base = override_clean.rsplit('public_html', 1)[0].rstrip('/')
                       frontend_dir = f"{override_clean}/"
@@ -170,20 +187,13 @@ jobs:
                   else:
                       frontend_dir = f"{override_clean}/public_html/"
                       backend_dir = f"{override_clean}/backend/"
-              elif is_home_root:
-                  frontend_dir = 'public_html/'
-                  backend_dir = 'backend/'
-              else:
-                  print("WARNING: FTP account appears chrooted directly inside public_html.")
-                  frontend_dir = './'
-                  backend_dir = '../backend/'
 
-              print(f"Resolved Target Frontend Dir: '{frontend_dir}'")
-              print(f"Resolved Target Backend Dir:  '{backend_dir}'")
+              print(f"Final Resolved Target Frontend Dir: '{frontend_dir}'")
+              print(f"Final Resolved Target Backend Dir:  '{backend_dir}'")
 
               # 1. Ensure backend directory exists outside public_html
               clean_backend = backend_dir.strip('/')
-              if clean_backend and clean_backend != '.':
+              if clean_backend and clean_backend not in ('.', '..'):
                   try:
                       ftp.mkd(clean_backend)
                       print(f"Verified/Created target backend directory: {clean_backend}")
@@ -191,45 +201,31 @@ jobs:
                       print(f"Target backend directory ready: {clean_backend}")
 
               # 2. Inspect and clean unwanted directories inside public_html
+              target_pub = frontend_dir if frontend_dir != './' else ''
               try:
-                  pub_contents = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst(frontend_dir)]
-                  print(f"Current contents of {frontend_dir}: {pub_contents}")
+                  pub_contents = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst(target_pub or '.')]
+                  print(f"Current contents of public_html: {pub_contents}")
 
-                  # If nested public_html/public_html exists, rename it for cleanup
-                  if 'public_html' in pub_contents:
-                      nested_pub = f"{frontend_dir}public_html".replace('//', '/')
-                      print(f"Moving accidental nested folder {nested_pub} for cleanup...")
-                      try:
-                          ftp.rename(nested_pub, f"{frontend_dir}cleanup_nested_pub".replace('//', '/'))
-                      except Exception as e:
-                          print(f"Notice renaming nested public_html: {e}")
-
-                  # If public_html/backend exists, preserve .env and rename for cleanup
-                  if 'backend' in pub_contents:
-                      legacy_pub_backend = f"{frontend_dir}backend".replace('//', '/')
-                      print(f"Found legacy backend inside {frontend_dir}: {legacy_pub_backend}")
-
-                      has_env_in_backend = False
-                      try:
-                          has_env_in_backend = any('.env' in x for x in ftp.nlst(backend_dir))
-                      except Exception:
-                          pass
-
-                      if not has_env_in_backend:
+                  for unwanted in ['public_html', 'backend', 'backend_legacy', 'cleanup_nested_pub', 'cleanup_legacy_backend', 'nested_public_html_old']:
+                      if unwanted in pub_contents:
+                          bad_path = f"{target_pub}{unwanted}".lstrip('/')
+                          print(f"Found unwanted folder inside public_html: {bad_path}")
+                          if unwanted == 'backend':
+                              try:
+                                  has_env = any('.env' in x for x in ftp.nlst(backend_dir))
+                                  if not has_env:
+                                      bio = io.BytesIO()
+                                      ftp.retrbinary(f"RETR {bad_path}/.env", bio.write)
+                                      bio.seek(0)
+                                      ftp.storbinary(f"STOR {backend_dir}.env", bio)
+                                      print(f"Preserved .env from {bad_path}/.env into {backend_dir}.env!")
+                              except Exception as e:
+                                  print(f"Notice on .env transfer: {e}")
                           try:
-                              bio = io.BytesIO()
-                              ftp.retrbinary(f"RETR {legacy_pub_backend}/.env", bio.write)
-                              bio.seek(0)
-                              ftp.storbinary(f"STOR {backend_dir}.env", bio)
-                              print(f"Preserved .env from {legacy_pub_backend}/.env into {backend_dir}.env!")
+                              ftp.rename(bad_path, f"{target_pub}to_delete_{unwanted}".lstrip('/'))
+                              print(f"Renamed {bad_path} to to_delete_{unwanted}")
                           except Exception as e:
-                              print(f"Notice copying .env: {e}")
-
-                      try:
-                          ftp.rename(legacy_pub_backend, f"{frontend_dir}cleanup_legacy_backend".replace('//', '/'))
-                          print("Moved legacy backend out of public_html.")
-                      except Exception as e:
-                          print(f"Notice renaming legacy backend: {e}")
+                              print(f"Notice on rename: {e}")
               except Exception as e:
                   print(f"Notice during public_html inspection: {e}")
 

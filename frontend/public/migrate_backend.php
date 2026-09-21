@@ -87,38 +87,15 @@ if (file_exists($legacyBackend) && is_dir($legacyBackend) && $targetBackend && r
     $actionsTaken[] = 'No legacy backend directory found inside public_html (already clean)';
 }
 
-if (file_exists($legacyBackup) && is_dir($legacyBackup)) {
-    if (function_exists('deleteDirectoryRecursively')) {
-        deleteDirectoryRecursively($legacyBackup);
-    } else {
-        function deleteDirectoryRecursively($dir) {
-            if (!file_exists($dir)) return true;
-            if (!is_dir($dir)) return @unlink($dir);
-            foreach (scandir($dir) as $item) {
-                if ($item === '.' || $item === '..') continue;
-                if (!deleteDirectoryRecursively($dir . DIRECTORY_SEPARATOR . $item)) return false;
-            }
-            return @rmdir($dir);
+$unwantedFolders = ['backend', 'backend_legacy', 'public_html', 'nested_public_html_old', 'cleanup_nested_pub', 'cleanup_legacy_backend', 'remove_nested_pub', 'remove_legacy_backend', 'to_delete_backend', 'to_delete_public_html'];
+foreach ($unwantedFolders as $bad) {
+    $p = $webRoot . '/' . $bad;
+    if (file_exists($p) && is_dir($p) && realpath($p) !== realpath($webRoot)) {
+        if (function_exists('deleteDirectoryRecursively')) {
+            deleteDirectoryRecursively($p);
         }
-        deleteDirectoryRecursively($legacyBackup);
+        $actionsTaken[] = "Removed {$bad} directory from public_html";
     }
-    $actionsTaken[] = 'Removed backend_legacy directory';
-}
-
-$nestedPublic = $webRoot . '/public_html';
-if (file_exists($nestedPublic) && is_dir($nestedPublic) && realpath($nestedPublic) !== realpath($webRoot)) {
-    if (function_exists('deleteDirectoryRecursively')) {
-        deleteDirectoryRecursively($nestedPublic);
-    }
-    $actionsTaken[] = 'Removed accidental nested public_html directory';
-}
-
-$nestedPublicOld = $webRoot . '/nested_public_html_old';
-if (file_exists($nestedPublicOld) && is_dir($nestedPublicOld)) {
-    if (function_exists('deleteDirectoryRecursively')) {
-        deleteDirectoryRecursively($nestedPublicOld);
-    }
-    $actionsTaken[] = 'Removed nested_public_html_old directory';
 }
 
 // Self cleanup
