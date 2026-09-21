@@ -859,7 +859,7 @@ export const GymDataProvider = ({ children }) => {
       try {
         const saved = localStorage.getItem('pulsefit_body_metrics');
         if (saved) return JSON.parse(saved);
-      } catch (e) {}
+      } catch (e) { }
     }
     return [
       { month: 'Apr', weight: 84.5, bodyFat: 19.8, muscleMass: 35.0, chest: 104, waist: 88, biceps: 36.5 },
@@ -879,7 +879,7 @@ export const GymDataProvider = ({ children }) => {
           const parsed = JSON.parse(saved);
           return Array.isArray(parsed) ? parsed.filter((i) => !i.gymId || i.gymId === Number(activeGymKey)) : [];
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return [];
   });
@@ -891,7 +891,7 @@ export const GymDataProvider = ({ children }) => {
           const parsed = JSON.parse(saved);
           return Array.isArray(parsed) ? parsed.filter((e) => !e.gym_id || e.gym_id === Number(activeGymKey)) : [];
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return [];
   });
