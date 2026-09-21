@@ -15,6 +15,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'plain_password',
         'initial_password',
         'must_change_password',
         'role', // 'superadmin', 'owner', 'trainer', 'member'
