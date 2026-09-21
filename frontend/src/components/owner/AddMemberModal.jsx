@@ -999,9 +999,6 @@ export const AddMemberModal = ({
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-500">
-                The member can log into the PULSE FIT Member Portal using this email and password.
-              </p>
             </div>
           )}
 
@@ -1257,9 +1254,6 @@ export const AddMemberModal = ({
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-slate-500">
-                This coach will conduct the 1-on-1 PT sessions and receive PT commissions.
-              </p>
             </div>
           )}
 
@@ -1270,9 +1264,6 @@ export const AddMemberModal = ({
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <Dumbbell className="w-4 h-4 text-emerald-600" />
                   <span>1-on-1 Personal Training (PT) Plan</span>
-                </span>
-                <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
-                  1-on-1 PT Active
                 </span>
               </div>
 
@@ -1338,10 +1329,6 @@ export const AddMemberModal = ({
                           + Add New PT Plan...
                         </option>
                       </select>
-
-                      <p className="text-[10px] text-slate-500">
-                        Assigned Trainer: <strong>{trainers.find((t) => t.id === selectedTrainerId)?.name || 'Selected Coach'}</strong>
-                      </p>
                     </div>
                   )}
                 </div>
@@ -1360,10 +1347,6 @@ export const AddMemberModal = ({
                     <div className="text-xl font-black text-slate-900">
                       ₹{Number(chosenPtPlan?.price || 0).toLocaleString('en-IN')}
                     </div>
-                  </div>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Plan: <strong>{chosenPtPlan?.name || 'No Plan Selected'}</strong></span>
-                    <span className="text-emerald-600 font-semibold">Predefined Fee Applied</span>
                   </div>
                 </div>
               </div>
@@ -1450,11 +1433,6 @@ export const AddMemberModal = ({
                     </span>
                   </div>
                 </div>
-
-                <p className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>Automatically logged under <strong>Trainer Commissions</strong> ledger upon registration.</span>
-                </p>
               </div>
             </div>
           )}

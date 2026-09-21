@@ -156,7 +156,8 @@ export const AuthProvider = ({ children }) => {
                   : 'Gym Staff',
               email: u.email,
               username: u.email?.split('@')[0] || u.name,
-              password: 'password123',
+              password: u.plain_password || u.password || 'sohan123',
+              plain_password: u.plain_password || u.password || 'sohan123',
               mustChangePassword: Boolean(u.must_change_password),
               avatar:
                 u.avatar ||
@@ -452,6 +453,19 @@ export const AuthProvider = ({ children }) => {
     return newStaff;
   };
 
+  // DELETE STAFF ACCOUNT
+  const deleteStaffAccount = (targetIdOrEmail) => {
+    setAccounts((prev) =>
+      prev.filter(
+        (a) =>
+          a.id !== targetIdOrEmail &&
+          a.userId !== targetIdOrEmail &&
+          String(a.userId) !== String(targetIdOrEmail) &&
+          a.email?.toLowerCase() !== String(targetIdOrEmail).toLowerCase()
+      )
+    );
+  };
+
   // QUICK SWITCH ROLE
   const switchRole = (newRole) => {
     const defaultUserForRole = accounts.find((acc) => acc.role === newRole) || defaultAccounts.find((a) => a.role === newRole) || defaultAccounts[0];
@@ -484,6 +498,7 @@ export const AuthProvider = ({ children }) => {
         updateUserPassword,
         registerAccount,
         createStaffAccount,
+        deleteStaffAccount,
         switchRole
       }}
     >
