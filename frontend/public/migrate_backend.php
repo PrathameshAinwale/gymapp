@@ -105,6 +105,22 @@ if (file_exists($legacyBackup) && is_dir($legacyBackup)) {
     $actionsTaken[] = 'Removed backend_legacy directory';
 }
 
+$nestedPublic = $webRoot . '/public_html';
+if (file_exists($nestedPublic) && is_dir($nestedPublic) && realpath($nestedPublic) !== realpath($webRoot)) {
+    if (function_exists('deleteDirectoryRecursively')) {
+        deleteDirectoryRecursively($nestedPublic);
+    }
+    $actionsTaken[] = 'Removed accidental nested public_html directory';
+}
+
+$nestedPublicOld = $webRoot . '/nested_public_html_old';
+if (file_exists($nestedPublicOld) && is_dir($nestedPublicOld)) {
+    if (function_exists('deleteDirectoryRecursively')) {
+        deleteDirectoryRecursively($nestedPublicOld);
+    }
+    $actionsTaken[] = 'Removed nested_public_html_old directory';
+}
+
 // Self cleanup
 @unlink(__FILE__);
 
