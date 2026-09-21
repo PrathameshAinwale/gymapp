@@ -15,6 +15,9 @@ $possiblePaths = [
     __DIR__ . '/../backend',
     __DIR__ . '/../../backend',
     isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) . '/backend' : null,
+    isset($_SERVER['DOCUMENT_ROOT']) ? dirname(dirname($_SERVER['DOCUMENT_ROOT'])) . '/backend' : null,
+    '/home/u773098752/domains/archfit.archenterprises.co.in/backend',
+    '/home/u773098752/backend',
 ];
 
 $backendPath = null;
@@ -46,6 +49,7 @@ if ($zip->open($zipFile) === TRUE) {
     $zip->extractTo($backendPath);
     $zip->close();
     @unlink($zipFile);
+    @unlink(__FILE__);
     echo "SUCCESS: vendor.zip extracted into backend.";
 } else {
     http_response_code(500);

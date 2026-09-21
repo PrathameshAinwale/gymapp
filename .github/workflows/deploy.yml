@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
-      target_dir: ${{ steps.detect-target.outputs.target_dir }}
+      frontend_dir: ${{ steps.detect-target.outputs.frontend_dir }}
+      backend_dir: ${{ steps.detect-target.outputs.backend_dir }}
+      target_dir: ${{ steps.detect-target.outputs.frontend_dir }}
 
     steps:
       - name: Checkout Code
@@ -57,16 +59,33 @@ jobs:
           }
 
           $baseDir = __DIR__;
-          $zipFile = $baseDir . '/vendor.zip';
-          if (!file_exists($zipFile)) {
-              // Check parent directory if placed in public/
-              $zipFile = dirname($baseDir) . '/vendor.zip';
-              $baseDir = dirname($baseDir);
+          $candidates = [
+              dirname($baseDir) . '/backend',
+              $baseDir . '/backend',
+              dirname($baseDir),
+              $baseDir,
+              '/home/u773098752/domains/archfit.archenterprises.co.in/backend',
+              '/home/u773098752/backend',
+          ];
+          $targetBackend = null;
+          foreach ($candidates as $cand) {
+              if (file_exists($cand . '/vendor.zip') || file_exists($cand . '/artisan') || file_exists($cand . '/bootstrap/app.php')) {
+                  $targetBackend = realpath($cand) ?: $cand;
+                  break;
+              }
+          }
+          if (!$targetBackend) {
+              $targetBackend = dirname($baseDir) . '/backend';
           }
 
+          $zipFile = $targetBackend . '/vendor.zip';
           if (!file_exists($zipFile)) {
+              if (file_exists($targetBackend . '/vendor/autoload.php')) {
+                  @unlink(__FILE__);
+                  exit('SUCCESS: vendor is already installed.');
+              }
               http_response_code(404);
-              exit('vendor.zip not found on server.');
+              exit('vendor.zip not found in ' . $targetBackend);
           }
 
           if (!class_exists('ZipArchive')) {
@@ -77,14 +96,11 @@ jobs:
           $zip = new ZipArchive;
           $res = $zip->open($zipFile);
           if ($res === TRUE) {
-              $zip->extractTo($baseDir);
+              $zip->extractTo($targetBackend);
               $zip->close();
               @unlink($zipFile);
               @unlink(__FILE__);
-              if (file_exists($baseDir . '/public/extract_vendor.php')) {
-                  @unlink($baseDir . '/public/extract_vendor.php');
-              }
-              echo "SUCCESS: vendor.zip extracted and cleaned up successfully.";
+              echo "SUCCESS: vendor.zip extracted into external backend successfully.";
           } else {
               http_response_code(500);
               exit('Failed to extract vendor.zip. Code: ' . $res);
@@ -94,7 +110,7 @@ jobs:
           mkdir -p public
           cp extract_vendor.php public/extract_vendor.php
 
-      - name: Auto-Detect Hostinger FTP Root Directory
+      - name: Auto-Detect, Migrate Legacy Backend & Prepare Directories
         id: detect-target
         env:
           FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
@@ -103,41 +119,160 @@ jobs:
           OVERRIDE_DIR: ${{ secrets.HOSTINGER_SERVER_DIR }}
         run: |
           python3 - << 'PYEOF'
-          import os, ftplib, sys
+          import os, ftplib, sys, io
 
           override = os.environ.get('OVERRIDE_DIR', '').strip()
-          if override:
-              if not override.endswith('/'):
-                  override += '/'
-              print(f"Using explicitly configured HOSTINGER_SERVER_DIR: {override}")
-              target = override
-          else:
-              server = os.environ.get('FTP_SERVER', '').strip()
-              user = os.environ.get('FTP_USER', '').strip()
-              password = os.environ.get('FTP_PASS', '').strip()
-              target = ''
-              try:
-                  ftp = ftplib.FTP(timeout=20)
-                  ftp.connect(server, 21)
-                  ftp.login(user, password)
-                  files = ftp.nlst()
-                  print("FTP Root contents:", files)
-                  if 'public_html' in files:
-                      target = 'public_html/'
-                      print("Detected public_html directory at FTP root.")
-                  else:
-                      print("FTP root appears to be document root directly.")
-                  ftp.quit()
-              except Exception as e:
-                  print(f"Warning during FTP detection: {e}. Falling back to default.")
-                  target = ''
+          server = os.environ.get('FTP_SERVER', '').strip()
+          user = os.environ.get('FTP_USER', '').strip()
+          password = os.environ.get('FTP_PASS', '').strip()
 
-          # Write to GITHUB_OUTPUT
+          frontend_dir = 'public_html/'
+          backend_dir = 'backend/'
+
+          try:
+              ftp = ftplib.FTP(timeout=30)
+              ftp.connect(server, 21)
+              ftp.login(user, password)
+              files = ftp.nlst()
+              print("FTP Root contents:", files)
+
+              if override:
+                  if not override.endswith('/'):
+                      override += '/'
+                  print(f"Using explicitly configured HOSTINGER_SERVER_DIR: {override}")
+                  if 'public_html' in override:
+                      prefix = override.rsplit('public_html', 1)[0]
+                      frontend_dir = override
+                      backend_dir = f"{prefix}backend/"
+                  else:
+                      frontend_dir = f"{override}public_html/"
+                      backend_dir = f"{override}backend/"
+              else:
+                  if 'public_html' in files:
+                      frontend_dir = 'public_html/'
+                      backend_dir = 'backend/'
+                  else:
+                      frontend_dir = ''
+                      backend_dir = 'backend/'
+
+              # 1. Ensure backend directory exists outside public_html
+              clean_backend = backend_dir.strip('/')
+              if clean_backend:
+                  try:
+                      ftp.mkd(clean_backend)
+                      print(f"Verified/Created target backend directory: {clean_backend}")
+                  except Exception:
+                      print(f"Target backend directory already exists: {clean_backend}")
+
+              # 2. Check for legacy backend inside public_html
+              legacy_path = f"{frontend_dir}backend"
+              legacy_exists = False
+              try:
+                  legacy_items = ftp.nlst(legacy_path)
+                  if legacy_items and len(legacy_items) > 0:
+                      legacy_exists = True
+                      print(f"Detected legacy backend directory in web root: {legacy_path}")
+              except Exception:
+                  legacy_exists = False
+
+              if legacy_exists:
+                  print("Initiating automatic migration from public_html/backend to external backend...")
+
+                  # Check for .env in legacy backend
+                  has_legacy_env = False
+                  try:
+                      ftp.size(f"{legacy_path}/.env")
+                      has_legacy_env = True
+                  except Exception:
+                      try:
+                          has_legacy_env = any('.env' in item for item in ftp.nlst(legacy_path))
+                      except Exception:
+                          pass
+
+                  # Check if target backend already has .env
+                  has_new_env = False
+                  try:
+                      ftp.size(f"{backend_dir}.env")
+                      has_new_env = True
+                  except Exception:
+                      try:
+                          has_new_env = any('.env' in item for item in ftp.nlst(backend_dir))
+                      except Exception:
+                          pass
+
+                  if has_legacy_env and not has_new_env:
+                      print(f"Migrating production .env from {legacy_path}/.env to {backend_dir}.env...")
+                      bio = io.BytesIO()
+                      ftp.retrbinary(f"RETR {legacy_path}/.env", bio.write)
+                      bio.seek(0)
+                      ftp.storbinary(f"STOR {backend_dir}.env", bio)
+                      print("Successfully preserved .env in external backend!")
+                  elif has_new_env:
+                      print(f"Preserved existing {backend_dir}.env in external backend.")
+
+                  # Clean up legacy public_html/backend directory
+                  print(f"Cleaning up legacy {legacy_path} directory to keep public_html clean...")
+                  def delete_ftp_tree(client, dir_path):
+                      try:
+                          items = client.nlst(dir_path)
+                      except Exception:
+                          return
+                      for item in items:
+                          base = item.replace('\\', '/').split('/')[-1]
+                          if base in ('.', '..'):
+                              continue
+                          try:
+                              delete_ftp_tree(client, item)
+                              client.rmd(item)
+                          except Exception:
+                              try:
+                                  client.delete(item)
+                              except Exception:
+                                  pass
+                      try:
+                          client.rmd(dir_path)
+                      except Exception:
+                          pass
+
+                  try:
+                      delete_ftp_tree(ftp, legacy_path)
+                      print(f"Cleanup of {legacy_path} finished successfully.")
+                  except Exception as e:
+                      print(f"Notice during legacy cleanup: {e}")
+
+              # 3. Upload extract_vendor.php into public_html so web request can trigger it
+              helper_file = 'backend/extract_vendor.php' if os.path.exists('backend/extract_vendor.php') else 'extract_vendor.php'
+              if os.path.exists(helper_file):
+                  try:
+                      with open(helper_file, 'rb') as hf:
+                          ftp.storbinary(f"STOR {frontend_dir}extract_vendor.php", hf)
+                      print(f"Uploaded extraction helper to {frontend_dir}extract_vendor.php")
+                  except Exception as e:
+                      print(f"Notice on extraction helper upload: {e}")
+
+              # 4. Upload migrate_backend.php into public_html
+              migrate_file = 'frontend/public/migrate_backend.php'
+              if os.path.exists(migrate_file):
+                  try:
+                      with open(migrate_file, 'rb') as mf:
+                          ftp.storbinary(f"STOR {frontend_dir}migrate_backend.php", mf)
+                      print(f"Uploaded migration helper to {frontend_dir}migrate_backend.php")
+                  except Exception as e:
+                      print(f"Notice on migration helper upload: {e}")
+
+              ftp.quit()
+          except Exception as e:
+              print(f"Warning during FTP detection/migration: {e}")
+
+          # Write outputs to GITHUB_OUTPUT
           github_output = os.environ.get('GITHUB_OUTPUT')
           if github_output:
               with open(github_output, 'a') as f:
-                  f.write(f"target_dir={target}\n")
-          print(f"Target web root dir: '{target}'")
+                  f.write(f"frontend_dir={frontend_dir}\n")
+                  f.write(f"backend_dir={backend_dir}\n")
+                  f.write(f"target_dir={frontend_dir}\n")
+          print(f"Output Frontend Dir: '{frontend_dir}'")
+          print(f"Output Backend Dir:  '{backend_dir}'")
           PYEOF
 
       - name: FTP Upload Backend
@@ -146,7 +281,7 @@ jobs:
           server: ${{ secrets.HOSTINGER_FTP_SERVER }}
           username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          server-dir: ${{ steps.detect-target.outputs.target_dir }}backend/
+          server-dir: ${{ steps.detect-target.outputs.backend_dir }}
           local-dir: ./backend/
           exclude: |
             **/.git*
@@ -157,25 +292,28 @@ jobs:
             **/tests/**
             **/vendor/**
 
-      - name: Trigger Server-side Vendor Extraction
+      - name: Trigger Server-side Vendor Extraction & Migration
         env:
           FTP_HOST: ${{ secrets.HOSTINGER_FTP_SERVER }}
           APP_URL: ${{ secrets.HOSTINGER_APP_URL || secrets.APP_URL }}
         run: |
           CLEAN_HOST="${FTP_HOST#ftp.}"
           TOKEN="${{ env.EXTRACT_TOKEN }}"
-          echo "Attempting to trigger vendor extraction helper on server..."
+          echo "Attempting to trigger vendor extraction & migration helper on server..."
 
           URLS=()
           if [ -n "$APP_URL" ]; then
-            URLS+=("${APP_URL%/}/backend/public/extract_vendor.php?token=${TOKEN}")
+            URLS+=("${APP_URL%/}/migrate_backend.php?token=${TOKEN}")
             URLS+=("${APP_URL%/}/extract_vendor.php?token=${TOKEN}")
+            URLS+=("${APP_URL%/}/api/health")
           fi
           URLS+=(
-            "https://${CLEAN_HOST}/backend/public/extract_vendor.php?token=${TOKEN}"
+            "https://${CLEAN_HOST}/migrate_backend.php?token=${TOKEN}"
             "https://${CLEAN_HOST}/extract_vendor.php?token=${TOKEN}"
-            "http://${CLEAN_HOST}/backend/public/extract_vendor.php?token=${TOKEN}"
+            "https://${CLEAN_HOST}/api/health"
+            "http://${CLEAN_HOST}/migrate_backend.php?token=${TOKEN}"
             "http://${CLEAN_HOST}/extract_vendor.php?token=${TOKEN}"
+            "http://${CLEAN_HOST}/api/health"
           )
 
           TRIGGERED=false
@@ -184,6 +322,10 @@ jobs:
             RESP=$(curl -s -k --max-time 20 "$URL" || true)
             if echo "$RESP" | grep -q "SUCCESS"; then
               echo "Vendor extraction confirmed successfully via $URL"
+              TRIGGERED=true
+              break
+            elif echo "$RESP" | grep -q "online"; then
+              echo "PulseFit Pro API is already online and verified via $URL"
               TRIGGERED=true
               break
             fi
@@ -233,7 +375,7 @@ jobs:
           server: ${{ secrets.HOSTINGER_FTP_SERVER }}
           username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          server-dir: ${{ needs.deploy-backend.outputs.target_dir || './' }}
+          server-dir: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
           local-dir: ./frontend/dist/
           exclude: |
             **/.git*

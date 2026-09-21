@@ -30,8 +30,9 @@
     RewriteCond %{REQUEST_URI} ^/storage(/.*)?$ [NC]
     RewriteRule ^storage/(.*)$ api/storage/$1 [L]
 
-    # 3. Route extract_vendor.php helper if requested
+    # 3. Route deployment helpers if requested
     RewriteRule ^extract_vendor\.php$ extract_vendor.php [L,QSA]
+    RewriteRule ^migrate_backend\.php$ migrate_backend.php [L,QSA]
 
     # 4. Existing files and directories are served directly (JS, CSS, images, fonts)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
