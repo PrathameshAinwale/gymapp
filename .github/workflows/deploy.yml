@@ -272,6 +272,8 @@ jobs:
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
           server-dir: ${{ steps.detect-target.outputs.backend_dir }}
           local-dir: ./backend/
+          port: 21
+          protocol: ftp
           exclude: |
             **/.git*
             **/.git*/**
@@ -358,6 +360,9 @@ jobs:
           fi
           test -f dist/.htaccess && echo ".htaccess confirmed in dist/"
 
+      - name: Brief Pause for Hostinger FTP Connection Handshake
+        run: sleep 10
+
       - name: FTP Upload Frontend
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -366,6 +371,8 @@ jobs:
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
           server-dir: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
           local-dir: ./frontend/dist/
+          port: 21
+          protocol: ftp
           exclude: |
             **/.git*
             **/.git*/**

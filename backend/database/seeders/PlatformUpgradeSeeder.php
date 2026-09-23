@@ -64,6 +64,16 @@ class PlatformUpgradeSeeder extends Seeder
             'must_change_password' => false,
         ]);
 
+        $trainer1 = User::firstOrCreate(['email' => 'trainer@pulsefit.in'], [
+            'name'                => 'Coach Alex Rivers',
+            'password'            => Hash::make('trainer123'),
+            'role'                => 'trainer',
+            'gym_id'              => $gym->id,
+            'avatar'              => null,
+            'phone'               => '9345678901',
+            'must_change_password' => false,
+        ]);
+
         $trainer2 = User::firstOrCreate(['email' => 'elena@pulsefit.in'], [
             'name'                => 'Elena Rostova',
             'password'            => Hash::make('trainer123'),
