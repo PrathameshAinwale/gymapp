@@ -831,17 +831,41 @@ const mapTrainerReview = (rev) => ({
   date: rev.date || (rev.created_at ? rev.created_at.slice(0, 10) : new Date().toISOString().split('T')[0])
 });
 
+const mapLeaveRequest = (r) => ({
+  id: r.id,
+  numericId: r.id,
+  gymId: r.gym_id,
+  userId: r.user_id,
+  userName: r.user_name || (r.user && r.user.name) || 'Staff Member',
+  userAvatar: r.user_avatar || (r.user && r.user.avatar),
+  role: r.role || (r.user && r.user.role) || 'Staff',
+  leaveType: r.leave_type,
+  startDate: r.start_date,
+  endDate: r.end_date,
+  daysCount: Number(r.days_count || 1),
+  reason: r.reason,
+  status: r.status || 'Pending',
+  actionBy: r.action_by,
+  actionNotes: r.action_notes,
+  actionDate: r.action_date,
+  remainingBalanceForType: r.remaining_balance_for_type,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at
+});
+
+
+
 export const GymDataProvider = ({ children }) => {
   const { currentUser } = useAuth();
 
   const [gymInfo, setGymInfo] = useState({
-    name: "ARCHFIT ATHLETIC CLUB",
-    tagline: "India's Premier Strength & Conditioning Hub",
-    address: "Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076",
-    phone: "+91 98201 54321",
-    email: "contact@archfit.in",
-    operatingHours: "Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM",
-    currency: "₹"
+    name: '',
+    tagline: '',
+    address: '',
+    phone: '',
+    email: '',
+    operatingHours: '',
+    currency: '₹'
   });
 
   const [members, setMembers] = useState([]);
@@ -942,6 +966,31 @@ export const GymDataProvider = ({ children }) => {
 
   // Trainer Reviews & Ratings by Members
   const [trainerReviews, setTrainerReviews] = useState([]);
+
+  // Staff & Trainer Leave Management & Quotas (Dynamic Backend Live State)
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveBalances, setLeaveBalances] = useState([]);
+  const [leaveSummary, setLeaveSummary] = useState({
+    pending_requests: 0,
+    staff_on_leave_today: 0,
+    approved_this_month: 0,
+    total_employees: 0,
+  });
+
+  // WhatsApp Message Templates & Automation Triggers
+  const [whatsappTemplates, setWhatsappTemplates] = useState([]);
+  const [whatsappTriggers, setWhatsappTriggers] = useState({
+    summary: { birthdays_today: 0, expiring_soon: 0, pending_dues: 0, absentees: 0 },
+    triggers: { birthdays: [], expiring: [], dues: [], absentees: [] },
+  });
+  const [whatsappLogs, setWhatsappLogs] = useState([]);
+  const [whatsappStats, setWhatsappStats] = useState({
+    active_templates: 0,
+    total_sent: 0,
+    sent_today: 0,
+    birthdays_today: 0,
+    expiring_soon: 0,
+  });
 
   const initialExercises = SEED_EXERCISES;
 
@@ -1191,10 +1240,235 @@ export const GymDataProvider = ({ children }) => {
     try {
       if (api.gymInfo?.get) {
         const res = await api.gymInfo.get();
-        if (res?.data) setGymInfo(res.data);
-        return res?.data;
+        if (res?.data) {
+          const cleanInfo = {
+            name: res.data.name || '',
+            tagline: res.data.tagline || '',
+            address: res.data.address || '',
+            phone: res.data.phone || '',
+            email: res.data.email || '',
+            operatingHours: res.data.operatingHours || res.data.operating_hours || '',
+            currency: res.data.currency || '₹',
+          };
+          setGymInfo(cleanInfo);
+          return cleanInfo;
+        }
       }
     } catch (e) { console.warn('Fetch gym info error:', e.message); }
+  }, []);
+
+  const fetchLeaveRequests = useCallback(async (params = {}) => {
+    try {
+      if (api.leaves?.getRequests) {
+        const res = await api.leaves.getRequests(params);
+        if (Array.isArray(res?.data)) {
+          const mapped = res.data.map(mapLeaveRequest);
+          setLeaveRequests(mapped);
+          return mapped;
+        }
+      }
+    } catch (e) { console.warn('Fetch leave requests error:', e.message); }
+  }, []);
+
+  const fetchLeaveBalances = useCallback(async (params = {}) => {
+    try {
+      if (api.leaves?.getBalances) {
+        const res = await api.leaves.getBalances(params);
+        if (Array.isArray(res?.data)) {
+          setLeaveBalances(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) { console.warn('Fetch leave balances error:', e.message); }
+  }, []);
+
+  const fetchLeaveSummary = useCallback(async () => {
+    try {
+      if (api.leaves?.getSummary) {
+        const res = await api.leaves.getSummary();
+        if (res?.data) {
+          setLeaveSummary(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) { console.warn('Fetch leave summary error:', e.message); }
+  }, []);
+
+  const fetchEmployeeLeaveBalance = useCallback(async (userId) => {
+    try {
+      if (api.leaves?.getUserBalance) {
+        const res = await api.leaves.getUserBalance(userId);
+        return res?.data;
+      }
+    } catch (e) {
+      console.warn('Fetch user leave balance error:', e.message);
+      return null;
+    }
+  }, []);
+
+  const updateLeaveStatus = useCallback(async (requestId, status, notes = null, actionBy = null) => {
+    try {
+      const res = await api.leaves.updateRequestStatus(requestId, status, notes, actionBy);
+      addToast(`Leave request marked as ${status}!`, 'success');
+      await Promise.allSettled([fetchLeaveRequests(), fetchLeaveBalances(), fetchLeaveSummary()]);
+      return res;
+    } catch (err) {
+      console.error('Update leave status error:', err.message);
+      addToast(`Failed to update leave status: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchLeaveRequests, fetchLeaveBalances, fetchLeaveSummary]);
+
+  const applyLeave = useCallback(async (leaveData) => {
+    try {
+      const res = await api.leaves.createRequest(leaveData);
+      addToast('Leave application submitted successfully!', 'success');
+      await Promise.allSettled([fetchLeaveRequests(), fetchLeaveBalances(), fetchLeaveSummary()]);
+      return res;
+    } catch (err) {
+      console.error('Apply leave error:', err.message);
+      addToast(`Failed to submit leave request: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchLeaveRequests, fetchLeaveBalances, fetchLeaveSummary]);
+
+  const allocateEmployeeLeaves = useCallback(async (allocationData) => {
+    try {
+      const res = await api.leaves.allocateLeaves(allocationData);
+      addToast(res?.message || 'Leave quotas updated successfully!', 'success');
+      await Promise.allSettled([fetchLeaveBalances(), fetchLeaveSummary(), fetchLeaveRequests()]);
+      return res;
+    } catch (err) {
+      console.error('Allocate leaves error:', err.message);
+      addToast(`Failed to allocate leaves: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchLeaveBalances, fetchLeaveSummary, fetchLeaveRequests]);
+
+  // WhatsApp Message Templates & Automation Callbacks
+  const fetchWhatsAppTemplates = useCallback(async (params = {}) => {
+    try {
+      if (api.whatsapp?.getTemplates) {
+        const res = await api.whatsapp.getTemplates(params);
+        if (Array.isArray(res?.data)) {
+          setWhatsappTemplates(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) { console.warn('Fetch whatsapp templates error:', e.message); }
+  }, []);
+
+  const createWhatsAppTemplate = useCallback(async (data) => {
+    try {
+      const res = await api.whatsapp.createTemplate(data);
+      if (res?.success) {
+        addToast(res.message || 'Template created successfully!', 'success');
+        fetchWhatsAppTemplates();
+        fetchWhatsAppStats?.();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Create template error:', err.message);
+      addToast(`Failed to create template: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppTemplates]);
+
+  const updateWhatsAppTemplate = useCallback(async (id, data) => {
+    try {
+      const res = await api.whatsapp.updateTemplate(id, data);
+      if (res?.success) {
+        addToast(res.message || 'Template updated successfully!', 'success');
+        fetchWhatsAppTemplates();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Update template error:', err.message);
+      addToast(`Failed to update template: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppTemplates]);
+
+  const deleteWhatsAppTemplate = useCallback(async (id) => {
+    try {
+      const res = await api.whatsapp.deleteTemplate(id);
+      if (res?.success) {
+        addToast(res.message || 'Template deleted!', 'success');
+        fetchWhatsAppTemplates();
+        fetchWhatsAppStats?.();
+        return res;
+      }
+    } catch (err) {
+      console.error('Delete template error:', err.message);
+      addToast(`Failed to delete template: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppTemplates]);
+
+  const toggleWhatsAppTemplate = useCallback(async (id, field = 'is_active') => {
+    try {
+      const res = await api.whatsapp.toggleTemplate(id, field);
+      if (res?.success) {
+        addToast('Template status updated!', 'success');
+        fetchWhatsAppTemplates();
+        fetchWhatsAppStats?.();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Toggle template error:', err.message);
+      addToast(`Failed to toggle template: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppTemplates]);
+
+  const fetchWhatsAppTriggers = useCallback(async (params = {}) => {
+    try {
+      if (api.whatsapp?.scanTriggers) {
+        const res = await api.whatsapp.scanTriggers(params);
+        if (res?.success) {
+          setWhatsappTriggers(res);
+          return res;
+        }
+      }
+    } catch (e) { console.warn('Fetch whatsapp triggers error:', e.message); }
+  }, []);
+
+  const logWhatsAppMessage = useCallback(async (data) => {
+    try {
+      const res = await api.whatsapp.logMessage(data);
+      if (res?.success) {
+        fetchWhatsAppTriggers();
+        fetchWhatsAppLogs();
+        fetchWhatsAppStats();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Log WhatsApp error:', err.message);
+    }
+  }, []);
+
+  const fetchWhatsAppLogs = useCallback(async (params = {}) => {
+    try {
+      if (api.whatsapp?.getLogs) {
+        const res = await api.whatsapp.getLogs(params);
+        if (Array.isArray(res?.data)) {
+          setWhatsappLogs(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) { console.warn('Fetch whatsapp logs error:', e.message); }
+  }, []);
+
+  const fetchWhatsAppStats = useCallback(async () => {
+    try {
+      if (api.whatsapp?.getStats) {
+        const res = await api.whatsapp.getStats();
+        if (res?.data) {
+          setWhatsappStats(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) { console.warn('Fetch whatsapp stats error:', e.message); }
   }, []);
 
   const fetchDashboardStats = useCallback(async () => {
@@ -1244,9 +1518,18 @@ export const GymDataProvider = ({ children }) => {
       await Promise.allSettled([fetchConsentForms(), fetchPtSessions()]);
       setLoadingModules((prev) => ({ ...prev, consent: false, ptSessions: false }));
 
-      // Batch 8: Advance requests, reviews & gym info
-      await Promise.allSettled([fetchAdvanceRequests(), fetchTrainerReviews(), fetchGymInfo()]);
-      setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false }));
+      // Batch 8: Advance requests, reviews, leaves & gym info
+      await Promise.allSettled([
+        fetchAdvanceRequests(),
+        fetchTrainerReviews(),
+        fetchGymInfo(),
+        fetchLeaveRequests(),
+        fetchLeaveBalances(),
+        fetchLeaveSummary(),
+        fetchWhatsAppTemplates(),
+        fetchWhatsAppStats()
+      ]);
+      setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false, leaves: false }));
 
     } catch (err) {
       console.warn('Backend sync note:', err.message);
@@ -1279,7 +1562,9 @@ export const GymDataProvider = ({ children }) => {
     fetchAdvanceRequests,
     fetchTrainerReviews,
     fetchGymInfo,
-    fetchDashboardStats
+    fetchDashboardStats,
+    fetchWhatsAppTemplates,
+    fetchWhatsAppStats
   ]);
 
   // Safety timer to guarantee no owner page ever hangs on a loader
@@ -1395,6 +1680,8 @@ export const GymDataProvider = ({ children }) => {
         await fetchInvoices();
         await fetchDashboardStats();
         await fetchPtSessions?.();
+        fetchWhatsAppTriggers?.();
+        fetchWhatsAppStats?.();
         addToast(`New member "${res.data.name}" registered successfully & saved to database!`, 'success');
         return res.data;
       }
@@ -1410,6 +1697,8 @@ export const GymDataProvider = ({ children }) => {
     try {
       await api.members.update(id, updatedData);
       await fetchPtSessions?.();
+      fetchWhatsAppTriggers?.();
+      fetchWhatsAppStats?.();
     } catch (e) {
       console.warn('Backend update member fallback:', e.message);
     }
@@ -1427,6 +1716,8 @@ export const GymDataProvider = ({ children }) => {
   const deleteMember = async (id) => {
     try {
       await api.members.delete(id);
+      fetchWhatsAppTriggers?.();
+      fetchWhatsAppStats?.();
     } catch (e) {
       console.warn('Backend delete member fallback:', e.message);
     }
@@ -3251,6 +3542,17 @@ export const GymDataProvider = ({ children }) => {
         advanceRequests,
         requestAdvancePay,
         updateAdvancePayStatus,
+        // Staff & Trainer Leave Management & Quotas
+        leaveRequests,
+        leaveBalances,
+        leaveSummary,
+        fetchLeaveRequests,
+        fetchLeaveBalances,
+        fetchLeaveSummary,
+        fetchEmployeeLeaveBalance,
+        updateLeaveStatus,
+        applyLeave,
+        allocateEmployeeLeaves,
         ptSessions,
         allocatePTSessions,
         deletePTSession,
@@ -3280,7 +3582,21 @@ export const GymDataProvider = ({ children }) => {
         // Expenses & Cash Outflow
         expenses,
         addExpense,
-        deleteExpense
+        deleteExpense,
+        // WhatsApp Message Templates & Automation Triggers
+        whatsappTemplates,
+        whatsappTriggers,
+        whatsappLogs,
+        whatsappStats,
+        fetchWhatsAppTemplates,
+        createWhatsAppTemplate,
+        updateWhatsAppTemplate,
+        deleteWhatsAppTemplate,
+        toggleWhatsAppTemplate,
+        fetchWhatsAppTriggers,
+        logWhatsAppMessage,
+        fetchWhatsAppLogs,
+        fetchWhatsAppStats
       }}
     >
       {children}

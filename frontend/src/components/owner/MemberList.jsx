@@ -36,7 +36,8 @@ import {
   Printer,
   ExternalLink,
   Lock,
-  KeyRound
+  KeyRound,
+  Cake
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
@@ -124,14 +125,49 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     }
   };
 
+  const calculateAgeFromDob = (dobStr) => {
+    if (!dobStr) return '';
+    try {
+      const parts = String(dobStr).split('-');
+      if (parts.length === 3) {
+        const birthYear = parseInt(parts[0], 10);
+        const birthMonth = parseInt(parts[1], 10) - 1;
+        const birthDay = parseInt(parts[2], 10);
+        if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return '';
+
+        const today = new Date();
+        let age = today.getFullYear() - birthYear;
+        const m = today.getMonth() - birthMonth;
+        if (m < 0 || (m === 0 && today.getDate() < birthDay)) {
+          age--;
+        }
+        return age >= 0 && age <= 125 ? age : '';
+      }
+
+      const birth = new Date(dobStr);
+      if (isNaN(birth.getTime())) return '';
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age >= 0 && age <= 125 ? age : '';
+    } catch {
+      return '';
+    }
+  };
+
   const openEditModal = (m) => {
+    const computedAge = m.dob ? calculateAgeFromDob(m.dob) : (m.age ?? '');
     setEditingMember({
       ...m,
       weight: m.weight ?? '',
       targetWeight: m.targetWeight ?? '',
       height: m.height ?? '',
       gender: m.gender || 'Male',
-      age: m.age ?? '',
+      dob: m.dob || '',
+      age: computedAge,
       goal: m.goal || 'General Fitness',
       medicalNotes: m.medicalNotes || '',
       emergencyContact: m.emergencyContact || '',
@@ -1530,6 +1566,27 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 </div>
 
                 <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Cake className="w-3.5 h-3.5 text-pink-500" />
+                    Date of Birth (DOB)
+                  </label>
+                  <input
+                    type="date"
+                    value={editingMember.dob || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const autoAge = calculateAgeFromDob(val);
+                      setEditingMember(prev => ({
+                        ...prev,
+                        dob: val,
+                        age: autoAge !== '' ? autoAge : (val ? prev.age : '')
+                      }));
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
                   <select
                     value={editingMember.gender || 'Male'}
@@ -1543,14 +1600,30 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Age (Years)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                    <span>Age (Years)</span>
+                    {editingMember.dob && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded-md">
+                        Auto
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
-                    min="10"
-                    max="100"
-                    value={editingMember.age || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, age: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    min="1"
+                    max="125"
+                    readOnly={Boolean(editingMember.dob)}
+                    placeholder={editingMember.dob ? 'Auto from DOB' : 'e.g. 25'}
+                    value={editingMember.age !== undefined && editingMember.age !== null ? editingMember.age : ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Number(e.target.value);
+                      setEditingMember(prev => ({ ...prev, age: val }));
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-xs transition-colors ${
+                      editingMember.dob
+                        ? 'bg-slate-100 text-slate-700 border-slate-200 font-semibold cursor-not-allowed'
+                        : 'bg-white border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500'
+                    }`}
                   />
                 </div>
               </div>

@@ -16,7 +16,7 @@ export const defaultAccounts = [
     username: "owner",
     password: "admin123",
     mustChangePassword: false,
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
+    avatar: null,
     gymName: "ARCHFIT Athletic Club",
     badge: "Superadmin Access"
   },
@@ -32,7 +32,7 @@ export const defaultAccounts = [
     username: "manager",
     password: "manager123",
     mustChangePassword: false,
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80",
+    avatar: null,
     gymName: "ARCHFIT Athletic Club",
     badge: "Manager Access"
   },
@@ -48,7 +48,7 @@ export const defaultAccounts = [
     username: "accounts",
     password: "accounts123",
     mustChangePassword: false,
-    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80",
+    avatar: null,
     gymName: "ARCHFIT Athletic Club",
     badge: "Accounts Access"
   },
@@ -64,7 +64,7 @@ export const defaultAccounts = [
     username: "trainer",
     password: "trainer123",
     mustChangePassword: false,
-    avatar: "https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80",
+    avatar: null,
     gymName: "ARCHFIT Athletic Club",
     badge: "Trainer Access",
     specialty: "Hypertrophy & Powerlifting"
@@ -81,7 +81,7 @@ export const defaultAccounts = [
     username: "member",
     password: "member123",
     mustChangePassword: false,
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
+    avatar: null,
     gymName: "ARCHFIT Athletic Club",
     badge: "Member Pass",
     planName: "Gold Quarterly Fitness",
@@ -159,11 +159,7 @@ export const AuthProvider = ({ children }) => {
               password: u.plain_password || u.password || 'sohan123',
               plain_password: u.plain_password || u.password || 'sohan123',
               mustChangePassword: Boolean(u.must_change_password),
-              avatar:
-                u.avatar ||
-                (role === 'manager'
-                  ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80'
-                  : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80'),
+              avatar: u.avatar || null,
               gymName: 'PULSE FIT Athletic Club',
               badge:
                 role === 'manager'
@@ -249,7 +245,7 @@ export const AuthProvider = ({ children }) => {
           email: res.user.email,
           role: userRole,
           roleLabel: roleLabel,
-          avatar: res.user.avatar || (userRole === 'trainer' ? defaultAccounts[1].avatar : defaultAccounts[0].avatar),
+          avatar: res.user.avatar || null,
           phone: res.user.phone,
           gym_id: gymId,
           gymId: gymId,
@@ -366,9 +362,7 @@ export const AuthProvider = ({ children }) => {
           : accountData.role === 'owner'
           ? 'Gym Owner'
           : 'Gym Member',
-      avatar:
-        accountData.avatar ||
-        `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80`,
+      avatar: accountData.avatar || null,
       planName: accountData.planName || 'Standard',
       specialty: accountData.specialty || '',
       qrPassCode: accountData.qrPassCode || `PF-${accountData.role.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
@@ -437,11 +431,7 @@ export const AuthProvider = ({ children }) => {
           : roleNormalized === 'trainer'
           ? 'Personal Trainer'
           : 'Staff Member',
-      avatar:
-        backendUser?.avatar ||
-        (roleNormalized === 'manager'
-          ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80'),
+      avatar: backendUser?.avatar || null,
       badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Staff Access',
       phone: phone || '',
       gymName: currentUser?.gymName || 'PULSE FIT Athletic Club',

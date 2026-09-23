@@ -25,6 +25,8 @@ class Gym extends Model
         'max_trainers',
         'max_branches',
         'status',
+        'operating_hours',
+        'currency',
         'initial_password',
     ];
 

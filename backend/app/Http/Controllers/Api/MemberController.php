@@ -78,12 +78,18 @@ class MemberController extends Controller
     {
         self::syncAllMemberStatuses();
 
-        $gymId = $this->resolveGymId($request);
-        if (!$gymId) {
-            return response()->json(['success' => true, 'data' => []]);
-        }
+        $gymId = $this->resolveGymId($request) ?: (Gym::first()?->id ?: 1);
 
-        $query = User::where('role', 'member')->where('gym_id', $gymId)->with(['memberProfile.plan', 'memberProfile.trainer']);
+        $query = User::where('role', 'member');
+        if ($gymId == 1) {
+            $query->where(function ($q) {
+                $q->where('gym_id', 1)
+                  ->orWhereNull('gym_id');
+            });
+        } else {
+            $query->where('gym_id', $gymId);
+        }
+        $query->with(['memberProfile.plan', 'memberProfile.trainer']);
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -127,6 +133,7 @@ class MemberController extends Controller
                 'trainerName' => $profile?->trainer?->name ?? 'None / Self Guided',
                 'gender' => $profile?->gender ?? 'Unspecified',
                 'age' => $profile?->age,
+                'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
                 'weight' => $profile?->weight,
                 'targetWeight' => $profile?->target_weight,
                 'height' => $profile?->height,
@@ -174,6 +181,7 @@ class MemberController extends Controller
                 'trainerName' => $profile?->trainer?->name ?? 'None / Self Guided',
                 'gender' => $profile?->gender,
                 'age' => $profile?->age,
+                'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
                 'weight' => $profile?->weight,
                 'targetWeight' => $profile?->target_weight,
                 'height' => $profile?->height,
@@ -208,6 +216,10 @@ class MemberController extends Controller
             'targetWeight' => 'nullable|numeric',
             'height' => 'nullable|numeric',
             'age' => 'nullable|integer',
+            'dob' => 'nullable|date',
+            'date_of_birth' => 'nullable|date',
+            'birthdate' => 'nullable|date',
+            'DOB' => 'nullable|date',
             'password' => 'nullable|string',
             'avatar' => 'nullable|string',
             'medical_notes' => 'nullable|string',
@@ -226,7 +238,7 @@ class MemberController extends Controller
             ], 422);
         }
 
-        $gymId = $this->resolveGymId($request);
+        $gymId = $this->resolveGymId($request) ?: ($request->user()?->gym_id ?: (Gym::first()?->id ?: 1));
 
         $rawPlanId = $request->plan_id ?? $request->planId;
         $rawTrainerId = $request->trainer_id ?? $request->trainerId;
@@ -238,22 +250,38 @@ class MemberController extends Controller
         // Check if user already exists
         $user = User::where('email', $request->email)->first();
         if ($user) {
-            if ($user->role !== 'member') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'The email is already registered to an administrative or trainer account.',
-                    'errors' => ['email' => ['The email has already been taken.']]
-                ], 422);
+            $targetUserId = $request->user_id ?? $request->userId ?? $request->member_id;
+            if (!$targetUserId || (int)str_replace('mem-', '', $targetUserId) !== $user->id) {
+                // Prevent silent overwriting of existing members when adding new member with duplicate email
+                $cleanEmail = $request->email;
+                $atPos = strpos($cleanEmail, '@');
+                $uniqueSuffix = rand(100, 999);
+                $uniqueEmail = $atPos !== false
+                    ? substr($cleanEmail, 0, $atPos) . '+' . $uniqueSuffix . substr($cleanEmail, $atPos)
+                    : ($cleanEmail . $uniqueSuffix . '@pulsefit.local');
+
+                $user = User::create([
+                    'name' => $request->name,
+                    'email' => $uniqueEmail,
+                    'password' => Hash::make($plainPassword),
+                    'initial_password' => Hash::make($plainPassword),
+                    'must_change_password' => true,
+                    'role' => 'member',
+                    'phone' => $request->phone,
+                    'gym_id' => $gymId,
+                    'avatar' => $request->avatar ?? null,
+                ]);
+            } else {
+                $user->name = $request->name;
+                $user->phone = $request->phone ?? $user->phone;
+                $user->password = Hash::make($plainPassword);
+                $user->initial_password = Hash::make($plainPassword);
+                $user->must_change_password = true;
+                if ($request->filled('avatar')) {
+                    $user->avatar = $request->avatar;
+                }
+                $user->save();
             }
-            $user->name = $request->name;
-            $user->phone = $request->phone ?? $user->phone;
-            $user->password = Hash::make($plainPassword);
-            $user->initial_password = Hash::make($plainPassword);
-            $user->must_change_password = true;
-            if ($request->filled('avatar')) {
-                $user->avatar = $request->avatar;
-            }
-            $user->save();
         } else {
             $user = User::create([
                 'name' => $request->name,
@@ -264,9 +292,12 @@ class MemberController extends Controller
                 'role' => 'member',
                 'phone' => $request->phone,
                 'gym_id' => $gymId,
-                'avatar' => $request->avatar ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+                'avatar' => $request->avatar ?? null,
             ]);
         }
+
+        $rawJoin = $request->join_date ?? $request->joinDate ?? $request->start_date ?? $request->startDate;
+        $joinDate = $rawJoin ? \Illuminate\Support\Carbon::parse($rawJoin)->toDateString() : now()->toDateString();
 
         $rawExpiry = $request->expiry_date ?? $request->expiryDate;
         $plan = null;
@@ -304,14 +335,19 @@ class MemberController extends Controller
             ? (float)$paidAmountInput 
             : (float)($request->input('amount', $totalBill));
 
+        $rawDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
+        $dob = $rawDob ? \Illuminate\Support\Carbon::parse($rawDob)->toDateString() : ($profile->dob ?? null);
+        $computedAge = $dob ? \Illuminate\Support\Carbon::parse($dob)->age : ($request->age ?? $profile->age ?? null);
+
         $profile->fill([
             'plan_id' => $planId,
             'trainer_id' => $trainerId,
             'status' => $computedStatus,
-            'join_date' => $profile->join_date ?? now()->toDateString(),
+            'join_date' => $joinDate,
             'expiry_date' => $expiryDate,
             'gender' => $request->gender ?? $profile->gender ?? 'Male',
-            'age' => $request->age ?? $profile->age ?? 25,
+            'age' => $computedAge,
+            'dob' => $dob,
             'weight' => $request->weight ?? $profile->weight ?? 70,
             'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? 65,
             'height' => $request->height ?? $profile->height ?? 175,
@@ -412,11 +448,23 @@ class MemberController extends Controller
                 'planId' => $plan ? 'plan-' . $plan->id : null,
                 'planName' => $plan?->name ?? 'Unassigned',
                 'status' => $computedStatus,
-                'joinDate' => $profile->join_date,
-                'expiryDate' => $profile->expiry_date,
+                'joinDate' => $profile->join_date ? \Illuminate\Support\Carbon::parse($profile->join_date)->toDateString() : null,
+                'expiryDate' => $profile->expiry_date ? \Illuminate\Support\Carbon::parse($profile->expiry_date)->toDateString() : null,
+                'dob' => $profile->dob ? \Illuminate\Support\Carbon::parse($profile->dob)->toDateString() : null,
+                'age' => $profile->age,
+                'gender' => $profile->gender,
+                'weight' => $profile->weight,
+                'targetWeight' => $profile->target_weight,
+                'height' => $profile->height,
+                'goal' => $profile->goal,
+                'medicalNotes' => $profile->medical_notes,
+                'emergencyContact' => $profile->emergency_contact,
                 'trainerId' => $trainerId ? 'trn-' . $trainerId : null,
                 'trainerName' => $profile->trainer?->name ?? 'None / Self Guided',
                 'duesAmount' => (float)$duesAmount,
+                'paidAmount' => (float)$receivedAmount,
+                'totalAmount' => (float)$totalBill,
+                'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
                 'qrPassCode' => $qrCode,
                 'avatar' => $user->avatar,
             ],
@@ -444,6 +492,10 @@ class MemberController extends Controller
             $rawT = $request->trainer_id ?? $request->trainerId;
             $profile->trainer_id = ($rawT && $rawT !== 'none') ? (int)str_replace('trn-', '', $rawT) : null;
         }
+        if ($request->has('join_date') || $request->has('joinDate')) {
+            $rawJ = $request->join_date ?? $request->joinDate;
+            $profile->join_date = $rawJ ? \Illuminate\Support\Carbon::parse($rawJ)->toDateString() : null;
+        }
         if ($request->has('expiry_date') || $request->has('expiryDate')) {
             $profile->expiry_date = $request->expiry_date ?? $request->expiryDate;
         }
@@ -454,8 +506,16 @@ class MemberController extends Controller
         if (!in_array($profile->status, ['Frozen', 'On Hold']) && $profile->expiry_date) {
             $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status);
         }
-        if ($request->has('gender')) $profile->gender = $request->gender;
-        if ($request->has('age')) $profile->age = (int)$request->age;
+        $rawUpdateDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
+        if ($rawUpdateDob !== null) {
+            $parsedDob = $rawUpdateDob ? \Illuminate\Support\Carbon::parse($rawUpdateDob)->toDateString() : null;
+            $profile->dob = $parsedDob;
+            if ($parsedDob) {
+                $profile->age = \Illuminate\Support\Carbon::parse($parsedDob)->age;
+            }
+        } elseif ($request->has('age')) {
+            $profile->age = (int)$request->age;
+        }
         if ($request->has('weight')) $profile->weight = (float)$request->weight;
         if ($request->has('target_weight') || $request->has('targetWeight')) {
             $profile->target_weight = (float)($request->target_weight ?? $request->targetWeight);

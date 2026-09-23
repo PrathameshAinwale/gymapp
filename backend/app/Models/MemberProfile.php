@@ -18,6 +18,7 @@ class MemberProfile extends Model
         'expiry_date',
         'gender',
         'age',
+        'dob',
         'weight',
         'target_weight',
         'height',
@@ -32,6 +33,7 @@ class MemberProfile extends Model
 
     protected $casts = [
         'age' => 'integer',
+        'dob' => 'date',
         'weight' => 'float',
         'target_weight' => 'float',
         'height' => 'float',

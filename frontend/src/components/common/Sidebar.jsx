@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { PulseFitLogo } from './PulseFitLogo';
 import {
@@ -32,8 +32,11 @@ import {
   UserPlus,
   BarChart3,
   Coins,
+  CheckSquare,
+  CalendarDays,
+  ChevronDown,
   Star,
-  CheckSquare
+  MessageSquare
 } from 'lucide-react';
 
 export const getNavSectionsForSuperadmin = () => [
@@ -41,6 +44,7 @@ export const getNavSectionsForSuperadmin = () => [
     title: 'Operations & Schedule',
     items: [
       { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+      { id: 'whatsapp-automation', label: 'WhatsApp & Templates', icon: MessageSquare },
       { id: 'members', label: 'Member Directory', icon: Users },
       { id: 'classes', label: 'Classes & Batches', icon: Calendar },
       { id: 'pt-sessions', label: 'PT Sessions Tracker', icon: Dumbbell },
@@ -60,6 +64,7 @@ export const getNavSectionsForSuperadmin = () => [
     items: [
       { id: 'staff-accounts', label: 'Create Account / Staff', icon: UserPlus },
       { id: 'trainers', label: 'Coach Roster', icon: Award },
+      { id: 'leaves', label: 'Leave Management', icon: CalendarDays },
       { id: 'advance-pay', label: 'Advance Pay Requests', icon: Coins },
       { id: 'payroll', label: 'Employee Payroll', icon: Wallet },
       { id: 'commissions', label: 'Trainer Commissions', icon: TrendingUp }
@@ -93,6 +98,7 @@ export const getNavSectionsForManager = () => [
     title: 'Operations',
     items: [
       { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+      { id: 'whatsapp-automation', label: 'WhatsApp & Templates', icon: MessageSquare },
       { id: 'analytics', label: 'Gym Analytics', icon: BarChart3 },
       { id: 'members', label: 'Member Directory', icon: Users },
       { id: 'classes', label: 'Classes & Batches', icon: Calendar },
@@ -132,6 +138,7 @@ export const getNavSectionsForTrainer = () => [
     title: 'Earnings & Advance Pay',
     items: [
       { id: 'advance-request', label: 'Request Advance Pay', icon: Coins },
+      { id: 'trainer-leaves', label: 'My Leaves', icon: CalendarDays },
       { id: 'commissions', label: 'My Commissions', icon: TrendingUp },
       { id: 'profile', label: 'Coach Profile', icon: UserCheck }
     ]
@@ -170,6 +177,26 @@ export const getNavSectionsForRole = (role) => {
 export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMobileOpen = () => {} }) => {
   const { currentUser, currentRole, logout } = useAuth();
   const sections = getNavSectionsForRole(currentRole);
+
+  // Track open/collapsed state of each navigation section (All closed by default)
+  const [openSections, setOpenSections] = useState(() => {
+    try {
+      const saved = localStorage.getItem('pulsefit_sidebar_sections_v3');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    // All sections closed by default
+    return {};
+  });
+
+  const toggleSection = (title) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [title]: !prev[title] };
+      try {
+        localStorage.setItem('pulsefit_sidebar_sections_v3', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
 
   const getRoleAccent = () => {
     if (currentRole === 'trainer') return { bg: 'from-teal-500 to-cyan-500', text: 'text-teal-600', label: 'Coach Portal' };
@@ -229,20 +256,44 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
 
   const renderNavList = (isMobile = false) => (
     <div 
-      className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 pb-8 space-y-3 no-scrollbar"
+      className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 pb-8 space-y-2 no-scrollbar"
     >
-      {sections.map((sec, idx) => (
-        <div key={idx} className="space-y-0.5">
-          <div className="text-[10px] font-bold tracking-wider text-slate-400 px-3 pt-2 pb-1 uppercase select-none">
-            {sec.title}
+      {sections.map((sec, idx) => {
+        const isOpen = Boolean(openSections[sec.title]);
+        const hasActiveItem = sec.items.some((item) => item.id === activeTab);
+
+        return (
+          <div key={idx} className="space-y-0.5">
+            {/* Collapsible Section Header Dropdown Trigger */}
+            <button
+              type="button"
+              onClick={() => toggleSection(sec.title)}
+              className="w-full flex items-center justify-between text-[10.5px] font-bold tracking-wider text-slate-400 hover:text-slate-700 px-3 py-1.5 uppercase select-none rounded-lg hover:bg-slate-100/70 transition-colors group cursor-pointer"
+            >
+              <span className="truncate">{sec.title}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!isOpen && hasActiveItem && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Active item inside"></span>
+                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${
+                    isOpen ? 'rotate-0' : '-rotate-90'
+                  }`}
+                />
+              </div>
+            </button>
+
+            {/* Collapsible Items List */}
+            {isOpen && (
+              <div className="space-y-0.5 animate-fadeIn">
+                {sec.items.map((item) => (
+                  <NavItem key={item.id} item={item} isMobile={isMobile} />
+                ))}
+              </div>
+            )}
           </div>
-          <div className="space-y-0.5">
-            {sec.items.map((item) => (
-              <NavItem key={item.id} item={item} isMobile={isMobile} />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 

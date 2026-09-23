@@ -56,6 +56,9 @@ import { ClassAdminManager } from './components/owner/ClassAdminManager';
 import { PTSessionsManager } from './components/owner/PTSessionsManager';
 import { CoachesDirectory } from './components/member/CoachesDirectory';
 import { AnalyticsPage } from './components/owner/AnalyticsPage';
+import { LeaveManagement } from './components/owner/LeaveManagement';
+import { TrainerLeaveView } from './components/trainer/TrainerLeaveView';
+import { WhatsAppAutomation } from './components/owner/WhatsAppAutomation';
 
 
 function MainApp() {
@@ -222,6 +225,8 @@ function MainApp() {
         return <TrainerDashboard setActiveTab={handleNavigateTab} />;
       case 'advance-request':
         return <TrainerAdvancePayView setActiveTab={handleNavigateTab} />;
+      case 'trainer-leaves':
+        return <TrainerLeaveView setActiveTab={handleNavigateTab} />;
       case 'sessions':
         return <TrainerSessionsView setActiveTab={handleNavigateTab} />;
       case 'clients':
@@ -261,6 +266,8 @@ function MainApp() {
             setActiveTab={handleNavigateTab}
           />
         );
+      case 'whatsapp-automation':
+        return <WhatsAppAutomation />;
       case 'members':
         return (
           <MemberList
@@ -293,6 +300,8 @@ function MainApp() {
         return <StaffAccountManager />;
       case 'trainers':
         return <TrainerList />;
+      case 'leaves':
+        return <LeaveManagement />;
       case 'advance-pay':
         return <AdvancePayManager />;
       case 'payroll':

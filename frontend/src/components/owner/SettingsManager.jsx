@@ -5,7 +5,15 @@ import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader
 
 export const SettingsManager = () => {
   const { gymInfo, setGymInfo, fetchGymInfo, addToast } = useGymData();
-  const [formData, setFormData] = useState({ ...gymInfo });
+  const [formData, setFormData] = useState({
+    name: gymInfo?.name || '',
+    tagline: gymInfo?.tagline || '',
+    address: gymInfo?.address || '',
+    phone: gymInfo?.phone || '',
+    email: gymInfo?.email || '',
+    operatingHours: gymInfo?.operatingHours || '',
+    currency: gymInfo?.currency || '₹',
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -14,8 +22,16 @@ export const SettingsManager = () => {
   }, [fetchGymInfo]);
 
   useEffect(() => {
-    if (gymInfo && Object.keys(gymInfo).length > 0) {
-      setFormData((prev) => ({ ...prev, ...gymInfo }));
+    if (gymInfo) {
+      setFormData({
+        name: gymInfo.name || '',
+        tagline: gymInfo.tagline || '',
+        address: gymInfo.address || '',
+        phone: gymInfo.phone || '',
+        email: gymInfo.email || '',
+        operatingHours: gymInfo.operatingHours || '',
+        currency: gymInfo.currency || '₹',
+      });
     }
   }, [gymInfo]);
 
@@ -29,14 +45,27 @@ export const SettingsManager = () => {
     e.preventDefault();
     try {
       setIsSaving(true);
+      let updatedData = { ...formData };
       try {
-        await api.gymInfo.update(formData);
+        const res = await api.gymInfo.update(formData);
+        if (res?.data) {
+          updatedData = {
+            name: res.data.name || '',
+            tagline: res.data.tagline || '',
+            address: res.data.address || '',
+            phone: res.data.phone || '',
+            email: res.data.email || '',
+            operatingHours: res.data.operatingHours || res.data.operating_hours || '',
+            currency: res.data.currency || '₹',
+          };
+        }
       } catch (err) {
         console.warn('Backend gymInfo update note:', err.message);
       }
-      await setGymInfo(formData);
-      localStorage.setItem('pulsefit_gymInfo', JSON.stringify(formData));
-      addToast('Gym profile & operational settings saved to database!', 'success');
+      setGymInfo(updatedData);
+      setFormData(updatedData);
+      localStorage.setItem('pulsefit_gymInfo', JSON.stringify(updatedData));
+      addToast('Gym profile & operational settings saved successfully!', 'success');
     } finally {
       setIsSaving(false);
     }
@@ -85,6 +114,7 @@ export const SettingsManager = () => {
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Gym Name</label>
               <input
                 type="text"
+                placeholder="Enter gym name (e.g. FitZone Club)"
                 value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
@@ -94,6 +124,7 @@ export const SettingsManager = () => {
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Tagline</label>
               <input
                 type="text"
+                placeholder="Enter tagline or motto"
                 value={formData.tagline || ''}
                 onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -105,6 +136,7 @@ export const SettingsManager = () => {
             <label className="block text-[11px] font-bold text-slate-700 mb-1">Physical Facility Address</label>
             <input
               type="text"
+              placeholder="Enter physical facility address"
               value={formData.address || ''}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -116,6 +148,7 @@ export const SettingsManager = () => {
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Email</label>
               <input
                 type="email"
+                placeholder="contact@gym.com"
                 value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -125,6 +158,7 @@ export const SettingsManager = () => {
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Phone</label>
               <input
                 type="text"
+                placeholder="+91 98765 43210"
                 value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -144,6 +178,7 @@ export const SettingsManager = () => {
             <label className="block text-[11px] font-bold text-slate-700 mb-1">Operating Hours Schedule</label>
             <input
               type="text"
+              placeholder="e.g. Mon-Sat: 6:00 AM - 10:30 PM | Sun: 7:00 AM - 1:00 PM"
               value={formData.operatingHours || ''}
               onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"

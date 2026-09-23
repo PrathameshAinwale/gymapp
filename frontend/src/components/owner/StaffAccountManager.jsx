@@ -62,6 +62,33 @@ const saveStaffPassword = (identifier, pass) => {
   } catch (e) {}
 };
 
+// Component for rendering staff avatar with SVG person icon fallback
+const StaffAvatar = ({ src, name, size = 'sm' }) => {
+  const [imgError, setImgError] = useState(false);
+  const sizeClasses = size === 'lg' ? 'w-11 h-11' : 'w-8 h-8';
+  const iconSize = size === 'lg' ? 'w-6 h-6' : 'w-4 h-4';
+
+  if (!src || imgError) {
+    return (
+      <div
+        className={`${sizeClasses} rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400`}
+        title={name || 'Staff Member'}
+      >
+        <User className={iconSize} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name || 'Staff Member'}
+      className={`${sizeClasses} rounded-full object-cover border border-slate-200 shrink-0`}
+      onError={() => setImgError(true)}
+    />
+  );
+};
+
 export const StaffAccountManager = () => {
   const { accounts, createStaffAccount, deleteStaffAccount, currentRole, currentUser } = useAuth();
   const { addToast } = useGymData();
@@ -152,19 +179,24 @@ export const StaffAccountManager = () => {
   // Merge database staff accounts with auth accounts, strictly isolated to active gym
   const staffList = React.useMemo(() => {
     const map = new Map();
-    const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
+    const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id || activeGymId || 0);
 
     // Add auth context accounts
     accounts
       .filter((acc) => {
-        // Exclude other owners or superadmins; only include the owner if it is the current logged-in user
+        // Exclude owners / superadmins (the owner is not a staff member managed here)
         if (acc.role === 'superadmin' || acc.role === 'owner') {
-          return (
-            (acc.userId && acc.userId === currentUser?.userId) ||
-            (acc.email && acc.email?.toLowerCase() === currentUser?.email?.toLowerCase())
-          );
+          return false;
         }
-        return acc.role === 'manager' || acc.role === 'accounts' || acc.role === 'trainer';
+        if (acc.role === 'member') {
+          return false;
+        }
+        // Must strictly belong to the current gym
+        const accGymId = Number(acc.gymId || acc.gym_id || 0);
+        if (currentGymId > 0) {
+          return accGymId === currentGymId;
+        }
+        return false;
       })
       .forEach((a) => {
         const pass = getStaffPassword(a);
@@ -178,14 +210,14 @@ export const StaffAccountManager = () => {
     // Overlay database records (database takes highest priority for real password)
     dbStaff
       .filter((stf) => {
-        // Exclude other owners or superadmins
-        if (stf.role === 'superadmin' || stf.role === 'owner') {
-          return (
-            (stf.id && stf.id === currentUser?.userId) ||
-            (stf.email && stf.email?.toLowerCase() === currentUser?.email?.toLowerCase())
-          );
+        if (stf.role === 'superadmin' || stf.role === 'owner' || stf.role === 'member') {
+          return false;
         }
-        return stf.role === 'manager' || stf.role === 'accounts' || stf.role === 'trainer';
+        const stfGymId = Number(stf.gym_id || stf.gymId || 0);
+        if (currentGymId > 0) {
+          return stfGymId === currentGymId;
+        }
+        return false;
       })
       .forEach((stf) => {
         const emailKey = stf.email?.toLowerCase();
@@ -205,7 +237,7 @@ export const StaffAccountManager = () => {
           email: stf.email,
           role: stf.role,
           phone: stf.phone || existing.phone,
-          avatar: stf.avatar || existing.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+          avatar: stf.avatar || existing.avatar || null,
           password: pass,
           plain_password: pass,
           gymId: stf.gym_id || currentGymId,
@@ -214,7 +246,7 @@ export const StaffAccountManager = () => {
       });
 
     return Array.from(map.values());
-  }, [accounts, dbStaff, currentUser]);
+  }, [accounts, dbStaff, currentUser, activeGymId]);
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -503,15 +535,7 @@ export const StaffAccountManager = () => {
                     <tr key={stf.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
-                          <img
-                            src={stf.avatar}
-                            alt={stf.name}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
-                            }}
-                          />
+                          <StaffAvatar src={stf.avatar} name={stf.name} size="sm" />
                           <div>
                             <div className="font-bold text-slate-900">{stf.name}</div>
                             <div className="text-[10px] text-slate-400">{stf.phone || 'No phone recorded'}</div>
@@ -789,15 +813,7 @@ export const StaffAccountManager = () => {
         {sharingStaff && (
           <div className="space-y-4 text-xs">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
-              <img
-                src={sharingStaff.avatar}
-                alt={sharingStaff.name}
-                className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
-                }}
-              />
+              <StaffAvatar src={sharingStaff.avatar} name={sharingStaff.name} size="lg" />
               <div className="min-w-0 flex-1">
                 <h4 className="font-bold text-slate-900 text-sm truncate">{sharingStaff.name}</h4>
                 <div className="flex items-center gap-2 mt-0.5">

@@ -24,21 +24,16 @@ class StaffController extends Controller
             $selectCols[] = 'plain_password';
         }
 
-        $query = User::whereIn('role', ['owner', 'superadmin', 'manager', 'accounts', 'trainer']);
+        $query = User::whereIn('role', ['manager', 'accounts', 'trainer']);
         if ($gymId && $gymId > 0) {
-            $hasGymUsers = (clone $query)->where('gym_id', $gymId)->exists();
-            if ($hasGymUsers) {
-                $query->where('gym_id', $gymId);
-            }
+            $query->where('gym_id', $gymId);
         }
 
         $staff = $query->orderByRaw("CASE role
-                WHEN 'owner'      THEN 1
-                WHEN 'superadmin' THEN 1
-                WHEN 'accounts'   THEN 2
-                WHEN 'manager'    THEN 3
-                WHEN 'trainer'    THEN 4
-                ELSE 5 END")
+                WHEN 'accounts'   THEN 1
+                WHEN 'manager'    THEN 2
+                WHEN 'trainer'    THEN 3
+                ELSE 4 END")
             ->orderBy('name')
             ->get($selectCols);
 
@@ -90,19 +85,13 @@ class StaffController extends Controller
             'role'     => 'required|in:manager,accounts,trainer',
             'phone'    => 'nullable|string|max:20',
             'gym_id'   => 'nullable|integer',
+            'avatar'   => 'nullable|string',
         ]);
 
         $gymId = $validated['gym_id'] ?? $this->resolveGymId($request);
         if (!$gymId) {
             return response()->json(['success' => false, 'message' => 'Gym ID is required to create a staff account.'], 422);
         }
-
-        // Default avatars by role
-        $avatarMap = [
-            'manager'  => 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-            'accounts' => 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-            'trainer'  => 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
-        ];
 
         $userData = [
             'name'                => $validated['name'],
@@ -111,7 +100,7 @@ class StaffController extends Controller
             'role'                => $validated['role'],
             'phone'               => $validated['phone'] ?? null,
             'gym_id'              => $gymId,
-            'avatar'              => $avatarMap[$validated['role']] ?? null,
+            'avatar'              => $request->avatar ?? null,
             'must_change_password' => false,
         ];
 

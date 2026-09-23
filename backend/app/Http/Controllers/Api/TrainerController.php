@@ -19,7 +19,11 @@ class TrainerController extends Controller
             ->with(['trainerProfile', 'trainerProfile.assignedMembers.user']);
 
         if ($gymId) {
-            $query->where('gym_id', $gymId);
+            $query->where(function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
         }
 
         $trainers = $query->get()
@@ -43,6 +47,7 @@ class TrainerController extends Controller
                     'bio' => $profile?->bio ?? 'Dedicated fitness professional.',
                     'certifications' => $profile?->certifications ?? [],
                     'age' => $profile?->age,
+                    'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
                     'gender' => $profile?->gender,
                     'bloodGroup' => $profile?->blood_group,
                     'address' => $profile?->address,
@@ -93,6 +98,7 @@ class TrainerController extends Controller
                 'bio' => $profile?->bio,
                 'certifications' => $profile?->certifications ?? [],
                 'age' => $profile?->age,
+                'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
                 'gender' => $profile?->gender,
                 'bloodGroup' => $profile?->blood_group,
                 'address' => $profile?->address,
@@ -126,9 +132,9 @@ class TrainerController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password ?? 'trainer123'),
             'role' => 'trainer',
-            'phone' => $request->phone ?? '+91 98000 00000',
+            'phone' => $request->phone ?? null,
             'gym_id' => $gymId,
-            'avatar' => $request->avatar ?? 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80',
+            'avatar' => $request->avatar ?? null,
         ]);
 
         $certifications = $request->certifications;
@@ -145,6 +151,7 @@ class TrainerController extends Controller
             'bio' => $request->bio ?? '',
             'certifications' => $certifications ?? [],
             'age' => $request->age ? (int)$request->age : null,
+            'dob' => $request->dob ? \Illuminate\Support\Carbon::parse($request->dob)->toDateString() : null,
             'gender' => $request->gender,
             'blood_group' => $request->blood_group ?? $request->bloodGroup,
             'address' => $request->address,
@@ -177,6 +184,9 @@ class TrainerController extends Controller
         }
         if ($request->has('bio')) $profile->bio = $request->bio;
         if ($request->has('age')) $profile->age = $request->age ? (int)$request->age : null;
+        if ($request->has('dob')) {
+            $profile->dob = $request->dob ? \Illuminate\Support\Carbon::parse($request->dob)->toDateString() : null;
+        }
         if ($request->has('gender')) $profile->gender = $request->gender;
         if ($request->has('blood_group') || $request->has('bloodGroup')) {
             $profile->blood_group = $request->blood_group ?? $request->bloodGroup;

@@ -14,7 +14,11 @@ class PlanController extends Controller
         $gymId = $this->resolveGymId($request);
         $query = Plan::query();
         if ($gymId) {
-            $query->where('gym_id', $gymId);
+            $query->where(function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
         }
 
         $plans = $query->get()->map(function ($plan) {

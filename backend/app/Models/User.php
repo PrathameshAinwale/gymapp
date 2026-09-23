@@ -94,4 +94,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(GymClass::class, 'trainer_id');
     }
+
+    public function leaveBalances()
+    {
+        return $this->hasMany(LeaveBalance::class, 'user_id');
+    }
+
+    public function leaveRequests()
+    {
+        return $this->hasMany(LeaveRequest::class, 'user_id');
+    }
 }

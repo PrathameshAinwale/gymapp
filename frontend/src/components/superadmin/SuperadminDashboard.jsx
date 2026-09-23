@@ -114,8 +114,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
     owner_password: 'gym' + Math.floor(1000 + Math.random() * 9000),
     owner_phone: '',
     gym_name: '',
+    tagline: '',
     gym_address: '',
-    gym_city: 'Mumbai',
+    gym_city: '',
+    gym_phone: '',
+    gym_email: '',
+    operating_hours: '',
+    currency: '₹',
     gym_package: 'Growth',
     package_tier: 'Growth',
     billing_cycle: 'Monthly',
@@ -128,8 +133,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
   const [editGymForm, setEditGymForm] = useState({
     id: null,
     name: '',
+    tagline: '',
     address: '',
     city: '',
+    phone: '',
+    email: '',
+    operating_hours: '',
+    currency: '₹',
     package: 'Growth',
     package_tier: 'Growth',
     billing_cycle: 'Monthly',
@@ -213,8 +223,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
           owner_password: 'gym' + Math.floor(1000 + Math.random() * 9000),
           owner_phone: '',
           gym_name: '',
+          tagline: '',
           gym_address: '',
-          gym_city: 'Mumbai',
+          gym_city: '',
+          gym_phone: '',
+          gym_email: '',
+          operating_hours: '',
+          currency: '₹',
           gym_package: 'Growth',
           package_tier: 'Growth',
           billing_cycle: 'Monthly',
@@ -236,8 +251,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
     setEditGymForm({
       id: gym.id,
       name: gym.name,
-      address: gym.address,
-      city: gym.city,
+      tagline: gym.tagline || '',
+      address: gym.address || '',
+      city: gym.city || '',
+      phone: gym.phone || gym.owner?.phone || '',
+      email: gym.email || gym.owner?.email || '',
+      operating_hours: gym.operating_hours || gym.operatingHours || '',
+      currency: gym.currency || '₹',
       package: gym.packageTier || gym.package || 'Growth',
       package_tier: gym.packageTier || gym.package || 'Growth',
       billing_cycle: gym.billingCycle || 'Monthly',
@@ -849,10 +869,10 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                 The owner can immediately log into the application using the email and password specified below.
               </div>
 
-              {/* Gym Info */}
+              {/* Gym Info & Branding Settings */}
               <div className="space-y-2.5 sm:space-y-3">
                 <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
-                  Gym / Fitness Center Details
+                  Gym / Fitness Center Details & Settings
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   <div>
@@ -863,6 +883,29 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                       placeholder="e.g. IronForge Athletic Club"
                       value={newGymForm.gym_name}
                       onChange={(e) => setNewGymForm({ ...newGymForm, gym_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Tagline / Motto</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. India's Premier Strength Hub"
+                      value={newGymForm.tagline}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, tagline: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Physical Facility Address</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Plot 42, Hiranandani Business Park"
+                      value={newGymForm.gym_address}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, gym_address: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                     />
                   </div>
@@ -870,7 +913,7 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">City / Location</label>
                     <input
                       type="text"
-                      placeholder="e.g. Bandra West, Mumbai"
+                      placeholder="e.g. Powai, Mumbai"
                       value={newGymForm.gym_city}
                       onChange={(e) => setNewGymForm({ ...newGymForm, gym_city: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -878,13 +921,36 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Facility Contact Phone</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. +91 98201 54321"
+                      value={newGymForm.gym_phone}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, gym_phone: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Facility Contact Email</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. contact@ironforge.in"
+                      value={newGymForm.gym_email}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, gym_email: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Street Address</label>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Operating Hours Schedule</label>
                   <input
                     type="text"
-                    placeholder="e.g. 42 Hill Road, Linking Road Junction"
-                    value={newGymForm.gym_address}
-                    onChange={(e) => setNewGymForm({ ...newGymForm, gym_address: e.target.value })}
+                    placeholder="e.g. Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM"
+                    value={newGymForm.operating_hours}
+                    onChange={(e) => setNewGymForm({ ...newGymForm, operating_hours: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
@@ -1097,24 +1163,81 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
             </div>
 
             <form onSubmit={handleUpdateGym} className="p-3.5 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto flex-1 text-xs">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Gym Name</label>
-                <input
-                  type="text"
-                  required
-                  value={editGymForm.name}
-                  onChange={(e) => setEditGymForm({ ...editGymForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Gym Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editGymForm.name}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Tagline / Motto</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Premier Strength Hub"
+                    value={editGymForm.tagline}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, tagline: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Street Address</label>
+                  <input
+                    type="text"
+                    value={editGymForm.address}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, address: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 mb-1">City / Branch</label>
                   <input
                     type="text"
                     value={editGymForm.city}
                     onChange={(e) => setEditGymForm({ ...editGymForm, city: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Facility Contact Phone</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98201 54321"
+                    value={editGymForm.phone}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Facility Contact Email</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. contact@gym.com"
+                    value={editGymForm.email}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, email: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Operating Hours</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Mon-Sat: 6:00 AM - 10:30 PM"
+                    value={editGymForm.operating_hours}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, operating_hours: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
                   />
                 </div>

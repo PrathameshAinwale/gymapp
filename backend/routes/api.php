@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\TrainerReviewController;
 use App\Http\Controllers\Api\AdvanceRequestController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RevenueBillingController;
+use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\WhatsAppController;
 
 // API Health Check with live DB connectivity check
 Route::get('/health', function () {
@@ -335,8 +337,31 @@ Route::prefix('v1')->group(function () {
     Route::post('/advance-requests', [AdvanceRequestController::class, 'store']);
     Route::match(['patch', 'post', 'put'], '/advance-requests/{id}/status', [AdvanceRequestController::class, 'updateStatus']);
 
+    // Staff & Trainer Leave Management & Quotas
+    Route::get('/leaves/requests', [LeaveController::class, 'indexRequests']);
+    Route::post('/leaves/requests', [LeaveController::class, 'storeRequest']);
+    Route::match(['patch', 'post', 'put'], '/leaves/requests/{id}/status', [LeaveController::class, 'updateRequestStatus']);
+    Route::get('/leaves/balances', [LeaveController::class, 'indexBalances']);
+    Route::get('/leaves/balances/{userId}', [LeaveController::class, 'getUserBalance']);
+    Route::post('/leaves/balances/allocate', [LeaveController::class, 'allocateLeaves']);
+    Route::get('/leaves/summary', [LeaveController::class, 'summary']);
+
     // Reports & Analytics
     Route::get('/reports/summary', [ReportController::class, 'summary']);
+
+    // WhatsApp Message Templates & Automation Triggers
+    Route::prefix('whatsapp')->group(function () {
+        Route::get('/templates', [WhatsAppController::class, 'indexTemplates']);
+        Route::post('/templates', [WhatsAppController::class, 'storeTemplate']);
+        Route::put('/templates/{id}', [WhatsAppController::class, 'updateTemplate']);
+        Route::delete('/templates/{id}', [WhatsAppController::class, 'destroyTemplate']);
+        Route::patch('/templates/{id}/toggle', [WhatsAppController::class, 'toggleTemplate']);
+        Route::get('/triggers', [WhatsAppController::class, 'scanTriggers']);
+        Route::get('/triggers/scan', [WhatsAppController::class, 'scanTriggers']);
+        Route::post('/logs', [WhatsAppController::class, 'storeLog']);
+        Route::get('/logs', [WhatsAppController::class, 'indexLogs']);
+        Route::get('/stats', [WhatsAppController::class, 'stats']);
+    });
 
     // Superadmin Platform Control
     Route::prefix('superadmin')->group(function () {

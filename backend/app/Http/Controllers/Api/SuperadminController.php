@@ -57,11 +57,14 @@ class SuperadminController extends Controller
             return [
                 'id' => $gym->id,
                 'name' => $gym->name,
-                'tagline' => $gym->tagline,
-                'address' => $gym->address ?? 'Main Branch',
-                'city' => $gym->city ?? 'Metro',
-                'phone' => $gym->phone ?? $owner?->phone,
-                'email' => $gym->email ?? $owner?->email,
+                'tagline' => $gym->tagline ?? '',
+                'address' => $gym->address ?? '',
+                'city' => $gym->city ?? '',
+                'phone' => $gym->phone ?? $owner?->phone ?? '',
+                'email' => $gym->email ?? $owner?->email ?? '',
+                'operatingHours' => $gym->operating_hours ?? '',
+                'operating_hours' => $gym->operating_hours ?? '',
+                'currency' => $gym->currency ?? '₹',
                 'package' => $gym->package_tier ?? $gym->package ?? 'Growth',
                 'packageTier' => $gym->package_tier ?? $gym->package ?? 'Growth',
                 'billingCycle' => $gym->billing_cycle ?? 'Monthly',
@@ -107,8 +110,13 @@ class SuperadminController extends Controller
             'owner_password' => 'required|string|min:4',
             'owner_phone' => 'nullable|string|max:50',
             'gym_name' => 'required|string|max:255',
+            'tagline' => 'nullable|string|max:255',
             'gym_address' => 'nullable|string|max:255',
             'gym_city' => 'nullable|string|max:100',
+            'gym_phone' => 'nullable|string|max:50',
+            'gym_email' => 'nullable|email|max:100',
+            'operating_hours' => 'nullable|string|max:255',
+            'currency' => 'nullable|string|max:10',
             'gym_package' => 'nullable|string|max:100',
             'package_tier' => 'nullable|string|max:100',
             'billing_cycle' => 'nullable|string|in:Monthly,Annual,Custom',
@@ -137,7 +145,7 @@ class SuperadminController extends Controller
                 'must_change_password' => true,
                 'phone' => $request->owner_phone,
                 'role' => 'owner',
-                'avatar' => 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+                'avatar' => $request->avatar ?? null,
             ]);
 
             // Determine package details
@@ -151,11 +159,13 @@ class SuperadminController extends Controller
             $gym = Gym::create([
                 'name' => $request->gym_name,
                 'owner_id' => $owner->id,
-                'tagline' => 'High-Performance Athletic & Fitness Club',
-                'address' => $request->gym_address ?? 'Central Avenue',
-                'city' => $request->gym_city ?? 'Mumbai',
-                'phone' => $request->owner_phone,
-                'email' => $request->owner_email,
+                'tagline' => $request->tagline ?: null,
+                'address' => $request->gym_address ?: ($request->address ?: null),
+                'city' => $request->gym_city ?: null,
+                'phone' => $request->gym_phone ?: ($request->phone ?: $request->owner_phone),
+                'email' => $request->gym_email ?: ($request->email ?: $request->owner_email),
+                'operating_hours' => $request->operating_hours ?: ($request->operatingHours ?: null),
+                'currency' => $request->currency ?: '₹',
                 'package' => $tier,
                 'package_tier' => $tier,
                 'billing_cycle' => $billingCycle,
@@ -234,8 +244,13 @@ class SuperadminController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
+            'tagline' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:100',
+            'phone' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:100',
+            'operating_hours' => 'nullable|string|max:255',
+            'currency' => 'nullable|string|max:10',
             'package' => 'nullable|string|max:100',
             'package_tier' => 'nullable|string|max:100',
             'billing_cycle' => 'nullable|string|in:Monthly,Annual,Custom',
@@ -257,8 +272,23 @@ class SuperadminController extends Controller
         }
 
         if ($request->has('name')) $gym->name = $request->name;
-        if ($request->has('address')) $gym->address = $request->address;
-        if ($request->has('city')) $gym->city = $request->city;
+        if ($request->has('tagline')) $gym->tagline = $request->tagline;
+        if ($request->has('address') || $request->has('gym_address')) {
+            $gym->address = $request->address ?? $request->gym_address;
+        }
+        if ($request->has('city') || $request->has('gym_city')) {
+            $gym->city = $request->city ?? $request->gym_city;
+        }
+        if ($request->has('phone') || $request->has('gym_phone')) {
+            $gym->phone = $request->phone ?? $request->gym_phone;
+        }
+        if ($request->has('email') || $request->has('gym_email')) {
+            $gym->email = $request->email ?? $request->gym_email;
+        }
+        if ($request->has('operating_hours') || $request->has('operatingHours')) {
+            $gym->operating_hours = $request->operating_hours ?? $request->operatingHours;
+        }
+        if ($request->has('currency')) $gym->currency = $request->currency;
         if ($request->has('package')) $gym->package = $request->package;
         if ($request->has('package_tier')) {
             $gym->package_tier = $request->package_tier;

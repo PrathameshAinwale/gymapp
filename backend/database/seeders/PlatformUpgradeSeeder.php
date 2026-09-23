@@ -64,36 +64,6 @@ class PlatformUpgradeSeeder extends Seeder
             'must_change_password' => false,
         ]);
 
-        $manager = User::firstOrCreate(['email' => 'manager@pulsefit.in'], [
-            'name'                => 'Rajesh K. Mehta',
-            'password'            => Hash::make('manager123'),
-            'role'                => 'manager',
-            'gym_id'              => $gym->id,
-            'avatar'              => 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-            'phone'               => '9123456789',
-            'must_change_password' => false,
-        ]);
-
-        $accounts = User::firstOrCreate(['email' => 'accounts@pulsefit.in'], [
-            'name'                => 'Sunita Deshmukh',
-            'password'            => Hash::make('accounts123'),
-            'role'                => 'accounts',
-            'gym_id'              => $gym->id,
-            'avatar'              => 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-            'phone'               => '9234567890',
-            'must_change_password' => false,
-        ]);
-
-        $trainer1 = User::firstOrCreate(['email' => 'trainer@pulsefit.in'], [
-            'name'                => 'Coach Alex Rivers',
-            'password'            => Hash::make('trainer123'),
-            'role'                => 'trainer',
-            'gym_id'              => $gym->id,
-            'avatar'              => 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
-            'phone'               => '9345678901',
-            'must_change_password' => false,
-        ]);
-
         $trainer2 = User::firstOrCreate(['email' => 'elena@pulsefit.in'], [
             'name'                => 'Elena Rostova',
             'password'            => Hash::make('trainer123'),

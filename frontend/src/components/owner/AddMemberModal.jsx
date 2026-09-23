@@ -29,7 +29,9 @@ import {
   Receipt,
   CreditCard,
   CheckCircle2,
-  IndianRupee
+  IndianRupee,
+  Calendar,
+  Cake
 } from 'lucide-react';
 
 export const AddMemberModal = ({
@@ -70,13 +72,50 @@ export const AddMemberModal = ({
 
   const [isUpgradingBasePlan, setIsUpgradingBasePlan] = useState(false);
 
+  const getTodayDateStr = () => new Date().toISOString().split('T')[0];
+
+  const calculateAgeFromDob = (dobStr) => {
+    if (!dobStr) return '';
+    try {
+      const parts = String(dobStr).split('-');
+      if (parts.length === 3) {
+        const birthYear = parseInt(parts[0], 10);
+        const birthMonth = parseInt(parts[1], 10) - 1;
+        const birthDay = parseInt(parts[2], 10);
+        if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return '';
+
+        const today = new Date();
+        let age = today.getFullYear() - birthYear;
+        const m = today.getMonth() - birthMonth;
+        if (m < 0 || (m === 0 && today.getDate() < birthDay)) {
+          age--;
+        }
+        return age >= 0 && age <= 125 ? age : '';
+      }
+
+      const birth = new Date(dobStr);
+      if (isNaN(birth.getTime())) return '';
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age >= 0 && age <= 125 ? age : '';
+    } catch {
+      return '';
+    }
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: 'member' + Math.floor(100 + Math.random() * 900),
     avatar: '',
-    age: 25,
+    joinDate: getTodayDateStr(),
+    dob: '',
+    age: '',
     gender: 'Male',
     planId: plans[0]?.id || '',
     trainerId: '', // trainer id
@@ -92,6 +131,15 @@ export const AddMemberModal = ({
     kycDocNumber: '',
     kycStatus: 'Verified'
   });
+
+  // Membership Start and End Date States
+  const [membershipStartDate, setMembershipStartDate] = useState(getTodayDateStr());
+  const [membershipEndDate, setMembershipEndDate] = useState('');
+  const [isManualEndDate, setIsManualEndDate] = useState(false);
+
+  // Split Payment States (Part Cash + Part Online)
+  const [splitCashAmount, setSplitCashAmount] = useState('');
+  const [splitOnlineAmount, setSplitOnlineAmount] = useState('');
 
   const [trainingType, setTrainingType] = useState('self'); // 'self', 'general', 'pt'
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
@@ -262,7 +310,8 @@ export const AddMemberModal = ({
           phone: targetMember.phone || '',
           password: '',
           avatar: targetMember.avatar || '',
-          age: targetMember.age || 25,
+          dob: targetMember.dob || '',
+          age: targetMember.dob ? calculateAgeFromDob(targetMember.dob) : (targetMember.age ?? ''),
           gender: targetMember.gender || 'Male',
           planId: targetMember.planId || plans[0]?.id || '',
           trainerId: targetMember.trainerId || '',
@@ -290,19 +339,25 @@ export const AddMemberModal = ({
         setSignedInPerson(true);
         setOtpVerified(true);
       } else if (initialData) {
-        setFormData((prev) => ({
-          ...prev,
-          name: initialData.name || '',
-          email: initialData.email || '',
-          phone: initialData.phone || '',
-          password: 'fit' + Math.floor(1000 + Math.random() * 9000),
-          planId: initialData.planId || plans[0]?.id || '',
-          goal: initialData.goal || 'Muscle Gain & Strength',
-          medicalNotes: initialData.medicalNotes || 'None',
-          emergencyContact: initialData.emergencyContact || initialData.phone || '',
-          enquiryId: initialData.enquiryId || null,
-          ...initialData
-        }));
+        setFormData((prev) => {
+          const initDob = initialData.dob || prev.dob || '';
+          const computedAge = initDob ? calculateAgeFromDob(initDob) : (initialData.age ?? prev.age ?? '');
+          return {
+            ...prev,
+            name: initialData.name || '',
+            email: initialData.email || '',
+            phone: initialData.phone || '',
+            password: 'fit' + Math.floor(1000 + Math.random() * 9000),
+            planId: initialData.planId || plans[0]?.id || '',
+            goal: initialData.goal || 'Muscle Gain & Strength',
+            medicalNotes: initialData.medicalNotes || 'None',
+            emergencyContact: initialData.emergencyContact || initialData.phone || '',
+            enquiryId: initialData.enquiryId || null,
+            ...initialData,
+            dob: initDob,
+            age: computedAge
+          };
+        });
       } else {
         setFormData((prev) => ({
           ...prev,
@@ -357,6 +412,34 @@ export const AddMemberModal = ({
       ? Math.round((effectivePtPrice * (Number(ptCommissionPercent) || 0)) / 100)
       : (Number(ptFixedCommission) || 0))
     : 0;
+
+  // Auto-calculate Membership End Date whenever plan or start date changes (if not manually overridden)
+  useEffect(() => {
+    if (!isManualEndDate && membershipStartDate) {
+      const start = new Date(membershipStartDate);
+      if (!isNaN(start.getTime())) {
+        const end = new Date(start);
+        const periodStr = chosenPlan?.period || '';
+        const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+        if (matchDays) {
+          end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+        } else {
+          const months = Number(chosenPlan?.durationMonths) || 1;
+          end.setMonth(end.getMonth() + months);
+        }
+        setMembershipEndDate(end.toISOString().split('T')[0]);
+      }
+    }
+  }, [chosenPlan, membershipStartDate, isManualEndDate]);
+
+  // Keep split payment amounts synchronized when Split payment mode is active or amount changes
+  useEffect(() => {
+    if (paymentMethod === 'Split') {
+      const half = Math.floor(effectivePaidAmount / 2);
+      setSplitCashAmount(String(half));
+      setSplitOnlineAmount(String(effectivePaidAmount - half));
+    }
+  }, [paymentMethod, effectivePaidAmount]);
 
   const handleTrainerChange = (newTrainerId) => {
     setFormData((prev) => ({ ...prev, trainerId: newTrainerId }));
@@ -418,7 +501,9 @@ export const AddMemberModal = ({
       phone: '',
       password: 'member' + Math.floor(100 + Math.random() * 900),
       avatar: '',
-      age: 25,
+      joinDate: getTodayDateStr(),
+      dob: '',
+      age: '',
       gender: 'Male',
       planId: plans[0]?.id || '',
       trainerId: '',
@@ -433,6 +518,11 @@ export const AddMemberModal = ({
       kycDocNumber: '',
       kycStatus: 'Verified'
     });
+    setMembershipStartDate(getTodayDateStr());
+    setMembershipEndDate('');
+    setIsManualEndDate(false);
+    setSplitCashAmount('');
+    setSplitOnlineAmount('');
     setTrainingType('self');
     setSelectedTrainerId('');
     setPtPackageFee(3000);
@@ -710,6 +800,18 @@ export const AddMemberModal = ({
       const expiry = new Date();
       expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
 
+      // Resolve final payment method name with split details if applicable
+      let finalPaymentMethod = paymentMethod || 'UPI';
+      if (paymentMethod === 'Split') {
+        const cashVal = Number(splitCashAmount || 0);
+        const onlineVal = Number(splitOnlineAmount || 0);
+        finalPaymentMethod = `Split (Cash: ₹${cashVal.toLocaleString('en-IN')} + Online: ₹${onlineVal.toLocaleString('en-IN')})`;
+      }
+
+      const finalStartDate = membershipStartDate || today.toISOString().split('T')[0];
+      const finalExpiryDate = membershipEndDate || expiry.toISOString().split('T')[0];
+      const finalJoinDate = formData.joinDate || finalStartDate;
+
       // Generate invoice title including any PT / recovery additions
       let invoiceTitle = chosenPlan?.name || 'Gym Membership';
       const additions = [];
@@ -726,8 +828,15 @@ export const AddMemberModal = ({
         phone: formData.phone,
         enquiryId: initialData?.enquiryId || formData.enquiryId,
         enquiry_id: initialData?.enquiryId || formData.enquiryId,
-        avatar: formData.avatar || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=200&auto=format&fit=crop&q=80`,
-        age: formData.age,
+        avatar: formData.avatar || null,
+        dob: formData.dob || null,
+        joinDate: finalJoinDate,
+        join_date: finalJoinDate,
+        startDate: finalStartDate,
+        start_date: finalStartDate,
+        expiryDate: finalExpiryDate,
+        expiry_date: finalExpiryDate,
+        age: formData.age !== '' ? formData.age : (formData.dob ? calculateAgeFromDob(formData.dob) : null),
         gender: formData.gender,
         planId: chosenPlan?.id,
         planName: chosenPlan?.name,
@@ -739,7 +848,8 @@ export const AddMemberModal = ({
         dues_amount: calculatedBalanceDue,
         duesAmount: calculatedBalanceDue,
         is_full_payment: isFullPayment,
-        payment_method: paymentMethod || 'UPI',
+        payment_method: finalPaymentMethod,
+        paymentMethod: finalPaymentMethod,
         invoice_title: invoiceTitle,
         trainerId: finalTrainerId,
         trainerName: resolvedTrainerName,
@@ -755,7 +865,6 @@ export const AddMemberModal = ({
         height: formData.height,
         medicalNotes: formData.medicalNotes,
         emergencyContact: formData.emergencyContact,
-        expiryDate: expiry.toISOString().split('T')[0],
         kycDocType: formData.kycDocType || 'Aadhaar Card',
         kycDocNumber: formData.kycDocNumber || 'Not provided',
         kycStatus: formData.kycStatus || 'Verified',
@@ -826,7 +935,10 @@ export const AddMemberModal = ({
         paidAmount: effectivePaidAmount,
         duesAmount: calculatedBalanceDue,
         isFullPayment: isFullPayment,
-        paymentMethod: paymentMethod || 'UPI',
+        paymentMethod: finalPaymentMethod,
+        startDate: finalStartDate,
+        expiryDate: finalExpiryDate,
+        joinDate: finalJoinDate,
         ptName: trainingType === 'pt' ? `${ptCustomSessions} 1-on-1 PT Sessions` : null,
         recoveryName: chosenRecoveryPlan?.name,
         trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
@@ -843,7 +955,7 @@ export const AddMemberModal = ({
 
   const handleCopyCredentials = () => {
     if (!newlyCreatedCredentials) return;
-    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: ${window.location.origin}/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan & Services: ${newlyCreatedCredentials.planName}\n• Total Bill: ₹${Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}\n• Amount Received: ₹${Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}${Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? `\n• Remaining Balance Due: ₹${Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')}` : '\n• Payment Status: Paid in Full'}`;
+    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: ${window.location.origin}/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan & Services: ${newlyCreatedCredentials.planName}\n• Membership Validity: ${newlyCreatedCredentials.startDate || newlyCreatedCredentials.joinDate || 'Today'} to ${newlyCreatedCredentials.expiryDate || 'N/A'}\n• Payment Method: ${newlyCreatedCredentials.paymentMethod || 'UPI'}\n• Total Bill: ₹${Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}\n• Amount Received: ₹${Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}${Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? `\n• Remaining Balance Due: ₹${Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')}` : '\n• Payment Status: Paid in Full'}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     addToast('Credentials copied to clipboard!');
@@ -1042,20 +1154,87 @@ export const AddMemberModal = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">Age</label>
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  Admission / Join Date *
+                </label>
+                {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
+              </div>
+              <input
+                type="date"
+                required
+                disabled={isUpgradeMode}
+                value={formData.joinDate || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({ ...prev, joinDate: val }));
+                  if (!isManualEndDate && val) {
+                    setMembershipStartDate(val);
+                  }
+                }}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
+                  isUpgradeMode
+                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold'
+                }`}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <Cake className="w-3.5 h-3.5 text-pink-500" />
+                  Date of Birth (DOB)
+                </label>
+                {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
+              </div>
+              <input
+                type="date"
+                disabled={isUpgradeMode}
+                value={formData.dob || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const autoAge = calculateAgeFromDob(val);
+                  setFormData(prev => ({
+                    ...prev,
+                    dob: val,
+                    age: autoAge !== '' ? autoAge : (val ? prev.age : '')
+                  }));
+                }}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
+                  isUpgradeMode
+                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
+                }`}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>Age</span>
+                  {formData.dob && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded-md">
+                      Auto
+                    </span>
+                  )}
+                </label>
                 {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
               </div>
               <input
                 type="number"
                 disabled={isUpgradeMode}
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
-                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
+                readOnly={Boolean(formData.dob)}
+                value={formData.age !== undefined && formData.age !== null ? formData.age : ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  setFormData(prev => ({ ...prev, age: val }));
+                }}
+                placeholder={formData.dob ? 'Auto from DOB' : 'e.g. 25'}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs transition-colors ${
+                  isUpgradeMode || formData.dob
+                    ? 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold cursor-not-allowed'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
                 }`}
               />
@@ -1212,6 +1391,101 @@ export const AddMemberModal = ({
                 <option value="general">General Trainer (Gym Coach Assistance)</option>
                 <option value="pt">1-on-1 Personal Training (PT Package)</option>
               </select>
+            </div>
+          </div>
+
+          {/* MEMBERSHIP START & END DATES (VALIDITY PERIOD) */}
+          <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/90 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Membership Start & End Dates</span>
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded">
+                Plan Validity: {chosenPlan?.period || `${chosenPlan?.durationMonths || 1} Month(s)`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={membershipStartDate}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    setMembershipStartDate(newStart);
+                    if (!isManualEndDate && newStart) {
+                      const start = new Date(newStart);
+                      if (!isNaN(start.getTime())) {
+                        const end = new Date(start);
+                        const periodStr = chosenPlan?.period || '';
+                        const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+                        if (matchDays) {
+                          end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+                        } else {
+                          const months = Number(chosenPlan?.durationMonths) || 1;
+                          end.setMonth(end.getMonth() + months);
+                        }
+                        setMembershipEndDate(end.toISOString().split('T')[0]);
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    End Date (Expiry) *
+                  </label>
+                  {isManualEndDate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsManualEndDate(false);
+                        const start = new Date(membershipStartDate);
+                        if (!isNaN(start.getTime())) {
+                          const end = new Date(start);
+                          const periodStr = chosenPlan?.period || '';
+                          const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+                          if (matchDays) {
+                            end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+                          } else {
+                            const months = Number(chosenPlan?.durationMonths) || 1;
+                            end.setMonth(end.getMonth() + months);
+                          }
+                          setMembershipEndDate(end.toISOString().split('T')[0]);
+                        }
+                      }}
+                      className="text-[10px] text-emerald-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Reset to Auto
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  required
+                  value={membershipEndDate}
+                  onChange={(e) => {
+                    setIsManualEndDate(true);
+                    setMembershipEndDate(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-emerald-100">
+              <span>Member access active between selected dates.</span>
+              <span className="font-semibold text-emerald-800">
+                {membershipStartDate && membershipEndDate ? `Valid: ${membershipStartDate} to ${membershipEndDate}` : ''}
+              </span>
             </div>
           </div>
 
@@ -1586,11 +1860,86 @@ export const AddMemberModal = ({
                 >
                   <option value="UPI">UPI / GPay / PhonePe</option>
                   <option value="Cash">Cash at Reception</option>
+                  <option value="Split">Split (Part Cash + Part Online / UPI)</option>
                   <option value="Credit Card">Credit / Debit Card</option>
                   <option value="Net Banking">Net Banking / NEFT</option>
                 </select>
               </div>
             </div>
+
+            {/* Split Payment Breakdown Box (Only when Split is selected) */}
+            {paymentMethod === 'Split' && (
+              <div className="p-3.5 rounded-xl bg-violet-50/80 border border-violet-200 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
+                    <Receipt className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Split Payment Breakdown</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-violet-700 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded">
+                    Total to Collect: ₹{effectivePaidAmount.toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Cash Portion (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={effectivePaidAmount}
+                        value={splitCashAmount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSplitCashAmount(val);
+                          const num = Math.max(0, Number(val) || 0);
+                          const rem = Math.max(0, effectivePaidAmount - num);
+                          setSplitOnlineAmount(String(rem));
+                        }}
+                        placeholder="e.g. 2000"
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Online / UPI Portion (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={effectivePaidAmount}
+                        value={splitOnlineAmount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSplitOnlineAmount(val);
+                          const num = Math.max(0, Number(val) || 0);
+                          const rem = Math.max(0, effectivePaidAmount - num);
+                          setSplitCashAmount(String(rem));
+                        }}
+                        placeholder="e.g. 3000"
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-violet-200/70 font-medium">
+                  <span className="text-violet-800">
+                    Split: <strong>₹{Number(splitCashAmount || 0).toLocaleString('en-IN')} Cash</strong> + <strong>₹{Number(splitOnlineAmount || 0).toLocaleString('en-IN')} Online</strong>
+                  </span>
+                  <span className="font-bold text-violet-950 font-mono">
+                    Total: ₹{(Number(splitCashAmount || 0) + Number(splitOnlineAmount || 0)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Scope of Payment: Partial Payment Inputs & Balance Due Field */}
             {!isFullPayment ? (
@@ -2051,6 +2400,18 @@ export const AddMemberModal = ({
                   <span className="text-slate-500 font-bold uppercase text-[10px]">Membership Plan:</span>
                   <span className="font-bold text-emerald-700 text-xs">{newlyCreatedCredentials.planName}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Validity Period:</span>
+                  <span className="font-semibold text-slate-800 text-xs font-mono">
+                    {newlyCreatedCredentials.startDate || newlyCreatedCredentials.joinDate || 'Today'} → {newlyCreatedCredentials.expiryDate || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Payment Mode:</span>
+                  <span className="font-semibold text-slate-800 text-xs truncate max-w-[200px]" title={newlyCreatedCredentials.paymentMethod}>
+                    {newlyCreatedCredentials.paymentMethod || 'UPI'}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between pt-1 border-t border-slate-200">
                   <span className="text-slate-500 font-bold uppercase text-[10px]">Total Bill:</span>
                   <span className="font-mono font-bold text-slate-900 text-xs">
@@ -2185,31 +2546,56 @@ export const AddMemberModal = ({
             </div>
 
             {quickAddPlanType === 'membership' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Duration</label>
-                <select
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
+                  <span className="text-[10px] text-emerald-600 font-semibold">{quickPlanForm.durationMonths} Mo Validity</span>
+                </div>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="any"
+                  required
+                  placeholder="e.g. 1, 2, 3, 5, 9, 12"
                   value={quickPlanForm.durationMonths}
                   onChange={(e) => {
-                    const months = Number(e.target.value);
-                    const periods = {
-                      1: 'Monthly (1 Month)',
-                      3: 'Quarterly (3 Months)',
-                      6: 'Half-Yearly (6 Months)',
-                      12: 'Annual (12 Months)'
-                    };
-                    setQuickPlanForm({
-                      ...quickPlanForm,
-                      durationMonths: months,
-                      period: periods[months] || `${months} Months`
-                    });
+                    const months = parseFloat(e.target.value) || 1;
+                    const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
+                    setQuickPlanForm({ ...quickPlanForm, durationMonths: e.target.value, period: periodLabel });
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value={1}>1 Month (Monthly)</option>
-                  <option value={3}>3 Months (Quarterly)</option>
-                  <option value={6}>6 Months (Half-Yearly)</option>
-                  <option value={12}>12 Months (Annual)</option>
-                </select>
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
+                />
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { m: 1, label: '1M' },
+                    { m: 2, label: '2M' },
+                    { m: 3, label: '3M' },
+                    { m: 6, label: '6M' },
+                    { m: 9, label: '9M' },
+                    { m: 12, label: '1Yr' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.m}
+                      type="button"
+                      onClick={() => {
+                        const periodLabel = preset.m === 1 ? 'Monthly (1 Month)' : preset.m === 3 ? 'Quarterly (3 Months)' : preset.m === 6 ? 'Half-Yearly (6 Months)' : preset.m === 12 ? 'Annual (12 Months)' : `${preset.m} Months`;
+                        setQuickPlanForm({
+                          ...quickPlanForm,
+                          durationMonths: preset.m,
+                          period: periodLabel
+                        });
+                      }}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                        Number(quickPlanForm.durationMonths) === preset.m
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

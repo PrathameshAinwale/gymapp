@@ -18,12 +18,14 @@ class TrainerProfile extends Model
         'bio',
         'certifications',
         'age',
+        'dob',
         'gender',
         'blood_group',
         'address',
     ];
 
     protected $casts = [
+        'dob' => 'date',
         'rating' => 'float',
         'monthly_salary' => 'float',
         'certifications' => 'array',

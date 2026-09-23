@@ -111,7 +111,7 @@ class AuthController extends Controller
             'role' => $request->role ?? 'member',
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
-            'avatar' => 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+            'avatar' => $request->avatar ?? null,
         ]);
 
         if ($user->role === 'member') {

@@ -17,57 +17,83 @@ class GymSettingController extends Controller
                 return response()->json([
                     'success' => true,
                     'data' => [
-                        'name' => $gym->name,
-                        'tagline' => $gym->tagline ?? "High-Performance Athletic & Fitness Club",
-                        'address' => ($gym->address ? $gym->address . ', ' : '') . ($gym->city ?? 'India'),
-                        'phone' => $gym->phone ?? '+91 98000 00000',
-                        'email' => $gym->email,
-                        'operatingHours' => 'Mon-Sat: 6:00 AM - 10:30 PM | Sun: 7:00 AM - 6:00 PM',
-                        'currency' => '₹',
+                        'name' => $gym->name ?? '',
+                        'tagline' => $gym->tagline ?? '',
+                        'address' => $gym->address ?? '',
+                        'phone' => $gym->phone ?? '',
+                        'email' => $gym->email ?? '',
+                        'operatingHours' => $gym->operating_hours ?? '',
+                        'currency' => $gym->currency ?? '₹',
                     ]
                 ]);
             }
         }
 
-        $setting = GymSetting::firstOrCreate([], [
-            'name' => 'ARCHFIT ATHLETIC CLUB',
-            'tagline' => "India's Premier Strength & Conditioning Hub",
-            'address' => 'Plot 42, Hiranandani Business Park, Powai, Mumbai, Maharashtra 400076',
-            'phone' => '+91 98201 54321',
-            'email' => 'contact@archfit.in',
-            'operating_hours' => 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
-            'currency' => '₹',
-        ]);
+        $setting = GymSetting::first();
+        if ($setting) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'name' => $setting->name ?? '',
+                    'tagline' => $setting->tagline ?? '',
+                    'address' => $setting->address ?? '',
+                    'phone' => $setting->phone ?? '',
+                    'email' => $setting->email ?? '',
+                    'operatingHours' => $setting->operating_hours ?? '',
+                    'currency' => $setting->currency ?? '₹',
+                ]
+            ]);
+        }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'name' => $setting->name,
-                'tagline' => $setting->tagline,
-                'address' => $setting->address,
-                'phone' => $setting->phone,
-                'email' => $setting->email,
-                'operatingHours' => $setting->operating_hours,
-                'currency' => $setting->currency,
+                'name' => '',
+                'tagline' => '',
+                'address' => '',
+                'phone' => '',
+                'email' => '',
+                'operatingHours' => '',
+                'currency' => '₹',
             ]
         ]);
     }
 
     public function update(Request $request)
     {
-        $setting = GymSetting::first();
-        if (!$setting) {
-            $setting = new GymSetting();
+        $gymId = $this->resolveGymId($request);
+        $gym = $gymId ? \App\Models\Gym::find($gymId) : null;
+
+        if ($gym) {
+            if ($request->has('name')) $gym->name = $request->input('name') ?: '';
+            if ($request->has('tagline')) $gym->tagline = $request->input('tagline') ?: null;
+            if ($request->has('address')) $gym->address = $request->input('address') ?: null;
+            if ($request->has('phone')) $gym->phone = $request->input('phone') ?: null;
+            if ($request->has('email')) $gym->email = $request->input('email') ?: null;
+            if ($request->has('operatingHours') || $request->has('operating_hours')) {
+                $gym->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
+            }
+            if ($request->has('currency')) $gym->currency = $request->input('currency') ?: '₹';
+            $gym->save();
         }
 
-        if ($request->has('name')) $setting->name = $request->name;
-        if ($request->has('tagline')) $setting->tagline = $request->tagline;
-        if ($request->has('address')) $setting->address = $request->address;
-        if ($request->has('phone')) $setting->phone = $request->phone;
-        if ($request->has('email')) $setting->email = $request->email;
-        if ($request->has('operatingHours')) $setting->operating_hours = $request->operatingHours;
-        if ($request->has('currency')) $setting->currency = $request->currency;
-        $setting->save();
+        // Also keep GymSetting updated if any exists or if no gym found
+        $setting = GymSetting::first();
+        if ($setting || !$gym) {
+            if (!$setting) {
+                $setting = new GymSetting();
+            }
+            if ($request->has('name')) $setting->name = $request->input('name') ?: '';
+            if ($request->has('tagline')) $setting->tagline = $request->input('tagline') ?: null;
+            if ($request->has('address')) $setting->address = $request->input('address') ?: null;
+            if ($request->has('phone')) $setting->phone = $request->input('phone') ?: null;
+            if ($request->has('email')) $setting->email = $request->input('email') ?: null;
+            if ($request->has('operatingHours') || $request->has('operating_hours')) {
+                $setting->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
+            }
+            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
+            $setting->save();
+        }
 
         return response()->json([
             'success' => true,

@@ -686,7 +686,7 @@ export const PlanManager = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
                 <div className="relative">
@@ -696,19 +696,66 @@ export const PlanManager = () => {
                     required
                     value={editingPlan.price}
                     onChange={(e) => setEditingPlan({ ...editingPlan, price: Number(e.target.value) })}
-                    className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Validity (Months) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
+                  <span className="text-[10px] text-emerald-600 font-semibold">{editingPlan.durationMonths} Mo Validity</span>
+                </div>
                 <input
                   type="number"
+                  min="0.5"
+                  step="any"
                   required
+                  placeholder="e.g. 1, 2, 3, 5, 9, 12"
                   value={editingPlan.durationMonths}
-                  onChange={(e) => setEditingPlan({ ...editingPlan, durationMonths: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  onChange={(e) => {
+                    const months = parseFloat(e.target.value) || 1;
+                    const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
+                    setEditingPlan({ ...editingPlan, durationMonths: months, period: periodLabel });
+                  }}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
+              </div>
+            </div>
+
+            {/* Quick Duration Presets */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Quick Duration Presets
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { m: 1, label: '1 Month' },
+                  { m: 2, label: '2 Months' },
+                  { m: 3, label: '3 Months (Quarterly)' },
+                  { m: 6, label: '6 Months (Half-Yearly)' },
+                  { m: 9, label: '9 Months' },
+                  { m: 12, label: '1 Year (Annual)' }
+                ].map((preset) => (
+                  <button
+                    key={preset.m}
+                    type="button"
+                    onClick={() => {
+                      const periodLabel = preset.m === 1 ? 'Monthly (1 Month)' : preset.m === 3 ? 'Quarterly (3 Months)' : preset.m === 6 ? 'Half-Yearly (6 Months)' : preset.m === 12 ? 'Annual (12 Months)' : `${preset.m} Months`;
+                      setEditingPlan({
+                        ...editingPlan,
+                        durationMonths: preset.m,
+                        period: periodLabel
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                      Number(editingPlan.durationMonths) === preset.m
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -805,7 +852,7 @@ export const PlanManager = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
                 <div className="relative">
@@ -816,19 +863,66 @@ export const PlanManager = () => {
                     placeholder="2499"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Duration (Months) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
+                  <span className="text-[10px] text-emerald-600 font-semibold">{formData.durationMonths} Mo Validity</span>
+                </div>
                 <input
                   type="number"
+                  min="0.5"
+                  step="any"
                   required
+                  placeholder="e.g. 1, 2, 3, 5, 9, 12"
                   value={formData.durationMonths}
-                  onChange={(e) => setFormData({ ...formData, durationMonths: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  onChange={(e) => {
+                    const months = parseFloat(e.target.value) || 1;
+                    const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
+                    setFormData({ ...formData, durationMonths: e.target.value, period: periodLabel });
+                  }}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
+              </div>
+            </div>
+
+            {/* Quick Duration Presets */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Quick Duration Presets
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { m: 1, label: '1 Month' },
+                  { m: 2, label: '2 Months' },
+                  { m: 3, label: '3 Months (Quarterly)' },
+                  { m: 6, label: '6 Months (Half-Yearly)' },
+                  { m: 9, label: '9 Months' },
+                  { m: 12, label: '1 Year (Annual)' }
+                ].map((preset) => (
+                  <button
+                    key={preset.m}
+                    type="button"
+                    onClick={() => {
+                      const periodLabel = preset.m === 1 ? 'Monthly (1 Month)' : preset.m === 3 ? 'Quarterly (3 Months)' : preset.m === 6 ? 'Half-Yearly (6 Months)' : preset.m === 12 ? 'Annual (12 Months)' : `${preset.m} Months`;
+                      setFormData({
+                        ...formData,
+                        durationMonths: preset.m,
+                        period: periodLabel
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                      Number(formData.durationMonths) === preset.m
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
             </div>
 

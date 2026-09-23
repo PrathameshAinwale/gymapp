@@ -44,7 +44,8 @@ import {
   Clock,
   Layers,
   BarChart3,
-  RotateCw
+  RotateCw,
+  CalendarDays
 } from 'lucide-react';
 import {
   AreaChart,
@@ -80,6 +81,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     equipment = [],
     ptSessions = [],
     advanceRequests = [],
+    leaveRequests = [],
     calculateMemberStatus,
     fetchAllFromBackend,
     addEnquiry,
@@ -257,6 +259,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
   );
   const lowStockProducts = products.filter((p) => p.stock <= (p.minStockAlert || 5));
   const pendingAdvances = advanceRequests.filter((r) => r.status === 'Pending');
+  const pendingLeaves = leaveRequests.filter((r) => r.status === 'Pending');
 
   // Dynamic Revenue / Inflow calculation from real database inflows & stats
   const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id);
@@ -1300,6 +1303,69 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
                     className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
                   >
                     Open Staff Advance Pay Manager ({advanceRequests.length}) →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Staff Leave Requests Alert Block */}
+            {pendingLeaves.length > 0 && (
+              <div className="bg-white border border-indigo-200/80 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Staff Leave Requests</h3>
+                      <p className="text-[11px] text-slate-500">
+                        {pendingLeaves.length} {pendingLeaves.length === 1 ? 'staff member has applied for leave' : 'staff members have applied for leave'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {pendingLeaves.length} Pending
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  {pendingLeaves.slice(0, 2).map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={req.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}
+                          alt={req.userName}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
+                        />
+                        <div>
+                          <div className="font-bold text-slate-900">{req.userName}</div>
+                          <div className="text-[11px] text-indigo-700 font-semibold">
+                            {req.leaveType} • {req.daysCount} {req.daysCount === 1 ? 'Day' : 'Days'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('leaves')}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Review
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('leaves')}
+                    className="text-xs font-bold text-indigo-700 hover:text-indigo-800 cursor-pointer"
+                  >
+                    Open Staff Leave Management ({leaveRequests.length}) →
                   </button>
                 </div>
               </div>

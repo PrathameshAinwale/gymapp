@@ -50,7 +50,7 @@ abstract class Controller
             }
         }
 
-        // 4. No fallback — return null to enforce strict data isolation
-        return null;
+        // 4. Fallback to primary gym to prevent data orphaning or empty datasets
+        return Gym::first()?->id ?? 1;
     }
 }

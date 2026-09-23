@@ -395,7 +395,7 @@ class EnquiryController extends Controller
                 'must_change_password' => true,
                 'role' => 'member',
                 'gym_id' => $gymId,
-                'avatar' => $request->input('avatar', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'),
+                'avatar' => $request->input('avatar', null),
             ]);
         }
 

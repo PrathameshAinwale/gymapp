@@ -287,7 +287,7 @@ export const api = {
   // Members Endpoints
   members: {
     getAll: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/members${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
@@ -296,10 +296,11 @@ export const api = {
       return handleResponse(res);
     },
     create: async (memberData) => {
+      const payload = withGymParam(memberData);
       const res = await apiFetch(`${API_BASE_URL}/members`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(memberData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
@@ -342,8 +343,9 @@ export const api = {
 
   // Trainers Endpoints
   trainers: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/trainers`, { headers: getHeaders() });
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/trainers${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     getById: async (id) => {
@@ -351,10 +353,11 @@ export const api = {
       return handleResponse(res);
     },
     create: async (trainerData) => {
+      const payload = withGymParam(trainerData);
       const res = await apiFetch(`${API_BASE_URL}/trainers`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(trainerData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
@@ -377,15 +380,17 @@ export const api = {
 
   // Plans Endpoints
   plans: {
-    getAll: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/plans`, { headers: getHeaders() });
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/plans${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     create: async (planData) => {
+      const payload = withGymParam(planData);
       const res = await apiFetch(`${API_BASE_URL}/plans`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(planData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
@@ -1139,6 +1144,56 @@ export const api = {
     },
   },
 
+  // Staff & Trainer Leave Management & Quotas
+  leaves: {
+    getRequests: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/leaves/requests${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    createRequest: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/leaves/requests`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    updateRequestStatus: async (id, status, notes = null, actionBy = null) => {
+      const numericId = String(id).replace(/[^0-9]/g, '');
+      const res = await apiFetch(`${API_BASE_URL}/leaves/requests/${numericId}/status`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ status, action_notes: notes, action_by: actionBy }),
+      });
+      return handleResponse(res);
+    },
+    getBalances: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/leaves/balances${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getUserBalance: async (userId, params = {}) => {
+      const numericId = String(userId).replace(/[^0-9]/g, '');
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/leaves/balances/${numericId}${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    allocateLeaves: async (data) => {
+      const res = await apiFetch(`${API_BASE_URL}/leaves/balances/allocate`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    getSummary: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/leaves/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
   // Reports & Analytics
   reports: {
     getSummary: async (params = {}) => {
@@ -1211,6 +1266,72 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders(),
       });
+      return handleResponse(res);
+    },
+  },
+
+  // WhatsApp Message Templates & Automation Triggers
+  whatsapp: {
+    getTemplates: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    createTemplate: async (data) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    updateTemplate: async (id, data) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    deleteTemplate: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    toggleTemplate: async (id, field = 'is_active') => {
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates/${id}/toggle`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ field }),
+      });
+      return handleResponse(res);
+    },
+    scanTriggers: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/triggers/scan${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    logMessage: async (data) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/logs`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    getLogs: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/logs${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getStats: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/stats${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
   },
