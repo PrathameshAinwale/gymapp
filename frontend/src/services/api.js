@@ -1393,4 +1393,13 @@ export const api = {
       return handleResponse(res);
     },
   },
+
+  // Reports & Analytics
+  reports: {
+    getSummary: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/reports/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
 };

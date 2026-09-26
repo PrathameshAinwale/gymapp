@@ -165,12 +165,11 @@ class ReportController extends Controller
                           ->orWhere('name', 'like', '%Personal%');
                     })->sum('amount');
 
-                if ($ptRev == 0 && $totalRev > 0) {
-                    $ptRev = round($totalRev * 0.18, 2);
-                    $membershipRev = max(0, $totalRev - $ptRev);
+                if ($membershipRev + $ptRev < $totalRev) {
+                    $storeRev = round($totalRev - $membershipRev - $ptRev, 2);
+                } else {
+                    $storeRev = 0;
                 }
-
-                $storeRev = max(0, $totalRev - $membershipRev - $ptRev);
             }
 
             $inflowRecords = $inflowQuery->get();
@@ -192,9 +191,9 @@ class ReportController extends Controller
                 'pending_invoices'   => $inflowRecords->where('status', 'Partial')->count() ?: $invoices->where('status', 'Unpaid')->count(),
                 'monthly_trend'      => $monthlyTrend,
                 'revenue_streams'    => [
-                    ['name' => 'Memberships', 'value' => $membershipRev ?: round($totalRev * 0.75, 2)],
-                    ['name' => 'Personal Training (PT)', 'value' => $ptRev ?: round($totalRev * 0.18, 2)],
-                    ['name' => 'Store & Supplements', 'value' => $storeRev ?: round($totalRev * 0.07, 2)],
+                    ['name' => 'Memberships', 'value' => round($membershipRev, 2)],
+                    ['name' => 'Personal Training (PT)', 'value' => round($ptRev, 2)],
+                    ['name' => 'Store & Supplements', 'value' => round($storeRev, 2)],
                 ],
                 'expenses_by_cat'    => $expenseCats,
             ];

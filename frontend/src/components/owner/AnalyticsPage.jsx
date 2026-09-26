@@ -14,16 +14,16 @@ import {
   ShoppingBag,
   PieChart as PieIcon,
   Printer,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  Database
+  Database,
+  ArrowUpRight,
+  Wallet
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
-  AreaChart,
   Area,
   BarChart,
   Bar,
@@ -50,6 +50,22 @@ const PALETTE = {
 
 const PIE_COLORS = ['#10B981', '#6366F1', '#3B82F6', '#F59E0B', '#EC4899', '#14B8A6', '#8B5CF6'];
 
+// Reusable Empty State for Charts with No Real Records in Database
+const EmptyChartState = ({
+  icon: Icon = Database,
+  title = 'No Data Recorded',
+  message = 'No records found in the database yet.',
+  height = 'h-72'
+}) => (
+  <div className={`${height} w-full flex flex-col items-center justify-center text-center p-6 bg-slate-50/60 rounded-xl border border-dashed border-slate-200 select-none`}>
+    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-400 mb-3">
+      <Icon className="w-6 h-6 text-slate-400" />
+    </div>
+    <p className="text-sm font-bold text-slate-700">{title}</p>
+    <p className="text-xs text-slate-400 max-w-xs mt-1 leading-relaxed">{message}</p>
+  </div>
+);
+
 export const AnalyticsPage = () => {
   const {
     members = [],
@@ -70,11 +86,12 @@ export const AnalyticsPage = () => {
   const currentGymId = currentUser?.gymId || currentUser?.gym_id || localStorage.getItem('pulsefit_gym_id');
   const [activeTab, setActiveTab] = useState('overview');
   const [dbData, setDbData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const tabsScrollRef = useRef(null);
 
-  // Scoped fallback data
+  // Scoped fallback data for current gym
   const gymInvoices = useMemo(() => {
     if (!currentGymId) return invoices;
     return invoices.filter(inv => !inv.gymId || String(inv.gymId) === String(currentGymId));
@@ -110,6 +127,7 @@ export const AnalyticsPage = () => {
       console.warn('Could not fetch backend report summary, using local context data:', err);
     } finally {
       setIsRefreshing(false);
+      setIsLoading(false);
     }
   };
 
@@ -164,63 +182,93 @@ export const AnalyticsPage = () => {
     return null;
   };
 
-  // 1. FINANCIAL DATA (Prioritizing Database API Data)
+  // 1. FINANCIAL DATA (100% Real Database Calculations)
   const financialData = useMemo(() => {
     const rawFin = dbData?.financial;
     const totalInflow = rawFin?.total_revenue ?? gymInvoices.filter((i) => i.status === 'Paid').reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
     const totalExpenses = rawFin?.total_expenses ?? gymExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const netProfit = rawFin?.net_profit ?? (totalInflow - totalExpenses);
+    const paidInvoicesCount = rawFin?.paid_invoices ?? gymInvoices.filter((i) => i.status === 'Paid').length;
+    const pendingInvoicesCount = rawFin?.pending_invoices ?? gymInvoices.filter((i) => i.status !== 'Paid').length;
 
-    // Monthly Trend from DB
-    const monthlyTrend = rawFin?.monthly_trend && rawFin.monthly_trend.length > 0
-      ? rawFin.monthly_trend
-      : [
-          { month: 'Apr', revenue: 0, expenses: 0, profit: 0 },
-          { month: 'May', revenue: 0, expenses: 0, profit: 0 },
-          { month: 'Jun', revenue: 0, expenses: 0, profit: 0 },
-          { month: 'Jul', revenue: 18000, expenses: 0, profit: 18000 },
-          { month: 'Aug', revenue: 9000, expenses: 251500, profit: -242500 },
-          { month: 'Sep', revenue: totalInflow || 6500, expenses: totalExpenses || 160500, profit: netProfit }
-        ];
+    // Monthly Trend from DB or calculated dynamically from actual gym invoices/expenses
+    let monthlyTrend = [];
+    if (rawFin?.monthly_trend && rawFin.monthly_trend.length > 0) {
+      monthlyTrend = rawFin.monthly_trend;
+    } else {
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = d.toLocaleString('en-US', { month: 'short' });
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const mRev = gymInvoices
+          .filter(inv => inv.status === 'Paid' && (inv.issueDate || inv.date || '').startsWith(ym))
+          .reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+        const mExp = gymExpenses
+          .filter(exp => (exp.date || '').startsWith(ym))
+          .reduce((s, exp) => s + (Number(exp.amount) || 0), 0);
+        monthlyTrend.push({
+          month: monthName,
+          revenue: mRev,
+          expenses: mExp,
+          profit: mRev - mExp
+        });
+      }
+    }
 
-    // Revenue streams from DB
-    const revenueStreams = rawFin?.revenue_streams && rawFin.revenue_streams.length > 0
-      ? rawFin.revenue_streams.map((s, idx) => ({ ...s, color: [PALETTE.emerald, PALETTE.indigo, PALETTE.amber][idx % 3] }))
-      : [
-          { name: 'Memberships', value: Math.round(totalInflow * 0.75), color: PALETTE.emerald },
-          { name: 'Personal Training (PT)', value: Math.round(totalInflow * 0.18), color: PALETTE.indigo },
-          { name: 'Store & Supplements', value: Math.round(totalInflow * 0.07), color: PALETTE.amber }
-        ];
-
-    // Expenses breakdown from DB
-    const expenseCategories = rawFin?.expenses_by_cat && rawFin.expenses_by_cat.length > 0
-      ? rawFin.expenses_by_cat.map((item, idx) => ({
-          category: item.category,
-          amount: item.total,
-          fill: PIE_COLORS[idx % PIE_COLORS.length]
+    // Revenue streams from DB (only active streams with real value > 0)
+    let revenueStreams = [];
+    if (rawFin?.revenue_streams && rawFin.revenue_streams.length > 0) {
+      revenueStreams = rawFin.revenue_streams
+        .map((s, idx) => ({
+          ...s,
+          color: [PALETTE.emerald, PALETTE.indigo, PALETTE.amber][idx % 3]
         }))
-      : [
-          { category: 'Rent', amount: 195000, fill: PALETTE.rose },
-          { category: 'Salaries', amount: 93000, fill: PALETTE.indigo },
-          { category: 'Utilities', amount: 57000, fill: PALETTE.blue },
-          { category: 'Inventory', amount: 41000, fill: PALETTE.amber },
-          { category: 'Equipment AMC', amount: 22500, fill: PALETTE.teal }
-        ];
+        .filter(s => s.value > 0);
+    } else if (totalInflow > 0) {
+      revenueStreams = [
+        { name: 'Memberships', value: totalInflow, color: PALETTE.emerald }
+      ];
+    }
+
+    // Expenses breakdown from DB (empty array if 0 expenses)
+    let expenseCategories = [];
+    if (rawFin?.expenses_by_cat && rawFin.expenses_by_cat.length > 0) {
+      expenseCategories = rawFin.expenses_by_cat.map((item, idx) => ({
+        category: item.category,
+        amount: item.total,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    } else if (gymExpenses.length > 0) {
+      const map = {};
+      gymExpenses.forEach(e => {
+        const cat = e.category || 'General';
+        map[cat] = (map[cat] || 0) + (Number(e.amount) || 0);
+      });
+      expenseCategories = Object.entries(map).map(([category, amount], idx) => ({
+        category,
+        amount,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    }
 
     return {
       totalInflow,
       totalExpenses,
       netProfit,
+      paidInvoicesCount,
+      pendingInvoicesCount,
       monthlyTrend,
       revenueStreams,
       expenseCategories
     };
   }, [dbData, gymInvoices, gymExpenses]);
 
-  // 2. MEMBER DATA (From Database)
+  // 2. MEMBER DATA (100% Real Database Calculations)
   const memberData = useMemo(() => {
     const rawMem = dbData?.members;
     const getS = (m) => (calculateMemberStatus ? calculateMemberStatus(m?.expiryDate, m?.status) : (m?.status || 'Active'));
+    const total = rawMem?.total ?? gymMembers.length;
     const active = rawMem?.active ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'active').length;
     const expiring = rawMem?.expiring_soon ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'expiring soon').length;
     const expired = rawMem?.expired ?? gymMembers.filter((m) => getS(m).toLowerCase() === 'expired').length;
@@ -233,127 +281,181 @@ export const AnalyticsPage = () => {
       { name: 'Frozen', value: frozen, fill: PALETTE.blue }
     ].filter((item) => item.value > 0);
 
-    const planDistribution = rawMem?.by_plan && rawMem.by_plan.length > 0
-      ? rawMem.by_plan.map((item, idx) => ({
+    let planDistribution = [];
+    if (rawMem?.by_plan && rawMem.by_plan.length > 0) {
+      planDistribution = rawMem.by_plan
+        .map((item, idx) => ({
           name: item.name ? item.name.replace(' Membership', '') : 'General',
           count: item.count,
           fill: PIE_COLORS[idx % PIE_COLORS.length]
-        })).sort((a, b) => b.count - a.count)
-      : [
-          { name: 'Gold Quarterly', count: 3, fill: PALETTE.emerald },
-          { name: 'Silver Monthly', count: 2, fill: PALETTE.blue },
-          { name: 'Platinum Annual', count: 1, fill: PALETTE.indigo },
-          { name: 'Diamond VIP', count: 1, fill: PALETTE.amber }
-        ];
+        }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count);
+    } else if (gymMembers.length > 0) {
+      const map = {};
+      gymMembers.forEach(m => {
+        const plan = m.planName || m.plan || 'General';
+        map[plan] = (map[plan] || 0) + 1;
+      });
+      planDistribution = Object.entries(map).map(([name, count], idx) => ({
+        name: name.replace(' Membership', ''),
+        count,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      })).sort((a, b) => b.count - a.count);
+    }
 
     return {
+      total,
+      active,
+      expiring,
+      expired,
       statusBreakdown,
       planDistribution
     };
-  }, [dbData, gymMembers]);
+  }, [dbData, gymMembers, calculateMemberStatus]);
 
-  // 3. ATTENDANCE FOOTFALL DATA (From Database)
+  // 3. ATTENDANCE FOOTFALL DATA (100% Real Database Calculations)
   const attendanceData = useMemo(() => {
     const rawAtt = dbData?.attendance;
-    const busiestDay = rawAtt?.busiest_day ? new Date(rawAtt.busiest_day).toLocaleDateString('en-US', { weekday: 'long' }) : 'Sunday';
+    const totalCheckins = rawAtt?.total_checkins ?? attendance.length;
+    const busiestDay = rawAtt?.busiest_day
+      ? new Date(rawAtt.busiest_day).toLocaleDateString('en-US', { weekday: 'long' })
+      : (totalCheckins > 0 ? 'Recorded' : 'None');
 
-    const weeklyTraffic = rawAtt?.weekly_traffic && rawAtt.weekly_traffic.length > 0
+    const weeklyTraffic = (rawAtt?.weekly_traffic && rawAtt.weekly_traffic.length > 0)
       ? rawAtt.weekly_traffic
-      : [
-          { day: 'Mon', checkIns: 0 },
-          { day: 'Tue', checkIns: 3 },
-          { day: 'Wed', checkIns: 0 },
-          { day: 'Thu', checkIns: 0 },
-          { day: 'Fri', checkIns: 0 },
-          { day: 'Sat', checkIns: 0 },
-          { day: 'Sun', checkIns: 7 }
-        ];
+      : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+          day,
+          checkIns: 0
+        }));
 
-    const timeWindows = rawAtt?.time_windows && rawAtt.time_windows.length > 0
+    const timeWindows = (rawAtt?.time_windows && rawAtt.time_windows.length > 0)
       ? rawAtt.time_windows.map((w, idx) => ({
           ...w,
           fill: [PALETTE.emerald, PALETTE.blue, PALETTE.indigo, PALETTE.slate][idx % 4]
         }))
       : [
-          { window: 'Morning (6 - 10 AM)', volume: 4, fill: PALETTE.emerald },
-          { window: 'Mid-Day (11 AM - 4 PM)', volume: 2, fill: PALETTE.blue },
-          { window: 'Evening Peak (5 - 9 PM)', volume: 4, fill: PALETTE.indigo },
+          { window: 'Morning (6 - 10 AM)', volume: 0, fill: PALETTE.emerald },
+          { window: 'Mid-Day (11 AM - 4 PM)', volume: 0, fill: PALETTE.blue },
+          { window: 'Evening Peak (5 - 9 PM)', volume: 0, fill: PALETTE.indigo },
           { window: 'Night (9 - 11 PM)', volume: 0, fill: PALETTE.slate }
         ];
 
+    const hasTraffic = weeklyTraffic.some(d => d.checkIns > 0);
+    const hasTimeWindowTraffic = timeWindows.some(w => w.volume > 0);
+
     return {
+      totalCheckins,
       busiestDay,
       weeklyTraffic,
-      timeWindows
+      timeWindows,
+      hasTraffic,
+      hasTimeWindowTraffic
     };
-  }, [dbData]);
+  }, [dbData, attendance]);
 
-  // 4. PT DATA (From Database)
+  // 4. PT DATA (100% Real Database Calculations)
   const ptData = useMemo(() => {
     const rawPt = dbData?.pt_sessions;
+    const totalPackages = rawPt?.total_packages ?? (ptSessions ? ptSessions.length : 0);
+    const activePackages = rawPt?.active ?? 0;
 
-    const clients = rawPt?.clients && rawPt.clients.length > 0
-      ? rawPt.clients
-      : [
-          { member: 'Aarav Sharma', completed: 8, remaining: 16 },
-          { member: 'Priya Patel', completed: 6, remaining: 6 },
-          { member: 'Vikram Singh', completed: 3, remaining: 12 }
-        ];
+    let clients = [];
+    if (rawPt?.clients && rawPt.clients.length > 0) {
+      clients = rawPt.clients;
+    } else if (ptSessions.length > 0) {
+      clients = ptSessions.map(pt => ({
+        member: pt.memberName || pt.member?.name || 'Athlete',
+        completed: Number(pt.completedSessions || pt.completed_sessions || 0),
+        remaining: Number(pt.remainingSessions || pt.remaining_sessions || 0)
+      }));
+    }
 
-    const trainerLoads = rawPt?.trainer_loads && rawPt.trainer_loads.length > 0
-      ? rawPt.trainer_loads.map((t, idx) => ({
-          ...t,
-          fill: PIE_COLORS[idx % PIE_COLORS.length]
-        }))
-      : [
-          { trainer: 'Coach Alex Rivers', deliveredSessions: 11, fill: PALETTE.emerald },
-          { trainer: 'Elena Rostova', deliveredSessions: 6, fill: PALETTE.indigo }
-        ];
+    let trainerLoads = [];
+    if (rawPt?.trainer_loads && rawPt.trainer_loads.length > 0) {
+      trainerLoads = rawPt.trainer_loads.map((t, idx) => ({
+        ...t,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    } else if (ptSessions.length > 0) {
+      const map = {};
+      ptSessions.forEach(pt => {
+        const tr = pt.trainerName || pt.trainer?.name || 'Trainer';
+        map[tr] = (map[tr] || 0) + Number(pt.completedSessions || pt.completed_sessions || 0);
+      });
+      trainerLoads = Object.entries(map).map(([trainer, deliveredSessions], idx) => ({
+        trainer,
+        deliveredSessions,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    }
 
     return {
+      totalPackages,
+      activePackages,
       clients,
       trainerLoads
     };
-  }, [dbData]);
+  }, [dbData, ptSessions]);
 
-  // 5. CLASSES DATA (From Database)
+  // 5. CLASSES DATA (100% Real Database Calculations)
   const classData = useMemo(() => {
     const rawClasses = dbData?.classes;
+    const totalClasses = rawClasses?.total_classes ?? (bookedClasses ? bookedClasses.length : 0);
 
-    const classLoads = rawClasses?.class_loads && rawClasses.class_loads.length > 0
-      ? rawClasses.class_loads
-      : [
-          { name: 'Power Yoga & Core', bookings: 16, capacity: 20 },
-          { name: 'High Octane HIIT', bookings: 22, capacity: 25 },
-          { name: 'Barbell & Strength', bookings: 14, capacity: 15 },
-          { name: 'Bollywood Zumba', bookings: 28, capacity: 30 }
-        ];
+    let classLoads = [];
+    if (rawClasses?.class_loads && rawClasses.class_loads.length > 0) {
+      classLoads = rawClasses.class_loads;
+    } else if (bookedClasses && bookedClasses.length > 0) {
+      classLoads = bookedClasses.map(c => ({
+        name: c.name || c.title || 'Class',
+        bookings: Number(c.bookedCount || c.enrolledCount || 0),
+        capacity: Number(c.capacity || 20)
+      }));
+    }
 
     return {
+      totalClasses,
       classLoads
     };
-  }, [dbData]);
+  }, [dbData, bookedClasses]);
 
-  // 6. STORE / PRODUCTS DATA (From Database)
+  // 6. STORE / PRODUCTS DATA (100% Real Database Calculations)
   const storeData = useMemo(() => {
     const rawStore = dbData?.store;
+    const totalProducts = products ? products.length : 0;
+    const totalCatalogValue = rawStore?.total_revenue ?? 0;
 
-    const categories = rawStore?.categories && rawStore.categories.length > 0
-      ? rawStore.categories.map((c, idx) => ({
-          ...c,
-          fill: PIE_COLORS[idx % PIE_COLORS.length]
-        }))
-      : [
-          { category: 'Supplements', sales: 321506, units: 119, fill: PALETTE.emerald },
-          { category: 'Accessories', sales: 66953, units: 107, fill: PALETTE.indigo },
-          { category: 'Apparel', sales: 19485, units: 15, fill: PALETTE.blue },
-          { category: 'Equipment', sales: 18000, units: 15, fill: PALETTE.amber }
-        ];
+    let categories = [];
+    if (rawStore?.categories && rawStore.categories.length > 0) {
+      categories = rawStore.categories.map((c, idx) => ({
+        ...c,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    } else if (products && products.length > 0) {
+      const map = {};
+      const units = {};
+      products.forEach(p => {
+        const cat = p.category || 'General';
+        const price = Number(p.price || 0);
+        const stock = Number(p.stock || p.stockQuantity || 0);
+        map[cat] = (map[cat] || 0) + (price * stock);
+        units[cat] = (units[cat] || 0) + stock;
+      });
+      categories = Object.entries(map).map(([category, sales], idx) => ({
+        category,
+        sales,
+        units: units[category] || 0,
+        fill: PIE_COLORS[idx % PIE_COLORS.length]
+      }));
+    }
 
     return {
+      totalProducts,
+      totalCatalogValue,
       categories
     };
-  }, [dbData]);
+  }, [dbData, products]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto px-2 sm:px-4">
@@ -401,6 +503,83 @@ export const AnalyticsPage = () => {
             <Printer className="w-4 h-4 text-slate-500" />
             <span className="hidden sm:inline">Print</span>
           </button>
+        </div>
+      </div>
+
+      {/* ── TOP LIVE METRIC SUMMARY CARDS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        {/* Total Inflow */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Gross Revenue</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <IndianRupee className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+              ₹{financialData.totalInflow.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+            <span className="font-semibold text-emerald-600">{financialData.paidInvoicesCount}</span> paid invoices
+          </p>
+        </div>
+
+        {/* Operating Expenses */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Total Expenses</span>
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+              ₹{financialData.totalExpenses.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Net: <span className={`font-semibold ${financialData.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              ₹{financialData.netProfit.toLocaleString('en-IN')}
+            </span>
+          </p>
+        </div>
+
+        {/* Active Members */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Active Members</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+              {memberData.active}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Total: <span className="font-semibold text-slate-700">{memberData.total}</span> registered
+          </p>
+        </div>
+
+        {/* PT Packages */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">PT Packages</span>
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Dumbbell className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+              {ptData.totalPackages}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">
+            <span className="font-semibold text-purple-600">{ptData.clients.length}</span> active client quota
+          </p>
         </div>
       </div>
 
@@ -532,19 +711,27 @@ export const AnalyticsPage = () => {
             </div>
 
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={memberData.planDistribution} margin={{ top: 10, right: 10, left: -10, bottom: 15 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip suffix=" members" />} />
-                  <Bar dataKey="count" name="Subscribers" radius={[6, 6, 0, 0]} maxBarSize={36}>
-                    {memberData.planDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {memberData.planDistribution.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={memberData.planDistribution} margin={{ top: 10, right: 10, left: -10, bottom: 15 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" members" />} />
+                    <Bar dataKey="count" name="Subscribers" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      {memberData.planDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={Users}
+                  title="No Plan Subscriptions"
+                  message="No members are currently linked to subscription plans in the database."
+                />
+              )}
             </div>
           </div>
 
@@ -566,15 +753,23 @@ export const AnalyticsPage = () => {
             </div>
 
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attendanceData.weeklyTraffic} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
-                  <Bar dataKey="checkIns" name="Check-ins" fill={PALETTE.blue} radius={[6, 6, 0, 0]} maxBarSize={32} />
-                </BarChart>
-              </ResponsiveContainer>
+              {attendanceData.hasTraffic ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={attendanceData.weeklyTraffic} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
+                    <Bar dataKey="checkIns" name="Check-ins" fill={PALETTE.blue} radius={[6, 6, 0, 0]} maxBarSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={CalendarCheck}
+                  title="No Attendance Check-ins"
+                  message="No member turnstile punches recorded in the database yet."
+                />
+              )}
             </div>
           </div>
 
@@ -594,26 +789,34 @@ export const AnalyticsPage = () => {
               </div>
 
               <div className="h-72 w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Tooltip content={<CustomTooltip prefix="₹" />} />
-                    <Pie
-                      data={financialData.revenueStreams}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={95}
-                      paddingAngle={4}
-                    >
-                      {financialData.revenueStreams.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {financialData.revenueStreams.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Tooltip content={<CustomTooltip prefix="₹" />} />
+                      <Pie
+                        data={financialData.revenueStreams}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={95}
+                        paddingAngle={4}
+                      >
+                        {financialData.revenueStreams.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChartState
+                    icon={PieIcon}
+                    title="No Revenue Streams"
+                    message="No paid invoices or sales recorded in the database yet."
+                  />
+                )}
               </div>
             </div>
           )}
@@ -655,19 +858,27 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Live expense categories summed from database records.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={financialData.expenseCategories} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                  <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                  <YAxis type="category" dataKey="category" stroke="#94A3B8" fontSize={11} tickLine={false} width={100} />
-                  <Tooltip content={<CustomTooltip prefix="₹" />} />
-                  <Bar dataKey="amount" name="Expense (₹)" radius={[0, 4, 4, 0]} maxBarSize={24}>
-                    {financialData.expenseCategories.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {financialData.expenseCategories.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={financialData.expenseCategories} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                    <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                    <YAxis type="category" dataKey="category" stroke="#94A3B8" fontSize={11} tickLine={false} width={100} />
+                    <Tooltip content={<CustomTooltip prefix="₹" />} />
+                    <Bar dataKey="amount" name="Expense (₹)" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                      {financialData.expenseCategories.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={IndianRupee}
+                  title="No Expenses Logged"
+                  message="No operating expenses or bills recorded in the database."
+                />
+              )}
             </div>
           </div>
 
@@ -679,26 +890,34 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Breakdown of gross revenue between memberships, personal training, and shop merchandise.</p>
             <div className="h-72 w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip content={<CustomTooltip prefix="₹" />} />
-                  <Pie
-                    data={financialData.revenueStreams}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={100}
-                    paddingAngle={4}
-                  >
-                    {financialData.revenueStreams.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {financialData.revenueStreams.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip content={<CustomTooltip prefix="₹" />} />
+                    <Pie
+                      data={financialData.revenueStreams}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={100}
+                      paddingAngle={4}
+                    >
+                      {financialData.revenueStreams.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={PieIcon}
+                  title="No Revenue Streams"
+                  message="No revenue billing records or paid invoices found in the database."
+                />
+              )}
             </div>
           </div>
         </div>
@@ -717,19 +936,27 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Actual member subscriptions linked to plans in database.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={memberData.planDistribution} margin={{ top: 10, right: 10, left: -10, bottom: 15 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip suffix=" members" />} />
-                  <Bar dataKey="count" name="Subscribers" radius={[6, 6, 0, 0]} maxBarSize={36}>
-                    {memberData.planDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {memberData.planDistribution.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={memberData.planDistribution} margin={{ top: 10, right: 10, left: -10, bottom: 15 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" members" />} />
+                    <Bar dataKey="count" name="Subscribers" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      {memberData.planDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={Users}
+                  title="No Plan Subscriptions"
+                  message="No active members mapped to plans in the database."
+                />
+              )}
             </div>
           </div>
 
@@ -741,26 +968,34 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Live breakdown of Active, Expiring, and Expired members.</p>
             <div className="h-72 w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip content={<CustomTooltip suffix=" members" />} />
-                  <Pie
-                    data={memberData.statusBreakdown}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={4}
-                  >
-                    {memberData.statusBreakdown.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {memberData.statusBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip content={<CustomTooltip suffix=" members" />} />
+                    <Pie
+                      data={memberData.statusBreakdown}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      paddingAngle={4}
+                    >
+                      {memberData.statusBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={PieIcon}
+                  title="No Member Records"
+                  message="No members found in the database."
+                />
+              )}
             </div>
           </div>
         </div>
@@ -779,15 +1014,23 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Actual day-wise attendance distribution from database.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attendanceData.weeklyTraffic} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
-                  <Bar dataKey="checkIns" name="Check-ins" fill={PALETTE.blue} radius={[6, 6, 0, 0]} maxBarSize={32} />
-                </BarChart>
-              </ResponsiveContainer>
+              {attendanceData.hasTraffic ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={attendanceData.weeklyTraffic} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
+                    <Bar dataKey="checkIns" name="Check-ins" fill={PALETTE.blue} radius={[6, 6, 0, 0]} maxBarSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={CalendarCheck}
+                  title="No Attendance Punches"
+                  message="No attendance records logged in the database yet."
+                />
+              )}
             </div>
           </div>
 
@@ -799,19 +1042,27 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Punches mapped by check-in timestamp in database.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attendanceData.timeWindows} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                  <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                  <YAxis type="category" dataKey="window" stroke="#94A3B8" fontSize={10} tickLine={false} width={110} />
-                  <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
-                  <Bar dataKey="volume" name="Athletes" radius={[0, 6, 6, 0]} maxBarSize={24}>
-                    {attendanceData.timeWindows.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {attendanceData.hasTimeWindowTraffic ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={attendanceData.timeWindows} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                    <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="window" stroke="#94A3B8" fontSize={10} tickLine={false} width={110} />
+                    <Tooltip content={<CustomTooltip suffix=" check-ins" />} />
+                    <Bar dataKey="volume" name="Athletes" radius={[0, 6, 6, 0]} maxBarSize={24}>
+                      {attendanceData.timeWindows.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={Clock}
+                  title="No Time Punch Data"
+                  message="No attendance check-in timestamps found in the database."
+                />
+              )}
             </div>
           </div>
         </div>
@@ -830,17 +1081,25 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Completed sessions vs remaining quota per registered client in DB.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ptData.clients} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="member" stroke="#94A3B8" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip suffix=" sessions" />} />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="completed" name="Completed (OTP)" fill={PALETTE.emerald} radius={[4, 4, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="remaining" name="Remaining Quota" fill={PALETTE.slate} opacity={0.4} radius={[4, 4, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
+              {ptData.clients.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ptData.clients} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="member" stroke="#94A3B8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" sessions" />} />
+                    <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="completed" name="Completed (OTP)" fill={PALETTE.emerald} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    <Bar dataKey="remaining" name="Remaining Quota" fill={PALETTE.slate} opacity={0.4} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={Dumbbell}
+                  title="No PT Packages"
+                  message="No active personal training packages found in the database."
+                />
+              )}
             </div>
           </div>
 
@@ -852,19 +1111,27 @@ export const AnalyticsPage = () => {
             </h2>
             <p className="text-xs text-slate-500 mb-4">Delivered session count aggregated by assigned trainer.</p>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ptData.trainerLoads} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="trainer" stroke="#94A3B8" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip suffix=" sessions" />} />
-                  <Bar dataKey="deliveredSessions" name="Sessions Delivered" radius={[6, 6, 0, 0]} maxBarSize={32}>
-                    {ptData.trainerLoads.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {ptData.trainerLoads.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ptData.trainerLoads} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="trainer" stroke="#94A3B8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip suffix=" sessions" />} />
+                    <Bar dataKey="deliveredSessions" name="Sessions Delivered" radius={[6, 6, 0, 0]} maxBarSize={32}>
+                      {ptData.trainerLoads.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChartState
+                  icon={Users}
+                  title="No Coach Sessions"
+                  message="No coaches or personal training delivery sessions found in the database."
+                />
+              )}
             </div>
           </div>
         </div>
@@ -881,17 +1148,26 @@ export const AnalyticsPage = () => {
           </h2>
           <p className="text-xs text-slate-500 mb-4">Enrolled athletes vs total available slots from gym_classes table in database.</p>
           <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={classData.classLoads} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<CustomTooltip suffix=" athletes" />} />
-                <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="bookings" name="Enrolled Athletes" fill={PALETTE.indigo} radius={[4, 4, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="capacity" name="Max Capacity" fill={PALETTE.slate} opacity={0.3} radius={[4, 4, 0, 0]} maxBarSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
+            {classData.classLoads.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={classData.classLoads} margin={{ top: 10, right: 10, left: -10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip suffix=" athletes" />} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="bookings" name="Enrolled Athletes" fill={PALETTE.indigo} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="capacity" name="Max Capacity" fill={PALETTE.slate} opacity={0.3} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChartState
+                icon={Layers}
+                title="No Classes Scheduled"
+                message="No group fitness classes or batch schedules found in the database."
+                height="h-80"
+              />
+            )}
           </div>
         </div>
       )}
@@ -907,19 +1183,28 @@ export const AnalyticsPage = () => {
           </h2>
           <p className="text-xs text-slate-500 mb-4">Stock values aggregated from the products table in database.</p>
           <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={storeData.categories} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="category" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip prefix="₹" />} />
-                <Bar dataKey="sales" name="Catalog Value (₹)" radius={[6, 6, 0, 0]} maxBarSize={36}>
-                  {storeData.categories.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {storeData.categories.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={storeData.categories} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="category" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip content={<CustomTooltip prefix="₹" />} />
+                  <Bar dataKey="sales" name="Catalog Value (₹)" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                    {storeData.categories.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChartState
+                icon={ShoppingBag}
+                title="No Store Inventory"
+                message="No products or merchandise registered in the database."
+                height="h-80"
+              />
+            )}
           </div>
         </div>
       )}
