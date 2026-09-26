@@ -274,6 +274,7 @@ jobs:
           local-dir: ./backend/
           port: 21
           protocol: ftp
+          timeout: 180000
           exclude: |
             **/.git*
             **/.git*/**
@@ -361,9 +362,11 @@ jobs:
           test -f dist/.htaccess && echo ".htaccess confirmed in dist/"
 
       - name: Brief Pause for Hostinger FTP Connection Handshake
-        run: sleep 10
+        run: sleep 20
 
       - name: FTP Upload Frontend
+        id: ftp-frontend
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.HOSTINGER_FTP_SERVER }}
@@ -373,6 +376,30 @@ jobs:
           local-dir: ./frontend/dist/
           port: 21
           protocol: ftp
+          timeout: 180000
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+
+      - name: Pause Before FTP Retry (if initial upload timed out)
+        if: steps.ftp-frontend.outcome != 'success'
+        run: |
+          echo "Initial FTP upload timed out or failed. Pausing 25 seconds for Hostinger to reset connection..."
+          sleep 25
+
+      - name: FTP Upload Frontend (Retry Attempt)
+        if: steps.ftp-frontend.outcome != 'success'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          server-dir: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
+          local-dir: ./frontend/dist/
+          port: 21
+          protocol: ftp
+          timeout: 180000
           exclude: |
             **/.git*
             **/.git*/**
