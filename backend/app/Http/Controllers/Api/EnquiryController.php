@@ -454,8 +454,8 @@ class EnquiryController extends Controller
         ]);
         $profile->save();
 
-        // Create initial invoice if plan has a price
         if ($plan && $plan->price > 0) {
+            $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
             Invoice::create([
                 'gym_id' => $gymId,
                 'invoice_number' => 'INV-' . strtoupper(substr(uniqid(), -6)),
@@ -463,7 +463,7 @@ class EnquiryController extends Controller
                 'plan_id' => $plan->id,
                 'amount' => $plan->price,
                 'date' => now()->toDateString(),
-                'payment_method' => 'Cash / Online UPI',
+                'payment_method' => $paymentMethod,
                 'status' => 'Paid',
             ]);
         }

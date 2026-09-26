@@ -135,18 +135,27 @@ export const ReportsManager = ({ setActiveTab }) => {
       return pm.includes('cash') && !pm.includes('split');
     }
     if (filter === 'UPI') {
-      return (pm.includes('upi') || pm.includes('online')) && !pm.includes('split');
+      return (pm === 'upi' || (pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('split')));
+    }
+    if (filter === 'GPay') {
+      return (pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay')) && !pm.includes('split');
+    }
+    if (filter === 'PhonePe') {
+      return (pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe')) && !pm.includes('split');
+    }
+    if (filter === 'Account Transfer' || filter === 'Account') {
+      return (pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps')) && !pm.includes('split');
     }
     if (filter === 'Split') {
       return pm.includes('split');
     }
-    if (filter === 'Split: GPay' || filter === 'GPay') {
+    if (filter === 'Split: GPay') {
       return pm.includes('split') && (pm.includes('gpay') || pm.includes('google pay'));
     }
-    if (filter === 'Split: PhonePe' || filter === 'PhonePe') {
+    if (filter === 'Split: PhonePe') {
       return pm.includes('split') && (pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe'));
     }
-    if (filter === 'Split: Account' || filter === 'Account') {
+    if (filter === 'Split: Account') {
       return pm.includes('split') && (pm.includes('account') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps') || pm.includes('transfer'));
     }
     if (filter === 'Split: Other' || filter === 'Other') {
@@ -393,8 +402,11 @@ export const ReportsManager = ({ setActiveTab }) => {
                 className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option value="ALL">All Payment Modes</option>
+                <option value="UPI">UPI</option>
+                <option value="GPay">GPay</option>
+                <option value="PhonePe">PhonePe</option>
+                <option value="Account Transfer">Account Transfer</option>
                 <option value="Cash">Cash at Reception</option>
-                <option value="UPI">UPI / Online (Direct)</option>
                 <option value="Split">All Split Payments</option>
                 <option value="Split: GPay">Split: GPay</option>
                 <option value="Split: PhonePe">Split: PhonePe</option>
@@ -642,8 +654,11 @@ export const ReportsManager = ({ setActiveTab }) => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'ALL', label: 'All Modes' },
+                    { id: 'UPI', label: 'UPI' },
+                    { id: 'GPay', label: 'GPay' },
+                    { id: 'PhonePe', label: 'PhonePe' },
+                    { id: 'Account Transfer', label: 'Account' },
                     { id: 'Cash', label: 'Cash' },
-                    { id: 'UPI', label: 'UPI / Online' },
                     { id: 'Split', label: 'All Split' },
                     { id: 'Split: GPay', label: 'Split (GPay)' },
                     { id: 'Split: PhonePe', label: 'Split (PhonePe)' },

@@ -119,18 +119,27 @@ export const InvoicesPage = () => {
       return pm.includes('cash') && !pm.includes('split');
     }
     if (filter === 'UPI') {
-      return (pm.includes('upi') || pm.includes('online')) && !pm.includes('split');
+      return (pm === 'upi' || (pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('split')));
+    }
+    if (filter === 'GPay') {
+      return (pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay')) && !pm.includes('split');
+    }
+    if (filter === 'PhonePe') {
+      return (pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe')) && !pm.includes('split');
+    }
+    if (filter === 'Account Transfer' || filter === 'Account') {
+      return (pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps')) && !pm.includes('split');
     }
     if (filter === 'Split') {
       return pm.includes('split');
     }
-    if (filter === 'Split: GPay' || filter === 'GPay') {
+    if (filter === 'Split: GPay') {
       return pm.includes('split') && (pm.includes('gpay') || pm.includes('google pay'));
     }
-    if (filter === 'Split: PhonePe' || filter === 'PhonePe') {
+    if (filter === 'Split: PhonePe') {
       return pm.includes('split') && (pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe'));
     }
-    if (filter === 'Split: Account' || filter === 'Account') {
+    if (filter === 'Split: Account') {
       return pm.includes('split') && (pm.includes('account') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps') || pm.includes('transfer'));
     }
     if (filter === 'Split: Other' || filter === 'Other') {
@@ -989,8 +998,11 @@ export const InvoicesPage = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'ALL', label: 'All Modes' },
+                    { id: 'UPI', label: 'UPI' },
+                    { id: 'GPay', label: 'GPay' },
+                    { id: 'PhonePe', label: 'PhonePe' },
+                    { id: 'Account Transfer', label: 'Account' },
                     { id: 'Cash', label: 'Cash' },
-                    { id: 'UPI', label: 'UPI / Online' },
                     { id: 'Split', label: 'All Split' },
                     { id: 'Split: GPay', label: 'Split (GPay)' },
                     { id: 'Split: PhonePe', label: 'Split (PhonePe)' },
@@ -1495,7 +1507,7 @@ export const InvoicesPage = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Payment Mode:</span>
-                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI / Instant Transfer'}</strong>
+                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI'}</strong>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-slate-200/60">
                       <span className="text-slate-500">Settlement Status:</span>

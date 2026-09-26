@@ -1630,7 +1630,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Payment Mode:</span>
-                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI / Instant Transfer'}</strong>
+                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI'}</strong>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-slate-200/60">
                       <span className="text-slate-500">Settlement Status:</span>

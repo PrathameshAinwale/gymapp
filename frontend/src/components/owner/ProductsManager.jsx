@@ -799,17 +799,18 @@ export const ProductsManager = () => {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Method</label>
-              <div className="flex gap-2">
-                {['UPI', 'Cash', 'Card'].map((m) => (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {['UPI', 'GPay', 'PhonePe', 'Account Transfer', 'Cash', 'Card'].map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setSellPaymentMethod(m)}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer ${
+                    className={`py-1.5 px-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer text-center truncate ${
                       sellPaymentMethod === m
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
+                    title={m}
                   >
                     {m}
                   </button>

@@ -108,7 +108,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
 
   const invoiceId = (invoice.id || 'INV-001').toUpperCase();
   const invoiceDate = invoice.date || new Date().toISOString().split('T')[0];
-  const paymentMode = invoice.paymentMethod || 'UPI / Instant Transfer';
+  const paymentMode = invoice.paymentMethod || 'UPI';
   const planName = invoice.planName || 'Comprehensive Gym Membership Pass';
   const totalAmount = Number(invoice.amount) || 0;
   const taxableBase = Math.round(totalAmount / 1.18);

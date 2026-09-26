@@ -221,7 +221,10 @@ export const MembershipFreezeManager = () => {
       if (paymentFilter !== 'ALL') {
         const pm = (f.paymentMethod || '').toLowerCase();
         if (paymentFilter === 'Cash' && !pm.includes('cash')) return false;
-        if (paymentFilter === 'UPI' && !pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('paytm')) return false;
+        if (paymentFilter === 'UPI' && (!pm.includes('upi') || pm.includes('gpay') || pm.includes('phonepe'))) return false;
+        if (paymentFilter === 'GPay' && !pm.includes('gpay') && !pm.includes('google pay')) return false;
+        if (paymentFilter === 'PhonePe' && !pm.includes('phonepe') && !pm.includes('phone pay') && !pm.includes('phone_pe')) return false;
+        if ((paymentFilter === 'Account Transfer' || paymentFilter === 'Account') && !pm.includes('account') && !pm.includes('transfer') && !pm.includes('bank')) return false;
         if (paymentFilter === 'Split' && !pm.includes('split')) return false;
         if (paymentFilter === 'Card' && !pm.includes('card')) return false;
       }
@@ -245,7 +248,10 @@ export const MembershipFreezeManager = () => {
       if (paymentFilter !== 'ALL') {
         const pm = (t.paymentMethod || '').toLowerCase();
         if (paymentFilter === 'Cash' && !pm.includes('cash')) return false;
-        if (paymentFilter === 'UPI' && !pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('paytm')) return false;
+        if (paymentFilter === 'UPI' && (!pm.includes('upi') || pm.includes('gpay') || pm.includes('phonepe'))) return false;
+        if (paymentFilter === 'GPay' && !pm.includes('gpay') && !pm.includes('google pay')) return false;
+        if (paymentFilter === 'PhonePe' && !pm.includes('phonepe') && !pm.includes('phone pay') && !pm.includes('phone_pe')) return false;
+        if ((paymentFilter === 'Account Transfer' || paymentFilter === 'Account') && !pm.includes('account') && !pm.includes('transfer') && !pm.includes('bank')) return false;
         if (paymentFilter === 'Split' && !pm.includes('split')) return false;
         if (paymentFilter === 'Card' && !pm.includes('card')) return false;
       }
@@ -1069,7 +1075,10 @@ export const MembershipFreezeManager = () => {
                   onChange={(e) => setFreezeData({ ...freezeData, paymentMethod: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="UPI">UPI</option>
+                  <option value="GPay">GPay (Google Pay)</option>
+                  <option value="PhonePe">PhonePe</option>
+                  <option value="Account Transfer">Account Transfer</option>
                   <option value="Cash">Cash at Reception</option>
                   <option value="Split">Split (Cash + UPI)</option>
                   <option value="Credit Card">Credit / Debit Card</option>
@@ -1103,8 +1112,9 @@ export const MembershipFreezeManager = () => {
                     />
                     {/* Online Provider Selection */}
                     <div className="mt-1.5 space-y-1">
-                      <div className="grid grid-cols-4 gap-1">
+                      <div className="grid grid-cols-5 gap-1">
                         {[
+                          { id: 'UPI', label: 'UPI' },
                           { id: 'GPay', label: 'GPay' },
                           { id: 'PhonePe', label: 'PhonePe' },
                           { id: 'Account', label: 'Account' },
@@ -1240,7 +1250,10 @@ export const MembershipFreezeManager = () => {
                   onChange={(e) => setExtendData({ ...extendData, paymentMethod: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="UPI">UPI</option>
+                  <option value="GPay">GPay (Google Pay)</option>
+                  <option value="PhonePe">PhonePe</option>
+                  <option value="Account Transfer">Account Transfer</option>
                   <option value="Cash">Cash at Reception</option>
                   <option value="Split">Split (Cash + UPI)</option>
                   <option value="Credit Card">Credit / Debit Card</option>
@@ -1274,8 +1287,9 @@ export const MembershipFreezeManager = () => {
                     />
                     {/* Online Provider Selection */}
                     <div className="mt-1.5 space-y-1">
-                      <div className="grid grid-cols-4 gap-1">
+                      <div className="grid grid-cols-5 gap-1">
                         {[
+                          { id: 'UPI', label: 'UPI' },
                           { id: 'GPay', label: 'GPay' },
                           { id: 'PhonePe', label: 'PhonePe' },
                           { id: 'Account', label: 'Account' },
@@ -1485,7 +1499,10 @@ export const MembershipFreezeManager = () => {
                   onChange={(e) => setTransferData({ ...transferData, paymentMethod: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-violet-500 cursor-pointer"
                 >
-                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="UPI">UPI</option>
+                  <option value="GPay">GPay (Google Pay)</option>
+                  <option value="PhonePe">PhonePe</option>
+                  <option value="Account Transfer">Account Transfer</option>
                   <option value="Cash">Cash at Reception</option>
                   <option value="Split">Split (Cash + UPI)</option>
                   <option value="Credit Card">Credit / Debit Card</option>
@@ -1519,8 +1536,9 @@ export const MembershipFreezeManager = () => {
                     />
                     {/* Online Provider Selection */}
                     <div className="mt-1.5 space-y-1">
-                      <div className="grid grid-cols-4 gap-1">
+                      <div className="grid grid-cols-5 gap-1">
                         {[
+                          { id: 'UPI', label: 'UPI' },
                           { id: 'GPay', label: 'GPay' },
                           { id: 'PhonePe', label: 'PhonePe' },
                           { id: 'Account', label: 'Account' },
@@ -1674,10 +1692,13 @@ export const MembershipFreezeManager = () => {
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'ALL', label: 'All Modes' },
-                    { id: 'UPI', label: 'Online / UPI' },
+                    { id: 'UPI', label: 'UPI' },
+                    { id: 'GPay', label: 'GPay' },
+                    { id: 'PhonePe', label: 'PhonePe' },
+                    { id: 'Account Transfer', label: 'Account' },
                     { id: 'Cash', label: 'Cash' },
                     { id: 'Split', label: 'Split' },
                     { id: 'Card', label: 'Card' }

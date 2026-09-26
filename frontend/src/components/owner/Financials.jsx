@@ -101,7 +101,7 @@ export const Financials = () => {
     vendor: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    paymentMode: 'UPI / Net Banking',
+    paymentMode: 'UPI',
     receiptRef: '',
     notes: ''
   });
@@ -217,7 +217,7 @@ export const Financials = () => {
         vendor: '',
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        paymentMode: 'UPI / Net Banking',
+        paymentMode: 'UPI',
         receiptRef: '',
         notes: ''
       });
@@ -768,7 +768,7 @@ export const Financials = () => {
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200">
-                            {inv.paymentMethod || 'UPI / Online'}
+                            {inv.paymentMethod || 'UPI'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
@@ -1044,7 +1044,10 @@ export const Financials = () => {
                 onChange={(e) => setExpenseForm({ ...expenseForm, paymentMode: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-rose-500 cursor-pointer"
               >
-                <option value="UPI / Net Banking">UPI / Net Banking</option>
+                <option value="UPI">UPI</option>
+                <option value="GPay">GPay</option>
+                <option value="PhonePe">PhonePe</option>
+                <option value="Account Transfer">Account Transfer</option>
                 <option value="Direct Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
                 <option value="Corporate Card">Corporate Credit Card</option>
                 <option value="Cash">Cash Voucher</option>

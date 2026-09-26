@@ -173,7 +173,7 @@ export const MemberInvoices = () => {
                       </span>
                       <span>•</span>
                       <span className="text-slate-600 font-medium">
-                        {inv.paymentMethod || 'UPI / Net Banking'}
+                        {inv.paymentMethod || 'UPI'}
                       </span>
                     </div>
                   </div>
