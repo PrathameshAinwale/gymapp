@@ -3101,7 +3101,24 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // PT SESSIONS: Allocate new package to a member
-  const allocatePTSessions = async ({ memberId, memberName, memberEmail, trainerId, trainerName, totalSessions, packageTitle }) => {
+  const allocatePTSessions = async ({
+    memberId,
+    memberName,
+    memberEmail,
+    trainerId,
+    trainerName,
+    totalSessions,
+    packageTitle,
+    packageAmount,
+    paidAmount,
+    paymentMethod,
+    commissionPct,
+    commissionAmount,
+    startDate,
+    endDate,
+    notes,
+    splitDetails
+  }) => {
     const rawMemberId = typeof memberId === 'string' ? memberId.replace(/^(mem-|usr-member-)/, '') : memberId;
     const rawTrainerId = typeof trainerId === 'string' ? trainerId.replace(/^(trn-|tr-|usr-trainer-)/, '') : trainerId;
 
@@ -3113,14 +3130,27 @@ export const GymDataProvider = ({ children }) => {
         trainer_name: trainerName || 'Trainer',
         plan_name: packageTitle || `${totalSessions} 1-on-1 PT Sessions`,
         total_sessions: Number(totalSessions) || 12,
-        start_date: new Date().toISOString().split('T')[0]
+        start_date: startDate || new Date().toISOString().split('T')[0],
+        end_date: endDate || null,
+        package_amount: Number(packageAmount) || 0,
+        paid_amount: Number(paidAmount) >= 0 ? Number(paidAmount) : (Number(packageAmount) || 0),
+        payment_method: paymentMethod || 'UPI',
+        commission_pct: Number(commissionPct) >= 0 ? Number(commissionPct) : 20,
+        commission_amount: Number(commissionAmount) >= 0 ? Number(commissionAmount) : 0,
+        notes: notes || (splitDetails ? `Split: Cash ₹${splitDetails.cashAmount || 0}, Online ₹${splitDetails.onlineAmount || 0} via ${splitDetails.onlineMethod || 'UPI'}` : '')
       });
 
       if (res?.data) {
         const mapped = mapPtSession(res.data);
         setPtSessions((prev) => [mapped, ...prev.filter((p) => p.id !== mapped.id && p.numericId !== res.data.id)]);
-        addToast(`PT Package allocated & saved to database! Member OTP: ${res.data.client_otp}`, 'success');
+        addToast(`PT Package allocated & recorded in database! Member OTP: ${res.data.client_otp}`, 'success');
+
+        // Immediately refresh all linked modules
         fetchPtSessions?.();
+        fetchInvoices?.();
+        fetchCommissions?.();
+        fetchPayroll?.();
+        fetchDashboardStats?.();
         return mapped;
       }
     } catch (err) {
@@ -3139,7 +3169,8 @@ export const GymDataProvider = ({ children }) => {
       totalSessions: Number(totalSessions) || 12,
       completedSessions: 0,
       remainingSessions: Number(totalSessions) || 12,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: startDate || new Date().toISOString().split('T')[0],
+      endDate: endDate || null,
       otp: randomOtp,
       logs: []
     };
