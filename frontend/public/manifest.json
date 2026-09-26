@@ -8,9 +8,26 @@
       "sizes": "any"
     },
     {
+      "src": "/favicon-32x32.png",
+      "type": "image/png",
+      "sizes": "32x32"
+    },
+    {
+      "src": "/pulsefit-icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pulsefit-icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/archfit-logo.png",
       "type": "image/png",
-      "sizes": "1024x415",
+      "sizes": "1024x1024",
       "purpose": "any maskable"
     }
   ],
