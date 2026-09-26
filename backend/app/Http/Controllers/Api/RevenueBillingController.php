@@ -206,6 +206,9 @@ class RevenueBillingController extends Controller
             ], 422);
         }
 
+        $rawUserId = $request->user_id ?? $request->memberId ?? $request->member_id;
+        $userId = $rawUserId ? (int)str_replace('mem-', '', $rawUserId) : null;
+
         $gymId = $this->resolveGymId($request);
         if (!$gymId && $userId) {
             $user = User::find($userId);
@@ -214,9 +217,6 @@ class RevenueBillingController extends Controller
         if (!$gymId) {
             return response()->json(['success' => false, 'message' => 'Gym ID is required to record inflow.'], 422);
         }
-
-        $rawUserId = $request->user_id ?? $request->memberId ?? $request->member_id;
-        $userId = $rawUserId ? (int)str_replace('mem-', '', $rawUserId) : null;
 
         $rawPlanId = $request->plan_id ?? $request->planId;
         $planId = $rawPlanId ? (int)str_replace('plan-', '', $rawPlanId) : null;
@@ -255,17 +255,21 @@ class RevenueBillingController extends Controller
         ]);
 
         // Mirror to invoices for backward compatibility
-        if ($userId) {
-            Invoice::create([
-                'gym_id' => $gymId,
-                'invoice_number' => $refNo,
-                'user_id' => $userId,
-                'plan_id' => $planId,
-                'amount' => (float)$request->amount,
-                'date' => $record->date,
-                'payment_method' => $record->payment_method,
-                'status' => $record->status,
-            ]);
+        try {
+            if ($userId && User::where('id', $userId)->exists()) {
+                Invoice::create([
+                    'gym_id' => $gymId,
+                    'invoice_number' => $refNo,
+                    'user_id' => $userId,
+                    'plan_id' => $planId,
+                    'amount' => (float)$request->amount,
+                    'date' => $record->date,
+                    'payment_method' => $record->payment_method,
+                    'status' => $record->status,
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Invoice mirror note: ' . $e->getMessage());
         }
 
         return response()->json([

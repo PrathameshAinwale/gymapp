@@ -16,6 +16,11 @@ import {
   Award
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import {
+  hasSqlInjection,
+  sanitizeDecimal,
+  preventNonNumericKey
+} from '../../utils/validation';
 
 export const TrainerAdvancePayView = ({ setActiveTab }) => {
   const { advanceRequests = [], requestAdvancePay, addToast } = useGymData();
@@ -62,6 +67,10 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(advanceForm.reason)) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!advanceForm.amount || !advanceForm.reason) {
       addToast('Please specify an amount and reason for advance pay', 'error');
       return;
@@ -323,8 +332,10 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
               max={100000}
               step={1000}
               required
+              inputMode="decimal"
               value={advanceForm.amount}
-              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+              onKeyDown={(e) => preventNonNumericKey(e, true)}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: sanitizeDecimal(e.target.value) })}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500 shadow-xs"
             />
             <div className="flex gap-2 mt-2">

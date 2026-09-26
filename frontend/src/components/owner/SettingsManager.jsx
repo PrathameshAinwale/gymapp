@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { api } from '../../services/api';
 import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw } from 'lucide-react';
+import {
+  hasSqlInjection,
+  isValidEmail,
+  isValidPhone,
+  preventNonPhoneKey,
+  sanitizePhone,
+  sanitizeText
+} from '../../utils/validation';
 
 export const SettingsManager = () => {
   const { gymInfo, setGymInfo, fetchGymInfo, addToast } = useGymData();
@@ -43,11 +51,43 @@ export const SettingsManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
+
+    if (
+      hasSqlInjection(formData.name) ||
+      hasSqlInjection(formData.tagline) ||
+      hasSqlInjection(formData.address) ||
+      hasSqlInjection(formData.email) ||
+      hasSqlInjection(formData.phone) ||
+      hasSqlInjection(formData.operatingHours)
+    ) {
+      alert('Security Warning: SQL or script injection characters detected. Please remove special characters.');
+      return;
+    }
+
+    if (formData.email && !isValidEmail(formData.email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      alert('Please enter a valid 10-digit contact phone number.');
+      return;
+    }
+
     try {
       setIsSaving(true);
-      let updatedData = { ...formData };
+      const sanitizedPayload = {
+        name: sanitizeText(formData.name),
+        tagline: sanitizeText(formData.tagline),
+        address: sanitizeText(formData.address),
+        phone: formData.phone,
+        email: sanitizeText(formData.email),
+        operatingHours: sanitizeText(formData.operatingHours),
+        currency: formData.currency || '₹',
+      };
+      let updatedData = { ...sanitizedPayload };
       try {
-        const res = await api.gymInfo.update(formData);
+        const res = await api.gymInfo.update(sanitizedPayload);
         if (res?.data) {
           updatedData = {
             name: res.data.name || '',
@@ -97,7 +137,7 @@ export const SettingsManager = () => {
           title="Refresh from MySQL Database"
         >
           <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
-          <span>Refresh DB</span>
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -155,12 +195,14 @@ export const SettingsManager = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Phone</label>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Phone (10 Digits)</label>
               <input
-                type="text"
-                placeholder="+91 98765 43210"
+                type="tel"
+                maxLength={10}
+                placeholder="9876543210"
+                onKeyDown={preventNonPhoneKey}
                 value={formData.phone || ''}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>

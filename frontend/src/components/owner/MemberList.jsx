@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
@@ -6,6 +7,7 @@ import {
   Search,
   Plus,
   Filter,
+  X,
   Phone,
   Mail,
   Calendar,
@@ -41,6 +43,12 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
+import {
+  hasSqlInjection,
+  sanitizeDigits,
+  sanitizeDecimal,
+  preventNonNumericKey
+} from '../../utils/validation';
 import { AddMemberModal } from './AddMemberModal';
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
@@ -78,6 +86,28 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [dateFilterType, setDateFilterType] = useState('expiryDate'); // 'expiryDate' | 'joinDate'
+  const [planFilter, setPlanFilter] = useState('ALL');
+  const [trainerFilter, setTrainerFilter] = useState('ALL');
+  const [balanceFilter, setBalanceFilter] = useState('ALL'); // 'ALL' | 'DUE' | 'PAID'
+  const [genderFilter, setGenderFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [selectedMember, setSelectedMember] = useState(null);
   const [editingMember, setEditingMember] = useState(null);
   const [renewingMember, setRenewingMember] = useState(null);
@@ -283,6 +313,16 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingMember) return;
+    if (
+      hasSqlInjection(editingMember.name) ||
+      hasSqlInjection(editingMember.emergencyContact) ||
+      hasSqlInjection(editingMember.goal) ||
+      hasSqlInjection(editingMember.medicalNotes) ||
+      hasSqlInjection(newPassword)
+    ) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     setIsSavingEdit(true);
     try {
       const chosenTrainer = trainers.find((t) => String(t.id) === String(editingMember.trainerId));
@@ -315,24 +355,140 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     }
   };
 
-  const filteredMembers = (members || []).filter((m) => {
-    const term = (searchTerm || '').trim().toLowerCase();
-    const matchSearch =
-      !term ||
-      (m?.name || '').toLowerCase().includes(term) ||
-      (m?.email || '').toLowerCase().includes(term) ||
-      (m?.phone || '').toLowerCase().includes(term) ||
-      (m?.qrPassCode || '').toLowerCase().includes(term) ||
-      (m?.planName || '').toLowerCase().includes(term);
+  const activeCount = useMemo(() => {
+    return (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'active').length;
+  }, [members, calculateMemberStatus]);
 
-    if (statusFilter === 'ALL' || !statusFilter) return matchSearch;
-    const effectiveStatus = getMemberEffectiveStatus(m);
-    return matchSearch && effectiveStatus.toLowerCase() === statusFilter.toLowerCase();
-  });
+  const expiringCount = useMemo(() => {
+    return (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase().includes('expiring')).length;
+  }, [members, calculateMemberStatus]);
 
-  const activeCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'active').length;
-  const expiringCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'expiring soon').length;
-  const expiredCount = (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'expired').length;
+  const expiredCount = useMemo(() => {
+    return (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'expired').length;
+  }, [members, calculateMemberStatus]);
+
+  const frozenCount = useMemo(() => {
+    return (members || []).filter((m) => getMemberEffectiveStatus(m).toLowerCase() === 'frozen').length;
+  }, [members, calculateMemberStatus]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'ALL') count++;
+    if (selectedMonth) count++;
+    if (startDate || endDate) count++;
+    if (planFilter !== 'ALL') count++;
+    if (trainerFilter !== 'ALL') count++;
+    if (balanceFilter !== 'ALL') count++;
+    if (genderFilter !== 'ALL') count++;
+    return count;
+  }, [statusFilter, selectedMonth, startDate, endDate, planFilter, trainerFilter, balanceFilter, genderFilter]);
+
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setSelectedMonth('');
+    setStartDate('');
+    setEndDate('');
+    setPlanFilter('ALL');
+    setTrainerFilter('ALL');
+    setBalanceFilter('ALL');
+    setGenderFilter('ALL');
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return (members || [])
+      .filter((m) =>
+        (m?.name || '').toLowerCase().includes(term) ||
+        (m?.phone || '').includes(term) ||
+        (m?.email || '').toLowerCase().includes(term) ||
+        (m?.planName || '').toLowerCase().includes(term) ||
+        (m?.trainerName || '').toLowerCase().includes(term)
+      )
+      .slice(0, 5);
+  }, [searchTerm, members]);
+
+  const filteredMembers = useMemo(() => {
+    return (members || []).filter((m) => {
+      const term = (searchTerm || '').trim().toLowerCase();
+      const matchSearch =
+        !term ||
+        (m?.name || '').toLowerCase().includes(term) ||
+        (m?.email || '').toLowerCase().includes(term) ||
+        (m?.phone || '').toLowerCase().includes(term) ||
+        (m?.qrPassCode || '').toLowerCase().includes(term) ||
+        (m?.planName || '').toLowerCase().includes(term) ||
+        (m?.trainerName || '').toLowerCase().includes(term) ||
+        String(m?.id || '').toLowerCase().includes(term);
+
+      if (!matchSearch) return false;
+
+      // Status Filter
+      if (statusFilter !== 'ALL' && statusFilter) {
+        const effectiveStatus = getMemberEffectiveStatus(m);
+        if (effectiveStatus.toLowerCase() !== statusFilter.toLowerCase()) return false;
+      }
+
+      // Date Range Filter (Expiry Date or Joining Date)
+      if (startDate || endDate || selectedMonth) {
+        const rawDate = dateFilterType === 'joinDate'
+          ? (m?.joinDate || m?.created_at || m?.createdAt)
+          : m?.expiryDate;
+
+        if (!rawDate) return false;
+        const d = String(rawDate).split('T')[0];
+        if (startDate && d < startDate) return false;
+        if (endDate && d > endDate) return false;
+      }
+
+      // Plan Filter
+      if (planFilter !== 'ALL' && planFilter) {
+        const memberPlan = (m?.planName || '').toLowerCase();
+        if (!memberPlan.includes(planFilter.toLowerCase())) return false;
+      }
+
+      // Coach / Trainer Filter
+      if (trainerFilter !== 'ALL' && trainerFilter) {
+        if (trainerFilter === 'UNASSIGNED') {
+          if (m?.trainerId || m?.assignedTrainerId || m?.trainerName) return false;
+        } else {
+          const matchesId = String(m?.trainerId || m?.assignedTrainerId || '') === String(trainerFilter);
+          const matchesName = (m?.trainerName || '').toLowerCase() === String(trainerFilter).toLowerCase();
+          if (!matchesId && !matchesName) return false;
+        }
+      }
+
+      // Balance Filter
+      if (balanceFilter === 'DUE') {
+        const balance = parseFloat(m?.balanceDue ?? m?.balance ?? 0);
+        if (balance <= 0) return false;
+      } else if (balanceFilter === 'PAID') {
+        const balance = parseFloat(m?.balanceDue ?? m?.balance ?? 0);
+        if (balance > 0) return false;
+      }
+
+      // Gender Filter
+      if (genderFilter !== 'ALL' && genderFilter) {
+        if ((m?.gender || '').toLowerCase() !== genderFilter.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [
+    members,
+    searchTerm,
+    statusFilter,
+    selectedMonth,
+    startDate,
+    endDate,
+    dateFilterType,
+    planFilter,
+    trainerFilter,
+    balanceFilter,
+    genderFilter,
+    calculateMemberStatus
+  ]);
 
   return (
     <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-12 max-w-7xl mx-auto">
@@ -378,44 +534,180 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         </div>
       </div>
 
-      {/* Sleek Compact Search & Filter Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Search Input Box */}
-        <div className="relative flex-1 sm:w-72 sm:flex-initial">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search members..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Invoices & Reports pages) */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+          
+          {/* Search Input with Autocomplete */}
+          <div className="relative flex-1" ref={searchContainerRef}>
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search member name, phone, email, plan, or coach..."
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+
+            {/* Autocomplete Dropdown */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
+                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Matching Athletes ({searchSuggestions.length})
+                </div>
+                {searchSuggestions.map((m) => (
+                  <div
+                    key={m.id || m.userId}
+                    onClick={() => {
+                      setSearchTerm(m.name);
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                        {(m.name || 'M').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
+                          {m.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {m.phone || m.email || m.planName}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                        {m.planName || 'General Plan'}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {getMemberEffectiveStatus(m)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Dedicated Filter Button */}
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setShowFilterModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
             >
-              ✕
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="relative shrink-0">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All ({members.length})</option>
-            <option value="Active">Active ({activeCount})</option>
-            <option value="Expiring Soon">Expiring ({expiringCount})</option>
-            <option value="Expired">Expired ({expiredCount})</option>
-          </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            {selectedMonth && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                Month: {selectedMonth}
+                <button type="button" onClick={() => setSelectedMonth('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {startDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                From: {startDate}
+                <button type="button" onClick={() => setStartDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {endDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                To: {endDate}
+                <button type="button" onClick={() => setEndDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium capitalize">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter('ALL')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {planFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-xs font-medium">
+                <Target className="w-3 h-3 text-blue-600" />
+                Plan: {planFilter}
+                <button type="button" onClick={() => setPlanFilter('ALL')} className="hover:text-blue-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {trainerFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-800 border border-violet-200 rounded-lg text-xs font-medium">
+                <Dumbbell className="w-3 h-3 text-violet-600" />
+                Coach: {trainers.find(t => String(t.id) === String(trainerFilter))?.name || (trainerFilter === 'UNASSIGNED' ? 'Unassigned' : trainerFilter)}
+                <button type="button" onClick={() => setTrainerFilter('ALL')} className="hover:text-violet-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {balanceFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-medium">
+                <IndianRupee className="w-3 h-3 text-amber-600" />
+                Balance: {balanceFilter === 'DUE' ? 'Has Due' : 'Paid in Full'}
+                <button type="button" onClick={() => setBalanceFilter('ALL')} className="hover:text-amber-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {genderFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg text-xs font-medium">
+                Gender: {genderFilter}
+                <button type="button" onClick={() => setGenderFilter('ALL')} className="hover:text-slate-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+            >
+              Reset All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Member Count & Quick Summary */}
@@ -441,8 +733,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               : `No members match the search query "${searchTerm}" or the selected status filter.`}
             actionText="Add New Member"
             onAction={() => setIsOpenAddModal(true)}
-            secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Search Filter" : undefined}
-            onSecondaryAction={() => { setSearchTerm(''); setStatusFilter('ALL'); }}
+            secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
+            onSecondaryAction={handleResetFilters}
             accentColor="emerald"
           />
         ) : (
@@ -628,8 +920,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         : `No members match the search query "${searchTerm}" or the selected status filter.`}
                       actionText="Add New Member"
                       onAction={() => setIsOpenAddModal(true)}
-                      secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Search Filter" : undefined}
-                      onSecondaryAction={() => { setSearchTerm(''); setStatusFilter('ALL'); }}
+                      secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
+                      onSecondaryAction={handleResetFilters}
                       accentColor="emerald"
                     />
                   </td>
@@ -827,13 +1119,18 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         maxWidth="max-w-3xl"
       >
         {selectedMember && (() => {
-          const memberInvoices = (invoices || []).filter(
-            (inv) =>
-              String(inv.memberId) === String(selectedMember.id) ||
-              String(inv.userId) === String(selectedMember.id) ||
-              String(inv.user_id) === String(selectedMember.id) ||
-              (selectedMember.name && inv.memberName && inv.memberName.toLowerCase().trim() === selectedMember.name.toLowerCase().trim())
-          );
+          const cleanMemberId = String(selectedMember.id || selectedMember.userId || '').replace(/\D/g, '');
+          const cleanMemberPhone = String(selectedMember.phone || '').replace(/\D/g, '').slice(-10);
+          const memberNameClean = (selectedMember.name || '').toLowerCase().trim();
+
+          const memberInvoices = (invoices || []).filter((inv) => {
+            const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
+            if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
+            const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+            if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
+            if (inv.memberName && inv.memberName.toLowerCase().trim() === memberNameClean) return true;
+            return false;
+          });
 
           const totalPaidTillDate = memberInvoices.reduce(
             (sum, inv) => sum + (Number(inv.amount) || 0),
@@ -1612,12 +1909,14 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     type="number"
                     min="1"
                     max="125"
+                    inputMode="numeric"
                     readOnly={Boolean(editingMember.dob)}
                     placeholder={editingMember.dob ? 'Auto from DOB' : 'e.g. 25'}
                     value={editingMember.age !== undefined && editingMember.age !== null ? editingMember.age : ''}
+                    onKeyDown={(e) => preventNonNumericKey(e, false)}
                     onChange={(e) => {
-                      const val = e.target.value === '' ? '' : Number(e.target.value);
-                      setEditingMember(prev => ({ ...prev, age: val }));
+                      const cleanVal = sanitizeDigits(e.target.value, 3);
+                      setEditingMember(prev => ({ ...prev, age: cleanVal }));
                     }}
                     className={`w-full px-3 py-2 border rounded-lg text-xs transition-colors ${
                       editingMember.dob
@@ -1641,8 +1940,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <input
                     type="number"
                     step="0.1"
+                    inputMode="decimal"
                     value={editingMember.weight || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, weight: e.target.value })}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setEditingMember({ ...editingMember, weight: sanitizeDecimal(e.target.value) })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                     placeholder="e.g. 70"
                   />
@@ -1653,8 +1954,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <input
                     type="number"
                     step="0.1"
+                    inputMode="decimal"
                     value={editingMember.targetWeight || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, targetWeight: e.target.value })}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setEditingMember({ ...editingMember, targetWeight: sanitizeDecimal(e.target.value) })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                     placeholder="e.g. 75"
                   />
@@ -1665,8 +1968,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <input
                     type="number"
                     step="0.5"
+                    inputMode="decimal"
                     value={editingMember.height || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, height: e.target.value })}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setEditingMember({ ...editingMember, height: sanitizeDecimal(e.target.value) })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                     placeholder="e.g. 175"
                   />
@@ -1910,6 +2215,303 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           </form>
         )}
       </Modal>
+
+      {/* Advanced Filter Modal (Portalled to document.body, matching InvoicesPage & ReportsManager) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div
+            onClick={() => setShowFilterModal(false)}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fadeIn"
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 animate-scaleUp my-auto max-h-[88vh]"
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-700">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Filter Member Directory</h3>
+                  <p className="text-xs text-slate-500">Apply custom date ranges, subscription validity, coach & plan filters</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+              {/* Date Scope / Target Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Date Target
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDateFilterType('expiryDate')}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      dateFilterType === 'expiryDate'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Plan Expiry Date</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDateFilterType('joinDate')}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      dateFilterType === 'joinDate'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Joining Date</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Month Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Month Selection</span>
+                  <span className="text-[11px] font-normal text-slate-400">Select specific month</span>
+                </label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    if (e.target.value) {
+                      setStartDate(`${e.target.value}-01`);
+                      const [yr, mo] = e.target.value.split('-').map(Number);
+                      const lastDay = new Date(yr, mo, 0).getDate();
+                      setEndDate(`${e.target.value}-${String(lastDay).padStart(2, '0')}`);
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    { label: 'Current Month', value: new Date().toISOString().slice(0, 7) },
+                    { label: 'Next Month', value: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().slice(0, 7) },
+                    { label: 'Last Month', value: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7) },
+                  ].map((mPreset) => (
+                    <button
+                      key={mPreset.label}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMonth(mPreset.value);
+                        setStartDate(`${mPreset.value}-01`);
+                        const [yr, mo] = mPreset.value.split('-').map(Number);
+                        const lastDay = new Date(yr, mo, 0).getDate();
+                        setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
+                      }}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                        selectedMonth === mPreset.value
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {mPreset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Start Date & End Date Selector */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Custom Date Range
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Member Status */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Membership Status
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Active', label: 'Active' },
+                    { id: 'Expiring Soon', label: 'Expiring' },
+                    { id: 'Expired', label: 'Expired' },
+                    { id: 'Frozen', label: 'Frozen' }
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setStatusFilter(st.id)}
+                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
+                        statusFilter === st.id
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Membership Plan Tier */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Membership Plan</span>
+                  {planFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <select
+                  value={planFilter}
+                  onChange={(e) => setPlanFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="ALL">All Membership Plans</option>
+                  {(plans || []).map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name} {p.durationMonths ? `(${p.durationMonths} ${p.durationMonths === 1 ? 'Month' : 'Months'})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Assigned Coach */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Assigned Coach / Trainer</span>
+                  {trainerFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setTrainerFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <select
+                  value={trainerFilter}
+                  onChange={(e) => setTrainerFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="ALL">All Coaches</option>
+                  <option value="UNASSIGNED">Unassigned (No Coach)</option>
+                  {(trainers || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.specialty || t.role || 'Coach'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Balance Due & Gender */}
+              <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Payment Balance
+                  </label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: 'ALL', label: 'All' },
+                      { id: 'DUE', label: 'Has Due' },
+                      { id: 'PAID', label: 'Paid' },
+                    ].map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setBalanceFilter(b.id)}
+                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${
+                          balanceFilter === b.id
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Gender
+                  </label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: 'ALL', label: 'All' },
+                      { id: 'Male', label: 'Male' },
+                      { id: 'Female', label: 'Female' },
+                    ].map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setGenderFilter(g.id)}
+                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${
+                          genderFilter === g.id
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                Apply Filters ({filteredMembers.length} Results)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       </div>
   );
 };

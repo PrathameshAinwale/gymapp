@@ -15,6 +15,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { hasSqlInjection } from '../../utils/validation';
 
 export const TrainerLeaveView = ({ setActiveTab }) => {
   const {
@@ -81,6 +82,10 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
 
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(leaveForm.reason)) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason.trim()) {
       addToast('Please fill in all required fields', 'error');
       return;

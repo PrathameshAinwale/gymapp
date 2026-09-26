@@ -18,9 +18,29 @@ import {
   Flame,
   FileText,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+
+const UserAvatar = ({ src, alt, className = "w-11 h-11 rounded-xl", iconClassName = "w-5 h-5 text-teal-600" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-teal-50 border border-slate-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const TrainerSessionsView = ({ setActiveTab }) => {
   const { currentUser } = useAuth();
@@ -224,13 +244,11 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                   {/* Top Member Card */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={pt.memberAvatar || memberObj?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'}
+                      <UserAvatar
+                        src={pt.memberAvatar || memberObj?.avatar}
                         alt={pt.memberName}
-                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0"
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80';
-                        }}
+                        className="w-11 h-11 rounded-xl"
+                        iconClassName="w-5 h-5 text-teal-600"
                       />
                       <div className="min-w-0">
                         <h3 className="font-bold text-slate-900 text-sm truncate">{pt.memberName}</h3>

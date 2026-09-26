@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import {
   TrendingUp,
@@ -18,10 +19,12 @@ import {
   Printer,
   Download,
   Loader2,
-  RotateCw
+  RotateCw,
+  X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { hasSqlInjection, preventNonNumericKey, sanitizeDecimal, sanitizeDigits, sanitizeText } from '../../utils/validation';
 
 export const TrainerCommissions = () => {
   const {
@@ -43,6 +46,21 @@ export const TrainerCommissions = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [trainerFilter, setTrainerFilter] = useState('ALL');
+  const [serviceFilter, setServiceFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,15 +92,49 @@ export const TrainerCommissions = () => {
     .filter((c) => c.status === 'Paid')
     .reduce((acc, c) => acc + getCommissionEarned(c), 0);
 
-  const filteredCommissions = commissions.filter((c) => {
-    const matchesSearch =
-      (c.trainerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.memberName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.serviceType || c.sessionType || c.planName || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'ALL') count++;
+    if (trainerFilter !== 'ALL') count++;
+    if (serviceFilter !== 'ALL') count++;
+    return count;
+  }, [statusFilter, trainerFilter, serviceFilter]);
 
-    if (statusFilter === 'ALL') return matchesSearch;
-    return matchesSearch && c.status === statusFilter;
-  });
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setTrainerFilter('ALL');
+    setServiceFilter('ALL');
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return commissions
+      .filter((c) =>
+        (c.trainerName || '').toLowerCase().includes(term) ||
+        (c.memberName || '').toLowerCase().includes(term) ||
+        (c.serviceType || c.sessionType || c.planName || '').toLowerCase().includes(term)
+      )
+      .slice(0, 5);
+  }, [searchTerm, commissions]);
+
+  const filteredCommissions = useMemo(() => {
+    return commissions.filter((c) => {
+      const term = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        (c.trainerName || '').toLowerCase().includes(term) ||
+        (c.memberName || '').toLowerCase().includes(term) ||
+        (c.serviceType || c.sessionType || c.planName || '').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+      if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
+      if (trainerFilter !== 'ALL' && String(c.trainerId) !== String(trainerFilter) && c.trainerName !== trainerFilter) return false;
+      if (serviceFilter !== 'ALL' && !(c.serviceType || c.sessionType || c.planName || '').toLowerCase().includes(serviceFilter.toLowerCase())) return false;
+      return true;
+    });
+  }, [commissions, searchTerm, statusFilter, trainerFilter, serviceFilter]);
 
   const handleTrainerChange = (tId) => {
     const t = trainers.find((tr) => tr.id === tId);
@@ -104,10 +156,20 @@ export const TrainerCommissions = () => {
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(formData.serviceType)) {
+      alert('Invalid characters detected in service/program name. Please remove special characters.');
+      return;
+    }
+    const cleanService = sanitizeText(formData.serviceType);
+    if (!cleanService) {
+      alert('Please enter a valid service/program name.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      const pkgAmt = Number(formData.amount);
-      const pct = Number(formData.commissionPct);
+      const pkgAmt = Number(formData.amount) || 0;
+      const pct = Number(formData.commissionPct) || 0;
       const earned = Math.round((pkgAmt * pct) / 100);
 
       await addCommissionRecord({
@@ -115,8 +177,8 @@ export const TrainerCommissions = () => {
         trainerName: formData.trainerName || trainers[0]?.name,
         memberId: formData.memberId || members[0]?.id,
         memberName: formData.memberName || members[0]?.name,
-        serviceType: formData.serviceType,
-        planName: formData.serviceType,
+        serviceType: cleanService,
+        planName: cleanService,
         amount: pkgAmt,
         packageAmount: pkgAmt,
         ratePercent: pct,
@@ -189,61 +251,173 @@ export const TrainerCommissions = () => {
         </div>
       </div>
 
-      {/* Sleek Compact Search & Filter Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Search Input Box */}
-        <div className="relative flex-1 sm:w-72 sm:flex-initial">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search coach, member..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* Search & Filter Toolbar */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          {/* Autocomplete Search Bar */}
+          <div ref={searchContainerRef} className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search coach, member, or service type..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Autocomplete Suggestions */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Suggestions
+                </div>
+                {searchSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(item.trainerName || item.memberName || '');
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{item.trainerName}</span>
+                      <span className="text-[10px] text-slate-400">(Client: {item.memberName})</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                      ₹{getCommissionEarned(item).toLocaleString('en-IN')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons: Filter */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setShowFilterModal(true)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              ✕
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="relative shrink-0">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All ({commissions.length})</option>
-            <option value="Pending">Pending ({commissions.filter(c => c.status === 'Pending').length})</option>
-            <option value="Paid">Paid ({commissions.filter(c => c.status === 'Paid').length})</option>
-          </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips & Clear Action */}
+        {(activeFiltersCount > 0 || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+            <span className="text-slate-400 font-medium">Active:</span>
+
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Status: {statusFilter}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {trainerFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Coach: {trainers.find(t => String(t.id) === String(trainerFilter))?.name || trainerFilter}
+                <button
+                  type="button"
+                  onClick={() => setTrainerFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {serviceFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Service: {serviceFilter}
+                <button
+                  type="button"
+                  onClick={() => setServiceFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                "{searchTerm}"
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="hover:text-slate-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium ml-1 cursor-pointer"
+            >
+              Reset all
+            </button>
+
+            <span className="ml-auto text-[11px] text-slate-400">
+              Showing {filteredCommissions.length} of {commissions.length} records
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Mobile View: Cards */}
       <div className="block sm:hidden space-y-2.5">
         {filteredCommissions.length === 0 ? (
-          <div className="p-6 bg-white rounded-2xl border border-slate-200">
+          <div className="p-6 bg-white rounded-2xl border border-slate-200 text-center">
             <EmptyState
               icon={TrendingUp}
-              title={searchTerm || statusFilter !== 'ALL' ? "No matching commissions" : "No Commissions Logged"}
+              title={searchTerm || activeFiltersCount > 0 ? "No matching commissions" : "No Commissions Logged"}
               description={
-                searchTerm || statusFilter !== 'ALL'
+                searchTerm || activeFiltersCount > 0
                   ? "No trainer commission earnings match your current filter or search criteria."
                   : "Track personal training commissions, referral bonuses, and service earnings for certified coaches."
               }
-              actionText="Log Commission"
-              onAction={() => setIsAddModalOpen(true)}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              actionText={searchTerm || activeFiltersCount > 0 ? "Reset Filters" : "Log Commission"}
+              onAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : () => setIsAddModalOpen(true)}
               color="emerald"
             />
           </div>
@@ -327,16 +501,14 @@ export const TrainerCommissions = () => {
           <div className="p-8">
             <EmptyState
               icon={TrendingUp}
-              title={searchTerm || statusFilter !== 'ALL' ? "No matching commissions" : "No Commissions Logged"}
+              title={searchTerm || activeFiltersCount > 0 ? "No matching commissions" : "No Commissions Logged"}
               description={
-                searchTerm || statusFilter !== 'ALL'
+                searchTerm || activeFiltersCount > 0
                   ? "No trainer commission earnings match your current filter or search criteria."
                   : "Track personal training commissions, referral bonuses, and service earnings for certified coaches."
               }
-              actionText="Log Commission"
-              onAction={() => setIsAddModalOpen(true)}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              actionText={searchTerm || activeFiltersCount > 0 ? "Reset Filters" : "Log Commission"}
+              onAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : () => setIsAddModalOpen(true)}
               color="emerald"
             />
           </div>
@@ -492,8 +664,10 @@ export const TrainerCommissions = () => {
                 type="number"
                 required
                 min="0"
+                step="any"
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
                 value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, amount: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -505,8 +679,9 @@ export const TrainerCommissions = () => {
                 required
                 min="1"
                 max="100"
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
                 value={formData.commissionPct}
-                onChange={(e) => setFormData({ ...formData, commissionPct: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, commissionPct: sanitizeDigits(e.target.value, 3) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -659,6 +834,126 @@ export const TrainerCommissions = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Advanced Filter Modal (Portalled to document.body) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Filter Trainer Commissions</h3>
+                  <p className="text-xs text-slate-500">Refine PT incentives & payouts</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Payment Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Payout Status
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Pending', label: 'Pending Payout' },
+                    { id: 'Paid', label: 'Disbursed / Paid' }
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStatusFilter(s.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                        statusFilter === s.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coach / Trainer */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Coach / Trainer
+                </label>
+                <select
+                  value={trainerFilter}
+                  onChange={(e) => setTrainerFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="ALL">All Coaches</option>
+                  {trainers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.specialty || 'Coach'})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Service Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Service / Program Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Services' },
+                    { id: 'Personal Training', label: 'Personal Training (PT)' },
+                    { id: 'Nutrition', label: 'Nutrition Consultation' },
+                    { id: 'Group', label: 'Group Batch Coaching' }
+                  ].map((srv) => (
+                    <button
+                      key={srv.id}
+                      type="button"
+                      onClick={() => setServiceFilter(srv.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        serviceFilter === srv.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {srv.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Commission;
 use App\Models\MembershipFreeze;
+use App\Models\MembershipTransfer;
 use App\Models\ConsentForm;
 use App\Models\Payroll;
 use App\Models\BiometricDevice;
@@ -76,7 +77,7 @@ class OperationsController extends Controller
             'stock' => $stock,
             'min_stock_alert' => $minStock,
             'status' => $status,
-            'image' => $request->image ?? 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
+            'image' => $request->image ?? null,
         ]);
 
         return response()->json([
@@ -299,6 +300,9 @@ class OperationsController extends Controller
                 'freezeStartDate' => $f->freeze_start_date?->format('Y-m-d') ?? (string)$f->freeze_start_date,
                 'freezeEndDate' => $f->freeze_end_date?->format('Y-m-d') ?? (string)$f->freeze_end_date,
                 'daysFrozen' => (int)$f->days_frozen,
+                'fee' => (float)($f->fee ?? 0),
+                'paymentMethod' => $f->payment_method ?? 'Cash',
+                'type' => $f->type ?? 'freeze',
                 'reason' => $f->reason,
                 'status' => $f->status,
                 'approvedBy' => $f->approved_by,
@@ -315,6 +319,9 @@ class OperationsController extends Controller
         $daysFrozen = (int)($request->daysFrozen ?? $request->days_frozen ?? 15);
         $freezeStartDate = $request->freezeStartDate ?? $request->freeze_start_date ?? now()->toDateString();
         $freezeEndDate = $request->freezeEndDate ?? $request->freeze_end_date ?? now()->addDays($daysFrozen)->toDateString();
+        $fee = (float)($request->fee ?? $request->transferFee ?? 0);
+        $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
+        $type = $request->type ?? 'freeze';
 
         $freeze = MembershipFreeze::create([
             'gym_id' => $this->resolveGymId($request),
@@ -324,8 +331,11 @@ class OperationsController extends Controller
             'freeze_start_date' => $freezeStartDate,
             'freeze_end_date' => $freezeEndDate,
             'days_frozen' => $daysFrozen,
-            'reason' => $request->reason ?? 'Temporary Leave',
-            'status' => 'Active Freeze',
+            'fee' => $fee,
+            'payment_method' => $paymentMethod,
+            'type' => $type,
+            'reason' => $request->reason ?? ($type === 'extension' ? 'Membership Extension' : 'Temporary Leave'),
+            'status' => $type === 'extension' ? 'Extended' : 'Active Freeze',
             'approved_by' => $request->approvedBy ?? 'Vikramaditya Singhania (Owner)',
         ]);
 
@@ -334,14 +344,16 @@ class OperationsController extends Controller
             $profile = MemberProfile::where('user_id', $memberId)->first();
             if ($profile && $profile->expiry_date) {
                 $profile->expiry_date = \Carbon\Carbon::parse($profile->expiry_date)->addDays($daysFrozen)->toDateString();
-                $profile->status = 'Frozen (Paused)';
+                if ($type !== 'extension') {
+                    $profile->status = 'Frozen (Paused)';
+                }
                 $profile->save();
             }
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Freeze record saved in database',
+            'message' => ($type === 'extension' ? 'Extension' : 'Freeze') . ' record saved in database',
             'data' => [
                 'id' => 'frz-' . $freeze->id,
                 'numericId' => $freeze->id,
@@ -351,9 +363,110 @@ class OperationsController extends Controller
                 'freezeStartDate' => (string)$freeze->freeze_start_date,
                 'freezeEndDate' => (string)$freeze->freeze_end_date,
                 'daysFrozen' => (int)$freeze->days_frozen,
+                'fee' => (float)($freeze->fee ?? 0),
+                'paymentMethod' => $freeze->payment_method ?? 'Cash',
+                'type' => $freeze->type ?? 'freeze',
                 'reason' => $freeze->reason,
                 'status' => $freeze->status,
                 'approvedBy' => $freeze->approved_by,
+            ]
+        ], 201);
+    }
+
+    public function getTransfers(Request $request)
+    {
+        $gymId = $this->resolveGymId($request);
+        $query = MembershipTransfer::query();
+        if ($gymId) {
+            $query->where('gym_id', $gymId);
+        }
+        $transfers = $query->orderBy('id', 'desc')->get()->map(function ($t) {
+            return [
+                'id' => 'trf-' . $t->id,
+                'numericId' => $t->id,
+                'fromMemberId' => $t->from_member_id,
+                'fromMemberName' => $t->from_member_name,
+                'toMemberId' => $t->to_member_id,
+                'toMemberName' => $t->to_member_name,
+                'toMemberPhone' => $t->to_member_phone,
+                'planName' => $t->plan_name,
+                'daysRemaining' => (int)$t->days_remaining,
+                'transferFee' => (float)$t->transfer_fee,
+                'paymentMethod' => $t->payment_method ?? 'Cash',
+                'transferDate' => $t->transfer_date?->format('Y-m-d') ?? (string)$t->transfer_date,
+                'reason' => $t->reason,
+                'status' => $t->status ?? 'Completed',
+            ];
+        });
+
+        return response()->json(['success' => true, 'data' => $transfers]);
+    }
+
+    public function storeTransfer(Request $request)
+    {
+        $gymId = $this->resolveGymId($request);
+        $fromMemberIdRaw = $request->fromMemberId ?? $request->from_member_id;
+        $fromMemberId = $fromMemberIdRaw ? (int)str_replace('mem-', '', $fromMemberIdRaw) : null;
+        $toMemberIdRaw = $request->toMemberId ?? $request->to_member_id;
+        $toMemberId = $toMemberIdRaw ? (int)str_replace('mem-', '', $toMemberIdRaw) : null;
+
+        $transfer = MembershipTransfer::create([
+            'gym_id' => $gymId,
+            'from_member_id' => $fromMemberId,
+            'from_member_name' => $request->fromMemberName ?? $request->from_member_name ?? 'Source Member',
+            'to_member_id' => $toMemberId,
+            'to_member_name' => $request->toMemberName ?? $request->to_member_name ?? 'Recipient Member',
+            'to_member_phone' => $request->toMemberPhone ?? $request->to_member_phone ?? null,
+            'plan_name' => $request->planName ?? $request->plan_name ?? 'Membership Plan',
+            'days_remaining' => (int)($request->daysRemaining ?? $request->days_remaining ?? 30),
+            'transfer_fee' => (float)($request->transferFee ?? $request->transfer_fee ?? 0),
+            'payment_method' => $request->paymentMethod ?? $request->payment_method ?? 'Cash',
+            'transfer_date' => $request->transferDate ?? $request->transfer_date ?? now()->toDateString(),
+            'reason' => $request->reason ?? 'Relocation/Transfer',
+            'status' => 'Completed',
+        ]);
+
+        // Transfer membership: update source to Inactive / Transferred and update or set recipient expiry
+        if ($fromMemberId) {
+            $fromProfile = MemberProfile::where('user_id', $fromMemberId)->first();
+            if ($fromProfile) {
+                $days = (int)($request->daysRemaining ?? 30);
+                $fromProfile->status = 'Transferred';
+                $fromProfile->save();
+
+                // If recipient exists in system
+                if ($toMemberId) {
+                    $toProfile = MemberProfile::where('user_id', $toMemberId)->first();
+                    if ($toProfile) {
+                        $currentExpiry = $toProfile->expiry_date && \Carbon\Carbon::parse($toProfile->expiry_date)->isFuture()
+                            ? \Carbon\Carbon::parse($toProfile->expiry_date)
+                            : now();
+                        $toProfile->expiry_date = $currentExpiry->addDays($days)->toDateString();
+                        $toProfile->status = 'Active';
+                        $toProfile->save();
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Membership transferred successfully',
+            'data' => [
+                'id' => 'trf-' . $transfer->id,
+                'numericId' => $transfer->id,
+                'fromMemberId' => $transfer->from_member_id,
+                'fromMemberName' => $transfer->from_member_name,
+                'toMemberId' => $transfer->to_member_id,
+                'toMemberName' => $transfer->to_member_name,
+                'toMemberPhone' => $transfer->to_member_phone,
+                'planName' => $transfer->plan_name,
+                'daysRemaining' => (int)$transfer->days_remaining,
+                'transferFee' => (float)$transfer->transfer_fee,
+                'paymentMethod' => $transfer->payment_method,
+                'transferDate' => (string)$transfer->transfer_date,
+                'reason' => $transfer->reason,
+                'status' => $transfer->status,
             ]
         ], 201);
     }
@@ -464,6 +577,94 @@ class OperationsController extends Controller
     public function getPayroll(Request $request)
     {
         $gymId = $this->resolveGymId($request);
+        $currentMonth = $request->query('month') ?? now()->format('F Y');
+
+        // Auto-provision or update current month's payroll for all staff and trainers if gymId is available
+        if ($gymId) {
+            $staffUsers = User::where('gym_id', $gymId)
+                ->whereIn('role', ['trainer', 'manager', 'accounts', 'staff'])
+                ->with('trainerProfile')
+                ->get();
+
+            foreach ($staffUsers as $stf) {
+                // Check if payroll record already exists for this staff for the current cycle
+                $existing = Payroll::where('gym_id', $gymId)
+                    ->where('employee_id', $stf->id)
+                    ->where('month', $currentMonth)
+                    ->first();
+
+                // 1. PT Commission: for trainers, calculate sum of commission from trainer commissions for this particular trainer
+                $trainerCommission = 0.0;
+                if ($stf->role === 'trainer') {
+                    $trainerCommission = (float)Commission::where('gym_id', $gymId)
+                        ->where(function ($q) use ($stf) {
+                            $q->where('trainer_id', $stf->id)
+                              ->orWhere('trainer_name', $stf->name);
+                        })
+                        ->sum('commission_earned');
+                }
+
+                // 2. Deductions: empty (0) at first, but once added for any staff/trainer, always comes for that trainer/staff
+                $savedDeductions = (float)($stf->deductions ?? 0);
+                if ($savedDeductions <= 0) {
+                    $prevDeduction = Payroll::where('employee_id', $stf->id)
+                        ->where('deductions', '>', 0)
+                        ->latest('id')
+                        ->value('deductions');
+                    if ($prevDeduction && (float)$prevDeduction > 0) {
+                        $savedDeductions = (float)$prevDeduction;
+                        $stf->update(['deductions' => $savedDeductions]);
+                    }
+                }
+
+                $baseSalary = $stf->role === 'trainer'
+                    ? (float)($stf->trainerProfile?->monthly_salary ?? $stf->salary ?? 30000)
+                    : (float)($stf->salary ?? 45000);
+
+                if (!$existing) {
+                    // Create new payroll record:
+                    // PT commission from trainer commissions, deductions from persistent profile (or 0), bonus 0 (empty until filled)
+                    $bonus = 0.0;
+                    $deductions = $savedDeductions;
+                    $netPay = max(0, $baseSalary + $trainerCommission + $bonus - $deductions);
+
+                    $roleLabel = $stf->role === 'trainer'
+                        ? ($stf->trainerProfile?->specialty ? $stf->trainerProfile->specialty . ' Coach' : 'Fitness Coach')
+                        : ucfirst($stf->role);
+
+                    Payroll::create([
+                        'gym_id' => $gymId,
+                        'employee_id' => $stf->id,
+                        'employee_name' => $stf->name,
+                        'role' => $roleLabel,
+                        'month' => $currentMonth,
+                        'base_salary' => $baseSalary,
+                        'commission_earned' => $trainerCommission,
+                        'incentives' => 0.0,
+                        'bonus' => $bonus,
+                        'deductions' => $deductions,
+                        'net_pay' => $netPay,
+                        'status' => 'Pending',
+                    ]);
+                } else if ($existing->status === 'Pending') {
+                    // For pending records, sync trainer commission dynamically and ensure persistent deductions apply
+                    $changes = false;
+                    if ($stf->role === 'trainer' && (float)$existing->commission_earned !== $trainerCommission) {
+                        $existing->commission_earned = $trainerCommission;
+                        $changes = true;
+                    }
+                    if ((float)$existing->deductions === 0.0 && $savedDeductions > 0) {
+                        $existing->deductions = $savedDeductions;
+                        $changes = true;
+                    }
+                    if ($changes) {
+                        $existing->net_pay = max(0, (float)$existing->base_salary + (float)$existing->commission_earned + (float)$existing->bonus - (float)$existing->deductions);
+                        $existing->save();
+                    }
+                }
+            }
+        }
+
         $query = Payroll::query();
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
@@ -536,6 +737,15 @@ class OperationsController extends Controller
             'deductions' => $deductions,
             'net_pay' => max(0, $netPay),
         ];
+
+        // Persist deductions to the employee's user profile so that once added, it always comes for that trainer/staff
+        if ($request->has('deductions') && $p->employee_id) {
+            $staffUser = User::find($p->employee_id);
+            if ($staffUser) {
+                $staffUser->deductions = $deductions;
+                $staffUser->save();
+            }
+        }
 
         if ($request->has('notes')) {
             $updates['notes'] = $request->notes;
@@ -750,6 +960,10 @@ class OperationsController extends Controller
                 'durationWeeks' => (int)$p->duration_weeks,
                 'popular' => (bool)$p->popular,
                 'color' => $p->color,
+                'offer' => $p->offer,
+                'offerText' => $p->offer,
+                'offerDays' => (int)($p->offer_days ?? 0),
+                'offer_days' => (int)($p->offer_days ?? 0),
                 'features' => $p->features ?? [],
             ];
         });
@@ -766,6 +980,8 @@ class OperationsController extends Controller
             'sessions' => (int)$request->sessions,
             'duration_weeks' => (int)($request->durationWeeks ?? 4),
             'popular' => (bool)($request->popular ?? false),
+            'offer' => $request->offer ?? $request->offerText ?? null,
+            'offer_days' => (int)($request->offer_days ?? $request->offerDays ?? 0),
             'color' => $request->color ?? 'from-purple-500/20 to-pink-500/20 border-purple-500/40',
             'features' => $request->features ?? [],
         ]);
@@ -800,6 +1016,10 @@ class OperationsController extends Controller
                 'popular' => (bool)$r->popular,
                 'color' => $r->color,
                 'type' => 'Therapy',
+                'offer' => $r->offer,
+                'offerText' => $r->offer,
+                'offerDays' => (int)($r->offer_days ?? 0),
+                'offer_days' => (int)($r->offer_days ?? 0),
                 'description' => !empty($features) ? (is_array($features) ? implode('. ', $features) : $features) : 'Full recovery & wellness therapy session.',
                 'features' => is_array($features) ? $features : [],
             ];
@@ -825,6 +1045,8 @@ class OperationsController extends Controller
             'duration' => $request->duration ?? '45 Mins',
             'sessions' => (int)($request->sessions ?? 1),
             'popular' => (bool)($request->popular ?? false),
+            'offer' => $request->offer ?? $request->offerText ?? null,
+            'offer_days' => (int)($request->offer_days ?? $request->offerDays ?? 0),
             'color' => $request->color ?? 'from-blue-500/20 to-teal-500/20 border-blue-500/40',
             'features' => $features ?? [],
         ]);

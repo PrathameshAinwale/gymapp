@@ -28,6 +28,11 @@ import {
   RotateCw
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import {
+  hasSqlInjection,
+  sanitizeDecimal,
+  preventNonNumericKey
+} from '../../utils/validation';
 import { RecordPaymentModal } from './RecordPaymentModal';
 
 export const Financials = () => {
@@ -186,6 +191,15 @@ export const Financials = () => {
   // Handle Add Expense Submit
   const handleAddExpenseSubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(expenseForm.title) ||
+      hasSqlInjection(expenseForm.vendor) ||
+      hasSqlInjection(expenseForm.receiptRef) ||
+      hasSqlInjection(expenseForm.notes)
+    ) {
+      setExpenseError('Disallowed characters or SQL injection syntax detected.');
+      return;
+    }
     if (!expenseForm.title || !expenseForm.amount) return;
 
     setIsSubmittingExpense(true);
@@ -995,9 +1009,11 @@ export const Financials = () => {
                   type="number"
                   required
                   min="1"
-                  step="1"
+                  step="any"
+                  inputMode="decimal"
                   value={expenseForm.amount}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: sanitizeDecimal(e.target.value) })}
                   placeholder="e.g. 45000"
                   className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-rose-500"
                 />

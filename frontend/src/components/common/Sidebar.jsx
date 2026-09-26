@@ -44,12 +44,12 @@ export const getNavSectionsForSuperadmin = () => [
     title: 'Operations & Schedule',
     items: [
       { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-      { id: 'whatsapp-automation', label: 'WhatsApp & Templates', icon: MessageSquare },
       { id: 'members', label: 'Member Directory', icon: Users },
       { id: 'classes', label: 'Classes & Batches', icon: Calendar },
       { id: 'pt-sessions', label: 'PT Sessions Tracker', icon: Dumbbell },
       { id: 'enquiries', label: 'Enquiries & Leads', icon: PhoneCall },
-      { id: 'attendance', label: 'Attendance Tracker', icon: CalendarCheck }
+      { id: 'attendance', label: 'Attendance Tracker', icon: CalendarCheck },
+      { id: 'whatsapp-automation', label: 'WhatsApp & Templates', icon: MessageSquare },
     ]
   },
   {
@@ -63,7 +63,6 @@ export const getNavSectionsForSuperadmin = () => [
     title: 'Staff & Payroll',
     items: [
       { id: 'staff-accounts', label: 'Create Account / Staff', icon: UserPlus },
-      { id: 'trainers', label: 'Coach Roster', icon: Award },
       { id: 'leaves', label: 'Leave Management', icon: CalendarDays },
       { id: 'advance-pay', label: 'Advance Pay Requests', icon: Coins },
       { id: 'payroll', label: 'Employee Payroll', icon: Wallet },

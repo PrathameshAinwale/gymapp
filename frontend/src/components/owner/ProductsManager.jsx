@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import {
   ShoppingBag,
@@ -18,10 +19,39 @@ import {
   IndianRupee,
   Layers,
   Loader2,
-  RotateCw
+  RotateCw,
+  X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import {
+  hasSqlInjection,
+  sanitizeDigits,
+  sanitizeDecimal,
+  preventNonNumericKey
+} from '../../utils/validation';
+
+const ProductImage = ({ src, alt, category }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+        <Package className="w-10 h-10 sm:w-12 sm:h-12 stroke-[1.5] text-slate-400 mb-1" />
+        <span className="text-[10px] font-medium text-slate-500 tracking-wide uppercase">{category || 'Product'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const ProductsManager = () => {
   const {
@@ -32,7 +62,8 @@ export const ProductsManager = () => {
     recordProductSale,
     members,
     fetchProducts,
-    fetchMembers
+    fetchMembers,
+    addToast
   } = useGymData();
 
   useEffect(() => {
@@ -42,6 +73,22 @@ export const ProductsManager = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [stockStatusFilter, setStockStatusFilter] = useState('ALL');
+  const [priceRangeFilter, setPriceRangeFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [isSubmittingSell, setIsSubmittingSell] = useState(false);
@@ -59,7 +106,7 @@ export const ProductsManager = () => {
     costPrice: 650,
     stock: 20,
     minStockAlert: 5,
-    image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
+    image: '',
     description: ''
   });
 
@@ -79,18 +126,72 @@ export const ProductsManager = () => {
     (p) => Number(p.stock) <= Number(p.minStockAlert || 5) && Number(p.stock) > 0
   ).length;
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.sku || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.category || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== 'ALL') count++;
+    if (stockStatusFilter !== 'ALL') count++;
+    if (priceRangeFilter !== 'ALL') count++;
+    return count;
+  }, [categoryFilter, stockStatusFilter, priceRangeFilter]);
 
-    if (categoryFilter === 'ALL') return matchesSearch;
-    return matchesSearch && (p.category || '').toLowerCase() === categoryFilter.toLowerCase();
-  });
+  const handleResetFilters = () => {
+    setCategoryFilter('ALL');
+    setStockStatusFilter('ALL');
+    setPriceRangeFilter('ALL');
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return products
+      .filter((p) =>
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.sku || '').toLowerCase().includes(term) ||
+        (p.category || '').toLowerCase().includes(term)
+      )
+      .slice(0, 5);
+  }, [searchTerm, products]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch =
+        !searchTerm.trim() ||
+        (p.name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (p.sku || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (p.category || '').toLowerCase().includes(searchTerm.toLowerCase().trim());
+
+      if (!matchesSearch) return false;
+
+      if (categoryFilter !== 'ALL' && (p.category || '').toLowerCase() !== categoryFilter.toLowerCase()) {
+        return false;
+      }
+
+      if (stockStatusFilter !== 'ALL') {
+        const stock = Number(p.stock) || 0;
+        const minAlert = Number(p.minStockAlert || 5);
+        if (stockStatusFilter === 'IN_STOCK' && stock <= minAlert) return false;
+        if (stockStatusFilter === 'LOW_STOCK' && (stock > minAlert || stock <= 0)) return false;
+        if (stockStatusFilter === 'OUT_OF_STOCK' && stock > 0) return false;
+      }
+
+      if (priceRangeFilter !== 'ALL') {
+        const price = Number(p.price) || 0;
+        if (priceRangeFilter === 'UNDER_500' && price >= 500) return false;
+        if (priceRangeFilter === '500_1500' && (price < 500 || price > 1500)) return false;
+        if (priceRangeFilter === 'OVER_1500' && price <= 1500) return false;
+      }
+
+      return true;
+    });
+  }, [products, searchTerm, categoryFilter, stockStatusFilter, priceRangeFilter]);
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(formData.name) || hasSqlInjection(formData.sku) || hasSqlInjection(formData.description)) {
+      addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!formData.name) return;
 
     try {
@@ -112,7 +213,7 @@ export const ProductsManager = () => {
         costPrice: 650,
         stock: 20,
         minStockAlert: 5,
-        image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
+        image: '',
         description: ''
       });
     } finally {
@@ -122,6 +223,10 @@ export const ProductsManager = () => {
 
   const handleSellSubmit = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(buyerName)) {
+      addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!sellingProduct) return;
 
     try {
@@ -213,46 +318,157 @@ export const ProductsManager = () => {
         </div>
       </div>
 
-      {/* Sleek Compact Search & Category Filter Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Search Input Box */}
-        <div className="relative flex-1 sm:w-72 sm:flex-initial">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search products, SKU, category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* Search & Filter Toolbar */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          {/* Autocomplete Search Bar */}
+          <div ref={searchContainerRef} className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search products by name, SKU, or category..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Autocomplete Suggestions Dropdown */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Product Suggestions
+                </div>
+                {searchSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(item.name || '');
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{item.name}</span>
+                      <span className="text-[10px] text-slate-400">({item.sku})</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                      ₹{item.price}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons: Filter */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setShowFilterModal(true)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              ✕
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Category Filter Dropdown */}
-        <div className="relative shrink-0">
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All ({products.length})</option>
-            <option value="Supplements">Supplements ({products.filter(p => p.category === 'Supplements').length})</option>
-            <option value="Accessories">Accessories ({products.filter(p => p.category === 'Accessories').length})</option>
-            <option value="Gear">Gear ({products.filter(p => p.category === 'Gear').length})</option>
-            <option value="Apparel">Apparel ({products.filter(p => p.category === 'Apparel').length})</option>
-            <option value="Drinks">Drinks ({products.filter(p => p.category === 'Drinks').length})</option>
-          </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips & Clear Action */}
+        {(activeFiltersCount > 0 || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+            <span className="text-slate-400 font-medium">Active:</span>
+
+            {categoryFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Category: {categoryFilter}
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {stockStatusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Stock: {stockStatusFilter === 'IN_STOCK' ? 'In Stock' : stockStatusFilter === 'LOW_STOCK' ? 'Low Stock' : 'Out of Stock'}
+                <button
+                  type="button"
+                  onClick={() => setStockStatusFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {priceRangeFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Price: {priceRangeFilter === 'UNDER_500' ? '< ₹500' : priceRangeFilter === '500_1500' ? '₹500 - ₹1500' : '> ₹1500'}
+                <button
+                  type="button"
+                  onClick={() => setPriceRangeFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                "{searchTerm}"
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="hover:text-slate-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium ml-1 cursor-pointer"
+            >
+              Reset all
+            </button>
+
+            <span className="ml-auto text-[11px] text-slate-400">
+              Showing {filteredProducts.length} of {products.length} products
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Product Catalog Grid */}
@@ -260,16 +476,16 @@ export const ProductsManager = () => {
         <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-xs">
           <EmptyState
             icon={ShoppingBag}
-            title={searchTerm || categoryFilter !== 'ALL' ? "No matching products found" : "No Products in Store"}
+            title={searchTerm || activeFiltersCount > 0 ? "No matching products found" : "No Products in Store"}
             description={
-              searchTerm || categoryFilter !== 'ALL'
-                ? "No inventory items match your current search or category filter. Try clearing filters or add a new product."
+              searchTerm || activeFiltersCount > 0
+                ? "No inventory items match your current search or filters. Try resetting filters or adding a new product."
                 : "Add supplements, gym accessories, protein snacks, and fitness gear to your gym's retail pro shop."
             }
             actionText="Add New Product"
             onAction={() => setIsAddModalOpen(true)}
-            secondaryActionText={searchTerm || categoryFilter !== 'ALL' ? "Clear Filters" : undefined}
-            onSecondaryAction={searchTerm || categoryFilter !== 'ALL' ? () => { setSearchTerm(''); setCategoryFilter('ALL'); } : undefined}
+            secondaryActionText={searchTerm || activeFiltersCount > 0 ? "Clear Filters" : undefined}
+            onSecondaryAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : undefined}
             color="emerald"
           />
         </div>
@@ -289,14 +505,7 @@ export const ProductsManager = () => {
                 <div>
                   {/* Image & Badges */}
                   <div className="relative h-32 sm:h-40 w-full rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 mb-2.5 sm:mb-3 border border-slate-100">
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80';
-                      }}
-                    />
+                    <ProductImage src={p.image} alt={p.name} category={p.category} />
                     <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-white/90 backdrop-blur-sm text-slate-800 border border-slate-200 shadow-sm">
                       {p.category}
                     </span>
@@ -448,8 +657,10 @@ export const ProductsManager = () => {
                 type="number"
                 required
                 min="0"
+                inputMode="decimal"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
+                onChange={(e) => setFormData({ ...formData, price: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -459,8 +670,10 @@ export const ProductsManager = () => {
               <input
                 type="number"
                 min="0"
+                inputMode="decimal"
                 value={formData.costPrice}
-                onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
+                onChange={(e) => setFormData({ ...formData, costPrice: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -473,8 +686,10 @@ export const ProductsManager = () => {
                 type="number"
                 required
                 min="0"
+                inputMode="numeric"
                 value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
+                onChange={(e) => setFormData({ ...formData, stock: sanitizeDigits(e.target.value, 6) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -484,8 +699,10 @@ export const ProductsManager = () => {
               <input
                 type="number"
                 min="1"
+                inputMode="numeric"
                 value={formData.minStockAlert}
-                onChange={(e) => setFormData({ ...formData, minStockAlert: e.target.value })}
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
+                onChange={(e) => setFormData({ ...formData, minStockAlert: sanitizeDigits(e.target.value, 6) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -497,7 +714,7 @@ export const ProductsManager = () => {
               type="url"
               value={formData.image}
               onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-              placeholder="https://images.unsplash.com/..."
+              placeholder="Enter image URL (optional)"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
@@ -561,8 +778,10 @@ export const ProductsManager = () => {
                 required
                 min="1"
                 max={sellingProduct.stock}
+                inputMode="numeric"
                 value={sellQuantity}
-                onChange={(e) => setSellQuantity(e.target.value)}
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
+                onChange={(e) => setSellQuantity(sanitizeDigits(e.target.value, 4))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -646,8 +865,10 @@ export const ProductsManager = () => {
                 type="number"
                 required
                 min="1"
+                inputMode="numeric"
                 value={restockAmount}
-                onChange={(e) => setRestockAmount(e.target.value)}
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
+                onChange={(e) => setRestockAmount(sanitizeDigits(e.target.value, 6))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -672,6 +893,133 @@ export const ProductsManager = () => {
           </form>
         )}
       </Modal>
+
+      {/* Advanced Filter Modal (Portalled to document.body) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Filter Products Catalog</h3>
+                  <p className="text-xs text-slate-500">Refine retail inventory & products</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Product Category */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Product Category
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['ALL', 'Supplements', 'Accessories', 'Gear', 'Apparel', 'Drinks'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategoryFilter(cat)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        categoryFilter === cat
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cat === 'ALL' ? 'All Categories' : cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stock Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Stock Level
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Stock Levels' },
+                    { id: 'IN_STOCK', label: 'In Stock' },
+                    { id: 'LOW_STOCK', label: 'Low Stock (< 5)' },
+                    { id: 'OUT_OF_STOCK', label: 'Out of Stock (0)' }
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setStockStatusFilter(st.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        stockStatusFilter === st.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price Range */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Price Range
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: 'Any Price' },
+                    { id: 'UNDER_500', label: 'Under ₹500' },
+                    { id: '500_1500', label: '₹500 - ₹1,500' },
+                    { id: 'OVER_1500', label: 'Above ₹1,500' }
+                  ].map((pr) => (
+                    <button
+                      key={pr.id}
+                      type="button"
+                      onClick={() => setPriceRangeFilter(pr.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        priceRangeFilter === pr.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pr.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -138,7 +138,7 @@ class MemberController extends Controller
                 'targetWeight' => $profile?->target_weight,
                 'height' => $profile?->height,
                 'goal' => $profile?->goal,
-                'medicalNotes' => $profile?->medical_notes ?? 'None reported',
+                'medicalNotes' => $profile?->medical_notes ?? '',
                 'emergencyContact' => $profile?->emergency_contact ?? 'N/A',
                 'attendanceStreak' => $profile?->attendance_streak ?? 0,
                 'qrPassCode' => $profile?->qr_pass_code ?? ('PF-M-' . $user->id),
@@ -204,7 +204,7 @@ class MemberController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|email',
-            'phone' => 'nullable|string',
+            'phone' => 'required|string|min:7|max:20',
             'plan_id' => 'nullable',
             'planId' => 'nullable',
             'trainer_id' => 'nullable',
@@ -228,12 +228,15 @@ class MemberController extends Controller
             'emergencyContact' => 'nullable|string',
             'enquiry_id' => 'nullable',
             'enquiryId' => 'nullable',
+        ], [
+            'phone.required' => 'Mobile number is mandatory to register a member.',
+            'phone.min' => 'Please enter a valid mobile number.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first() ?: 'Validation error',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -246,31 +249,58 @@ class MemberController extends Controller
         $trainerId = ($rawTrainerId && $rawTrainerId !== 'none') ? (int)str_replace('trn-', '', $rawTrainerId) : null;
 
         $plainPassword = $request->password ?? 'fit' . rand(1000, 9999);
+        $targetUserId = $request->user_id ?? $request->userId ?? $request->member_id;
+        $numTargetId = $targetUserId ? (int)str_replace('mem-', '', $targetUserId) : null;
 
-        // Check if user already exists
+        // 1. Check for duplicate mobile number
+        $rawPhone = trim($request->phone ?? '');
+        if (!empty($rawPhone)) {
+            $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $duplicatePhoneQuery = User::where('role', 'member')
+                ->where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
+                    $q->where('phone', $rawPhone)
+                      ->orWhere('phone', $cleanDigits);
+                    if (strlen($last10) >= 7) {
+                        $q->orWhere('phone', 'like', "%{$last10}");
+                    }
+                });
+
+            if ($gymId && $gymId > 1) {
+                $duplicatePhoneQuery->where(function ($q) use ($gymId) {
+                    $q->where('gym_id', $gymId)
+                      ->orWhereNull('gym_id');
+                });
+            }
+
+            if ($numTargetId && $numTargetId > 0) {
+                $duplicatePhoneQuery->where('id', '!=', $numTargetId);
+            }
+
+            $existingWithPhone = $duplicatePhoneQuery->first();
+            if ($existingWithPhone) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member already exists with this mobile number.',
+                    'errors' => [
+                        'phone' => ['Member already exists with this mobile number.']
+                    ]
+                ], 422);
+            }
+        }
+
+        // 2. Check if user already exists by email
         $user = User::where('email', $request->email)->first();
         if ($user) {
-            $targetUserId = $request->user_id ?? $request->userId ?? $request->member_id;
-            if (!$targetUserId || (int)str_replace('mem-', '', $targetUserId) !== $user->id) {
-                // Prevent silent overwriting of existing members when adding new member with duplicate email
-                $cleanEmail = $request->email;
-                $atPos = strpos($cleanEmail, '@');
-                $uniqueSuffix = rand(100, 999);
-                $uniqueEmail = $atPos !== false
-                    ? substr($cleanEmail, 0, $atPos) . '+' . $uniqueSuffix . substr($cleanEmail, $atPos)
-                    : ($cleanEmail . $uniqueSuffix . '@pulsefit.local');
-
-                $user = User::create([
-                    'name' => $request->name,
-                    'email' => $uniqueEmail,
-                    'password' => Hash::make($plainPassword),
-                    'initial_password' => Hash::make($plainPassword),
-                    'must_change_password' => true,
-                    'role' => 'member',
-                    'phone' => $request->phone,
-                    'gym_id' => $gymId,
-                    'avatar' => $request->avatar ?? null,
-                ]);
+            if (!$numTargetId || $numTargetId !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member already exists with this email address.',
+                    'errors' => [
+                        'email' => ['Member already exists with this email address.']
+                    ]
+                ], 422);
             } else {
                 $user->name = $request->name;
                 $user->phone = $request->phone ?? $user->phone;
@@ -315,7 +345,12 @@ class MemberController extends Controller
                 $plan = Plan::find($planId);
                 if ($plan) {
                     $durationMonths = (int)($plan->duration_months ?? 1);
-                    $expiryDate = now()->addMonths($durationMonths)->toDateString();
+                    $offerDays = (int)($plan->offer_days ?? 0);
+                    $expiry = now()->addMonths($durationMonths);
+                    if ($offerDays > 0) {
+                        $expiry = $expiry->addDays($offerDays);
+                    }
+                    $expiryDate = $expiry->toDateString();
                     $plan->increment('active_subscribers');
                 }
             }
@@ -352,7 +387,7 @@ class MemberController extends Controller
             'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? 65,
             'height' => $request->height ?? $profile->height ?? 175,
             'goal' => $request->goal ?? $profile->goal ?? 'Fitness & Conditioning',
-            'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? 'None',
+            'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
             'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? 'N/A',
             'qr_pass_code' => $qrCode,
             'dues_amount' => $duesAmount,
@@ -479,7 +514,32 @@ class MemberController extends Controller
 
         if ($request->has('name')) $user->name = $request->name;
         if ($request->has('email')) $user->email = $request->email;
-        if ($request->has('phone')) $user->phone = $request->phone;
+        if ($request->has('phone')) {
+            $rawPhone = trim($request->phone ?? '');
+            if (!empty($rawPhone)) {
+                $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+                $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+                $duplicatePhone = User::where('role', 'member')
+                    ->where('id', '!=', $user->id)
+                    ->where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
+                        $q->where('phone', $rawPhone)
+                          ->orWhere('phone', $cleanDigits);
+                        if (strlen($last10) >= 7) {
+                            $q->orWhere('phone', 'like', "%{$last10}");
+                        }
+                    })->first();
+
+                if ($duplicatePhone) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Member already exists with this mobile number.',
+                        'errors' => ['phone' => ['Member already exists with this mobile number.']]
+                    ], 422);
+                }
+            }
+            $user->phone = $request->phone;
+        }
         if ($request->has('avatar')) $user->avatar = $request->avatar;
         if ($request->filled('password')) $user->password = Hash::make($request->password);
         $user->save();

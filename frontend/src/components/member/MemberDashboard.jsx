@@ -59,7 +59,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
                 Hey, {currentMember?.name?.split(' ')[0] || 'Athlete'}
               </h1>
               <p className="text-[11px] text-slate-500 truncate">
-                {currentMember?.planName || 'Gold Quarterly Fitness'}
+                {currentMember?.planName || 'Unassigned Plan'}
               </p>
             </div>
           </div>

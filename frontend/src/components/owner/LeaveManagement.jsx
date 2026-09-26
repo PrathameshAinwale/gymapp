@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -19,10 +20,29 @@ import {
   Sliders,
   Check,
   X,
-  ChevronDown
+  ChevronDown,
+  Filter
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+const StaffAvatar = ({ src, alt, className = "w-9 h-9 rounded-full", iconClassName = "w-4 h-4 text-indigo-600" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-indigo-50 border border-slate-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const LeaveManagement = () => {
   const {
@@ -47,8 +67,23 @@ export const LeaveManagement = () => {
 
   // Filter & Search States
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterRole, setFilterRole] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Selected Employee Details Modal (opened when clicking on staff name)
   const [selectedEmployeeBalance, setSelectedEmployeeBalance] = useState(null);
@@ -178,24 +213,68 @@ export const LeaveManagement = () => {
     });
   }, [leaveBalances]);
 
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterStatus !== 'ALL') count++;
+    if (filterType !== 'ALL') count++;
+    if (filterRole !== 'ALL') count++;
+    return count;
+  }, [filterStatus, filterType, filterRole]);
+
+  const handleResetFilters = () => {
+    setFilterStatus('ALL');
+    setFilterType('ALL');
+    setFilterRole('ALL');
+    setSearchTerm('');
+  };
+
+  // Search suggestions
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    if (activeTab === 'requests') {
+      return leaveRequests
+        .filter((r) =>
+          (r.userName || '').toLowerCase().includes(term) ||
+          (r.role || '').toLowerCase().includes(term) ||
+          (r.leaveType || '').toLowerCase().includes(term) ||
+          (r.reason || '').toLowerCase().includes(term)
+        )
+        .slice(0, 5);
+    } else {
+      return staffOnlyBalances
+        .filter((b) =>
+          (b.user_name || '').toLowerCase().includes(term) ||
+          (b.role || '').toLowerCase().includes(term) ||
+          (b.email || '').toLowerCase().includes(term)
+        )
+        .slice(0, 5);
+    }
+  }, [searchTerm, activeTab, leaveRequests, staffOnlyBalances]);
+
   // Filtered requests
   const filteredRequests = useMemo(() => {
     return leaveRequests.filter((r) => {
       if (filterStatus !== 'ALL' && r.status !== filterStatus) return false;
+      if (filterType !== 'ALL' && r.leaveType !== filterType) return false;
+      if (filterRole !== 'ALL' && (r.role || '').toLowerCase() !== filterRole.toLowerCase()) return false;
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         const matchesName = r.userName?.toLowerCase().includes(query);
         const matchesRole = r.role?.toLowerCase().includes(query);
         const matchesReason = r.reason?.toLowerCase().includes(query);
-        if (!matchesName && !matchesRole && !matchesReason) return false;
+        const matchesType = r.leaveType?.toLowerCase().includes(query);
+        if (!matchesName && !matchesRole && !matchesReason && !matchesType) return false;
       }
       return true;
     });
-  }, [leaveRequests, filterStatus, searchTerm]);
+  }, [leaveRequests, filterStatus, filterType, filterRole, searchTerm]);
 
   // Filtered ledger employees
   const filteredLedger = useMemo(() => {
     return staffOnlyBalances.filter((b) => {
+      if (filterRole !== 'ALL' && (b.role || '').toLowerCase() !== filterRole.toLowerCase()) return false;
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         const matchesName = b.user_name?.toLowerCase().includes(query);
@@ -205,7 +284,7 @@ export const LeaveManagement = () => {
       }
       return true;
     });
-  }, [staffOnlyBalances, searchTerm]);
+  }, [staffOnlyBalances, filterRole, searchTerm]);
 
   // Helper to extract specific leave balance from an employee's balances array
   const getSpecificLeaveBalance = (employee, leaveTypeKey) => {
@@ -404,51 +483,177 @@ export const LeaveManagement = () => {
       {/* 4. TAB 1: Leave Requests & Accept/Reject Actions */}
       {activeTab === 'requests' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-center justify-between bg-white p-2.5 sm:p-3.5 rounded-xl border border-slate-200 shadow-xs">
-            {/* Search Input Box */}
-            <div className="relative flex-1 w-full sm:w-72 sm:flex-initial">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search staff, role, reason..."
-                className="w-full pl-8 pr-6 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
-              />
-              {searchTerm && (
+          {/* Search & Filter Toolbar */}
+          <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              {/* Autocomplete Search Bar */}
+              <div ref={searchContainerRef} className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onFocus={() => setIsSearchDropdownOpen(true)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setIsSearchDropdownOpen(true);
+                  }}
+                  placeholder="Search staff name, role, reason, or leave type..."
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Autocomplete Suggestions Dropdown */}
+                {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Suggestions
+                    </div>
+                    {searchSuggestions.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm(item.userName || item.user_name || '');
+                          setIsSearchDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800">{item.userName || item.user_name}</span>
+                          <span className="text-[10px] text-slate-400">({item.role || 'Staff'})</span>
+                        </div>
+                        {item.leaveType && (
+                          <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+                            {item.leaveType}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons: Filter */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="text-[10px] text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                  onClick={() => setShowFilterModal(true)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    activeFiltersCount > 0
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
                 >
-                  ✕
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Filters</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-600 text-white">
+                      {activeFiltersCount}
+                    </span>
+                  )}
                 </button>
-              )}
+              </div>
             </div>
 
-            {/* Status Dropdown Filter */}
-            <div className="relative w-full sm:w-auto shrink-0">
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="appearance-none w-full sm:w-auto pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
-              >
-                <option value="ALL">All Requests ({leaveRequests.length})</option>
-                <option value="Pending">Pending ({leaveRequests.filter((r) => r.status === 'Pending').length})</option>
-                <option value="Approved">Approved ({leaveRequests.filter((r) => r.status === 'Approved').length})</option>
-                <option value="Rejected">Rejected ({leaveRequests.filter((r) => r.status === 'Rejected').length})</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+            {/* Active Filter Chips & Clear Action */}
+            {(activeFiltersCount > 0 || searchTerm) && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+                <span className="text-slate-400 font-medium">Active:</span>
+
+                {filterStatus !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                    Status: {filterStatus}
+                    <button
+                      type="button"
+                      onClick={() => setFilterStatus('ALL')}
+                      className="hover:text-indigo-900 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {filterType !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                    Type: {filterType}
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('ALL')}
+                      className="hover:text-indigo-900 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {filterRole !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                    Role: {filterRole}
+                    <button
+                      type="button"
+                      onClick={() => setFilterRole('ALL')}
+                      className="hover:text-indigo-900 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {searchTerm && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                    "{searchTerm}"
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="hover:text-slate-900 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="text-xs text-rose-500 hover:text-rose-700 font-medium ml-1 cursor-pointer"
+                >
+                  Reset all
+                </button>
+
+                <span className="ml-auto text-[11px] text-slate-400">
+                  Showing {filteredRequests.length} of {leaveRequests.length} requests
+                </span>
+              </div>
+            )}
           </div>
 
           {filteredRequests.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-8">
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
               <EmptyState
                 icon={CalendarDays}
                 title="No Leave Requests Found"
-                description="No leave applications match the selected status filter."
+                description="No leave applications match the selected status or filters."
               />
+              {(activeFiltersCount > 0 || searchTerm) && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="mt-3 px-4 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  Clear All Filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
@@ -474,13 +679,11 @@ export const LeaveManagement = () => {
                           {/* Staff Column - Clickable Name to view remaining leaves */}
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={
-                                  req.userAvatar ||
-                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-                                }
+                              <StaffAvatar
+                                src={req.userAvatar}
                                 alt={req.userName}
-                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                                className="w-9 h-9 rounded-full"
+                                iconClassName="w-4 h-4 text-indigo-600"
                               />
                               <div>
                                 <button
@@ -675,13 +878,11 @@ export const LeaveManagement = () => {
                           {/* Trainer / Staff Name (Clickable) */}
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={
-                                  emp.avatar ||
-                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-                                }
+                              <StaffAvatar
+                                src={emp.avatar}
                                 alt={emp.user_name}
-                                className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                                className="w-10 h-10 rounded-full"
+                                iconClassName="w-5 h-5 text-indigo-600"
                               />
                               <div>
                                 <button
@@ -902,9 +1103,10 @@ export const LeaveManagement = () => {
                       max="100"
                       step="0.5"
                       required
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={simpleQuotaForm.casualDays}
                       onChange={(e) =>
-                        setSimpleQuotaForm((prev) => ({ ...prev, casualDays: e.target.value }))
+                        setSimpleQuotaForm((prev) => ({ ...prev, casualDays: sanitizeDecimal(e.target.value) }))
                       }
                       className="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
@@ -930,9 +1132,10 @@ export const LeaveManagement = () => {
                       max="100"
                       step="0.5"
                       required
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={simpleQuotaForm.sickDays}
                       onChange={(e) =>
-                        setSimpleQuotaForm((prev) => ({ ...prev, sickDays: e.target.value }))
+                        setSimpleQuotaForm((prev) => ({ ...prev, sickDays: sanitizeDecimal(e.target.value) }))
                       }
                       className="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
@@ -958,9 +1161,10 @@ export const LeaveManagement = () => {
                       max="100"
                       step="0.5"
                       required
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={simpleQuotaForm.privilegeDays}
                       onChange={(e) =>
-                        setSimpleQuotaForm((prev) => ({ ...prev, privilegeDays: e.target.value }))
+                        setSimpleQuotaForm((prev) => ({ ...prev, privilegeDays: sanitizeDecimal(e.target.value) }))
                       }
                       className="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
@@ -1007,13 +1211,11 @@ export const LeaveManagement = () => {
           <div className="space-y-5 max-w-xl">
             {/* Staff Card */}
             <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-              <img
-                src={
-                  selectedEmployeeBalance.user?.avatar ||
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-                }
+              <StaffAvatar
+                src={selectedEmployeeBalance.user?.avatar}
                 alt={selectedEmployeeBalance.user?.name}
-                className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                className="w-12 h-12 rounded-full"
+                iconClassName="w-6 h-6 text-indigo-600"
               />
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900 truncate">
@@ -1129,7 +1331,137 @@ export const LeaveManagement = () => {
         ) : null}
       </Modal>
 
+      {/* Advanced Filter Modal (Portalled to document.body) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Filter Leave Records</h3>
+                  <p className="text-xs text-slate-500">Refine leave requests & employee lists</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Application Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Application Status
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Pending', label: 'Pending Approval' },
+                    { id: 'Approved', label: 'Approved' },
+                    { id: 'Rejected', label: 'Rejected' }
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setFilterStatus(st.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        filterStatus === st.id
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Leave Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Leave Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Leave Types' },
+                    { id: 'Casual Leave', label: 'Casual Leave (CL)' },
+                    { id: 'Sick Leave', label: 'Sick Leave (SL)' },
+                    { id: 'Privilege Leave', label: 'Privilege Leave (PL)' }
+                  ].map((lt) => (
+                    <button
+                      key={lt.id}
+                      type="button"
+                      onClick={() => setFilterType(lt.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        filterType === lt.id
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {lt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Staff Role */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Staff Role
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Roles' },
+                    { id: 'trainer', label: 'Trainer' },
+                    { id: 'manager', label: 'Manager' },
+                    { id: 'staff', label: 'Accounts / Staff' }
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setFilterRole(r.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                        filterRole === r.id
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

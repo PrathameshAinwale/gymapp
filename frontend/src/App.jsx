@@ -34,7 +34,6 @@ import { TrainerAdvancePayView } from './components/trainer/TrainerAdvancePayVie
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { MemberList } from './components/owner/MemberList';
 import { PlanManager } from './components/owner/PlanManager';
-import { TrainerList } from './components/owner/TrainerList';
 import { Financials } from './components/owner/Financials';
 import { EquipmentManager } from './components/owner/EquipmentManager';
 import { SettingsManager } from './components/owner/SettingsManager';
@@ -297,9 +296,8 @@ function MainApp() {
       case 'consent-forms':
         return <ConsentFormsManager />;
       case 'staff-accounts':
-        return <StaffAccountManager />;
       case 'trainers':
-        return <TrainerList />;
+        return <StaffAccountManager />;
       case 'leaves':
         return <LeaveManagement />;
       case 'advance-pay':

@@ -923,21 +923,6 @@ export const AnalyticsPage = () => {
           </div>
         </div>
       )}
-
-      {/* ── ACTIONABLE TAKEAWAY ── */}
-      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div className="text-xs">
-            <span className="font-bold text-white block">Database Telemetry Summary</span>
-            <span className="text-slate-300">
-              Charts rendered directly from live database tables. Use the slider tabs above to explore different operational areas.
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

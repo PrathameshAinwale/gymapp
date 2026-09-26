@@ -105,6 +105,29 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $rawPhone = trim($request->phone ?? '');
+        if (!empty($rawPhone)) {
+            $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $duplicatePhone = User::where('role', 'member')
+                ->where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
+                    $q->where('phone', $rawPhone)
+                      ->orWhere('phone', $cleanDigits);
+                    if (strlen($last10) >= 7) {
+                        $q->orWhere('phone', 'like', "%{$last10}");
+                    }
+                })->first();
+
+            if ($duplicatePhone) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member already exists with this mobile number.',
+                    'errors' => ['phone' => ['Member already exists with this mobile number.']]
+                ], 422);
+            }
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,

@@ -229,7 +229,7 @@ export const ALL_STAT_CARD_DEFINITIONS = [
     icon: Award,
     color: 'violet',
     badge: 'Team',
-    tab: 'trainers',
+    tab: 'staff-accounts',
     defaultActive: false,
     restricted: false
   }

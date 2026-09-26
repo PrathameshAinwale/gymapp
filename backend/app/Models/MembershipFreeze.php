@@ -17,6 +17,9 @@ class MembershipFreeze extends Model
         'freeze_start_date',
         'freeze_end_date',
         'days_frozen',
+        'fee',
+        'payment_method',
+        'type',
         'reason',
         'status',
         'approved_by',
@@ -26,6 +29,7 @@ class MembershipFreeze extends Model
         'freeze_start_date' => 'date:Y-m-d',
         'freeze_end_date' => 'date:Y-m-d',
         'days_frozen' => 'integer',
+        'fee' => 'float',
     ];
 
     public function gym()

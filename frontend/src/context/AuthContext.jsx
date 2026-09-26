@@ -384,7 +384,32 @@ export const AuthProvider = ({ children }) => {
   };
 
   // CREATE STAFF ACCOUNT (Owner creates manager, accounts, or trainer account for active gym)
-  const createStaffAccount = async ({ name, email, password, role, phone, gym_id, gymId }) => {
+  const createStaffAccount = async ({
+    name,
+    email,
+    password,
+    role,
+    phone,
+    gym_id,
+    gymId,
+    dob,
+    aadhaar_card,
+    aadhaar_image,
+    pan_card,
+    pan_image,
+    salary,
+    shifts,
+    specialty,
+    experience,
+    bio,
+    certifications,
+    rating,
+    age,
+    gender,
+    blood_group,
+    address,
+    monthly_salary
+  }) => {
     const activeGymId = gym_id || gymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || 1;
     const roleNormalized = role.toLowerCase();
     let backendUser = null;
@@ -395,7 +420,24 @@ export const AuthProvider = ({ children }) => {
         password: password || 'staff123',
         role: roleNormalized,
         phone: phone || '',
-        gym_id: Number(activeGymId)
+        gym_id: Number(activeGymId),
+        dob: dob || null,
+        aadhaar_card: aadhaar_card || null,
+        aadhaar_image: aadhaar_image || null,
+        pan_card: pan_card || null,
+        pan_image: pan_image || null,
+        salary: salary ? Number(salary) : (monthly_salary ? Number(monthly_salary) : null),
+        shifts: shifts || null,
+        specialty: specialty || null,
+        experience: experience || null,
+        bio: bio || null,
+        certifications: certifications || null,
+        rating: rating || 5.0,
+        age: age ? Number(age) : null,
+        gender: gender || null,
+        blood_group: blood_group || null,
+        address: address || null,
+        monthly_salary: salary ? Number(salary) : (monthly_salary ? Number(monthly_salary) : null)
       });
       if (res?.data) {
         backendUser = res.data;
@@ -429,11 +471,23 @@ export const AuthProvider = ({ children }) => {
           : roleNormalized === 'accounts'
           ? 'Senior Finance Officer'
           : roleNormalized === 'trainer'
-          ? 'Personal Trainer'
+          ? 'Personal Trainer & Coach'
           : 'Staff Member',
       avatar: backendUser?.avatar || null,
-      badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Staff Access',
+      badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Trainer Access',
       phone: phone || '',
+      dob: dob || null,
+      aadhaar_card: aadhaar_card || null,
+      aadhaar_image: aadhaar_image || null,
+      pan_card: pan_card || null,
+      pan_image: pan_image || null,
+      salary: salary ? Number(salary) : (backendUser?.salary || null),
+      shifts: shifts || null,
+      specialty: specialty || backendUser?.specialty || (roleNormalized === 'trainer' ? 'Strength & Conditioning' : null),
+      experience: experience || backendUser?.experience || '2+ Years',
+      bio: bio || backendUser?.bio || '',
+      certifications: certifications || backendUser?.certifications || ['NASM-CPT', 'CSCS'],
+      rating: rating || backendUser?.rating || 5.0,
       gymName: currentUser?.gymName || 'PULSE FIT Athletic Club',
       gymId: Number(activeGymId),
       gym_id: Number(activeGymId)

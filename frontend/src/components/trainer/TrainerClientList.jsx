@@ -14,9 +14,29 @@ import {
   AlertCircle,
   X,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  User
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+
+const UserAvatar = ({ src, alt, className = "w-10 h-10 rounded-full", iconClassName = "w-5 h-5 text-emerald-600" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-emerald-50 border border-slate-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const TrainerClientList = ({ setActiveTab }) => {
   const { currentUser } = useAuth();
@@ -109,15 +129,11 @@ export const TrainerClientList = ({ setActiveTab }) => {
             {/* Top Row: Avatar + Name + Plan + Demographics */}
             <div className="flex items-start justify-between gap-2.5">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <img
+                <UserAvatar
                   src={client.avatar}
                   alt={client.name}
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-slate-200 shrink-0"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src =
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-                  }}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full"
+                  iconClassName="w-5 h-5 text-emerald-600"
                 />
                 <div className="min-w-0">
                   <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{client.name}</h3>
@@ -203,15 +219,11 @@ export const TrainerClientList = ({ setActiveTab }) => {
           <div className="space-y-4 text-xs">
             {/* Header info */}
             <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <img
+              <UserAvatar
                 src={selectedClient.avatar}
                 alt={selectedClient.name}
-                className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src =
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-                }}
+                className="w-12 h-12 rounded-full"
+                iconClassName="w-6 h-6 text-emerald-600"
               />
               <div className="min-w-0">
                 <h4 className="font-bold text-slate-900 text-sm truncate">{selectedClient.name}</h4>

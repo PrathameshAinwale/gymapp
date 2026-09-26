@@ -9,6 +9,7 @@ import {
   ArrowRight,
   AlertCircle
 } from 'lucide-react';
+import { isValidEmail, hasSqlInjection, sanitizeText } from '../../utils/validation';
 
 export const LoginPage = () => {
   const { login } = useAuth();
@@ -23,16 +24,28 @@ export const LoginPage = () => {
     e.preventDefault();
     setErrorMessage('');
 
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
+    const cleanEmail = sanitizeText(email);
+    const cleanPassword = password ? password.trim() : '';
+
+    if (!cleanEmail || !cleanPassword) {
       setErrorMessage('Please enter both email and password.');
+      return;
+    }
+
+    if (hasSqlInjection(cleanEmail) || hasSqlInjection(cleanPassword)) {
+      setErrorMessage('Security Warning: Disallowed characters or potential SQL injection detected.');
+      return;
+    }
+
+    if (cleanEmail.includes('@') && !isValidEmail(cleanEmail)) {
+      setErrorMessage('Please enter a valid email address (e.g. name@example.com).');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await login(cleanEmail, password);
+      const result = await login(cleanEmail, cleanPassword);
       if (!result.success) {
         setErrorMessage(result.error || 'Failed to authenticate');
       }

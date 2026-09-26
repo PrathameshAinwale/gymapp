@@ -1,9 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
+import {
+  isValidEmail,
+  isValidPhone,
+  hasSqlInjection,
+  sanitizeText,
+  sanitizePhone,
+  sanitizeDigits,
+  sanitizeDecimal,
+  preventNonNumericKey,
+  preventNonPhoneKey
+} from '../../utils/validation';
 import {
   Camera,
   Upload,
@@ -43,6 +54,7 @@ export const AddMemberModal = ({
 }) => {
   const { registerAccount } = useAuth();
   const {
+    members = [],
     trainers = [],
     plans = [],
     ptPlans = [],
@@ -121,11 +133,11 @@ export const AddMemberModal = ({
     trainerId: '', // trainer id
     trainingType: 'self', // 'self' | 'general' | 'pt'
     ptSessionsCount: 12,
-    goal: 'Muscle Gain & Strength',
-    weight: 70,
-    targetWeight: 75,
-    height: 175,
-    medicalNotes: 'None',
+    goal: '',
+    weight: '',
+    targetWeight: '',
+    height: '',
+    medicalNotes: '',
     emergencyContact: '',
     kycDocType: 'Aadhaar Card',
     kycDocNumber: '',
@@ -140,6 +152,8 @@ export const AddMemberModal = ({
   // Split Payment States (Part Cash + Part Online)
   const [splitCashAmount, setSplitCashAmount] = useState('');
   const [splitOnlineAmount, setSplitOnlineAmount] = useState('');
+  const [splitOnlineProvider, setSplitOnlineProvider] = useState('GPay'); // 'GPay' | 'PhonePe' | 'Account' | 'Other'
+  const [splitOnlineProviderOther, setSplitOnlineProviderOther] = useState('');
 
   const [trainingType, setTrainingType] = useState('self'); // 'self', 'general', 'pt'
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
@@ -162,9 +176,25 @@ export const AddMemberModal = ({
   const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Check if a member with the same phone already exists
+  const duplicatePhoneMember = useMemo(() => {
+    if (isUpgradeMode || !formData.phone) return null;
+    const cleanInput = String(formData.phone).replace(/\D/g, '');
+    const last10 = cleanInput.length >= 10 ? cleanInput.slice(-10) : cleanInput;
+    if (last10.length < 7) return null;
+
+    return (members || []).find((m) => {
+      if (!m.phone) return false;
+      const cleanMPhone = String(m.phone).replace(/\D/g, '');
+      const mPhoneLast10 = cleanMPhone.length >= 10 ? cleanMPhone.slice(-10) : cleanMPhone;
+      return mPhoneLast10 === last10 || cleanMPhone === cleanInput || m.phone === formData.phone;
+    }) || null;
+  }, [formData.phone, isUpgradeMode, members]);
+
   // Payment Scope & Settlement States
   const [isFullPayment, setIsFullPayment] = useState(true);
   const [customPaidAmount, setCustomPaidAmount] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
 
   // Quick Add Plan State
@@ -321,7 +351,7 @@ export const AddMemberModal = ({
           weight: targetMember.weight || 70,
           targetWeight: targetMember.targetWeight || 75,
           height: targetMember.height || 175,
-          medicalNotes: targetMember.medicalNotes || 'None',
+          medicalNotes: (targetMember.medicalNotes && targetMember.medicalNotes !== 'None' && targetMember.medicalNotes !== 'None reported') ? targetMember.medicalNotes : '',
           emergencyContact: targetMember.emergencyContact || targetMember.phone || '',
           kycDocType: targetMember.kycDocType || 'Aadhaar Card',
           kycDocNumber: targetMember.kycDocNumber || '',
@@ -342,6 +372,11 @@ export const AddMemberModal = ({
         setFormData((prev) => {
           const initDob = initialData.dob || prev.dob || '';
           const computedAge = initDob ? calculateAgeFromDob(initDob) : (initialData.age ?? prev.age ?? '');
+          const rawMedNotes = initialData.medicalNotes || '';
+          const safeMedNotes = (rawMedNotes === 'None' || rawMedNotes === 'None reported' || rawMedNotes === initialData.notes || rawMedNotes === initialData.enquiryNotes)
+            ? ''
+            : rawMedNotes;
+
           return {
             ...prev,
             name: initialData.name || '',
@@ -350,10 +385,10 @@ export const AddMemberModal = ({
             password: 'fit' + Math.floor(1000 + Math.random() * 9000),
             planId: initialData.planId || plans[0]?.id || '',
             goal: initialData.goal || 'Muscle Gain & Strength',
-            medicalNotes: initialData.medicalNotes || 'None',
             emergencyContact: initialData.emergencyContact || initialData.phone || '',
             enquiryId: initialData.enquiryId || null,
             ...initialData,
+            medicalNotes: safeMedNotes,
             dob: initDob,
             age: computedAge
           };
@@ -393,6 +428,8 @@ export const AddMemberModal = ({
 
   // Live Price Calculations
   const chosenPlan = plans.find((p) => p.id === formData.planId) || plans[0];
+  const maxPlanDiscount = chosenPlan ? Number(chosenPlan.maxDiscount ?? chosenPlan.max_discount ?? 0) : 0;
+  const numDiscount = Math.max(0, Number(discountAmount) || 0);
   const chosenPtPlan = ptPlans.find((p) => String(p.id) === String(selectedPtPlanId));
   const basePrice = isUpgradeMode
     ? (isUpgradingBasePlan ? (Number(chosenPlan?.price) || 0) : 0)
@@ -400,7 +437,7 @@ export const AddMemberModal = ({
   const ptPrice = trainingType === 'pt' ? (Number(chosenPtPlan?.price) || Number(ptPackageFee) || 0) : 0;
   const chosenRecoveryPlan = recoveryPlans.find((r) => String(r.id) === String(recoveryPlanId));
   const recoveryPrice = Number(chosenRecoveryPlan?.price) || 0;
-  const totalCalculatedAmount = basePrice + ptPrice + recoveryPrice;
+  const totalCalculatedAmount = Math.max(0, (basePrice - numDiscount) + ptPrice + recoveryPrice);
   const effectivePaidAmount = isFullPayment
     ? totalCalculatedAmount
     : (customPaidAmount === '' ? 0 : Math.max(0, Number(customPaidAmount)));
@@ -413,21 +450,74 @@ export const AddMemberModal = ({
       : (Number(ptFixedCommission) || 0))
     : 0;
 
+  const parseLocalDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    const cleanStr = String(dateStr).split('T')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    }
+    return new Date(dateStr);
+  };
+
+  const addMonthsPreservingDay = (baseDate, monthsToAdd) => {
+    const target = new Date(baseDate.getTime());
+    const originalDay = target.getDate();
+    target.setDate(1);
+    target.setMonth(target.getMonth() + monthsToAdd);
+    const daysInTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(originalDay, daysInTargetMonth));
+    return target;
+  };
+
+  // Helper to calculate Membership End Date including plan duration and bonus offer days
+  const computePlanEndDate = (startDateStr, plan, currentExpiryStr = null) => {
+    if (!plan) return '';
+    const todayStr = getTodayDateStr ? getTodayDateStr() : new Date().toISOString().split('T')[0];
+    let baseDateStr = startDateStr || todayStr;
+
+    if (currentExpiryStr) {
+      const cleanCurrent = String(currentExpiryStr).split('T')[0];
+      if (cleanCurrent >= todayStr) {
+        baseDateStr = cleanCurrent;
+      }
+    }
+
+    try {
+      const start = parseLocalDate(baseDateStr);
+      if (isNaN(start.getTime())) return '';
+      let end = new Date(start.getTime());
+      const periodStr = plan.period || '';
+      const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+      if (matchDays) {
+        end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+      } else {
+        const months = Number(plan.durationMonths) || 1;
+        end = addMonthsPreservingDay(end, months);
+      }
+      const bonusDays = Number(plan.offerDays || plan.offer_days) || 0;
+      if (bonusDays > 0) {
+        end.setDate(end.getDate() + bonusDays);
+      }
+      const year = end.getFullYear();
+      const month = String(end.getMonth() + 1).padStart(2, '0');
+      const day = String(end.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      console.warn('Date computation error:', e);
+      return '';
+    }
+  };
+
   // Auto-calculate Membership End Date whenever plan or start date changes (if not manually overridden)
   useEffect(() => {
     if (!isManualEndDate && membershipStartDate) {
-      const start = new Date(membershipStartDate);
-      if (!isNaN(start.getTime())) {
-        const end = new Date(start);
-        const periodStr = chosenPlan?.period || '';
-        const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-        if (matchDays) {
-          end.setDate(end.getDate() + parseInt(matchDays[1], 10));
-        } else {
-          const months = Number(chosenPlan?.durationMonths) || 1;
-          end.setMonth(end.getMonth() + months);
-        }
-        setMembershipEndDate(end.toISOString().split('T')[0]);
+      const calculated = computePlanEndDate(membershipStartDate, chosenPlan);
+      if (calculated) {
+        setMembershipEndDate(calculated);
       }
     }
   }, [chosenPlan, membershipStartDate, isManualEndDate]);
@@ -512,7 +602,7 @@ export const AddMemberModal = ({
       weight: 70,
       targetWeight: 75,
       height: 175,
-      medicalNotes: 'None',
+      medicalNotes: '',
       emergencyContact: '',
       kycDocType: 'Aadhaar Card',
       kycDocNumber: '',
@@ -523,6 +613,8 @@ export const AddMemberModal = ({
     setIsManualEndDate(false);
     setSplitCashAmount('');
     setSplitOnlineAmount('');
+    setSplitOnlineProvider('GPay');
+    setSplitOnlineProviderOther('');
     setTrainingType('self');
     setSelectedTrainerId('');
     setPtPackageFee(3000);
@@ -539,6 +631,7 @@ export const AddMemberModal = ({
     setOtpVerified(false);
     setIsFullPayment(true);
     setCustomPaidAmount('');
+    setDiscountAmount('');
     setPaymentMethod('UPI');
   };
 
@@ -600,6 +693,11 @@ export const AddMemberModal = ({
     if (isUpgradeMode && targetMember) {
       if (totalCalculatedAmount <= 0 && trainingType !== 'pt' && !recoveryPlanId && !isUpgradingBasePlan) {
         addToast('Please select at least one top-up service (Personal Training, Recovery Plan, or Plan Upgrade).', 'error');
+        return;
+      }
+
+      if (maxPlanDiscount > 0 && numDiscount > maxPlanDiscount) {
+        addToast(`Discount ₹${numDiscount} exceeds the maximum allowed discount of ₹${maxPlanDiscount} for ${chosenPlan?.name || 'this plan'}.`, 'error');
         return;
       }
 
@@ -690,9 +788,10 @@ export const AddMemberModal = ({
           memberUpdates.planId = chosenPlan.id;
           memberUpdates.planName = chosenPlan.name;
           const today = new Date();
-          const newExpiry = new Date();
-          newExpiry.setMonth(today.getMonth() + (chosenPlan.durationMonths || 1));
-          memberUpdates.expiryDate = newExpiry.toISOString().split('T')[0];
+          const todayStr = today.toISOString().split('T')[0];
+          const newCombinedExpiry = computePlanEndDate(todayStr, chosenPlan, targetMember?.expiryDate);
+          memberUpdates.expiryDate = newCombinedExpiry;
+          memberUpdates.expiry_date = newCombinedExpiry;
           memberUpdates.status = 'Active';
         }
 
@@ -764,6 +863,38 @@ export const AddMemberModal = ({
       return;
     }
 
+    if (
+      hasSqlInjection(formData.name) ||
+      hasSqlInjection(formData.email) ||
+      hasSqlInjection(formData.phone) ||
+      hasSqlInjection(formData.password) ||
+      hasSqlInjection(formData.medicalNotes) ||
+      hasSqlInjection(formData.goal)
+    ) {
+      addToast('Security Warning: Disallowed characters or potential SQL injection detected.', 'error');
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      addToast('Please enter a valid email address (e.g. member@example.com).', 'error');
+      return;
+    }
+
+    if (!isUpgradeMode && !formData.phone?.trim()) {
+      addToast('Please enter member mobile number.', 'error');
+      return;
+    }
+
+    if (!isUpgradeMode && !isValidPhone(formData.phone)) {
+      addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (!isUpgradeMode && duplicatePhoneMember) {
+      addToast(`Member already exists with this mobile number (${duplicatePhoneMember.name} - ${duplicatePhoneMember.phone || formData.phone})`, 'error');
+      return;
+    }
+
     if (!formData.planId && (!plans || plans.length === 0)) {
       addToast('No membership plans available. Please add a plan first.', 'error');
       handleOpenQuickAdd('membership');
@@ -797,19 +928,22 @@ export const AddMemberModal = ({
       }
 
       const today = new Date();
-      const expiry = new Date();
-      expiry.setMonth(today.getMonth() + (chosenPlan?.durationMonths || 1));
+      const todayStr = today.toISOString().split('T')[0];
+      const fallbackExpiry = computePlanEndDate(membershipStartDate || todayStr, chosenPlan);
 
       // Resolve final payment method name with split details if applicable
       let finalPaymentMethod = paymentMethod || 'UPI';
       if (paymentMethod === 'Split') {
         const cashVal = Number(splitCashAmount || 0);
         const onlineVal = Number(splitOnlineAmount || 0);
-        finalPaymentMethod = `Split (Cash: ₹${cashVal.toLocaleString('en-IN')} + Online: ₹${onlineVal.toLocaleString('en-IN')})`;
+        const resolvedProvider = splitOnlineProvider === 'Other'
+          ? (splitOnlineProviderOther?.trim() || 'Other')
+          : (splitOnlineProvider || 'GPay');
+        finalPaymentMethod = `Split (Cash: ₹${cashVal.toLocaleString('en-IN')} + Online [${resolvedProvider}]: ₹${onlineVal.toLocaleString('en-IN')})`;
       }
 
-      const finalStartDate = membershipStartDate || today.toISOString().split('T')[0];
-      const finalExpiryDate = membershipEndDate || expiry.toISOString().split('T')[0];
+      const finalStartDate = membershipStartDate || todayStr;
+      const finalExpiryDate = membershipEndDate || fallbackExpiry || todayStr;
       const finalJoinDate = formData.joinDate || finalStartDate;
 
       // Generate invoice title including any PT / recovery additions
@@ -1127,30 +1261,41 @@ export const AddMemberModal = ({
                 placeholder="e.g. Liam Hemsworth"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${isUpgradeMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                  }`}
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">Phone Number</label>
+                <label className="block text-xs font-bold text-slate-700">Phone Number *</label>
                 {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
               </div>
               <input
-                type="text"
+                type="tel"
+                required={!isUpgradeMode}
                 disabled={isUpgradeMode}
-                placeholder="+91 98200 00000"
+                placeholder="10-digit mobile number"
+                maxLength={10}
+                inputMode="numeric"
+                onKeyDown={preventNonPhoneKey}
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
-                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
-                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs transition-colors ${duplicatePhoneMember
+                    ? 'bg-rose-50 border-2 border-rose-500 text-slate-900 focus:outline-none'
+                    : isUpgradeMode
+                      ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
+                      : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
+                  }`}
               />
+              {duplicatePhoneMember && (
+                <p className="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                  <span>Member already exists with this mobile number
+                  </span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -1159,7 +1304,7 @@ export const AddMemberModal = ({
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                  Admission / Join Date *
+                  Join Date *
                 </label>
                 {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
               </div>
@@ -1175,11 +1320,10 @@ export const AddMemberModal = ({
                     setMembershipStartDate(val);
                   }
                 }}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${isUpgradeMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold'
-                }`}
+                  }`}
               />
             </div>
             <div>
@@ -1203,11 +1347,10 @@ export const AddMemberModal = ({
                     age: autoAge !== '' ? autoAge : (val ? prev.age : '')
                   }));
                 }}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${isUpgradeMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                  }`}
               />
             </div>
             <div>
@@ -1223,20 +1366,22 @@ export const AddMemberModal = ({
                 {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
               </div>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                maxLength={3}
                 disabled={isUpgradeMode}
                 readOnly={Boolean(formData.dob)}
+                onKeyDown={(e) => preventNonNumericKey(e, false)}
                 value={formData.age !== undefined && formData.age !== null ? formData.age : ''}
                 onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Number(e.target.value);
-                  setFormData(prev => ({ ...prev, age: val }));
+                  const val = sanitizeDigits(e.target.value, 3);
+                  setFormData(prev => ({ ...prev, age: val === '' ? '' : Number(val) }));
                 }}
                 placeholder={formData.dob ? 'Auto from DOB' : 'e.g. 25'}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs transition-colors ${
-                  isUpgradeMode || formData.dob
-                    ? 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold cursor-not-allowed'
-                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                className={`w-full px-3.5 py-2 rounded-xl text-xs transition-colors ${isUpgradeMode || formData.dob
+                    ? 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold cursor-not-allowed font-mono'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono'
+                  }`}
               />
             </div>
             <div>
@@ -1248,11 +1393,10 @@ export const AddMemberModal = ({
                 disabled={isUpgradeMode}
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className={`w-full px-3.5 py-2 rounded-xl text-xs ${
-                  isUpgradeMode
+                className={`w-full px-3.5 py-2 rounded-xl text-xs ${isUpgradeMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer'
-                }`}
+                  }`}
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -1262,32 +1406,52 @@ export const AddMemberModal = ({
           </div>
 
           {/* Membership Plan Selection / Upgrade Option */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              {isUpgradeMode ? (
-                <div className="p-3.5 rounded-2xl bg-violet-50/60 border border-violet-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-violet-600" />
-                      <span>Membership Plan Tier</span>
-                    </span>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-violet-700 hover:text-violet-900">
-                      <input
-                        type="checkbox"
-                        checked={isUpgradingBasePlan}
-                        onChange={(e) => setIsUpgradingBasePlan(e.target.checked)}
-                        className="w-3.5 h-3.5 text-violet-600 rounded border-slate-300 focus:ring-violet-500 cursor-pointer"
-                      />
-                      <span>Upgrade Plan Tier</span>
-                    </label>
-                  </div>
+          {/* SECTION: MEMBERSHIP SUBSCRIPTION & VALIDITY */}
+          <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/90 space-y-3.5 shadow-2xs">
+            <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-200/70">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>Membership Plan & Subscription Validity</span>
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded">
+                  Plan Validity: {chosenPlan?.period || `${chosenPlan?.durationMonths || 1} Month(s)`}
+                </span>
+                {Number(chosenPlan?.offerDays || chosenPlan?.offer_days) > 0 && (
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    +{chosenPlan.offerDays || chosenPlan.offer_days} Days Bonus Offer Applied
+                  </span>
+                )}
+              </div>
+            </div>
 
-                  {isUpgradingBasePlan ? (
+            {isUpgradeMode ? (
+              <div className="p-3.5 rounded-2xl bg-violet-50/60 border border-violet-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Membership Plan Tier</span>
+                  </span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-violet-700 hover:text-violet-900">
+                    <input
+                      type="checkbox"
+                      checked={isUpgradingBasePlan}
+                      onChange={(e) => setIsUpgradingBasePlan(e.target.checked)}
+                      className="w-3.5 h-3.5 text-violet-600 rounded border-slate-300 focus:ring-violet-500 cursor-pointer"
+                    />
+                    <span>Upgrade Plan Tier</span>
+                  </label>
+                </div>
+
+                {isUpgradingBasePlan ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-700">Select Upgraded Plan Tier *</label>
                       <select
                         value={formData.planId}
                         onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-violet-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 cursor-pointer font-medium"
+                        className="w-full px-3.5 py-2 bg-white border border-violet-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 cursor-pointer font-medium"
                       >
                         {plans.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -1295,23 +1459,60 @@ export const AddMemberModal = ({
                           </option>
                         ))}
                       </select>
-                      <p className="text-[10px] text-violet-600 font-medium">
-                        Upgrades the base subscription plan and extends member validity.
-                      </p>
                     </div>
-                  ) : (
-                    <div className="p-2.5 bg-white border border-violet-100 rounded-xl flex items-center justify-between text-xs">
-                      <span className="text-slate-700 font-medium truncate mr-1">
-                        Current: <strong>{plans.find((p) => p.id === formData.planId)?.name || targetMember?.planName || 'Active Membership Plan'}</strong>
-                      </span>
-                      <span className="text-[10px] font-bold text-violet-800 bg-violet-100 px-2 py-0.5 rounded border border-violet-200 shrink-0">
-                        Unchanged (₹0)
-                      </span>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Percent className="w-3.5 h-3.5 text-violet-600" />
+                          <span>Plan Discount (₹)</span>
+                        </label>
+                        {maxPlanDiscount > 0 && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            Max: ₹{maxPlanDiscount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0"
+                          onKeyDown={(e) => preventNonNumericKey(e, true)}
+                          value={discountAmount}
+                          onChange={(e) => setDiscountAmount(sanitizeDecimal(e.target.value))}
+                          className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500"
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <>
+
+                    {chosenPlan && (
+                      <div className="sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-100 text-violet-900 border border-violet-200 rounded-lg text-[10px] font-semibold">
+                        <Sparkles className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                        <span>
+                          {targetMember?.expiryDate && String(targetMember.expiryDate).split('T')[0] >= (new Date().toISOString().split('T')[0])
+                            ? `Combined Expiry: Stacks onto current expiry (${String(targetMember.expiryDate).split('T')[0]}). New expiry date: ${computePlanEndDate(new Date().toISOString().split('T')[0], chosenPlan, targetMember.expiryDate)}`
+                            : `New plan expiry: ${computePlanEndDate(new Date().toISOString().split('T')[0], chosenPlan)}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-white border border-violet-100 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-medium truncate mr-1">
+                      Current: <strong>{plans.find((p) => p.id === formData.planId)?.name || targetMember?.planName || 'Active Membership Plan'}</strong>
+                    </span>
+                    <span className="text-[10px] font-bold text-violet-800 bg-violet-100 px-2 py-0.5 rounded border border-violet-200 shrink-0">
+                      Unchanged (₹0)
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Membership Plan Selection */}
+                <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700">Membership Plan *</label>
                     <button
@@ -1352,7 +1553,7 @@ export const AddMemberModal = ({
                           setFormData({ ...formData, planId: e.target.value });
                         }
                       }}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                     >
                       {plans.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -1364,52 +1565,52 @@ export const AddMemberModal = ({
                       </option>
                     </select>
                   )}
-                </>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Training Type & Coach Assignment
-              </label>
-              <select
-                value={trainingType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setTrainingType(val);
-                  if (val === 'self' || val === 'general') {
-                    setSelectedTrainerId('');
-                    setFormData((prev) => ({ ...prev, trainerId: '' }));
-                  } else if (val === 'pt') {
-                    const firstTrn = trainers[0]?.id || '';
-                    setSelectedTrainerId(firstTrn);
-                    setFormData((prev) => ({ ...prev, trainerId: firstTrn }));
-                  }
-                }}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-              >
-                <option value="self">Self Guided / No Trainer</option>
-                <option value="general">General Trainer (Gym Coach Assistance)</option>
-                <option value="pt">1-on-1 Personal Training (PT Package)</option>
-              </select>
-            </div>
-          </div>
+                </div>
 
-          {/* MEMBERSHIP START & END DATES (VALIDITY PERIOD) */}
-          <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/90 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Membership Start & End Dates</span>
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded">
-                Plan Validity: {chosenPlan?.period || `${chosenPlan?.durationMonths || 1} Month(s)`}
-              </span>
-            </div>
+                {/* Plan Discount (₹) - PROPER SIZED FIELD */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Plan Discount (₹)</span>
+                    </label>
+                    {maxPlanDiscount > 0 && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                        Max Allowed: ₹{maxPlanDiscount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(sanitizeDecimal(e.target.value))}
+                      className={`w-full pl-7 pr-3 py-2 bg-white border rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none transition-colors ${
+                        maxPlanDiscount > 0 && Number(discountAmount) > maxPlanDiscount
+                          ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
+                          : 'border-slate-200 focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+                  {maxPlanDiscount > 0 && Number(discountAmount) > maxPlanDiscount && (
+                    <p className="text-[10px] text-rose-600 font-bold mt-1">
+                      Discount exceeds maximum allowed discount of ₹{maxPlanDiscount}!
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Start Date & Calculated End Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Start Date *
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Membership Start Date *</span>
                 </label>
                 <input
                   type="date"
@@ -1419,18 +1620,9 @@ export const AddMemberModal = ({
                     const newStart = e.target.value;
                     setMembershipStartDate(newStart);
                     if (!isManualEndDate && newStart) {
-                      const start = new Date(newStart);
-                      if (!isNaN(start.getTime())) {
-                        const end = new Date(start);
-                        const periodStr = chosenPlan?.period || '';
-                        const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-                        if (matchDays) {
-                          end.setDate(end.getDate() + parseInt(matchDays[1], 10));
-                        } else {
-                          const months = Number(chosenPlan?.durationMonths) || 1;
-                          end.setMonth(end.getMonth() + months);
-                        }
-                        setMembershipEndDate(end.toISOString().split('T')[0]);
+                      const calculated = computePlanEndDate(newStart, chosenPlan);
+                      if (calculated) {
+                        setMembershipEndDate(calculated);
                       }
                     }
                   }}
@@ -1440,29 +1632,21 @@ export const AddMemberModal = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700">
-                    End Date (Expiry) *
+                  <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>End Date (Expiry) *</span>
                   </label>
                   {isManualEndDate && (
                     <button
                       type="button"
                       onClick={() => {
                         setIsManualEndDate(false);
-                        const start = new Date(membershipStartDate);
-                        if (!isNaN(start.getTime())) {
-                          const end = new Date(start);
-                          const periodStr = chosenPlan?.period || '';
-                          const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-                          if (matchDays) {
-                            end.setDate(end.getDate() + parseInt(matchDays[1], 10));
-                          } else {
-                            const months = Number(chosenPlan?.durationMonths) || 1;
-                            end.setMonth(end.getMonth() + months);
-                          }
-                          setMembershipEndDate(end.toISOString().split('T')[0]);
+                        const calculated = computePlanEndDate(membershipStartDate, chosenPlan, targetMember?.expiryDate);
+                        if (calculated) {
+                          setMembershipEndDate(calculated);
                         }
                       }}
-                      className="text-[10px] text-emerald-600 hover:underline font-semibold cursor-pointer"
+                      className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
                     >
                       Reset to Auto
                     </button>
@@ -1481,7 +1665,7 @@ export const AddMemberModal = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-emerald-100">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-emerald-200/60 flex-wrap gap-1">
               <span>Member access active between selected dates.</span>
               <span className="font-semibold text-emerald-800">
                 {membershipStartDate && membershipEndDate ? `Valid: ${membershipStartDate} to ${membershipEndDate}` : ''}
@@ -1489,47 +1673,85 @@ export const AddMemberModal = ({
             </div>
           </div>
 
-          {/* General Trainer Floor Guidance Note (No Individual Coach Selection Needed) */}
-          {trainingType === 'general' && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2.5">
-              <UserCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-800">General Floor Coaching Included</p>
-                <p className="text-[11px] text-slate-500">
-                  Floor coaching and workout guidance are provided by all on-duty gym staff without individual coach assignment.
-                </p>
-              </div>
+          {/* SECTION: COACHING & TRAINING PROGRAM */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5 shadow-2xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Dumbbell className="w-4 h-4 text-emerald-600" />
+                <span>Coaching & Training Program</span>
+              </span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Instruction Tier
+              </span>
             </div>
-          )}
 
-          {/* Dedicated PT Coach Selection (Only when 1-on-1 PT is selected) */}
-          {trainingType === 'pt' && (
-            <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-xl space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Select Dedicated PT Coach</span>
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                  Personal Training
-                </span>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Training Type & Coach Assignment *
+              </label>
               <select
-                value={selectedTrainerId}
+                value={trainingType}
                 onChange={(e) => {
-                  setSelectedTrainerId(e.target.value);
-                  setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                  const val = e.target.value;
+                  setTrainingType(val);
+                  if (val === 'self' || val === 'general') {
+                    setSelectedTrainerId('');
+                    setFormData((prev) => ({ ...prev, trainerId: '' }));
+                  } else if (val === 'pt') {
+                    const firstTrn = trainers[0]?.id || '';
+                    setSelectedTrainerId(firstTrn);
+                    setFormData((prev) => ({ ...prev, trainerId: firstTrn }));
+                  }
                 }}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
               >
-                {trainers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.specialty}) — {t.experience}
-                  </option>
-                ))}
+                <option value="self">Self Guided / No Trainer</option>
+                <option value="general">General Trainer (Gym Coach Assistance)</option>
+                <option value="pt">1-on-1 Personal Training (PT Package)</option>
               </select>
             </div>
-          )}
+
+            {/* General Trainer Floor Guidance Note */}
+            {trainingType === 'general' && (
+              <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-start gap-2.5">
+                <UserCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-slate-800">General Floor Coaching Included</p>
+                  <p className="text-[11px] text-slate-500">
+                    Floor coaching and workout guidance are provided by all on-duty gym staff without individual coach assignment.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Dedicated PT Coach Selection (Only when 1-on-1 PT is selected) */}
+            {trainingType === 'pt' && (
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Select Dedicated PT Coach *</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Personal Training
+                  </span>
+                </div>
+                <select
+                  value={selectedTrainerId}
+                  onChange={(e) => {
+                    setSelectedTrainerId(e.target.value);
+                    setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
+                >
+                  {trainers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.specialty}) — {t.experience}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
           {/* 1-ON-1 PERSONAL TRAINING PLAN (WHEN PT SELECTED) */}
           {trainingType === 'pt' && (
@@ -1644,22 +1866,20 @@ export const AddMemberModal = ({
                         <button
                           type="button"
                           onClick={() => setCommissionType('percent')}
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
-                            commissionType === 'percent'
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent'
                               ? 'bg-white text-emerald-700 shadow-xs'
                               : 'text-slate-500 hover:text-slate-900'
-                          }`}
+                            }`}
                         >
                           % Rate
                         </button>
                         <button
                           type="button"
                           onClick={() => setCommissionType('fixed')}
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
-                            commissionType === 'fixed'
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed'
                               ? 'bg-white text-emerald-700 shadow-xs'
                               : 'text-slate-500 hover:text-slate-900'
-                          }`}
+                            }`}
                         >
                           ₹ Flat
                         </button>
@@ -1710,6 +1930,7 @@ export const AddMemberModal = ({
               </div>
             </div>
           )}
+          </div>
 
           {/* RECOVERY & WELLNESS SESSIONS (AVAILABLE FOR ALL TRAINING OPTIONS) */}
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
@@ -1815,11 +2036,10 @@ export const AddMemberModal = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
               {/* Full Payment Done Checkbox */}
-              <div className={`p-3 rounded-xl border transition-all ${
-                isFullPayment 
-                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950' 
+              <div className={`p-3 rounded-xl border transition-all ${isFullPayment
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                   : 'bg-amber-50/70 border-amber-200 text-amber-950'
-              }`}>
+                }`}>
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -1888,12 +2108,12 @@ export const AddMemberModal = ({
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                       <input
-                        type="number"
-                        min="0"
-                        max={effectivePaidAmount}
+                        type="text"
+                        inputMode="decimal"
+                        onKeyDown={(e) => preventNonNumericKey(e, true)}
                         value={splitCashAmount}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = sanitizeDecimal(e.target.value);
                           setSplitCashAmount(val);
                           const num = Math.max(0, Number(val) || 0);
                           const rem = Math.max(0, effectivePaidAmount - num);
@@ -1912,12 +2132,12 @@ export const AddMemberModal = ({
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                       <input
-                        type="number"
-                        min="0"
-                        max={effectivePaidAmount}
+                        type="text"
+                        inputMode="decimal"
+                        onKeyDown={(e) => preventNonNumericKey(e, true)}
                         value={splitOnlineAmount}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = sanitizeDecimal(e.target.value);
                           setSplitOnlineAmount(val);
                           const num = Math.max(0, Number(val) || 0);
                           const rem = Math.max(0, effectivePaidAmount - num);
@@ -1927,12 +2147,51 @@ export const AddMemberModal = ({
                         className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400"
                       />
                     </div>
+
+                    {/* Online Received Via Options */}
+                    <div className="mt-2.5 space-y-1.5">
+                      <label className="block text-[10px] font-bold text-violet-900 uppercase tracking-wider">
+                        Online Received Via *
+                      </label>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[
+                          { id: 'GPay', label: 'GPay' },
+                          { id: 'PhonePe', label: 'PhonePe' },
+                          { id: 'Account', label: 'Account' },
+                          { id: 'Other', label: 'Other' },
+                        ].map((provider) => (
+                          <button
+                            key={provider.id}
+                            type="button"
+                            onClick={() => setSplitOnlineProvider(provider.id)}
+                            className={`py-1 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                              splitOnlineProvider === provider.id
+                                ? 'bg-violet-600 text-white border-violet-600 shadow-xs'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50/50'
+                            }`}
+                          >
+                            {provider.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {splitOnlineProvider === 'Other' && (
+                        <input
+                          type="text"
+                          required
+                          value={splitOnlineProviderOther}
+                          onChange={(e) => setSplitOnlineProviderOther(e.target.value)}
+                          placeholder="Type provider (e.g. Paytm, Cred, Cheque)..."
+                          className="w-full px-2.5 py-1.5 bg-white border border-violet-300 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400 mt-1"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-violet-200/70 font-medium">
                   <span className="text-violet-800">
-                    Split: <strong>₹{Number(splitCashAmount || 0).toLocaleString('en-IN')} Cash</strong> + <strong>₹{Number(splitOnlineAmount || 0).toLocaleString('en-IN')} Online</strong>
+                    Split: <strong>₹{Number(splitCashAmount || 0).toLocaleString('en-IN')} Cash</strong> + <strong>₹{Number(splitOnlineAmount || 0).toLocaleString('en-IN')} Online ({splitOnlineProvider === 'Other' ? (splitOnlineProviderOther || 'Other') : splitOnlineProvider})</strong>
                   </span>
                   <span className="font-bold text-violet-950 font-mono">
                     Total: ₹{(Number(splitCashAmount || 0) + Number(splitOnlineAmount || 0)).toLocaleString('en-IN')}
@@ -1953,11 +2212,11 @@ export const AddMemberModal = ({
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                       <input
-                        type="number"
-                        min="0"
-                        max={totalCalculatedAmount}
+                        type="text"
+                        inputMode="decimal"
+                        onKeyDown={(e) => preventNonNumericKey(e, true)}
                         value={customPaidAmount}
-                        onChange={(e) => setCustomPaidAmount(e.target.value)}
+                        onChange={(e) => setCustomPaidAmount(sanitizeDecimal(e.target.value))}
                         placeholder="e.g. 4000"
                         className="w-full pl-7 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                       />
@@ -2025,6 +2284,7 @@ export const AddMemberModal = ({
                   <input
                     type="number"
                     value={formData.weight}
+                    placeholder="e.g. 75"
                     onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                   />
@@ -2034,6 +2294,7 @@ export const AddMemberModal = ({
                   <input
                     type="number"
                     value={formData.targetWeight}
+                    placeholder="e.g. 65"
                     onChange={(e) => setFormData({ ...formData, targetWeight: Number(e.target.value) })}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                   />
@@ -2043,6 +2304,7 @@ export const AddMemberModal = ({
                   <input
                     type="number"
                     value={formData.height}
+                    placeholder="e.g. 180"
                     onChange={(e) => setFormData({ ...formData, height: Number(e.target.value) })}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                   />
@@ -2064,8 +2326,8 @@ export const AddMemberModal = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1">Medical Notes & Allergies</label>
                 <input
                   type="text"
-                  placeholder="e.g. Asthma, Lower back pain history, None"
-                  value={formData.medicalNotes}
+                  placeholder="e.g. Asthma, Lower back pain history (optional)"
+                  value={formData.medicalNotes || ''}
                   onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
@@ -2276,11 +2538,10 @@ export const AddMemberModal = ({
             <button
               type="submit"
               disabled={isCreatingMember || (isUpgradeMode ? totalCalculatedAmount <= 0 : (!consentAgreed || (!otpVerified && !signedInPerson)))}
-              className={`px-6 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 ${
-                isUpgradeMode
+              className={`px-6 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 ${isUpgradeMode
                   ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-              }`}
+                }`}
             >
               {isCreatingMember ? (
                 <>
@@ -2293,11 +2554,11 @@ export const AddMemberModal = ({
                   <span>
                     {isUpgradeMode
                       ? (isFullPayment
-                          ? `Confirm Top-up & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
-                          : `Confirm Top-up (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)
+                        ? `Confirm Top-up & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
+                        : `Confirm Top-up (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)
                       : (isFullPayment
-                          ? `Register Member & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
-                          : `Register Member (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)}
+                        ? `Register Member & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
+                        : `Register Member (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)}
                   </span>
                 </>
               )}
@@ -2315,11 +2576,10 @@ export const AddMemberModal = ({
       >
         {newlyCreatedCredentials && (
           <div className="space-y-5 text-center">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto border ${
-              newlyCreatedCredentials.isUpgrade
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto border ${newlyCreatedCredentials.isUpgrade
                 ? 'bg-violet-100 text-violet-700 border-violet-200'
                 : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-            }`}>
+              }`}>
               {newlyCreatedCredentials.isUpgrade ? <Receipt className="w-6 h-6" /> : <CheckCircle className="w-6 h-6" />}
             </div>
 
@@ -2498,8 +2758,8 @@ export const AddMemberModal = ({
           quickAddPlanType === 'membership'
             ? 'Add Membership Plan'
             : quickAddPlanType === 'recovery'
-            ? 'Add Recovery & Wellness Plan'
-            : 'Add Personal Training Package'
+              ? 'Add Recovery & Wellness Plan'
+              : 'Add Personal Training Package'
         }
         maxWidth="max-w-lg"
       >
@@ -2520,8 +2780,8 @@ export const AddMemberModal = ({
                 quickAddPlanType === 'membership'
                   ? 'e.g. 1 Month Standard, 3 Months Pro'
                   : quickAddPlanType === 'recovery'
-                  ? 'e.g. Ice Bath Therapy, Sauna Session'
-                  : 'e.g. 12 Sessions Personal Training'
+                    ? 'e.g. Ice Bath Therapy, Sauna Session'
+                    : 'e.g. 12 Sessions Personal Training'
               }
               value={quickPlanForm.name}
               onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
@@ -2586,11 +2846,10 @@ export const AddMemberModal = ({
                           period: periodLabel
                         });
                       }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
-                        Number(quickPlanForm.durationMonths) === preset.m
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${Number(quickPlanForm.durationMonths) === preset.m
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {preset.label}
                     </button>

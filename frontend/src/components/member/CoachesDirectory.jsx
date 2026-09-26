@@ -10,9 +10,29 @@ import {
   CheckCircle2,
   Phone,
   Mail,
-  Send
+  Send,
+  User
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+
+const CoachAvatar = ({ src, alt, className = "w-14 h-14 rounded-2xl", iconClassName = "w-7 h-7 text-teal-600" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Coach"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const CoachesDirectory = () => {
   const { trainers = [], trainerReviews = [], addTrainerReview, addToast } = useGymData();
@@ -73,14 +93,11 @@ export const CoachesDirectory = () => {
             >
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <img
+                  <CoachAvatar
                     src={trn.avatar}
                     alt={trn.name}
-                    className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-xs"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80';
-                    }}
+                    className="w-14 h-14 rounded-2xl shadow-xs"
+                    iconClassName="w-7 h-7 text-teal-600"
                   />
                   <div className="min-w-0">
                     <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
@@ -157,10 +174,11 @@ export const CoachesDirectory = () => {
           <div className="space-y-3.5 text-xs">
             <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <img
+                <CoachAvatar
                   src={selectedTrainer.avatar}
                   alt={selectedTrainer.name}
-                  className="w-10 h-10 rounded-xl object-cover border border-teal-200"
+                  className="w-10 h-10 rounded-xl"
+                  iconClassName="w-5 h-5 text-teal-600"
                 />
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">{selectedTrainer.name}</h4>

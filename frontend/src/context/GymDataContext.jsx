@@ -72,6 +72,8 @@ const SEED_PLANS = [
     period: "Quarterly (3 Months)",
     durationMonths: 3,
     popular: true,
+    offer: 'Festive Bonus Offer',
+    offerDays: 10,
     color: "from-emerald-500/20 to-teal-500/20 border-emerald-500/40",
     features: [
       "All Silver Plan benefits included",
@@ -130,7 +132,7 @@ const SEED_TRAINERS = [
     rating: 4.9,
     clientsCount: 24,
     monthlySalary: 65000,
-    avatar: "https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     certifications: ["CSCS", "NASM-CPT", "Precision Nutrition L1"],
     bio: "Certified CSCS with specialization in biomechanics, muscle hypertrophy, and athlete conditioning."
   },
@@ -145,7 +147,7 @@ const SEED_TRAINERS = [
     rating: 4.8,
     clientsCount: 19,
     monthlySalary: 55000,
-    avatar: "https://images.unsplash.com/photo-1594381898411-846e7d193883?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     certifications: ["CrossFit L2", "ACE Personal Trainer", "Kettlebell Athletics"],
     bio: "Passionate about mobility, core power, and high-intensity body transformations."
   },
@@ -160,7 +162,7 @@ const SEED_TRAINERS = [
     rating: 5.0,
     clientsCount: 31,
     monthlySalary: 58000,
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     certifications: ["RYT-500", "FMS Level 2", "CES"],
     bio: "Focuses on injury rehabilitation, spine health, restorative yoga, and sustainable mobility."
   }
@@ -173,7 +175,7 @@ const SEED_MEMBERS = [
     name: "Aarav Sharma",
     email: "member@archfit.in",
     phone: "+91 98765 43210",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: "plan-2",
     planName: "Gold Quarterly Fitness",
     status: "Active",
@@ -200,7 +202,7 @@ const SEED_MEMBERS = [
     name: "Priya Patel",
     email: "priya.patel@example.com",
     phone: "+91 98112 34567",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: "plan-4",
     planName: "Diamond VIP Annual Elite",
     status: "Active",
@@ -227,7 +229,7 @@ const SEED_MEMBERS = [
     name: "Rohan Verma",
     email: "rohan.v@example.com",
     phone: "+91 98223 45678",
-    avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: "plan-1",
     planName: "Silver Monthly Pass",
     status: "Expiring Soon",
@@ -254,7 +256,7 @@ const SEED_MEMBERS = [
     name: "Ananya Iyer",
     email: "ananya.iyer@example.com",
     phone: "+91 98334 56789",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: "plan-2",
     planName: "Gold Quarterly Fitness",
     status: "Active",
@@ -281,7 +283,7 @@ const SEED_MEMBERS = [
     name: "Kabir Mehra",
     email: "kabir.m@example.com",
     phone: "+91 98445 67890",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: "plan-1",
     planName: "Silver Monthly Pass",
     status: "Expired",
@@ -308,7 +310,7 @@ const SEED_MEMBERS = [
     name: "Sameer Kulkarni",
     email: "sameer.kulkarni@example.com",
     phone: "+91 99887 76655",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80",
+    avatar: "",
     planId: null,
     planName: "Unassigned",
     status: "Active",
@@ -440,11 +442,11 @@ const SEED_ENQUIRIES = [
 ];
 
 const SEED_PRODUCTS = [
-  { id: "prd-1", numericId: 1, name: "Optimum Nutrition Gold Standard 100% Whey (5 lbs)", category: "Supplements", price: 6899, costPrice: 5200, stock: 18, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=200&auto=format&fit=crop&q=80" },
-  { id: "prd-2", numericId: 2, name: "MuscleBlaze Micronized Creatine Monohydrate (250g)", category: "Supplements", price: 999, costPrice: 650, stock: 26, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?w=200&auto=format&fit=crop&q=80" },
-  { id: "prd-3", numericId: 3, name: "ArchFit Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200&auto=format&fit=crop&q=80" },
-  { id: "prd-4", numericId: 4, name: "Cellucor C4 Original Pre-Workout (30 Servings)", category: "Supplements", price: 2399, costPrice: 1700, stock: 14, minStockAlert: 5, status: "In Stock", image: "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=200&auto=format&fit=crop&q=80" },
-  { id: "prd-5", numericId: 5, name: "Raw Electrolyte & Hydration Drink (500ml)", category: "Beverages", price: 120, costPrice: 75, stock: 60, minStockAlert: 15, status: "In Stock", image: "https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=200&auto=format&fit=crop&q=80" }
+  { id: "prd-1", numericId: 1, name: "Optimum Nutrition Gold Standard 100% Whey (5 lbs)", category: "Supplements", price: 6899, costPrice: 5200, stock: 18, minStockAlert: 5, status: "In Stock", image: "" },
+  { id: "prd-2", numericId: 2, name: "MuscleBlaze Micronized Creatine Monohydrate (250g)", category: "Supplements", price: 999, costPrice: 650, stock: 26, minStockAlert: 5, status: "In Stock", image: "" },
+  { id: "prd-3", numericId: 3, name: "ArchFit Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "" },
+  { id: "prd-4", numericId: 4, name: "Cellucor C4 Original Pre-Workout (30 Servings)", category: "Supplements", price: 2399, costPrice: 1700, stock: 14, minStockAlert: 5, status: "In Stock", image: "" },
+  { id: "prd-5", numericId: 5, name: "Raw Electrolyte & Hydration Drink (500ml)", category: "Beverages", price: 120, costPrice: 75, stock: 60, minStockAlert: 15, status: "In Stock", image: "" }
 ];
 
 const SEED_EXPENSES = [
@@ -463,13 +465,13 @@ const SEED_CLASSES = [
 ];
 
 const SEED_ATTENDANCE = [
-  { id: "att-6", memberId: "mem-5", memberName: "Aarav Sharma", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "07:15 AM", checkOutTime: "08:30 AM", duration: "1h 15m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
-  { id: "att-5", memberId: "mem-6", memberName: "Priya Patel", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80", planName: "Diamond VIP Annual Elite", checkInTime: "06:45 AM", checkOutTime: "08:15 AM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
-  { id: "att-4", memberId: "mem-8", memberName: "Ananya Iyer", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "08:30 AM", checkOutTime: "09:45 AM", duration: "1h 15m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
-  { id: "att-3", memberId: "mem-11", memberName: "Sameer Kulkarni", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "04:18 AM", checkOutTime: "05:45 AM", duration: "1h 27m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
-  { id: "att-2", memberId: "mem-7", memberName: "Rohan Verma", avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "06:00 PM", checkOutTime: "07:30 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
-  { id: "att-2b", memberId: "mem-10", memberName: "Vikram Malhotra", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80", planName: "Gold Quarterly Fitness", checkInTime: "05:15 PM", checkOutTime: "06:45 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
-  { id: "att-1", memberId: "mem-9", memberName: "Kabir Mehra", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80", planName: "Silver Monthly Pass", checkInTime: "07:00 AM", checkOutTime: "08:15 AM", duration: "1h 15m", date: getOffsetIso(-3), rawDate: getOffsetIso(-3), displayDate: formatDateDisplay(getOffsetIso(-3)), status: "Completed", gate: "Main Turnstile A" }
+  { id: "att-6", memberId: "mem-5", memberName: "Aarav Sharma", avatar: "", planName: "Gold Quarterly Fitness", checkInTime: "07:15 AM", checkOutTime: "08:30 AM", duration: "1h 15m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
+  { id: "att-5", memberId: "mem-6", memberName: "Priya Patel", avatar: "", planName: "Diamond VIP Annual Elite", checkInTime: "06:45 AM", checkOutTime: "08:15 AM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
+  { id: "att-4", memberId: "mem-8", memberName: "Ananya Iyer", avatar: "", planName: "Gold Quarterly Fitness", checkInTime: "08:30 AM", checkOutTime: "09:45 AM", duration: "1h 15m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
+  { id: "att-3", memberId: "mem-11", memberName: "Sameer Kulkarni", avatar: "", planName: "Silver Monthly Pass", checkInTime: "04:18 AM", checkOutTime: "05:45 AM", duration: "1h 27m", date: getOffsetIso(-2), rawDate: getOffsetIso(-2), displayDate: formatDateDisplay(getOffsetIso(-2)), status: "Completed", gate: "Main Turnstile B" },
+  { id: "att-2", memberId: "mem-7", memberName: "Rohan Verma", avatar: "", planName: "Silver Monthly Pass", checkInTime: "06:00 PM", checkOutTime: "07:30 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "Main Turnstile A" },
+  { id: "att-2b", memberId: "mem-10", memberName: "Vikram Malhotra", avatar: "", planName: "Gold Quarterly Fitness", checkInTime: "05:15 PM", checkOutTime: "06:45 PM", duration: "1h 30m", date: getYesterdayIso(), rawDate: getYesterdayIso(), displayDate: "Yesterday", status: "Completed", gate: "VIP Turnstile C" },
+  { id: "att-1", memberId: "mem-9", memberName: "Kabir Mehra", avatar: "", planName: "Silver Monthly Pass", checkInTime: "07:00 AM", checkOutTime: "08:15 AM", duration: "1h 15m", date: getOffsetIso(-3), rawDate: getOffsetIso(-3), displayDate: formatDateDisplay(getOffsetIso(-3)), status: "Completed", gate: "Main Turnstile A" }
 ];
 
 const SEED_ADVANCE_REQUESTS = [
@@ -1076,7 +1078,12 @@ export const GymDataProvider = ({ children }) => {
               feats = feats.split('\n').map((f) => f.trim()).filter(Boolean);
             }
           }
-          return { ...p, features: Array.isArray(feats) ? feats : [] };
+          return {
+            ...p,
+            maxDiscount: Number(p.max_discount ?? p.maxDiscount ?? 0),
+            max_discount: Number(p.max_discount ?? p.maxDiscount ?? 0),
+            features: Array.isArray(feats) ? feats : []
+          };
         });
         setPlans(cleaned);
         fetchRecoveryPlans();
@@ -1688,7 +1695,8 @@ export const GymDataProvider = ({ children }) => {
       throw new Error(res?.message || 'Failed to register member on backend server');
     } catch (e) {
       console.error('Backend create member error:', e.message);
-      addToast(`Error adding member: ${e.message}`, 'error');
+      const errMsg = e.data?.message || (e.data?.errors ? Object.values(e.data.errors).flat().join(', ') : e.message);
+      addToast(errMsg || 'Failed to add member', 'error');
       throw e;
     }
   };
@@ -1729,10 +1737,45 @@ export const GymDataProvider = ({ children }) => {
 
   const renewMemberPlan = async (memberId, planId) => {
     const selectedPlan = plans.find((p) => p.id === planId) || plans[0];
+    const member = members.find((m) => m.id === memberId);
     const today = new Date();
-    const expiry = new Date();
-    expiry.setMonth(today.getMonth() + (selectedPlan.durationMonths || 1));
-    const expiryStr = expiry.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Combine current plan's expiry if active or in the future
+    let baseDate = today;
+    if (member?.expiryDate) {
+      const cleanCurrent = String(member.expiryDate).split('T')[0];
+      if (cleanCurrent >= todayStr) {
+        const parts = cleanCurrent.split('-');
+        if (parts.length === 3) {
+          baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+          baseDate = new Date(cleanCurrent);
+        }
+      }
+    }
+
+    let expiry = new Date(baseDate.getTime());
+    const periodStr = selectedPlan?.period || '';
+    const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+    if (matchDays) {
+      expiry.setDate(expiry.getDate() + parseInt(matchDays[1], 10));
+    } else {
+      const months = Number(selectedPlan?.durationMonths) || 1;
+      const originalDay = expiry.getDate();
+      expiry.setDate(1);
+      expiry.setMonth(expiry.getMonth() + months);
+      const daysInTargetMonth = new Date(expiry.getFullYear(), expiry.getMonth() + 1, 0).getDate();
+      expiry.setDate(Math.min(originalDay, daysInTargetMonth));
+    }
+    const bonusDays = Number(selectedPlan?.offerDays || selectedPlan?.offer_days) || 0;
+    if (bonusDays > 0) {
+      expiry.setDate(expiry.getDate() + bonusDays);
+    }
+    const year = expiry.getFullYear();
+    const month = String(expiry.getMonth() + 1).padStart(2, '0');
+    const day = String(expiry.getDate()).padStart(2, '0');
+    const expiryStr = `${year}-${month}-${day}`;
     const newStatus = calculateMemberStatus(expiryStr, 'Active');
 
     try {
@@ -1740,15 +1783,41 @@ export const GymDataProvider = ({ children }) => {
         plan_id: planId,
         status: newStatus,
         expiry_date: expiryStr,
+        expiryDate: expiryStr,
         dues_amount: 0
       });
-      await api.invoices.create({
-        user_id: memberId,
-        plan_id: planId,
-        amount: selectedPlan.price,
-        payment_method: 'Instant Digital Payment',
-        status: 'Paid'
-      });
+
+      if (api.revenueBilling?.addInflow) {
+        const rawMemberId = member?.numericId || memberId;
+        const cleanUserId = typeof rawMemberId === 'string'
+          ? parseInt(rawMemberId.replace(/\D/g, ''), 10)
+          : Number(rawMemberId);
+
+        await api.revenueBilling.addInflow({
+          user_id: cleanUserId || 1,
+          memberId: memberId,
+          member_name: member?.name || 'Member',
+          plan_id: selectedPlan?.id,
+          plan_name: selectedPlan.name,
+          title: `${member?.name || 'Member'} - ${selectedPlan.name} (Plan Renewal)`,
+          category: 'Membership Fee',
+          amount: Number(selectedPlan.price) || 0,
+          total_amount: Number(selectedPlan.price) || 0,
+          dues_amount: 0,
+          payment_method: 'Instant Digital Payment',
+          date: todayStr,
+          status: 'Paid',
+          notes: `Plan renewed to ${selectedPlan.name}. Valid until ${expiryStr}.`
+        });
+      } else if (api.invoices?.create) {
+        await api.invoices.create({
+          user_id: memberId,
+          plan_id: planId,
+          amount: selectedPlan.price,
+          payment_method: 'Instant Digital Payment',
+          status: 'Paid'
+        });
+      }
     } catch (e) {
       console.warn('Backend renew plan fallback:', e.message);
     }
@@ -1772,16 +1841,18 @@ export const GymDataProvider = ({ children }) => {
     const newInvoice = {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       memberId,
-      memberName: members.find((m) => m.id === memberId)?.name || 'Member',
+      memberName: member?.name || 'Member',
       planName: selectedPlan.name,
       amount: selectedPlan.price,
-      date: today.toISOString().split('T')[0],
+      date: todayStr,
       paymentMethod: 'Instant Digital Payment',
       status: 'Paid',
       invoiceUrl: '#'
     };
     setInvoices((prev) => [newInvoice, ...prev]);
-    addToast(`Plan renewed! ${selectedPlan.name} is now active.`);
+    fetchInvoices?.();
+    fetchDashboardStats?.();
+    addToast(`Plan renewed! ${selectedPlan.name} extended to ${expiryStr}.`);
   };
 
   // RECORD PAYMENT / FEE COLLECTION & MEMBERSHIP ACTIVATION
@@ -1796,11 +1867,43 @@ export const GymDataProvider = ({ children }) => {
     paymentMethod = 'UPI'
   }) => {
     const selectedPlan = plans.find((p) => p.id === planId) || plans[0];
+    const member = members.find((m) => m.id === memberId);
     let calculatedExpiry = expiryDate;
     if (!calculatedExpiry) {
-      const baseDate = paymentDate ? new Date(paymentDate) : new Date();
-      baseDate.setMonth(baseDate.getMonth() + (Number(selectedPlan?.durationMonths) || 1));
-      calculatedExpiry = baseDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      let baseDate = paymentDate ? new Date(paymentDate) : new Date();
+      if (member?.expiryDate) {
+        const cleanCurrent = String(member.expiryDate).split('T')[0];
+        if (cleanCurrent >= todayStr) {
+          const parts = cleanCurrent.split('-');
+          if (parts.length === 3) {
+            baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          } else {
+            baseDate = new Date(cleanCurrent);
+          }
+        }
+      }
+      let target = new Date(baseDate.getTime());
+      const periodStr = selectedPlan?.period || '';
+      const matchDays = periodStr.match(/(\d+)\s*Days?/i);
+      if (matchDays) {
+        target.setDate(target.getDate() + parseInt(matchDays[1], 10));
+      } else {
+        const months = Number(selectedPlan?.durationMonths) || 1;
+        const originalDay = target.getDate();
+        target.setDate(1);
+        target.setMonth(target.getMonth() + months);
+        const daysInTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+        target.setDate(Math.min(originalDay, daysInTargetMonth));
+      }
+      const bonusDays = Number(selectedPlan?.offerDays || selectedPlan?.offer_days) || 0;
+      if (bonusDays > 0) {
+        target.setDate(target.getDate() + bonusDays);
+      }
+      const year = target.getFullYear();
+      const month = String(target.getMonth() + 1).padStart(2, '0');
+      const day = String(target.getDate()).padStart(2, '0');
+      calculatedExpiry = `${year}-${month}-${day}`;
     }
 
     const resolvedMemberName = memberName || members.find((m) => m.id === memberId)?.name || 'Member';
@@ -1952,7 +2055,7 @@ export const GymDataProvider = ({ children }) => {
     const id = `trn-${trainers.length + 1}`;
     const newTrainer = {
       id,
-      avatar: trainerData.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+      avatar: trainerData.avatar || "",
       rating: 5.0,
       activeClientsCount: 0,
       experience: "5+ Years",
@@ -2442,7 +2545,7 @@ export const GymDataProvider = ({ children }) => {
     const newProduct = {
       id: tempId,
       status: Number(productData.stock) > 0 ? 'In Stock' : 'Out of Stock',
-      image: productData.image || 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80',
+      image: productData.image || '',
       ...productData
     };
     setProducts((prev) => [newProduct, ...prev]);
@@ -2727,7 +2830,7 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // Membership Freezes Handlers
-  const addFreezeRequest = async ({ memberId, memberName, planName, freezeStartDate, freezeEndDate, daysFrozen, reason }) => {
+  const addFreezeRequest = async ({ memberId, memberName, planName, freezeStartDate, freezeEndDate, daysFrozen, reason, fee, paymentMethod, type = 'freeze' }) => {
     const tempId = `frz-${Date.now()}`;
     const newFreeze = {
       id: tempId,
@@ -2737,8 +2840,11 @@ export const GymDataProvider = ({ children }) => {
       freezeStartDate,
       freezeEndDate,
       daysFrozen: Number(daysFrozen) || 15,
+      fee: Number(fee) || 0,
+      paymentMethod: paymentMethod || 'Cash',
+      type: type || 'freeze',
       reason,
-      status: 'Active Freeze',
+      status: type === 'extension' ? 'Extended' : 'Active Freeze',
       approvedBy: 'Vikramaditya Singhania (Owner)'
     };
     setMembershipFreezes((prev) => [newFreeze, ...prev]);
@@ -2750,7 +2856,7 @@ export const GymDataProvider = ({ children }) => {
           exp.setDate(exp.getDate() + Number(newFreeze.daysFrozen));
           return {
             ...m,
-            status: 'Frozen (Paused)',
+            status: type === 'extension' ? 'Active' : 'Frozen (Paused)',
             expiryDate: exp.toISOString().split('T')[0]
           };
         }
@@ -2766,13 +2872,17 @@ export const GymDataProvider = ({ children }) => {
         freezeStartDate,
         freezeEndDate,
         daysFrozen,
+        fee: Number(fee) || 0,
+        paymentMethod: paymentMethod || 'Cash',
+        type,
         reason
       });
+      fetchFreezes?.();
     } catch (err) {
       console.warn('Freeze create sync error:', err.message);
     }
 
-    addToast(`Membership for "${memberName}" frozen for ${newFreeze.daysFrozen} days!`);
+    addToast(`${type === 'extension' ? 'Extension' : 'Freeze'} for "${memberName}" applied for ${newFreeze.daysFrozen} days!`);
   };
 
   const unfreezeMembership = async (freezeId) => {
@@ -2794,7 +2904,7 @@ export const GymDataProvider = ({ children }) => {
     addToast('Membership un-frozen and reactivated in database!');
   };
 
-  const extendMembership = ({ memberId, extensionDays, reason }) => {
+  const extendMembership = async ({ memberId, extensionDays, reason, fee, paymentMethod }) => {
     const member = members.find((m) => m.id === memberId);
     if (!member) return;
     const currentExp = member.expiryDate ? new Date(member.expiryDate) : new Date();
@@ -2804,7 +2914,19 @@ export const GymDataProvider = ({ children }) => {
     setMembers((prev) =>
       prev.map((m) => (m.id === memberId ? { ...m, status: 'Active', expiryDate: newExpiryStr } : m))
     );
-    addToast(`Extended membership of ${member.name} by ${extensionDays} days! New expiry: ${newExpiryStr}`);
+
+    await addFreezeRequest({
+      memberId,
+      memberName: member.name,
+      planName: member.planName || 'Membership Plan',
+      freezeStartDate: new Date().toISOString().split('T')[0],
+      freezeEndDate: newExpiryStr,
+      daysFrozen: Number(extensionDays),
+      fee: Number(fee) || 0,
+      paymentMethod: paymentMethod || 'Cash',
+      type: 'extension',
+      reason: reason || 'Validity Extension'
+    });
   };
 
   // Payroll Handlers
@@ -2831,6 +2953,17 @@ export const GymDataProvider = ({ children }) => {
           const base = Number(rec.baseSalary || 0);
           const comm = Number(rec.commissions || 0);
           calculatedNet = base + comm + newBonus - newDeductions;
+
+          // Persist deduction per employee so once added, it always comes for that trainer/staff
+          try {
+            const saved = JSON.parse(localStorage.getItem('pulsefit_staff_deductions') || '{}');
+            const empId = rec.employeeId || rec.employee_id;
+            if (empId) saved[String(empId)] = newDeductions;
+            if (rec.trainerName) saved[rec.trainerName.toLowerCase()] = newDeductions;
+            if (rec.employeeName) saved[rec.employeeName.toLowerCase()] = newDeductions;
+            localStorage.setItem('pulsefit_staff_deductions', JSON.stringify(saved));
+          } catch (e) {}
+
           return {
             ...rec,
             bonus: newBonus,
@@ -3527,6 +3660,7 @@ export const GymDataProvider = ({ children }) => {
         deleteProduct,
         recordProductSale,
         commissions,
+        fetchCommissions,
         addCommissionRecord,
         markCommissionPaid,
         consentForms,
@@ -3537,6 +3671,7 @@ export const GymDataProvider = ({ children }) => {
         unfreezeMembership,
         extendMembership,
         payrollRecords,
+        fetchPayroll,
         markPayrollPaid,
         updatePayrollAdjustments,
         advanceRequests,

@@ -22,9 +22,30 @@ import {
   Flame,
   ShieldCheck,
   Activity,
-  Sparkles
+  Sparkles,
+  User
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { hasSqlInjection, preventNonNumericKey, sanitizeDecimal, sanitizeText } from '../../utils/validation';
+
+const AvatarWithFallback = ({ src, alt, className = "w-10 h-10 rounded-xl", iconClassName = "w-5 h-5 text-emerald-600", bgClassName = "bg-emerald-50" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} ${bgClassName} border border-slate-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) => {
   const { currentUser } = useAuth();
@@ -146,12 +167,17 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
       return;
     }
 
+    if (hasSqlInjection(advanceForm.reason)) {
+      alert('Security Warning: SQL or script injection characters detected in reason. Please remove them.');
+      return;
+    }
+
     requestAdvancePay({
       staffId: currentUser?.id || 'trn-2',
       staffName: currentUser?.name || 'Coach Alex Rivers',
       role: currentUser?.roleLabel || 'Senior Fitness Coach',
       amount: Number(advanceForm.amount),
-      reason: advanceForm.reason,
+      reason: sanitizeText(advanceForm.reason),
       repaymentMonth: advanceForm.repaymentMonth
     });
 
@@ -166,13 +192,12 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="relative shrink-0">
-              <img
-                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80'}
+              <AvatarWithFallback
+                src={currentUser?.avatar}
                 alt={currentUser?.name}
-                className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover ring-2 ring-teal-500/20 border border-slate-100 shadow-xs"
-                onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80';
-                }}
+                className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl ring-2 ring-teal-500/20"
+                iconClassName="w-8 h-8 text-teal-600"
+                bgClassName="bg-teal-50"
               />
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-xs">
                 <ShieldCheck className="w-3 h-3 text-white" />
@@ -456,13 +481,12 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                   className="p-3 rounded-xl bg-slate-50 border border-slate-200 hover:bg-white hover:border-slate-300 transition-all flex items-center justify-between gap-3 cursor-pointer shadow-2xs group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
+                    <AvatarWithFallback
                       src={client.avatar}
                       alt={client.name}
-                      className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-                      }}
+                      className="w-10 h-10 rounded-xl"
+                      iconClassName="w-5 h-5 text-emerald-600"
+                      bgClassName="bg-emerald-50"
                     />
                     <div className="min-w-0">
                       <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
@@ -696,8 +720,9 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
               max={100000}
               step={1000}
               required
+              onKeyDown={(e) => preventNonNumericKey(e, false)}
               value={advanceForm.amount}
-              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: sanitizeDecimal(e.target.value) })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500 font-bold"
             />
           </div>

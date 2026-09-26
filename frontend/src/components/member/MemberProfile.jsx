@@ -20,6 +20,16 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { StatCard } from '../common/StatCard';
+import {
+  hasSqlInjection,
+  isValidPhone,
+  preventNonNumericKey,
+  preventNonPhoneKey,
+  sanitizePhone,
+  sanitizeDecimal,
+  sanitizeDigits,
+  sanitizeText
+} from '../../utils/validation';
 
 export const MemberProfile = () => {
   const { currentUser, logout } = useAuth();
@@ -60,17 +70,38 @@ export const MemberProfile = () => {
     e.preventDefault();
     if (!member?.id) return;
 
+    if (
+      hasSqlInjection(formData.name) ||
+      hasSqlInjection(formData.phone) ||
+      hasSqlInjection(formData.emergencyContact) ||
+      hasSqlInjection(formData.goal) ||
+      hasSqlInjection(formData.medicalNotes)
+    ) {
+      alert('Security Warning: Special SQL/script characters detected. Please remove them.');
+      return;
+    }
+
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      alert('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (formData.emergencyContact && !isValidPhone(formData.emergencyContact)) {
+      alert('Please enter a valid 10-digit emergency contact number.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       await updateMember(member.id, {
-        name: formData.name,
+        name: sanitizeText(formData.name),
         phone: formData.phone,
         emergencyContact: formData.emergencyContact,
         weight: formData.weight ? Number(formData.weight) : undefined,
         targetWeight: formData.targetWeight ? Number(formData.targetWeight) : undefined,
         height: formData.height ? Number(formData.height) : undefined,
-        goal: formData.goal,
-        medicalNotes: formData.medicalNotes
+        goal: sanitizeText(formData.goal),
+        medicalNotes: sanitizeText(formData.medicalNotes)
       });
 
       setIsEditModalOpen(false);
@@ -352,8 +383,10 @@ export const MemberProfile = () => {
               </label>
               <input
                 type="tel"
+                maxLength={10}
+                onKeyDown={preventNonPhoneKey}
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs"
               />
             </div>
@@ -363,8 +396,10 @@ export const MemberProfile = () => {
               </label>
               <input
                 type="tel"
+                maxLength={10}
+                onKeyDown={preventNonPhoneKey}
                 value={formData.emergencyContact}
-                onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, emergencyContact: sanitizePhone(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs"
               />
             </div>
@@ -378,8 +413,10 @@ export const MemberProfile = () => {
               <input
                 type="number"
                 step="0.1"
+                min="0"
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
                 value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, weight: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs"
               />
             </div>
@@ -390,8 +427,10 @@ export const MemberProfile = () => {
               <input
                 type="number"
                 step="0.1"
+                min="0"
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
                 value={formData.targetWeight}
-                onChange={(e) => setFormData({ ...formData, targetWeight: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, targetWeight: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs"
               />
             </div>
@@ -401,8 +440,10 @@ export const MemberProfile = () => {
               </label>
               <input
                 type="number"
+                min="0"
+                onKeyDown={(e) => preventNonNumericKey(e, true)}
                 value={formData.height}
-                onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, height: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs"
               />
             </div>

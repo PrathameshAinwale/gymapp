@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import {
   CalendarCheck,
@@ -18,7 +19,9 @@ import {
   RotateCw,
   Sparkles,
   Info,
-  CalendarDays
+  CalendarDays,
+  Filter,
+  X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -56,6 +59,21 @@ export const AttendanceTracker = () => {
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [activeTab, setActiveTab] = useState('members'); // 'members' | 'staff'
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
@@ -105,16 +123,83 @@ export const AttendanceTracker = () => {
     recordMatchesDate(s, selectedDate)
   );
 
-  // Search filter
-  const filteredMemberAttendance = dayMemberAttendance.filter((a) =>
-    (a.memberName || a.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (a.planName || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'ALL') count++;
+    if (selectedDate !== todayIso) count++;
+    return count;
+  }, [statusFilter, selectedDate, todayIso]);
 
-  const filteredStaffAttendance = dayStaffAttendance.filter((s) =>
-    (s.staffName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.role || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setSelectedDate(todayIso);
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    if (activeTab === 'members') {
+      return dayMemberAttendance
+        .filter((a) =>
+          (a.memberName || a.name || '').toLowerCase().includes(term) ||
+          (a.planName || '').toLowerCase().includes(term)
+        )
+        .slice(0, 5);
+    } else {
+      return dayStaffAttendance
+        .filter((s) =>
+          (s.staffName || '').toLowerCase().includes(term) ||
+          (s.role || '').toLowerCase().includes(term)
+        )
+        .slice(0, 5);
+    }
+  }, [searchTerm, activeTab, dayMemberAttendance, dayStaffAttendance]);
+
+  // Search filter
+  const filteredMemberAttendance = useMemo(() => {
+    return dayMemberAttendance.filter((a) => {
+      const term = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        (a.memberName || a.name || '').toLowerCase().includes(term) ||
+        (a.planName || '').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+
+      if (statusFilter !== 'ALL') {
+        const isCompleted = (a.status || '').toLowerCase() === 'completed' || (a.status || '').toLowerCase() === 'checked out';
+        const hasCheckedOut = a.checkOutTime && a.checkOutTime !== '--' && a.checkOutTime !== 'null';
+        const hasPunchedOut = a.punchOutTime && a.punchOutTime !== '--' && a.punchOutTime !== 'null';
+        const isInside = !isCompleted && !hasCheckedOut && !hasPunchedOut;
+
+        if (statusFilter === 'INSIDE' && !isInside) return false;
+        if (statusFilter === 'CHECKED_OUT' && isInside) return false;
+      }
+
+      return true;
+    });
+  }, [dayMemberAttendance, searchTerm, statusFilter]);
+
+  const filteredStaffAttendance = useMemo(() => {
+    return dayStaffAttendance.filter((s) => {
+      const term = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        (s.staffName || '').toLowerCase().includes(term) ||
+        (s.role || '').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+
+      if (statusFilter !== 'ALL') {
+        const isInside = s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime);
+        if (statusFilter === 'INSIDE' && !isInside) return false;
+        if (statusFilter === 'CHECKED_OUT' && isInside) return false;
+      }
+
+      return true;
+    });
+  }, [dayStaffAttendance, searchTerm, statusFilter]);
 
   // Metrics for selectedDate
   const currentlyInsideCount = dayMemberAttendance.filter((a) => {
@@ -321,55 +406,170 @@ export const AttendanceTracker = () => {
         </div>
       </div>
 
-      {/* Tabs Switcher & Sleek Compact Search Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
-        {/* Tabs */}
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start w-full sm:w-auto overflow-x-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveTab('members')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'members'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Members ({dayMemberAttendance.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('staff')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'staff'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Trainer Shifts ({dayStaffAttendance.length})
-          </button>
-        </div>
-
-        {/* Compact Search Input */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder={activeTab === 'members' ? "Search member, plan..." : "Search coach, role..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* Search & Filter Toolbar */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          {/* Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0">
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setActiveTab('members')}
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'members'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              ✕
+              Members ({dayMemberAttendance.length})
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('staff')}
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'staff'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Trainer Shifts ({dayStaffAttendance.length})
+            </button>
+          </div>
+
+          {/* Autocomplete Search Bar */}
+          <div ref={searchContainerRef} className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Autocomplete Suggestions */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Suggestions
+                </div>
+                {searchSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(item.memberName || item.staffName || item.name || '');
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{item.memberName || item.staffName || item.name}</span>
+                      <span className="text-[10px] text-slate-400">({item.planName || item.role || 'Entry'})</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-medium">
+                      {item.checkInTime || 'Checked in'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons: Filter */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilterModal(true)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Active Filter Chips & Clear Action */}
+        {(activeFiltersCount > 0 || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+            <span className="text-slate-400 font-medium">Active:</span>
+
+            {selectedDate !== todayIso && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Date: {formatDateDisplay(selectedDate)}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayIso)}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Status: {statusFilter === 'INSIDE' ? 'Inside Gym' : 'Checked Out'}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                "{searchTerm}"
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="hover:text-slate-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium ml-1 cursor-pointer"
+            >
+              Reset all
+            </button>
+
+            <span className="ml-auto text-[11px] text-slate-400">
+              Showing {activeTab === 'members' ? filteredMemberAttendance.length : filteredStaffAttendance.length} records
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Tab Content */}
@@ -912,6 +1112,116 @@ export const AttendanceTracker = () => {
           </div>
         </div>
       </Modal>
+
+      {/* PORTALLED FILTER MODAL */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all animate-scaleUp">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Attendance Filters</h3>
+                  <p className="text-[11px] text-slate-400">Refine punches by date & stay status</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Date Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Date</label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(todayIso)}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                      selectedDate === todayIso
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(yesterdayIso)}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                      selectedDate === yesterdayIso
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                </div>
+                <input
+                  type="date"
+                  max={todayIso}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Presence Status</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'All Punches', val: 'ALL' },
+                    { label: 'Inside Gym', val: 'INSIDE' },
+                    { label: 'Checked Out', val: 'CHECKED_OUT' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setStatusFilter(opt.val)}
+                      className={`py-2 px-2 text-center rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                        statusFilter === opt.val
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-rose-500 hover:text-rose-700 cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

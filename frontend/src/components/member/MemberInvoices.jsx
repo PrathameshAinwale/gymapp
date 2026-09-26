@@ -21,12 +21,14 @@ export const MemberInvoices = () => {
 
   const currentMember = members.find((m) => String(m.id) === String(currentUser?.id)) || {};
 
-  const myInvoices = invoices.filter(
-    (inv) =>
-      String(inv.memberId) === String(currentUser?.id) ||
-      String(inv.userId) === String(currentUser?.id) ||
-      String(inv.user_id) === String(currentUser?.id)
-  );
+  const cleanCurrentUserId = String(currentUser?.id || currentUser?.userId || '').replace(/\D/g, '');
+  const myInvoices = invoices.filter((inv) => {
+    const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
+    if (cleanCurrentUserId && cleanInvMemberId && cleanCurrentUserId === cleanInvMemberId) return true;
+    if (currentUser?.email && inv.memberEmail && inv.memberEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    if (currentUser?.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+    return false;
+  });
 
   const filteredInvoices = myInvoices.filter((inv) => {
     const term = searchTerm.toLowerCase();

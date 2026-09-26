@@ -18,6 +18,11 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import {
+  hasSqlInjection,
+  sanitizeDigits,
+  preventNonNumericKey
+} from '../../utils/validation';
 
 const DEFAULT_DIET_DAYS = [
   { day: 'Monday', meals: [] },
@@ -27,6 +32,27 @@ const DEFAULT_DIET_DAYS = [
   { day: 'Friday', meals: [] },
   { day: 'Saturday', meals: [] }
 ];
+
+const UserAvatar = ({ src, alt, className = "w-12 h-12 rounded-full", iconClassName = "w-6 h-6 text-amber-600" }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const DietBuilder = () => {
   const { currentUser } = useAuth();
@@ -260,14 +286,11 @@ export const DietBuilder = () => {
         {/* Client Name & Header Card */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-3.5">
           <div className="flex items-center gap-3.5">
-            <img
-              src={member?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
+            <UserAvatar
+              src={member?.avatar}
               alt={selectedPlanForView.memberName}
-              className="w-14 h-14 rounded-full object-cover border-2 border-amber-400/40 shrink-0"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-              }}
+              className="w-14 h-14 rounded-full border-2 border-amber-400/40"
+              iconClassName="w-7 h-7 text-amber-600"
             />
             <div className="min-w-0">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block">
@@ -481,14 +504,11 @@ export const DietBuilder = () => {
                 {/* Client Avatar & Name */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={member?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
+                    <UserAvatar
+                      src={member?.avatar}
                       alt={plan.memberName}
-                      className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0 group-hover:border-amber-400 transition-colors"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-                      }}
+                      className="w-12 h-12 rounded-full border border-slate-200 group-hover:border-amber-400 transition-colors"
+                      iconClassName="w-6 h-6 text-amber-600"
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -617,8 +637,10 @@ export const DietBuilder = () => {
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Calories (kcal) *</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formData.dailyCaloriesTarget}
-                  onChange={(e) => setFormData({ ...formData, dailyCaloriesTarget: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, false)}
+                  onChange={(e) => setFormData({ ...formData, dailyCaloriesTarget: sanitizeDigits(e.target.value, 5) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
                   required
                 />
@@ -628,8 +650,10 @@ export const DietBuilder = () => {
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Protein (g) *</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formData.proteinGramsTarget}
-                  onChange={(e) => setFormData({ ...formData, proteinGramsTarget: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, false)}
+                  onChange={(e) => setFormData({ ...formData, proteinGramsTarget: sanitizeDigits(e.target.value, 4) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
                   required
                 />
@@ -639,8 +663,10 @@ export const DietBuilder = () => {
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Carbs (g) *</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formData.carbsGramsTarget}
-                  onChange={(e) => setFormData({ ...formData, carbsGramsTarget: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, false)}
+                  onChange={(e) => setFormData({ ...formData, carbsGramsTarget: sanitizeDigits(e.target.value, 4) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
                   required
                 />
@@ -650,8 +676,10 @@ export const DietBuilder = () => {
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Fats (g) *</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formData.fatsGramsTarget}
-                  onChange={(e) => setFormData({ ...formData, fatsGramsTarget: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, false)}
+                  onChange={(e) => setFormData({ ...formData, fatsGramsTarget: sanitizeDigits(e.target.value, 4) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 font-bold"
                   required
                 />

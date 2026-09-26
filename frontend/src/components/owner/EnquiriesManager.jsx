@@ -1,11 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
+import {
+  isValidEmail,
+  isValidPhone,
+  hasSqlInjection,
+  sanitizeText,
+  sanitizePhone,
+  preventNonPhoneKey
+} from '../../utils/validation';
 import {
   PhoneCall,
   Search,
   Plus,
   Filter,
+  X,
   UserPlus,
   UserCheck,
   Calendar,
@@ -79,6 +89,25 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('ALL');
+  const [planFilter, setPlanFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
@@ -160,14 +189,12 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     }
     return 'Warm';
   };
-
-  // Form State (Follow-up date removed, Priority merged into Status)
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     email: '',
     source: 'Walk-in',
-    interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+    interestedPlan: plans[0]?.name || '',
     goal: 'Weight Loss & Fitness',
     status: 'Warm',
     staffName: defaultStaffName,
@@ -181,21 +208,105 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const coldCount = enquiries.filter((e) => normalizeStatus(e) === 'Cold').length;
   const convertedCount = enquiries.filter((e) => normalizeStatus(e) === 'Converted').length;
 
-  const filteredEnquiries = enquiries.filter((e) => {
-    const currentStatus = normalizeStatus(e);
-    const matchesSearch =
-      (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (e.phone || '').includes(searchTerm) ||
-      (e.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (e.staffName || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'ALL') count++;
+    if (selectedMonth) count++;
+    if (startDate || endDate) count++;
+    if (sourceFilter !== 'ALL') count++;
+    if (planFilter !== 'ALL') count++;
+    return count;
+  }, [statusFilter, selectedMonth, startDate, endDate, sourceFilter, planFilter]);
 
-    if (statusFilter === 'ALL') return matchesSearch;
-    return matchesSearch && currentStatus === statusFilter;
-  });
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setSelectedMonth('');
+    setStartDate('');
+    setEndDate('');
+    setSourceFilter('ALL');
+    setPlanFilter('ALL');
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return enquiries
+      .filter((e) =>
+        (e.name || '').toLowerCase().includes(term) ||
+        (e.phone || '').includes(term) ||
+        (e.email || '').toLowerCase().includes(term) ||
+        (e.interestedPlan || '').toLowerCase().includes(term) ||
+        (e.source || '').toLowerCase().includes(term)
+      )
+      .slice(0, 5);
+  }, [searchTerm, enquiries]);
+
+  const filteredEnquiries = useMemo(() => {
+    return enquiries.filter((e) => {
+      const currentStatus = normalizeStatus(e);
+      const term = (searchTerm || '').trim().toLowerCase();
+      const matchesSearch =
+        !term ||
+        (e.name || '').toLowerCase().includes(term) ||
+        (e.phone || '').includes(term) ||
+        (e.email || '').toLowerCase().includes(term) ||
+        (e.staffName || '').toLowerCase().includes(term) ||
+        (e.source || '').toLowerCase().includes(term) ||
+        (e.interestedPlan || '').toLowerCase().includes(term) ||
+        (e.goal || '').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+
+      // Status
+      if (statusFilter !== 'ALL' && currentStatus !== statusFilter) return false;
+
+      // Source
+      if (sourceFilter !== 'ALL' && (e.source || '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
+
+      // Plan
+      if (planFilter !== 'ALL' && !(e.interestedPlan || '').toLowerCase().includes(planFilter.toLowerCase())) return false;
+
+      // Date Range (created_at, date, noteDate)
+      if (selectedMonth || startDate || endDate) {
+        const rawDate = e.date || e.created_at || e.createdAt || e.noteDate;
+        if (!rawDate) return false;
+        const d = String(rawDate).split('T')[0];
+        if (startDate && d < startDate) return false;
+        if (endDate && d > endDate) return false;
+      }
+
+      return true;
+    });
+  }, [enquiries, searchTerm, statusFilter, sourceFilter, planFilter, selectedMonth, startDate, endDate]);
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone) return;
+    if (!formData.name || !formData.phone) {
+      if (addToast) addToast('Please enter both prospect full name and mobile number.', 'error');
+      return;
+    }
+
+    if (
+      hasSqlInjection(formData.name) ||
+      hasSqlInjection(formData.phone) ||
+      hasSqlInjection(formData.email) ||
+      hasSqlInjection(formData.notes) ||
+      hasSqlInjection(formData.goal)
+    ) {
+      if (addToast) addToast('Security Warning: Disallowed characters or potential SQL injection detected.', 'error');
+      return;
+    }
+
+    if (!isValidPhone(formData.phone)) {
+      if (addToast) addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (formData.email && !isValidEmail(formData.email)) {
+      if (addToast) addToast('Please enter a valid email address.', 'error');
+      return;
+    }
 
     try {
       setIsSubmittingAdd(true);
@@ -217,7 +328,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
         phone: '',
         email: '',
         source: 'Walk-in',
-        interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+        interestedPlan: plans[0]?.name || '',
         goal: 'Weight Loss & Fitness',
         status: 'Warm',
         staffName: defaultStaffName,
@@ -252,7 +363,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
       phone: enquiry.phone || '',
       email: enquiry.email || '',
       source: enquiry.source || 'Walk-in',
-      interestedPlan: enquiry.interestedPlan || (plans[0]?.name || 'Gold Quarterly Fitness'),
+      interestedPlan: enquiry.interestedPlan || (plans[0]?.name || ''),
       goal: enquiry.goal || 'Weight Loss & Fitness',
       status: currentStatus,
       staffName: enquiry.staffName || defaultStaffName,
@@ -263,7 +374,32 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
-    if (!editingEnquiry || !editingEnquiry.name || !editingEnquiry.phone) return;
+    if (!editingEnquiry || !editingEnquiry.name || !editingEnquiry.phone) {
+      if (addToast) addToast('Please enter both prospect full name and mobile number.', 'error');
+      return;
+    }
+
+    if (
+      hasSqlInjection(editingEnquiry.name) ||
+      hasSqlInjection(editingEnquiry.phone) ||
+      hasSqlInjection(editingEnquiry.email) ||
+      hasSqlInjection(editingEnquiry.notes) ||
+      hasSqlInjection(editingEnquiry.goal)
+    ) {
+      if (addToast) addToast('Security Warning: Disallowed characters or potential SQL injection detected.', 'error');
+      return;
+    }
+
+    if (!isValidPhone(editingEnquiry.phone)) {
+      if (addToast) addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (editingEnquiry.email && !isValidEmail(editingEnquiry.email)) {
+      if (addToast) addToast('Please enter a valid email address.', 'error');
+      return;
+    }
+
     try {
       setIsSubmittingEdit(true);
       const today = getTodayFormatted();
@@ -361,7 +497,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
       email: enquiry.email || '',
       goal: enquiry.goal || 'Muscle Gain & Strength',
       planId: matchedPlan?.id || plans[0]?.id || '',
-      medicalNotes: cleanNotes || 'None',
+      medicalNotes: '',
+      enquiryNotes: cleanNotes || '',
       emergencyContact: enquiry.phone || '',
       enquiryId: enquiry.id,
     });
@@ -396,46 +533,177 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
           </button>
         </div>
       </div>
-      {/* Sleek Compact Search & Filter Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Search Input Box */}
-        <div className="relative flex-1 sm:w-72 sm:flex-initial">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search leads..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* Search & Filter Toolbar (Matches Member Directory, Invoices & Reports) */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+          {/* Search Input with Autocomplete */}
+          <div className="relative flex-1" ref={searchContainerRef}>
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search leads by name, phone, email, source, plan, or notes..."
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+
+            {/* Autocomplete Dropdown */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
+                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Matching Leads ({searchSuggestions.length})
+                </div>
+                {searchSuggestions.map((ld) => (
+                  <div
+                    key={ld.id}
+                    onClick={() => {
+                      setSearchTerm(ld.name);
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                        {(ld.name || 'L').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
+                          {ld.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {ld.phone || ld.email || ld.source}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                        {ld.interestedPlan || ld.goal || 'General Lead'}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        normalizeStatus(ld) === 'Hot' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                        normalizeStatus(ld) === 'Warm' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        normalizeStatus(ld) === 'Converted' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        'bg-slate-50 text-slate-700 border-slate-200'
+                      }`}>
+                        {normalizeStatus(ld)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Dedicated Filter Button */}
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setShowFilterModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
             >
-              ✕
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="relative shrink-0">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All ({totalCount})</option>
-            <option value="Hot"> Hot ({hotCount})</option>
-            <option value="Warm">Warm ({warmCount})</option>
-            <option value="Cold">Cold ({coldCount})</option>
-            <option value="Converted">Converted ({convertedCount})</option>
-            <option value="Not Interested">Dropped</option>
-          </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            {selectedMonth && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                Month: {selectedMonth}
+                <button type="button" onClick={() => setSelectedMonth('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {startDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                From: {startDate}
+                <button type="button" onClick={() => setStartDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {endDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                To: {endDate}
+                <button type="button" onClick={() => setEndDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter('ALL')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {sourceFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-xs font-medium">
+                Source: {sourceFilter}
+                <button type="button" onClick={() => setSourceFilter('ALL')} className="hover:text-blue-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {planFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg text-xs font-medium">
+                Plan: {planFilter}
+                <button type="button" onClick={() => setPlanFilter('ALL')} className="hover:text-purple-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+            >
+              Reset All
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Leads Count & Summary */}
+      <div className="flex items-center justify-between text-xs text-slate-500 px-0.5 font-medium">
+        <span>
+          Showing <strong className="text-emerald-700">{filteredEnquiries.length}</strong> of {totalCount} Enquiries
+        </span>
+        {searchTerm && (
+          <span className="text-[11px] text-slate-400">
+            Filtered by "{searchTerm}"
+          </span>
+        )}
       </div>
 
       {/* Leads Mobile Cards View */}
@@ -458,8 +726,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               }
               actionText="Add New Enquiry"
               onAction={() => setIsAddModalOpen(true)}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
+              onSecondaryAction={handleResetFilters}
               color="emerald"
             />
           </div>
@@ -520,7 +788,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                 <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[10px]">
                   <div>
                     <span className="text-slate-400 font-medium block">Interested In</span>
-                    <span className="font-bold text-slate-800 truncate block">{enq.interestedPlan}</span>
+                    <span className="font-bold text-slate-800 truncate block">{enq.interestedPlan || 'General / Not Decided'}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Goal</span>
@@ -616,8 +884,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               }
               actionText="Add New Enquiry"
               onAction={() => setIsAddModalOpen(true)}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
+              onSecondaryAction={handleResetFilters}
               color="emerald"
             />
           </div>
@@ -665,7 +933,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
                       {/* Interested Plan & Goal */}
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{enq.interestedPlan}</div>
+                        <div className="font-semibold text-slate-900">{enq.interestedPlan || 'General / Not Decided'}</div>
                         <div className="text-[11px] text-slate-500">{enq.goal}</div>
                       </td>
 
@@ -825,10 +1093,13 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               <input
                 type="tel"
                 required
+                maxLength={10}
+                inputMode="numeric"
+                onKeyDown={preventNonPhoneKey}
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+91 98200 00000"
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
+                placeholder="10-digit mobile number"
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
           </div>
@@ -865,15 +1136,20 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             <div>
               <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
               <select
-                value={formData.interestedPlan}
+                value={formData.interestedPlan || ''}
                 onChange={(e) => setFormData({ ...formData, interestedPlan: e.target.value })}
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
-                {plans.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name} (₹{p.price})
-                  </option>
-                ))}
+                <option value="">-- General / Not Decided --</option>
+                {plans && plans.length > 0 ? (
+                  plans.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name} (₹{p.price})
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No membership plans added yet</option>
+                )}
               </select>
             </div>
 
@@ -1132,10 +1408,13 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                 <input
                   type="tel"
                   required
+                  maxLength={10}
+                  inputMode="numeric"
+                  onKeyDown={preventNonPhoneKey}
                   value={editingEnquiry.phone}
-                  onChange={(e) => setEditingEnquiry({ ...editingEnquiry, phone: e.target.value })}
-                  placeholder="+91 98200 00000"
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  onChange={(e) => setEditingEnquiry({ ...editingEnquiry, phone: sanitizePhone(e.target.value) })}
+                  placeholder="10-digit mobile number"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
             </div>
@@ -1172,15 +1451,20 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
                 <select
-                  value={editingEnquiry.interestedPlan}
+                  value={editingEnquiry.interestedPlan || ''}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, interestedPlan: e.target.value })}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name} (₹{p.price})
-                    </option>
-                  ))}
+                  <option value="">-- General / Not Decided --</option>
+                  {plans && plans.length > 0 ? (
+                    plans.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name} (₹{p.price})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No membership plans added yet</option>
+                  )}
                 </select>
               </div>
 
@@ -1288,6 +1572,216 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
         }}
         initialData={addMemberInitialData}
       />
+
+      {/* Advanced Filter Modal (Portalled to document.body) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div
+            onClick={() => setShowFilterModal(false)}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fadeIn"
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 animate-scaleUp my-auto max-h-[88vh]"
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-700">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Filter Leads & Enquiries</h3>
+                  <p className="text-xs text-slate-500">Filter prospective members by lead status, lead source, date range, or plan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+              {/* Month Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Month Selection</span>
+                  <span className="text-[11px] font-normal text-slate-400">Select specific month</span>
+                </label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    if (e.target.value) {
+                      setStartDate(`${e.target.value}-01`);
+                      const [yr, mo] = e.target.value.split('-').map(Number);
+                      const lastDay = new Date(yr, mo, 0).getDate();
+                      setEndDate(`${e.target.value}-${String(lastDay).padStart(2, '0')}`);
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    { label: 'Current Month', value: new Date().toISOString().slice(0, 7) },
+                    { label: 'Last Month', value: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7) },
+                  ].map((mPreset) => (
+                    <button
+                      key={mPreset.label}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMonth(mPreset.value);
+                        setStartDate(`${mPreset.value}-01`);
+                        const [yr, mo] = mPreset.value.split('-').map(Number);
+                        const lastDay = new Date(yr, mo, 0).getDate();
+                        setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
+                      }}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                        selectedMonth === mPreset.value
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {mPreset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Date Range */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Custom Date Range
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">From Date</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">To Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Lead Status */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Lead Status
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Hot', label: '🔥 Hot' },
+                    { id: 'Warm', label: '⚡ Warm' },
+                    { id: 'Cold', label: '❄️ Cold' },
+                    { id: 'Converted', label: '✅ Converted' },
+                    { id: 'Not Interested', label: '❌ Dropped' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setStatusFilter(st.id)}
+                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
+                        statusFilter === st.id
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lead Source */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Lead Source</span>
+                  {sourceFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setSourceFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="ALL">All Acquisition Sources</option>
+                  <option value="Walk-in">Walk-in Visit</option>
+                  <option value="Instagram">Instagram / Social Media</option>
+                  <option value="Google / Website">Google Search / Website</option>
+                  <option value="Member Referral">Member Referral</option>
+                  <option value="Phone Call">Inbound Phone Call</option>
+                  <option value="WhatsApp">WhatsApp Inquiry</option>
+                  <option value="Other">Other Source</option>
+                </select>
+              </div>
+
+              {/* Interested Membership Plan */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Target Membership Plan</span>
+                  {planFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <select
+                  value={planFilter}
+                  onChange={(e) => setPlanFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="ALL">All Membership Plans</option>
+                  {(plans || []).map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                Apply Filters ({filteredEnquiries.length} Results)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

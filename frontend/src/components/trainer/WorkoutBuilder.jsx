@@ -18,6 +18,12 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import {
+  hasSqlInjection,
+  sanitizeDecimal,
+  sanitizeDigits,
+  preventNonNumericKey
+} from '../../utils/validation';
 
 const DEFAULT_DAYS = [
   { day: 'Monday', title: 'Push Day (Chest, Shoulders & Triceps)', exercises: [] },
@@ -27,6 +33,27 @@ const DEFAULT_DAYS = [
   { day: 'Friday', title: 'Back Width & Arm Sculpt', exercises: [] },
   { day: 'Saturday', title: 'Legs & Core Volume', exercises: [] }
 ];
+
+const UserAvatar = ({ src, alt, className = "w-12 h-12 rounded-full", iconClassName = "w-6 h-6 text-emerald-600" }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const WorkoutBuilder = () => {
   const { currentUser } = useAuth();
@@ -183,6 +210,10 @@ export const WorkoutBuilder = () => {
   // Save workout plan
   const handleSubmitPlan = async (e) => {
     e.preventDefault();
+    if (hasSqlInjection(formData.goal) || hasSqlInjection(formData.title)) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!formData.memberId) {
       addToast('Please select a client', 'error');
       return;
@@ -268,14 +299,11 @@ export const WorkoutBuilder = () => {
         {/* Client Name & Profile Header Card */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-3.5">
           <div className="flex items-center gap-3.5">
-            <img
-              src={member?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
+            <UserAvatar
+              src={member?.avatar}
               alt={selectedPlanForView.memberName}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-emerald-500/40 shrink-0"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-              }}
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-emerald-500/40"
+              iconClassName="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600"
             />
             <div className="min-w-0">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
@@ -478,14 +506,11 @@ export const WorkoutBuilder = () => {
                 {/* Client Avatar & Name */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={member?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
+                    <UserAvatar
+                      src={member?.avatar}
                       alt={plan.memberName}
-                      className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover border border-slate-200 shrink-0 group-hover:border-emerald-400 transition-colors"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-                      }}
+                      className="w-11 h-11 sm:w-12 sm:h-12 rounded-full border border-slate-200 group-hover:border-emerald-400 transition-colors"
+                      iconClassName="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600"
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -606,9 +631,11 @@ export const WorkoutBuilder = () => {
                 <input
                   type="number"
                   step="0.1"
+                  inputMode="decimal"
                   placeholder="e.g. 78.5"
                   value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setFormData({ ...formData, weight: sanitizeDecimal(e.target.value) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -619,9 +646,11 @@ export const WorkoutBuilder = () => {
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   placeholder="e.g. 175"
                   value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setFormData({ ...formData, height: sanitizeDecimal(e.target.value) })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -777,8 +806,10 @@ export const WorkoutBuilder = () => {
                     type="number"
                     min="1"
                     max="20"
+                    inputMode="numeric"
                     value={newExForm.sets}
-                    onChange={(e) => setNewExForm({ ...newExForm, sets: e.target.value })}
+                    onKeyDown={(e) => preventNonNumericKey(e, false)}
+                    onChange={(e) => setNewExForm({ ...newExForm, sets: sanitizeDigits(e.target.value, 2) })}
                     className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900"
                   />
                 </div>

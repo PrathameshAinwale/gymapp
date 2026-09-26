@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import {
   FileText,
@@ -17,10 +18,16 @@ import {
   ChevronDown,
   Check,
   Loader2,
-  RotateCw
+  RotateCw,
+  X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import {
+  hasSqlInjection,
+  sanitizePhone,
+  preventNonPhoneKey
+} from '../../utils/validation';
 
 export const ConsentFormsManager = () => {
   const {
@@ -40,6 +47,21 @@ export const ConsentFormsManager = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [formTypeFilter, setFormTypeFilter] = useState('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [viewingForm, setViewingForm] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,17 +83,46 @@ export const ConsentFormsManager = () => {
   const signedCount = consentForms.filter((f) => f.status === 'Signed').length;
   const pendingCount = consentForms.filter((f) => f.status === 'Pending').length;
 
-  const filteredForms = consentForms.filter((f) => {
-    const term = (searchTerm || '').trim().toLowerCase();
-    const matchesSearch =
-      !term ||
-      (f.memberName || '').toLowerCase().includes(term) ||
-      (f.formType || '').toLowerCase().includes(term) ||
-      (f.emergencyContact || '').toLowerCase().includes(term);
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'ALL') count++;
+    if (formTypeFilter !== 'ALL') count++;
+    return count;
+  }, [statusFilter, formTypeFilter]);
 
-    if (statusFilter === 'ALL') return matchesSearch;
-    return matchesSearch && f.status === statusFilter;
-  });
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setFormTypeFilter('ALL');
+    setSearchTerm('');
+  };
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return consentForms
+      .filter((f) =>
+        (f.memberName || '').toLowerCase().includes(term) ||
+        (f.formType || '').toLowerCase().includes(term) ||
+        (f.emergencyContact || '').toLowerCase().includes(term)
+      )
+      .slice(0, 5);
+  }, [searchTerm, consentForms]);
+
+  const filteredForms = useMemo(() => {
+    return consentForms.filter((f) => {
+      const term = (searchTerm || '').trim().toLowerCase();
+      const matchesSearch =
+        !term ||
+        (f.memberName || '').toLowerCase().includes(term) ||
+        (f.formType || '').toLowerCase().includes(term) ||
+        (f.emergencyContact || '').toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+      if (statusFilter !== 'ALL' && f.status !== statusFilter) return false;
+      if (formTypeFilter !== 'ALL' && !(f.formType || '').toLowerCase().includes(formTypeFilter.toLowerCase())) return false;
+      return true;
+    });
+  }, [consentForms, searchTerm, statusFilter, formTypeFilter]);
 
   const handleSendReminder = (form) => {
     addToast(`Digital consent link sent via WhatsApp & SMS to ${form.memberName}!`);
@@ -79,6 +130,14 @@ export const ConsentFormsManager = () => {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(createForm.emergencyContact) ||
+      hasSqlInjection(createForm.emergencyPhone) ||
+      hasSqlInjection(createForm.medicalNotes)
+    ) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!createForm.memberId || !createForm.memberName) {
       addToast('Please select a registered gym member from the list.');
       return;
@@ -171,59 +230,162 @@ export const ConsentFormsManager = () => {
         </div>
       </div>
 
-      {/* Sleek Compact Search & Filter Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Search Input Box */}
-        <div className="relative flex-1 sm:w-72 sm:flex-initial">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search consent forms..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-[10px] sm:placeholder:text-[11px] placeholder:text-slate-400 text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs transition-all"
-          />
-          {searchTerm && (
+      {/* Search & Filter Toolbar */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          {/* Autocomplete Search Bar */}
+          <div ref={searchContainerRef} className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search member, agreement title, or emergency contact..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Autocomplete Suggestions */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Suggestions
+                </div>
+                {searchSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(item.memberName || '');
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{item.memberName}</span>
+                      <span className="text-[10px] text-slate-400">({item.formType})</span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      item.status === 'Signed' ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'
+                    }`}>
+                      {item.status}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons: Filter */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
+              onClick={() => setShowFilterModal(true)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              ✕
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="relative shrink-0">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All ({totalForms})</option>
-            <option value="Signed">Signed ({signedCount})</option>
-            <option value="Pending">Pending ({pendingCount})</option>
-          </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips & Clear Action */}
+        {(activeFiltersCount > 0 || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+            <span className="text-slate-400 font-medium">Active:</span>
+
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Status: {statusFilter}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {formTypeFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Type: {formTypeFilter}
+                <button
+                  type="button"
+                  onClick={() => setFormTypeFilter('ALL')}
+                  className="hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                "{searchTerm}"
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="hover:text-slate-900 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium ml-1 cursor-pointer"
+            >
+              Reset all
+            </button>
+
+            <span className="ml-auto text-[11px] text-slate-400">
+              Showing {filteredForms.length} of {consentForms.length} records
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Forms Mobile Cards View */}
       <div className="block sm:hidden space-y-2.5">
         {filteredForms.length === 0 ? (
-          <div className="p-6 bg-white rounded-2xl border border-slate-200">
+          <div className="p-6 bg-white rounded-2xl border border-slate-200 text-center">
             <EmptyState
               icon={FileText}
-              title={searchTerm || statusFilter !== 'ALL' ? "No matching consent forms" : "No Consent Forms Yet"}
+              title={searchTerm || activeFiltersCount > 0 ? "No matching consent forms" : "No Consent Forms Yet"}
               description={
-                searchTerm || statusFilter !== 'ALL'
-                  ? "No liability waivers match your search or filter. Try clearing filters or create a new waiver."
+                searchTerm || activeFiltersCount > 0
+                  ? "No liability waivers match your current search or filters."
                   : "Issue PAR-Q health declarations, liability waivers, and emergency contacts to gym members."
               }
-              actionText="Create Consent Waiver"
-              onAction={() => {
+              actionText={searchTerm || activeFiltersCount > 0 ? "Reset Filters" : "Create Consent Waiver"}
+              onAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : () => {
                 if (members.length > 0) {
                   const defaultMember = members[0];
                   setCreateForm({
@@ -240,8 +402,6 @@ export const ConsentFormsManager = () => {
                 }
                 setIsCreateModalOpen(true);
               }}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
               color="emerald"
             />
           </div>
@@ -319,9 +479,9 @@ export const ConsentFormsManager = () => {
           <div className="p-8">
             <EmptyState
               icon={FileText}
-              title={searchTerm || statusFilter !== 'ALL' ? "No matching consent forms" : "No Consent Forms Yet"}
+              title={searchTerm || activeFiltersCount > 0 ? "No matching consent forms" : "No Consent Forms Yet"}
               description={
-                searchTerm || statusFilter !== 'ALL'
+                searchTerm || activeFiltersCount > 0
                   ? "No liability waivers match your search or filter. Try clearing filters or create a new waiver."
                   : "Issue PAR-Q health declarations, liability waivers, and emergency contacts to gym members."
               }
@@ -343,8 +503,8 @@ export const ConsentFormsManager = () => {
                 }
                 setIsCreateModalOpen(true);
               }}
-              secondaryActionText={searchTerm || statusFilter !== 'ALL' ? "Clear Filters" : undefined}
-              onSecondaryAction={searchTerm || statusFilter !== 'ALL' ? () => { setSearchTerm(''); setStatusFilter('ALL'); } : undefined}
+              secondaryActionText={searchTerm || activeFiltersCount > 0 ? "Reset Filters" : undefined}
+              onSecondaryAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : undefined}
               color="emerald"
             />
           </div>
@@ -535,9 +695,12 @@ export const ConsentFormsManager = () => {
               </label>
               <input
                 type="tel"
+                maxLength={10}
+                inputMode="numeric"
                 value={createForm.emergencyPhone}
-                onChange={(e) => setCreateForm({ ...createForm, emergencyPhone: e.target.value })}
-                placeholder="+91 98200 00000"
+                onKeyDown={preventNonPhoneKey}
+                onChange={(e) => setCreateForm({ ...createForm, emergencyPhone: sanitizePhone(e.target.value) })}
+                placeholder="10 digit mobile"
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -673,6 +836,110 @@ export const ConsentFormsManager = () => {
           </div>
         )}
       </Modal>
+
+      {/* Advanced Filter Modal (Portalled to document.body) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Filter Consent Forms</h3>
+                  <p className="text-xs text-slate-500">Refine legal waivers & compliance records</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Form Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Agreement Status
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Signed', label: 'Signed & Verified' },
+                    { id: 'Pending', label: 'Pending Signature' }
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStatusFilter(s.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                        statusFilter === s.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Form / Agreement Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Agreement Type
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Agreement Types' },
+                    { id: 'General Fitness & Liability Waiver', label: 'General Fitness & Liability Waiver' },
+                    { id: 'Personal Training Health Clearance', label: 'Personal Training Health Clearance' },
+                    { id: 'Nutrition & Dietetics Consent', label: 'Nutrition & Dietetics Consent' },
+                    { id: 'Medical Declaration & CPR', label: 'Medical Declaration & CPR' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setFormTypeFilter(t.id)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition-all cursor-pointer ${
+                        formTypeFilter === t.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

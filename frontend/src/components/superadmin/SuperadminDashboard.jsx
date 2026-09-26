@@ -33,6 +33,15 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { PACKAGE_PLANS, getPlanByTier } from './packagePlans';
+import {
+  hasSqlInjection,
+  sanitizeDecimal,
+  sanitizePhone,
+  preventNonNumericKey,
+  preventNonPhoneKey,
+  isValidEmail,
+  isValidPhone
+} from '../../utils/validation';
 
 export const SuperadminDashboard = ({ superUser, onLogout }) => {
   const [gyms, setGyms] = useState([]);
@@ -212,6 +221,43 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
 
   const handleCreateGym = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(newGymForm.gym_name) ||
+      hasSqlInjection(newGymForm.tagline) ||
+      hasSqlInjection(newGymForm.gym_address) ||
+      hasSqlInjection(newGymForm.gym_city) ||
+      hasSqlInjection(newGymForm.gym_phone) ||
+      hasSqlInjection(newGymForm.gym_email) ||
+      hasSqlInjection(newGymForm.operating_hours) ||
+      hasSqlInjection(newGymForm.owner_name) ||
+      hasSqlInjection(newGymForm.owner_email) ||
+      hasSqlInjection(newGymForm.owner_password) ||
+      hasSqlInjection(newGymForm.owner_phone)
+    ) {
+      alert('Disallowed characters or SQL injection syntax detected in form.');
+      return;
+    }
+
+    if (!isValidEmail(newGymForm.owner_email)) {
+      alert('Please enter a valid owner login email address.');
+      return;
+    }
+
+    if (newGymForm.gym_email && !isValidEmail(newGymForm.gym_email)) {
+      alert('Please enter a valid facility contact email address.');
+      return;
+    }
+
+    if (newGymForm.owner_phone && !isValidPhone(newGymForm.owner_phone)) {
+      alert('Please enter a valid 10-digit mobile number for owner.');
+      return;
+    }
+
+    if (newGymForm.gym_phone && !isValidPhone(newGymForm.gym_phone)) {
+      alert('Please enter a valid 10-digit mobile number for gym contact.');
+      return;
+    }
+
     try {
       const res = await api.superadmin.createGym(newGymForm);
       if (res?.success) {
@@ -275,6 +321,32 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
 
   const handleUpdateGym = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(editGymForm.name) ||
+      hasSqlInjection(editGymForm.tagline) ||
+      hasSqlInjection(editGymForm.address) ||
+      hasSqlInjection(editGymForm.city) ||
+      hasSqlInjection(editGymForm.phone) ||
+      hasSqlInjection(editGymForm.email) ||
+      hasSqlInjection(editGymForm.operating_hours) ||
+      hasSqlInjection(editGymForm.owner_name) ||
+      hasSqlInjection(editGymForm.owner_phone) ||
+      hasSqlInjection(editGymForm.new_password)
+    ) {
+      alert('Disallowed characters or SQL injection syntax detected in form.');
+      return;
+    }
+
+    if (editGymForm.email && !isValidEmail(editGymForm.email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
+    if (editGymForm.owner_phone && !isValidPhone(editGymForm.owner_phone)) {
+      alert('Please enter a valid 10-digit mobile number for owner.');
+      return;
+    }
+
     try {
       const res = await api.superadmin.updateGym(editGymForm.id, editGymForm);
       if (res?.success) {
@@ -925,10 +997,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">Facility Contact Phone</label>
                     <input
-                      type="text"
-                      placeholder="e.g. +91 98201 54321"
+                      type="tel"
+                      maxLength={10}
+                      inputMode="numeric"
+                      placeholder="e.g. 9820154321 (10 digits)"
                       value={newGymForm.gym_phone}
-                      onChange={(e) => setNewGymForm({ ...newGymForm, gym_phone: e.target.value })}
+                      onKeyDown={preventNonPhoneKey}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, gym_phone: sanitizePhone(e.target.value) })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                     />
                   </div>
@@ -1029,10 +1104,12 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="any"
                         required
+                        inputMode="decimal"
                         value={newGymForm.package_amount}
-                        onChange={(e) => setNewGymForm({ ...newGymForm, package_amount: parseFloat(e.target.value) || 0 })}
+                        onKeyDown={(e) => preventNonNumericKey(e, true)}
+                        onChange={(e) => setNewGymForm({ ...newGymForm, package_amount: sanitizeDecimal(e.target.value) })}
                         className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono font-bold focus:outline-none focus:border-emerald-500"
                         placeholder="Package Price in ₹"
                       />
@@ -1082,10 +1159,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">Phone Number</label>
                     <input
-                      type="text"
-                      placeholder="e.g. +91 98201 54321"
+                      type="tel"
+                      maxLength={10}
+                      inputMode="numeric"
+                      placeholder="e.g. 9820154321 (10 digits)"
                       value={newGymForm.owner_phone}
-                      onChange={(e) => setNewGymForm({ ...newGymForm, owner_phone: e.target.value })}
+                      onKeyDown={preventNonPhoneKey}
+                      onChange={(e) => setNewGymForm({ ...newGymForm, owner_phone: sanitizePhone(e.target.value) })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                     />
                   </div>
@@ -1312,8 +1392,11 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                       <input
                         type="number"
                         min="0"
+                        step="any"
+                        inputMode="decimal"
                         value={editGymForm.package_amount}
-                        onChange={(e) => setEditGymForm({ ...editGymForm, package_amount: e.target.value })}
+                        onKeyDown={(e) => preventNonNumericKey(e, true)}
+                        onChange={(e) => setEditGymForm({ ...editGymForm, package_amount: sanitizeDecimal(e.target.value) })}
                         className="w-full pl-8 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white"
                         placeholder="5999"
                       />
@@ -1347,9 +1430,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 mb-1">Owner Phone</label>
                   <input
-                    type="text"
+                    type="tel"
+                    maxLength={10}
+                    inputMode="numeric"
+                    placeholder="10 digit mobile"
                     value={editGymForm.owner_phone}
-                    onChange={(e) => setEditGymForm({ ...editGymForm, owner_phone: e.target.value })}
+                    onKeyDown={preventNonPhoneKey}
+                    onChange={(e) => setEditGymForm({ ...editGymForm, owner_phone: sanitizePhone(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
                   />
                 </div>

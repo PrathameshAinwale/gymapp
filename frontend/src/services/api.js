@@ -411,6 +411,64 @@ export const api = {
     },
   },
 
+  // Offers Endpoints
+  offers: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/offers${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (offerData) => {
+      const payload = withGymParam(offerData);
+      const res = await apiFetch(`${API_BASE_URL}/offers`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, offerData) => {
+      const res = await apiFetch(`${API_BASE_URL}/offers/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(offerData),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/offers/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    toggle: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/offers/${id}/toggle`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Membership Transfers Endpoints
+  transfers: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/transfers${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (transferData) => {
+      const payload = withGymParam(transferData);
+      const res = await apiFetch(`${API_BASE_URL}/transfers`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+  },
+
   // PT Plans Endpoints
   ptPlans: {
     getAll: async () => {
@@ -1028,7 +1086,7 @@ export const api = {
       return handleResponse(res);
     },
     update: async (id, staffData) => {
-      const numericId = typeof id === 'string' ? id.replace('usr-', '') : id;
+      const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
         method: 'PUT',
         headers: getHeaders(),
@@ -1037,7 +1095,7 @@ export const api = {
       return handleResponse(res);
     },
     delete: async (id) => {
-      const numericId = typeof id === 'string' ? id.replace('usr-', '') : id;
+      const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
         method: 'DELETE',
         headers: getHeaders(),

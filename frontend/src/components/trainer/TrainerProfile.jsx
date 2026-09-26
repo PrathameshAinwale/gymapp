@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import {
@@ -21,6 +21,7 @@ import {
 export const TrainerProfile = ({ setActiveTab }) => {
   const { currentUser, logout } = useAuth();
   const { trainers, members } = useGymData();
+  const [avatarError, setAvatarError] = useState(false);
 
   // Match current trainer in trainers list or fallback
   const trainer = trainers.find((t) => t.id === currentUser?.id || t.email === currentUser?.email) || trainers[0];
@@ -42,15 +43,18 @@ export const TrainerProfile = ({ setActiveTab }) => {
       {/* Profile Header Hero Card */}
       <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 text-center space-y-3 shadow-sm">
         <div className="relative inline-block">
-          <img
-            src={trainer?.avatar || currentUser?.avatar || 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80'}
-            alt={trainer?.name || 'Coach'}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-md shadow-emerald-500/20 mx-auto"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
-            }}
-          />
+          {(trainer?.avatar || currentUser?.avatar) && !avatarError ? (
+            <img
+              src={trainer?.avatar || currentUser?.avatar}
+              alt={trainer?.name || 'Coach'}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-md shadow-emerald-500/20 mx-auto"
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-50 border-2 border-emerald-500/40 shadow-md shadow-emerald-500/20 flex items-center justify-center mx-auto text-emerald-600">
+              <User className="w-8 h-8 sm:w-10 sm:h-10" />
+            </div>
+          )}
         </div>
 
         <div>

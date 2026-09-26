@@ -16,6 +16,8 @@ class RecoveryPlan extends Model
         'duration',
         'sessions',
         'popular',
+        'offer',
+        'offer_days',
         'color',
         'features',
     ];
@@ -23,6 +25,7 @@ class RecoveryPlan extends Model
     protected $casts = [
         'price' => 'float',
         'sessions' => 'integer',
+        'offer_days' => 'integer',
         'popular' => 'boolean',
         'features' => 'array',
     ];

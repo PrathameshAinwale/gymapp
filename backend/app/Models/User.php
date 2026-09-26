@@ -22,6 +22,14 @@ class User extends Authenticatable
         'gym_id',
         'phone',
         'avatar',
+        'dob',
+        'aadhaar_card',
+        'aadhaar_image',
+        'pan_card',
+        'pan_image',
+        'salary',
+        'deductions',
+        'shifts',
     ];
 
     protected $hidden = [
@@ -37,6 +45,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'initial_password' => 'hashed',
             'must_change_password' => 'boolean',
+            'deductions' => 'float',
+            'salary' => 'float',
         ];
     }
 

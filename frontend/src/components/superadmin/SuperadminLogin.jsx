@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Mail, Eye, EyeOff, Key, AlertCircle, ArrowRight } from 'lucide-react';
 import { api } from '../../services/api';
+import { isValidEmail, hasSqlInjection, sanitizeText } from '../../utils/validation';
 
 export const SuperadminLogin = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -11,9 +12,21 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
+    const cleanEmail = sanitizeText(email);
+    const cleanPassword = password ? password.trim() : '';
+
+    if (!cleanEmail || !cleanPassword) {
       setError('Please enter both Superadmin email and security key.');
+      return;
+    }
+
+    if (hasSqlInjection(cleanEmail) || hasSqlInjection(cleanPassword)) {
+      setError('Security Warning: Disallowed characters or potential SQL injection detected.');
+      return;
+    }
+
+    if (cleanEmail.includes('@') && !isValidEmail(cleanEmail)) {
+      setError('Please enter a valid email address.');
       return;
     }
 
@@ -22,7 +35,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
 
     try {
       // Authenticate exclusively via backend API & database
-      const res = await api.auth.login(cleanEmail, password);
+      const res = await api.auth.login(cleanEmail, cleanPassword);
       
       if (res?.user) {
         if (res.user.role !== 'superadmin') {

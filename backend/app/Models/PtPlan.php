@@ -16,6 +16,8 @@ class PtPlan extends Model
         'sessions',
         'duration_weeks',
         'popular',
+        'offer',
+        'offer_days',
         'color',
         'features',
     ];
@@ -23,6 +25,7 @@ class PtPlan extends Model
     protected $casts = [
         'price' => 'float',
         'sessions' => 'integer',
+        'offer_days' => 'integer',
         'duration_weeks' => 'integer',
         'popular' => 'boolean',
         'features' => 'array',

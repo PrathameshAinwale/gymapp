@@ -371,6 +371,28 @@ class EnquiryController extends Controller
             $email = "{$cleanName}." . rand(100, 999) . "@member.pulsefit.in";
         }
         $phone = $request->input('phone', $enquiry->phone);
+        if (!empty($phone)) {
+            $rawPhone = trim($phone);
+            $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+            $duplicatePhone = User::where('role', 'member')
+                ->where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
+                    $q->where('phone', $rawPhone)
+                      ->orWhere('phone', $cleanDigits);
+                    if (strlen($last10) >= 7) {
+                        $q->orWhere('phone', 'like', "%{$last10}");
+                    }
+                })->first();
+
+            if ($duplicatePhone) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member already exists with this mobile number.',
+                    'errors' => ['phone' => ['Member already exists with this mobile number.']]
+                ], 422);
+            }
+        }
         $plainPassword = $request->input('password', 'fit' . rand(1000, 9999));
 
         // Find or create User
@@ -401,7 +423,12 @@ class EnquiryController extends Controller
 
         // Expiry calculation
         $durationMonths = $plan?->duration_months ?? 1;
-        $expiryDate = now()->addMonths($durationMonths)->toDateString();
+        $offerDays = (int)($plan?->offer_days ?? 0);
+        $expiry = now()->addMonths($durationMonths);
+        if ($offerDays > 0) {
+            $expiry = $expiry->addDays($offerDays);
+        }
+        $expiryDate = $expiry->toDateString();
         if ($plan) {
             $plan->increment('active_subscribers');
         }
@@ -420,7 +447,7 @@ class EnquiryController extends Controller
             'target_weight' => $request->input('target_weight', $request->input('targetWeight', $profile->target_weight ?? 65)),
             'height' => $request->input('height', $profile->height ?? 175),
             'goal' => $request->input('goal', $request->input('fitness_goal', $enquiry->fitness_goal ?? 'Fitness & Conditioning')),
-            'medical_notes' => $request->input('medical_notes', $request->input('medicalNotes', $profile->medical_notes ?? 'None')),
+            'medical_notes' => $request->input('medical_notes', $request->input('medicalNotes', $profile->medical_notes ?? null)),
             'emergency_contact' => $request->input('emergency_contact', $request->input('emergencyContact', $phone)),
             'qr_pass_code' => $profile->qr_pass_code ?? ('PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5))),
             'dues_amount' => 0,
@@ -467,7 +494,7 @@ class EnquiryController extends Controller
             'targetWeight' => $p?->target_weight ?? 65,
             'height' => $p?->height ?? 175,
             'goal' => $p?->goal ?? 'Fitness & Conditioning',
-            'medicalNotes' => $p?->medical_notes ?? 'None reported',
+            'medicalNotes' => $p?->medical_notes ?? '',
             'emergencyContact' => $p?->emergency_contact ?? $phone,
             'attendanceStreak' => $p?->attendance_streak ?? 0,
             'qrPassCode' => $p?->qr_pass_code ?? ('PF-M-' . $user->id),

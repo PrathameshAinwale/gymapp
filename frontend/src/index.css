@@ -340,3 +340,16 @@
     font-size: 12px !important; /* Prevents iOS zoom on focus */
   }
 }
+
+/* ===== DISABLE NUMBER INPUT SPINNERS (INCREASE / DECREASE BUTTONS) ===== */
+/* Removes default browser stepper/spin buttons across all Chrome, Edge, Safari, Firefox */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}

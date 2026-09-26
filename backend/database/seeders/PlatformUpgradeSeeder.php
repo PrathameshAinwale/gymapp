@@ -393,9 +393,9 @@ class PlatformUpgradeSeeder extends Seeder
 
         // ─── PAYROLL ────────────────────────────────────────
         $payrollData = [
-            ['emp' => $trainer1, 'role' => 'Personal Trainer', 'base' => 45000, 'commission' => 12000, 'bonus' => 3000, 'deductions' => 2000],
-            ['emp' => $trainer2, 'role' => 'Yoga & Wellness Coach', 'base' => 40000, 'commission' => 8000, 'bonus' => 2000, 'deductions' => 1500],
-            ['emp' => $manager, 'role' => 'Operations Manager', 'base' => 55000, 'commission' => 0, 'bonus' => 0, 'deductions' => 3000],
+            ['emp' => $trainer1, 'role' => 'Personal Trainer', 'base' => 45000, 'commission' => 0, 'bonus' => 0, 'deductions' => 0],
+            ['emp' => $trainer2, 'role' => 'Yoga & Wellness Coach', 'base' => 40000, 'commission' => 0, 'bonus' => 0, 'deductions' => 0],
+            ['emp' => $manager, 'role' => 'Operations Manager', 'base' => 55000, 'commission' => 0, 'bonus' => 0, 'deductions' => 0],
         ];
 
         foreach ($payrollData as $pay) {

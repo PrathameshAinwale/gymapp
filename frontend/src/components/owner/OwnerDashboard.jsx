@@ -11,6 +11,13 @@ import {
 } from './CustomizeStatCardsModal';
 import { getTodayIso, recordMatchesDate } from '../../utils/dateUtils';
 import {
+  hasSqlInjection,
+  sanitizePhone,
+  preventNonPhoneKey,
+  isValidPhone,
+  isValidEmail
+} from '../../utils/validation';
+import {
   Users,
   AlertTriangle,
   IndianRupee,
@@ -45,7 +52,8 @@ import {
   Layers,
   BarChart3,
   RotateCw,
-  CalendarDays
+  CalendarDays,
+  User
 } from 'lucide-react';
 import {
   AreaChart,
@@ -59,6 +67,25 @@ import {
   Pie,
   Cell
 } from 'recharts';
+
+const StaffAvatar = ({ src, alt, className = "w-8 h-8 rounded-full", iconClassName = "w-4 h-4 text-indigo-600" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-indigo-50 border border-slate-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -150,7 +177,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
     phone: '',
     email: '',
     source: 'Walk-in Visit',
-    interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+    interestedPlan: plans[0]?.name || '',
     goal: 'Weight Loss & Fitness',
     status: 'Warm',
     staffName: defaultStaffName,
@@ -167,6 +194,26 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
   const handleAddEnquirySubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(enquiryFormData.name) ||
+      hasSqlInjection(enquiryFormData.phone) ||
+      hasSqlInjection(enquiryFormData.email) ||
+      hasSqlInjection(enquiryFormData.notes)
+    ) {
+      if (addToast) addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
+
+    if (!isValidPhone(enquiryFormData.phone)) {
+      if (addToast) addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (enquiryFormData.email && !isValidEmail(enquiryFormData.email)) {
+      if (addToast) addToast('Please enter a valid email address.', 'error');
+      return;
+    }
+
     if (!enquiryFormData.name || !enquiryFormData.phone) return;
 
     try {
@@ -191,7 +238,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
         phone: '',
         email: '',
         source: 'Walk-in Visit',
-        interestedPlan: plans[0]?.name || 'Gold Quarterly Fitness',
+        interestedPlan: plans[0]?.name || '',
         goal: 'Weight Loss & Fitness',
         status: 'Warm',
         staffName: defaultStaffName,
@@ -1336,10 +1383,11 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
                       className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
                     >
                       <div className="flex items-center gap-2.5">
-                        <img
-                          src={req.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}
+                        <StaffAvatar
+                          src={req.userAvatar}
                           alt={req.userName}
-                          className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
+                          className="w-8 h-8 rounded-full"
+                          iconClassName="w-4 h-4 text-indigo-600"
                         />
                         <div>
                           <div className="font-bold text-slate-900">{req.userName}</div>
@@ -1518,9 +1566,12 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
               <input
                 type="tel"
                 required
+                maxLength={10}
+                inputMode="numeric"
                 value={enquiryFormData.phone}
-                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, phone: e.target.value })}
-                placeholder="+91 98200 00000"
+                onKeyDown={preventNonPhoneKey}
+                onChange={(e) => setEnquiryFormData({ ...enquiryFormData, phone: sanitizePhone(e.target.value) })}
+                placeholder="10 digit mobile"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
               />
             </div>
@@ -1558,15 +1609,20 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Interested Plan</label>
               <select
-                value={enquiryFormData.interestedPlan}
+                value={enquiryFormData.interestedPlan || ''}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, interestedPlan: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                {plans.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name} (₹{p.price})
-                  </option>
-                ))}
+                <option value="">-- General / Not Decided --</option>
+                {plans && plans.length > 0 ? (
+                  plans.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name} (₹{p.price})
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No membership plans added yet</option>
+                )}
               </select>
             </div>
 

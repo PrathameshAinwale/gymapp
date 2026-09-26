@@ -37,8 +37,35 @@ import {
   Share2,
   Zap,
   FileText,
-  History
+  History,
+  User
 } from 'lucide-react';
+import {
+  hasSqlInjection,
+  isValidPhone,
+  preventNonPhoneKey,
+  sanitizePhone,
+  sanitizeText
+} from '../../utils/validation';
+
+const BirthdayAvatar = ({ src, alt, className = "w-10 h-10 rounded-full", iconClassName = "w-5 h-5 text-pink-500" }) => {
+  const [hasError, setHasError] = useState(false);
+  if (!src || hasError) {
+    return (
+      <div className={`${className} bg-pink-50 border-2 border-pink-200 flex items-center justify-center shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || "Avatar"}
+      className={`${className} object-cover shrink-0`}
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export const WhatsAppAutomation = () => {
   const {
@@ -246,12 +273,22 @@ export const WhatsAppAutomation = () => {
       return;
     }
 
+    if (hasSqlInjection(formData.name)) {
+      alert('Security Warning: SQL or script injection characters detected in template title.');
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const sanitized = {
+        ...formData,
+        name: sanitizeText(formData.name),
+        message_body: sanitizeText(formData.message_body)
+      };
       if (editingTemplate) {
-        await updateWhatsAppTemplate(editingTemplate.id, formData);
+        await updateWhatsAppTemplate(editingTemplate.id, sanitized);
       } else {
-        await createWhatsAppTemplate(formData);
+        await createWhatsAppTemplate(sanitized);
       }
       setIsEditorOpen(false);
     } catch (err) {
@@ -399,9 +436,6 @@ export const WhatsAppAutomation = () => {
               <div>
                 <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                   <span>WhatsApp Automation & Templates</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold uppercase tracking-wider">
-                    PulseFit WA Hub
-                  </span>
                 </h1>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                   Automate member & trainer birthday greetings, expiry renewal alerts, fee notices, and custom messages with 1-click dispatch.
@@ -615,13 +649,11 @@ export const WhatsAppAutomation = () => {
                         {/* Member Header */}
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={
-                                item.avatar ||
-                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-                              }
+                            <BirthdayAvatar
+                              src={item.avatar}
                               alt={item.name}
-                              className="w-10 h-10 rounded-full object-cover border-2 border-pink-200 shadow-2xs"
+                              className="w-10 h-10 rounded-full border-2 border-pink-200 shadow-2xs"
+                              iconClassName="w-5 h-5 text-pink-500"
                             />
                             <div>
                               <h3 className="text-sm font-bold text-slate-900 group-hover:text-pink-600 transition-colors">
@@ -1466,9 +1498,11 @@ export const WhatsAppAutomation = () => {
               <label className="block text-xs font-bold text-slate-700 mb-1">Send Test Message To</label>
               <input
                 type="tel"
+                maxLength={10}
                 placeholder="Enter 10-digit phone number (e.g. 9820154321)"
+                onKeyDown={preventNonPhoneKey}
                 value={testPhoneNumber}
-                onChange={(e) => setTestPhoneNumber(e.target.value)}
+                onChange={(e) => setTestPhoneNumber(sanitizePhone(e.target.value))}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -1484,12 +1518,12 @@ export const WhatsAppAutomation = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const cleaned = testPhoneNumber.replace(/[^0-9]/g, '');
-                  if (!cleaned) {
-                    addToast('Please enter a valid phone number for testing.', 'error');
+                  const cleaned = sanitizePhone(testPhoneNumber);
+                  if (!isValidPhone(cleaned)) {
+                    addToast('Please enter a valid 10-digit phone number for testing.', 'error');
                     return;
                   }
-                  const phoneWithCountry = cleaned.length === 10 ? '91' + cleaned : cleaned;
+                  const phoneWithCountry = '91' + cleaned;
                   const text = renderPreviewText(
                     previewTemplate.message_body,
                     previewTemplate.sampleOverrides || {}

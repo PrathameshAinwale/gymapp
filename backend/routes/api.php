@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\OperationsController;
 // New Feature Controllers
 use App\Http\Controllers\Api\StaffController;
+use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PtSessionController;
 use App\Http\Controllers\Api\TrainerReviewController;
 use App\Http\Controllers\Api\AdvanceRequestController;
@@ -207,8 +208,10 @@ Route::prefix('v1')->group(function () {
     // Dashboard & Analytics
     Route::get('/dashboard/owner-stats', [DashboardController::class, 'getOwnerStats']);
 
-    // Plans
+    // Plans & Offers
     Route::apiResource('plans', PlanController::class);
+    Route::apiResource('offers', OfferController::class);
+    Route::patch('/offers/{id}/toggle', [OfferController::class, 'toggle']);
 
     // Members CRM & Profiles
     Route::apiResource('members', MemberController::class);
@@ -277,10 +280,12 @@ Route::prefix('v1')->group(function () {
     Route::post('/commissions', [OperationsController::class, 'storeCommission']);
     Route::patch('/commissions/{id}/status', [OperationsController::class, 'updateCommissionStatus']);
 
-    // Membership Freezes & Extensions
+    // Membership Freezes & Extensions & Transfers
     Route::get('/freezes', [OperationsController::class, 'getFreezes']);
     Route::post('/freezes', [OperationsController::class, 'storeFreeze']);
     Route::patch('/freezes/{id}/unfreeze', [OperationsController::class, 'unfreeze']);
+    Route::get('/transfers', [OperationsController::class, 'getTransfers']);
+    Route::post('/transfers', [OperationsController::class, 'storeTransfer']);
 
     // Consent & Medical Waivers
     Route::get('/consent-forms', [OperationsController::class, 'getConsentForms']);

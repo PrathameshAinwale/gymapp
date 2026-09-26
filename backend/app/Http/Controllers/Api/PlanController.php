@@ -28,6 +28,12 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'offer' => $plan->offer,
+                'offerText' => $plan->offer,
+                'offerDays' => (int)($plan->offer_days ?? 0),
+                'offer_days' => (int)($plan->offer_days ?? 0),
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
@@ -74,6 +80,12 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'offer' => $plan->offer,
+                'offerText' => $plan->offer,
+                'offerDays' => (int)($plan->offer_days ?? 0),
+                'offer_days' => (int)($plan->offer_days ?? 0),
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
@@ -89,6 +101,8 @@ class PlanController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'price' => 'required|numeric',
+            'max_discount' => 'nullable|numeric',
+            'maxDiscount' => 'nullable|numeric',
             'period' => 'nullable|string',
             'duration_months' => 'nullable|integer',
             'durationMonths' => 'nullable|integer',
@@ -111,6 +125,9 @@ class PlanController extends Controller
             'gym_id' => $gymId,
             'name' => $request->name,
             'price' => $request->price,
+            'max_discount' => $request->max_discount ?? $request->maxDiscount ?? 0,
+            'offer' => $request->offer ?? $request->offerText ?? null,
+            'offer_days' => (int)($request->offer_days ?? $request->offerDays ?? 0),
             'period' => $period,
             'duration_months' => $durationMonths,
             'popular' => $request->popular ?? false,
@@ -133,6 +150,15 @@ class PlanController extends Controller
 
         if ($request->has('name')) $plan->name = $request->name;
         if ($request->has('price')) $plan->price = $request->price;
+        if ($request->has('max_discount') || $request->has('maxDiscount')) {
+            $plan->max_discount = $request->max_discount ?? $request->maxDiscount;
+        }
+        if ($request->has('offer') || $request->has('offerText')) {
+            $plan->offer = $request->offer ?? $request->offerText;
+        }
+        if ($request->has('offer_days') || $request->has('offerDays')) {
+            $plan->offer_days = (int)($request->offer_days ?? $request->offerDays ?? 0);
+        }
         if ($request->has('period')) $plan->period = $request->period;
         if ($request->has('duration_months')) $plan->duration_months = $request->duration_months;
         if ($request->has('popular')) $plan->popular = $request->popular;

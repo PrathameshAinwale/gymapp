@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
@@ -16,6 +17,7 @@ import {
   AlertCircle,
   IndianRupee,
   Calendar,
+  Clock,
   User,
   Mail,
   Phone,
@@ -32,7 +34,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Eye,
-  RotateCw
+  RotateCw,
+  Filter
 } from 'lucide-react';
 
 export const InvoicesPage = () => {
@@ -54,9 +57,15 @@ export const InvoicesPage = () => {
     fetchPlans?.();
   }, [fetchInvoices, fetchMembers, fetchPlans]);
 
-  // Search & Unified Dropdown Filter State
+  // Search & Filter States (Mirrors ReportsManager filters + Date selector)
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'PAID' | 'PENDING' | 'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'LAST_90_DAYS' | 'THIS_YEAR'
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(''); // 'YYYY-MM'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'paid' | 'pending'
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('ALL'); // 'ALL' | 'Cash' | 'UPI' | 'Split' | 'Split: GPay' | ...
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -65,6 +74,73 @@ export const InvoicesPage = () => {
   const [pdfGeneratedData, setPdfGeneratedData] = useState(null);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (activeFilter !== 'ALL') count++;
+    if (statusFilter !== 'ALL') count++;
+    if (paymentMethodFilter !== 'ALL') count++;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (selectedMonth) count++;
+    return count;
+  }, [activeFilter, statusFilter, paymentMethodFilter, startDate, endDate, selectedMonth]);
+
+  const handleResetFilters = () => {
+    setActiveFilter('ALL');
+    setStatusFilter('ALL');
+    setPaymentMethodFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+    setSelectedMonth('');
+    setSearchTerm('');
+  };
+
+  // Helper to test if a record date matches selected date range or month (Same as ReportsManager)
+  const matchesDateCriteria = (dateStr) => {
+    if (!dateStr) return true;
+    const cleanDate = String(dateStr).split('T')[0];
+
+    if (selectedMonth) {
+      if (!cleanDate.startsWith(selectedMonth)) return false;
+    }
+    if (startDate && cleanDate < startDate) return false;
+    if (endDate && cleanDate > endDate) return false;
+    return true;
+  };
+
+  // Helper to test if payment method matches filter (Same as ReportsManager)
+  const matchesPaymentFilter = (inv, filter) => {
+    if (!filter || filter === 'ALL') return true;
+    const pm = (inv.paymentMethod || inv.payment_method || '').toLowerCase();
+    
+    if (filter === 'Cash') {
+      return pm.includes('cash') && !pm.includes('split');
+    }
+    if (filter === 'UPI') {
+      return (pm.includes('upi') || pm.includes('online')) && !pm.includes('split');
+    }
+    if (filter === 'Split') {
+      return pm.includes('split');
+    }
+    if (filter === 'Split: GPay' || filter === 'GPay') {
+      return pm.includes('split') && (pm.includes('gpay') || pm.includes('google pay'));
+    }
+    if (filter === 'Split: PhonePe' || filter === 'PhonePe') {
+      return pm.includes('split') && (pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe'));
+    }
+    if (filter === 'Split: Account' || filter === 'Account') {
+      return pm.includes('split') && (pm.includes('account') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps') || pm.includes('transfer'));
+    }
+    if (filter === 'Split: Other' || filter === 'Other') {
+      return pm.includes('split') &&
+        !pm.includes('gpay') && !pm.includes('google pay') &&
+        !pm.includes('phonepe') && !pm.includes('phone pay') && !pm.includes('phone_pe') &&
+        !pm.includes('account') && !pm.includes('bank') && !pm.includes('neft') && !pm.includes('imps');
+    }
+    return pm.includes(filter.toLowerCase());
+  };
 
   const searchContainerRef = useRef(null);
 
@@ -143,21 +219,27 @@ export const InvoicesPage = () => {
   // Group all invoices by member
   const memberInvoicesMap = useMemo(() => {
     const map = new Map();
+    const cleanId = (v) => String(v || '').replace(/\D/g, '');
 
     gymInvoices.forEach((inv) => {
-      const matchedMember = (members || []).find(
-        (m) =>
-          (inv.memberId && String(m.id) === String(inv.memberId)) ||
-          (inv.userId && String(m.userId) === String(inv.userId)) ||
-          (inv.user_id && String(m.userId) === String(inv.user_id)) ||
-          ((m.name || '').trim().toLowerCase() === (inv.memberName || inv.member_name || '').trim().toLowerCase())
-      );
+      const cleanInvId = cleanId(inv.memberId || inv.userId || inv.user_id);
+      const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+      const invName = (inv.memberName || inv.member_name || '').trim().toLowerCase();
 
-      const memberKey = matchedMember?.id || inv.memberId || (inv.memberName || 'Unknown');
+      const matchedMember = (members || []).find((m) => {
+        const cleanMId = cleanId(m.id || m.userId || m.user_id);
+        if (cleanInvId && cleanMId && cleanInvId === cleanMId) return true;
+        const cleanMPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
+        if (cleanInvPhone && cleanMPhone && cleanInvPhone === cleanMPhone) return true;
+        if (invName && (m.name || '').trim().toLowerCase() === invName) return true;
+        return false;
+      });
+
+      const memberKey = matchedMember?.id || (cleanInvId ? `mem-${cleanInvId}` : (inv.memberId || invName || 'Unknown'));
       const memberName = matchedMember?.name || inv.memberName || inv.member_name || 'Member';
       const memberAvatar = matchedMember?.avatar || null;
-      const memberPhone = matchedMember?.phone || '';
-      const memberEmail = matchedMember?.email || '';
+      const memberPhone = matchedMember?.phone || inv.memberPhone || inv.phone || '';
+      const memberEmail = matchedMember?.email || inv.memberEmail || inv.email || '';
       const memberPlan = matchedMember?.planName || inv.planName || 'Gym Membership';
 
       if (!map.has(memberKey)) {
@@ -198,16 +280,23 @@ export const InvoicesPage = () => {
     });
 
     return result.sort((a, b) => new Date(b.latestDate || 0) - new Date(a.latestDate || 0));
-  }, [invoices, members]);
+  }, [gymInvoices, members]);
 
   // Selected Invoice Member Resolution
   const selectedInvoiceMember = useMemo(() => {
     if (!selectedInvoice) return null;
+    const cleanId = (v) => String(v || '').replace(/\D/g, '');
+    const cleanInvId = cleanId(selectedInvoice.memberId || selectedInvoice.userId || selectedInvoice.user_id);
+    const invName = (selectedInvoice.memberName || selectedInvoice.member_name || '').trim().toLowerCase();
+
     return (
       members.find(
-        (m) =>
-          (selectedInvoice.memberId && String(m.id) === String(selectedInvoice.memberId)) ||
-          (m.name || '').toLowerCase() === (selectedInvoice.memberName || selectedInvoice.member_name || '').toLowerCase()
+        (m) => {
+          const cleanMId = cleanId(m.id || m.userId || m.user_id);
+          if (cleanInvId && cleanMId && cleanInvId === cleanMId) return true;
+          if (invName && (m.name || '').trim().toLowerCase() === invName) return true;
+          return false;
+        }
       ) || {
         name: selectedInvoice.memberName,
         phone: selectedInvoice.phone || '',
@@ -255,13 +344,42 @@ export const InvoicesPage = () => {
     return gymInvoices.filter((i) => (i.status || '').toLowerCase() !== 'paid').length;
   }, [gymInvoices]);
 
-  // Filtered members based on search term AND active unified dropdown filter
+  const totalPendingAmount = useMemo(() => {
+    return gymInvoices
+      .filter((i) => (i.status || '').toLowerCase() !== 'paid')
+      .reduce((acc, i) => acc + (Number(i.duesAmount || i.dues_amount || i.amount) || 0), 0);
+  }, [gymInvoices]);
+
+  // Filtered members based on search term AND active filters (dates, status, payment)
   const filteredMembers = useMemo(() => {
     const term = (searchTerm || '').trim().toLowerCase();
 
     return memberInvoicesMap
       .map((m) => {
-        const matchingInvoices = m.invoices.filter((inv) => matchesFilter(inv, activeFilter));
+        const matchingInvoices = m.invoices.filter((inv) => {
+          // Status filter
+          if (statusFilter !== 'ALL') {
+            const s = (inv.status || '').toLowerCase();
+            if (statusFilter === 'paid' && s !== 'paid') return false;
+            if (statusFilter === 'pending' && s === 'paid') return false;
+          }
+
+          // Date criteria
+          const invDate = inv.date || inv.invoiceDate || inv.createdAt || inv.created_at;
+          if (!matchesDateCriteria(invDate)) return false;
+
+          // Quick preset filter
+          if (activeFilter !== 'ALL') {
+            if (!matchesFilter(inv, activeFilter)) return false;
+          }
+
+          // Payment mode filter
+          if (paymentMethodFilter !== 'ALL') {
+            if (!matchesPaymentFilter(inv, paymentMethodFilter)) return false;
+          }
+
+          return true;
+        });
 
         const matchesSearch =
           !term ||
@@ -285,7 +403,38 @@ export const InvoicesPage = () => {
         };
       })
       .filter(Boolean);
-  }, [memberInvoicesMap, searchTerm, activeFilter]);
+  }, [memberInvoicesMap, searchTerm, statusFilter, selectedMonth, startDate, endDate, activeFilter, paymentMethodFilter]);
+
+  // Dynamic figures for KPI cards based on current filtered state
+  const currentDisplayedInvoices = useMemo(() => {
+    const all = [];
+    filteredMembers.forEach((m) => {
+      all.push(...(m.displayedInvoices || []));
+    });
+    return all;
+  }, [filteredMembers]);
+
+  const displayedRevenue = useMemo(() => {
+    if (activeFiltersCount === 0 && !searchTerm) return totalBilledRevenue;
+    return currentDisplayedInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  }, [currentDisplayedInvoices, activeFiltersCount, searchTerm, totalBilledRevenue]);
+
+  const displayedPaidCount = useMemo(() => {
+    if (activeFiltersCount === 0 && !searchTerm) return totalPaidInvoicesCount;
+    return currentDisplayedInvoices.filter((i) => (i.status || '').toLowerCase() === 'paid').length;
+  }, [currentDisplayedInvoices, activeFiltersCount, searchTerm, totalPaidInvoicesCount]);
+
+  const displayedPendingCount = useMemo(() => {
+    if (activeFiltersCount === 0 && !searchTerm) return totalPendingInvoicesCount;
+    return currentDisplayedInvoices.filter((i) => (i.status || '').toLowerCase() !== 'paid').length;
+  }, [currentDisplayedInvoices, activeFiltersCount, searchTerm, totalPendingInvoicesCount]);
+
+  const displayedPendingAmount = useMemo(() => {
+    if (activeFiltersCount === 0 && !searchTerm) return totalPendingAmount;
+    return currentDisplayedInvoices
+      .filter((i) => (i.status || '').toLowerCase() !== 'paid')
+      .reduce((acc, i) => acc + (Number(i.duesAmount || i.dues_amount || i.amount) || 0), 0);
+  }, [currentDisplayedInvoices, activeFiltersCount, searchTerm, totalPendingAmount]);
 
   // Autocomplete suggestions in search bar dropdown
   const searchSuggestions = useMemo(() => {
@@ -416,185 +565,476 @@ export const InvoicesPage = () => {
         </div>
       </div>
 
-      {/* 2. THE 4 ESSENTIAL STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+      {/* 2. THE 4 COMPACT STATS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         
         {/* Total Invoiced */}
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <div
+          onClick={() => {
+            setStatusFilter('ALL');
+            setActiveFilter('ALL');
+          }}
+          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${
+            activeFilter === 'ALL' && statusFilter === 'ALL'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Total Invoiced
             </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
-              <IndianRupee className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+              <IndianRupee className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="mt-1.5 sm:my-3">
-            <div className="text-xl sm:text-3xl font-black text-slate-900">
-              ₹{(totalBilledRevenue / 100000).toFixed(2)}L
-            </div>
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+            ₹{(displayedRevenue / 100000).toFixed(2)}L
           </div>
-          <div className="hidden sm:flex text-xs font-bold text-slate-500 items-center justify-between pt-2 border-t border-slate-100">
-            <span>₹{totalBilledRevenue.toLocaleString('en-IN')} Total</span>
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 font-medium pt-1 mt-1 border-t border-slate-100">
+            <span>₹{displayedRevenue.toLocaleString('en-IN')} Total</span>
+            <span className="text-[10px] text-emerald-600 font-bold">
+              {activeFilter === 'ALL' && statusFilter === 'ALL' ? '● Active' : 'View All'}
+            </span>
           </div>
         </div>
 
         {/* Paid Invoices */}
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <div
+          onClick={() => {
+            setStatusFilter('paid');
+            setActiveFilter('PAID');
+          }}
+          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${
+            statusFilter === 'paid' || activeFilter === 'PAID'
+              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Paid Invoices
             </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center">
-              <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+              <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="mt-1.5 sm:my-3">
-            <div className="text-xl sm:text-3xl font-black text-slate-900">
-              {totalPaidInvoicesCount}
-            </div>
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+            {displayedPaidCount}
           </div>
-          <div className="hidden sm:flex text-xs font-bold text-emerald-700 items-center justify-between pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-blue-700 font-medium pt-1 mt-1 border-t border-slate-100">
             <span>Verified Settled</span>
+            <span className="text-[10px] text-blue-600 font-bold">
+              {statusFilter === 'paid' || activeFilter === 'PAID' ? '● Active' : 'Filter'}
+            </span>
           </div>
         </div>
 
         {/* Billed Members */}
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3 shadow-xs">
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Billed Members
             </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+              <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="mt-1.5 sm:my-3">
-            <div className="text-xl sm:text-3xl font-black text-slate-900">
-              {memberInvoicesMap.length}
-            </div>
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+            {filteredMembers.length}
           </div>
-          <div className="hidden sm:flex text-xs font-bold text-purple-700 items-center justify-between pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-purple-700 font-medium pt-1 mt-1 border-t border-slate-100">
             <span>Active Accounts</span>
+            <span className="text-[10px] text-slate-400">of {memberInvoicesMap.length} Total</span>
           </div>
         </div>
 
-        {/* Average Ticket */}
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Avg Receipt
+        {/* Pending Invoices */}
+        <div
+          onClick={() => {
+            setStatusFilter('pending');
+            setActiveFilter('PENDING');
+          }}
+          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${
+            statusFilter === 'pending' || activeFilter === 'PENDING'
+              ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Pending Invoices
             </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
-              <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </div>
           </div>
-          <div className="mt-1.5 sm:my-3">
-            <div className="text-xl sm:text-3xl font-black text-slate-900">
-              ₹{invoices.length > 0 ? Math.round(totalBilledRevenue / invoices.length).toLocaleString('en-IN') : 0}
-            </div>
+          <div className="text-base sm:text-xl font-black text-amber-600 tracking-tight">
+            {displayedPendingCount}
           </div>
-          <div className="hidden sm:flex text-xs font-bold text-amber-700 items-center justify-between pt-2 border-t border-slate-100">
-            <span>Per Transaction</span>
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-amber-700 font-medium pt-1 mt-1 border-t border-slate-100">
+            <span>₹{displayedPendingAmount.toLocaleString('en-IN')} Due</span>
+            <span className="text-[10px] text-amber-600 font-bold">
+              {statusFilter === 'pending' || activeFilter === 'PENDING' ? '● Active' : 'Filter'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 3. SEARCH BAR & SINGLE UNIFIED DROPDOWN FILTER */}
-      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-sm flex items-center justify-between gap-2.5 sm:gap-3">
-        
-        {/* Search Input with Autocomplete */}
-        <div className="relative flex-1" ref={searchContainerRef}>
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onFocus={() => setIsSearchDropdownOpen(true)}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setIsSearchDropdownOpen(true);
-            }}
-            placeholder="Search member name, phone, or invoice..."
-            className="w-full pl-8 sm:pl-9 pr-7 py-1.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-[11px] sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs font-medium"
-          />
+      {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Reports Page) */}
+      <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-sm space-y-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+          
+          {/* Search Input with Autocomplete */}
+          <div className="relative flex-1" ref={searchContainerRef}>
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              placeholder="Search member name, phone, or invoice..."
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+            />
 
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
-              title="Clear search"
-            >
-              ✕
-            </button>
-          )}
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
 
-          {/* Autocomplete Dropdown */}
-          {isSearchDropdownOpen && searchSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-              <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Matching Members ({searchSuggestions.length})
-              </div>
-              {searchSuggestions.map((member) => (
-                <div
-                  key={member.memberKey}
-                  onClick={() => handleSelectSuggestion(member)}
-                  className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {member.avatar ? (
-                      <img
-                        src={member.avatar}
-                        alt={member.name}
-                        className="w-6 h-6 rounded-full object-cover border border-slate-200"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
-                        {member.name.charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
-                        {member.name}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {member.phone || member.email || member.planName}
+            {/* Autocomplete Dropdown */}
+            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
+                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Matching Members ({searchSuggestions.length})
+                </div>
+                {searchSuggestions.map((member) => (
+                  <div
+                    key={member.memberKey}
+                    onClick={() => handleSelectSuggestion(member)}
+                    className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {member.avatar ? (
+                        <img
+                          src={member.avatar}
+                          alt={member.name}
+                          className="w-6 h-6 rounded-full object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                          {member.name.charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
+                          {member.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {member.phone || member.email || member.planName}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                        {member.invoices.length} {member.invoices.length === 1 ? 'Invoice' : 'Invoices'}
+                      </span>
+                      <span className="text-xs font-bold text-slate-700">
+                        ₹{member.totalAmount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                      {member.invoices.length} {member.invoices.length === 1 ? 'Invoice' : 'Invoices'}
-                    </span>
-                    <span className="text-xs font-bold text-slate-700">
-                      ₹{member.totalAmount.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+
+            {/* Dedicated Filter Button (With active badge - same as Reports page) */}
+            <button
+              type="button"
+              onClick={() => setShowFilterModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* SINGLE COMBINED DROPDOWN FILTER */}
-        <div className="relative shrink-0">
-          <select
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
-            className="appearance-none pl-2.5 pr-7 py-1.5 sm:py-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 shadow-xs cursor-pointer"
-          >
-            <option value="ALL">All Status ({invoices.length})</option>
-            <option value="PAID">Paid Only ({totalPaidInvoicesCount})</option>
-            <option value="PENDING">Pending Only ({totalPendingInvoicesCount})</option>
-            <option value="TODAY">Today's Invoices</option>
-            <option value="LAST_7_DAYS">Last 7 Days</option>
-            <option value="LAST_30_DAYS">Last 30 Days</option>
-            <option value="LAST_90_DAYS">Last 90 Days</option>
-            <option value="THIS_YEAR">This Year (2026)</option>
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        {/* Active Filter Chips */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            {selectedMonth && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                Month: {selectedMonth}
+                <button type="button" onClick={() => setSelectedMonth('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {startDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                From: {startDate}
+                <button type="button" onClick={() => setStartDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {endDate && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
+                To: {endDate}
+                <button type="button" onClick={() => setEndDate('')} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(statusFilter !== 'ALL' || (activeFilter !== 'ALL' && ['PAID', 'PENDING'].includes(activeFilter))) && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium capitalize">
+                Status: {statusFilter !== 'ALL' ? statusFilter : activeFilter}
+                <button type="button" onClick={() => { setStatusFilter('ALL'); setActiveFilter('ALL'); }} className="hover:text-emerald-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {paymentMethodFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-800 border border-violet-200 rounded-lg text-xs font-medium">
+                <Receipt className="w-3 h-3 text-violet-600" />
+                Payment: {paymentMethodFilter}
+                <button type="button" onClick={() => setPaymentMethodFilter('ALL')} className="hover:text-violet-950 cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+            >
+              Reset All
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Advanced Filter Modal (Portalled to document.body, matching ReportsManager) */}
+      {showFilterModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div
+            onClick={() => setShowFilterModal(false)}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fadeIn"
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 animate-scaleUp my-auto max-h-[88vh]"
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-700">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Filter Invoice Data</h3>
+                  <p className="text-xs text-slate-500">Apply custom date ranges, month selection, and payment statuses</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+              {/* Month Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Month Selection</span>
+                  <span className="text-[11px] font-normal text-slate-400">View entire month's invoices</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value);
+                      if (e.target.value) {
+                        setStartDate(`${e.target.value}-01`);
+                        const [yr, mo] = e.target.value.split('-').map(Number);
+                        const lastDay = new Date(yr, mo, 0).getDate();
+                        setEndDate(`${e.target.value}-${String(lastDay).padStart(2, '0')}`);
+                      }
+                    }}
+                    className="col-span-2 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    { label: 'Current Month', value: new Date().toISOString().slice(0, 7) },
+                    { label: 'Last Month', value: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7) },
+                    { label: 'Sep 2026', value: '2026-09' },
+                    { label: 'Aug 2026', value: '2026-08' },
+                  ].map((mPreset) => (
+                    <button
+                      key={mPreset.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMonth(mPreset.value);
+                        setStartDate(`${mPreset.value}-01`);
+                        const [yr, mo] = mPreset.value.split('-').map(Number);
+                        const lastDay = new Date(yr, mo, 0).getDate();
+                        setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
+                      }}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                        selectedMonth === mPreset.value
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {mPreset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Start Date & End Date Selector */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Date Range (Start & End Date)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Filter */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Invoice Status
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'paid', label: 'Paid Invoices' },
+                    { id: 'pending', label: 'Pending / Due' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setStatusFilter(st.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                        statusFilter.toLowerCase() === st.id.toLowerCase()
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Mode & Split Settlement Filter */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Payment Mode & Split Settlement
+                  </label>
+                  <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                    Online Platforms
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Modes' },
+                    { id: 'Cash', label: 'Cash' },
+                    { id: 'UPI', label: 'UPI / Online' },
+                    { id: 'Split', label: 'All Split' },
+                    { id: 'Split: GPay', label: 'Split (GPay)' },
+                    { id: 'Split: PhonePe', label: 'Split (PhonePe)' },
+                    { id: 'Split: Account', label: 'Split (Account)' },
+                    { id: 'Split: Other', label: 'Split (Other)' },
+                  ].map((pm) => (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setPaymentMethodFilter(pm.id)}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                        paymentMethodFilter === pm.id
+                          ? 'bg-violet-600 border-violet-600 text-white shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pm.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+              >
+                Clear Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                Apply Filters ({filteredMembers.length} members)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Quick Summary Row */}
       <div className="flex items-center justify-between text-xs text-slate-500 px-0.5 font-medium">
@@ -679,12 +1119,6 @@ export const InvoicesPage = () => {
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3 text-slate-400" />
                             <span>{member.phone}</span>
-                          </span>
-                        )}
-                        {member.email && (
-                          <span className="hidden sm:flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate-400" />
-                            <span className="truncate max-w-[180px]">{member.email}</span>
                           </span>
                         )}
                         <span className="text-slate-400">•</span>

@@ -19,10 +19,21 @@ import {
   HeartPulse,
   Activity,
   Award,
-  Loader2
+  Loader2,
+  Tag,
+  Percent,
+  Copy,
+  X
 } from 'lucide-react';
+import { api } from '../../services/api';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import {
+  hasSqlInjection,
+  sanitizeDigits,
+  sanitizeDecimal,
+  preventNonNumericKey
+} from '../../utils/validation';
 
 const safeFeatures = (features) => {
   if (Array.isArray(features)) return features;
@@ -63,10 +74,12 @@ export const PlanManager = () => {
     fetchPtPlans?.();
   }, [fetchPlans, fetchClasses, fetchRecoveryPlans, fetchPtPlans]);
 
-  const [activeTab, setActiveTab] = useState('memberships'); // memberships | pt | classes | recovery
+  const [activeTab, setActiveTab] = useState('memberships'); // memberships | pt | classes | recovery | offers
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+
 
   // Group Classes state populated from backend database
   const [classPlans, setClassPlans] = useState([]);
@@ -95,23 +108,28 @@ export const PlanManager = () => {
     }
   }, [classes]);
 
-  // Form State for Add Plan
+  // Form State for Add Plan (with maxDiscount ceiling, promotional offer & additional days)
   const [formData, setFormData] = useState({
     name: '',
     price: 1999,
     period: 'Monthly (1 Month)',
     durationMonths: 1,
     popular: false,
+    maxDiscount: 0,
+    offer: '',
+    offerDays: 0,
     featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nArchFit Mobile App Access\n1 Free Fitness & BMI Assessment'
   });
 
-  // Form State for Add PT / Recovery / Class
+  // Form State for Add PT / Recovery / Class (with offer & additional days)
   const [serviceFormData, setServiceFormData] = useState({
     name: '',
     price: 4999,
     sessions: '12 Sessions',
     validityDays: 30,
     instructorOrType: 'Head Coach',
+    offer: '',
+    offerDays: 0,
     description: 'Personalized training with dedicated 1-on-1 technique assessment, workout programming, and diet coaching.'
   });
 
@@ -124,6 +142,9 @@ export const PlanManager = () => {
       period: plan.period,
       durationMonths: plan.durationMonths || 1,
       popular: plan.popular || false,
+      maxDiscount: plan.maxDiscount ?? plan.max_discount ?? 0,
+      offer: plan.offer || plan.offerText || '',
+      offerDays: Number(plan.offerDays ?? plan.offer_days ?? 0),
       featuresText: safeFeatures(plan.features).join('\n')
     });
   };
@@ -131,6 +152,15 @@ export const PlanManager = () => {
   // Handle Submit New Plan
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(formData.name) ||
+      hasSqlInjection(formData.period) ||
+      hasSqlInjection(formData.offer) ||
+      hasSqlInjection(formData.featuresText)
+    ) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!formData.name) return;
 
     setIsSubmitting(true);
@@ -146,6 +176,11 @@ export const PlanManager = () => {
         period: formData.period,
         durationMonths: Number(formData.durationMonths),
         popular: formData.popular,
+        max_discount: Number(formData.maxDiscount || 0),
+        maxDiscount: Number(formData.maxDiscount || 0),
+        offer: formData.offer || null,
+        offerDays: Number(formData.offerDays || 0),
+        offer_days: Number(formData.offerDays || 0),
         features
       });
 
@@ -156,6 +191,9 @@ export const PlanManager = () => {
         period: 'Monthly (1 Month)',
         durationMonths: 1,
         popular: false,
+        maxDiscount: 0,
+        offer: '',
+        offerDays: 0,
         featuresText: 'Access to gym floor & cardio machines\nLocker, steam room & shower access\nArchFit Mobile App Access\n1 Free Fitness & BMI Assessment'
       });
       addToast('New gym membership package published successfully!', 'success');
@@ -167,6 +205,15 @@ export const PlanManager = () => {
   // Handle Create PT / Class / Recovery Service
   const handleCreateServiceSubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(serviceFormData.name) ||
+      hasSqlInjection(serviceFormData.instructorOrType) ||
+      hasSqlInjection(serviceFormData.description) ||
+      hasSqlInjection(serviceFormData.offer)
+    ) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!serviceFormData.name) return;
 
     setIsSubmitting(true);
@@ -178,6 +225,9 @@ export const PlanManager = () => {
           validityDays: Number(serviceFormData.validityDays) || 30,
           price: Number(serviceFormData.price),
           trainerLevel: serviceFormData.instructorOrType || 'Master Coach',
+          offer: serviceFormData.offer || null,
+          offerDays: Number(serviceFormData.offerDays || 0),
+          offer_days: Number(serviceFormData.offerDays || 0),
           description: serviceFormData.description
         });
         addToast('Personal Training package added!', 'success');
@@ -190,6 +240,9 @@ export const PlanManager = () => {
           instructor: serviceFormData.instructorOrType || 'Master Coach',
           schedule: 'Flexible Timings',
           popular: false,
+          offer: serviceFormData.offer || null,
+          offerDays: Number(serviceFormData.offerDays || 0),
+          offer_days: Number(serviceFormData.offerDays || 0),
           features: serviceFormData.description.split('. ').filter(Boolean)
         };
         setClassPlans((prev) => [...prev, newClass]);
@@ -201,12 +254,25 @@ export const PlanManager = () => {
           sessions: 1,
           price: Number(serviceFormData.price),
           type: serviceFormData.instructorOrType || 'Therapy',
+          offer: serviceFormData.offer || null,
+          offerDays: Number(serviceFormData.offerDays || 0),
+          offer_days: Number(serviceFormData.offerDays || 0),
           description: serviceFormData.description
         });
         addToast('Recovery & Therapy package added!', 'success');
       }
 
       setIsAddOpen(false);
+      setServiceFormData({
+        name: '',
+        price: 4999,
+        sessions: '12 Sessions',
+        validityDays: 30,
+        instructorOrType: 'Head Coach',
+        offer: '',
+        offerDays: 0,
+        description: 'Personalized training with dedicated 1-on-1 technique assessment, workout programming, and diet coaching.'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -215,6 +281,15 @@ export const PlanManager = () => {
   // Handle Save Edited Plan
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (
+      hasSqlInjection(editingPlan?.name) ||
+      hasSqlInjection(editingPlan?.period) ||
+      hasSqlInjection(editingPlan?.offer) ||
+      hasSqlInjection(editingPlan?.featuresText)
+    ) {
+      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
+      return;
+    }
     if (!editingPlan || !editingPlan.name) return;
 
     setIsSubmitting(true);
@@ -230,6 +305,11 @@ export const PlanManager = () => {
         period: editingPlan.period,
         durationMonths: Number(editingPlan.durationMonths),
         popular: editingPlan.popular,
+        max_discount: Number(editingPlan.maxDiscount || 0),
+        maxDiscount: Number(editingPlan.maxDiscount || 0),
+        offer: editingPlan.offer || null,
+        offerDays: Number(editingPlan.offerDays || 0),
+        offer_days: Number(editingPlan.offerDays || 0),
         features
       });
 
@@ -254,7 +334,7 @@ export const PlanManager = () => {
             </h1>
           </div>
           <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Configure gym memberships, 1-on-1 PT packages, Zumba/Yoga classes, and massage & recovery pricing.
+            Configure gym memberships, 1-on-1 PT packages, promotional offers & discounts, and classes.
           </p>
         </div>
 
@@ -366,10 +446,6 @@ export const PlanManager = () => {
                       <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{plan.name}</h3>
                       <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{plan.period}</div>
                     </div>
-                    <span className="text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg border border-slate-200 shrink-0 font-semibold">
-                      <Users className="w-3 h-3 text-emerald-600" />
-                      {plan.activeSubscribers ?? 0}
-                    </span>
                   </div>
 
                   {/* Price in INR */}
@@ -381,6 +457,24 @@ export const PlanManager = () => {
                       </span>
                       <span className="text-[10px] sm:text-xs text-slate-500 font-medium">/{plan.durationMonths || 1}mo</span>
                     </div>
+                    {/* Max Discount Indicator */}
+                    <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-semibold">Max Discount:</span>
+                      <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        ₹{Number(plan.maxDiscount ?? plan.max_discount ?? 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    {/* Active Promotional Offer & Bonus Days */}
+                    {(plan.offer || plan.offerText || Number(plan.offerDays || plan.offer_days) > 0) && (
+                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
+                        <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">
+                          {plan.offer || plan.offerText || 'Special Offer'}
+                          {Number(plan.offerDays || plan.offer_days) > 0 ? ` (+${plan.offerDays || plan.offer_days} Days Extra)` : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Features */}
@@ -468,6 +562,17 @@ export const PlanManager = () => {
                         (~₹{Math.round(pt.price / pt.sessions)}/session)
                       </span>
                     </div>
+
+                    {/* Active Promotional Offer & Bonus Days */}
+                    {(pt.offer || pt.offerText || Number(pt.offerDays || pt.offer_days) > 0) && (
+                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
+                        <Tag className="w-3 h-3 text-purple-600 shrink-0" />
+                        <span className="truncate">
+                          {pt.offer || pt.offerText || 'Special Offer'}
+                          {Number(pt.offerDays || pt.offer_days) > 0 ? ` (+${pt.offerDays || pt.offer_days} Days Extra)` : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
@@ -552,6 +657,17 @@ export const PlanManager = () => {
                     <div className="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">
                       ₹{cls.price.toLocaleString('en-IN')}
                     </div>
+
+                    {/* Active Promotional Offer & Bonus Days */}
+                    {(cls.offer || cls.offerText || Number(cls.offerDays || cls.offer_days) > 0) && (
+                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
+                        <Tag className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span className="truncate">
+                          {cls.offer || cls.offerText || 'Special Offer'}
+                          {Number(cls.offerDays || cls.offer_days) > 0 ? ` (+${cls.offerDays || cls.offer_days} Days Extra)` : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1 sm:space-y-1.5 text-[11px] sm:text-xs">
@@ -619,6 +735,17 @@ export const PlanManager = () => {
                     <div className="text-xl sm:text-3xl font-black text-cyan-700 mt-0.5">
                       ₹{Number(rec.price).toLocaleString('en-IN')}
                     </div>
+
+                    {/* Active Promotional Offer & Bonus Days */}
+                    {(rec.offer || rec.offerText || Number(rec.offerDays || rec.offer_days) > 0) && (
+                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
+                        <Tag className="w-3 h-3 text-cyan-600 shrink-0" />
+                        <span className="truncate">
+                          {rec.offer || rec.offerText || 'Special Offer'}
+                          {Number(rec.offerDays || rec.offer_days) > 0 ? ` (+${rec.offerDays || rec.offer_days} Days Extra)` : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
@@ -667,6 +794,8 @@ export const PlanManager = () => {
         )
       )}
 
+
+
       {/* EDIT MEMBERSHIP PLAN MODAL */}
       <Modal
         isOpen={!!editingPlan}
@@ -694,8 +823,11 @@ export const PlanManager = () => {
                   <input
                     type="number"
                     required
+                    min="0"
+                    inputMode="decimal"
                     value={editingPlan.price}
-                    onChange={(e) => setEditingPlan({ ...editingPlan, price: Number(e.target.value) })}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setEditingPlan({ ...editingPlan, price: sanitizeDecimal(e.target.value) })}
                     className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   />
                 </div>
@@ -710,12 +842,15 @@ export const PlanManager = () => {
                   min="0.5"
                   step="any"
                   required
+                  inputMode="decimal"
                   placeholder="e.g. 1, 2, 3, 5, 9, 12"
                   value={editingPlan.durationMonths}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
                   onChange={(e) => {
-                    const months = parseFloat(e.target.value) || 1;
+                    const cleanVal = sanitizeDecimal(e.target.value);
+                    const months = parseFloat(cleanVal) || 1;
                     const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
-                    setEditingPlan({ ...editingPlan, durationMonths: months, period: periodLabel });
+                    setEditingPlan({ ...editingPlan, durationMonths: cleanVal, period: periodLabel });
                   }}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
@@ -767,6 +902,75 @@ export const PlanManager = () => {
                 onChange={(e) => setEditingPlan({ ...editingPlan, period: e.target.value })}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
+
+            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1">
+              <label className="block text-xs font-bold text-amber-900 flex items-center justify-between">
+                <span>Maximum Allowed Discount (₹)</span>
+                <span className="text-[10px] text-amber-700 font-normal">Cap for billing & sales</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold text-xs">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={editingPlan.maxDiscount ?? 0}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setEditingPlan({ ...editingPlan, maxDiscount: sanitizeDecimal(e.target.value) })}
+                  className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <p className="text-[10px] text-amber-700">Billing discounts cannot exceed this maximum discount limit.</p>
+            </div>
+
+            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+              <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  Promotional Offer & Additional Days
+                </span>
+                <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10 Days Extra, Festive Promo, Flat ₹500 OFF"
+                    value={editingPlan.offer || ''}
+                    onChange={(e) => setEditingPlan({ ...editingPlan, offer: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={editingPlan.offerDays || ''}
+                      onKeyDown={(e) => preventNonNumericKey(e, false)}
+                      onChange={(e) => setEditingPlan({ ...editingPlan, offerDays: sanitizeDigits(e.target.value, 4) })}
+                      className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
+                  </div>
+                </div>
+              </div>
+
+              {Number(editingPlan.offerDays) > 0 ? (
+                <p className="text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                  Member expiry will automatically be extended by +{editingPlan.offerDays} days upon enrollment/renewal!
+                </p>
+              ) : (
+                <p className="text-[10px] text-emerald-700">Add bonus days (e.g. 10 days) to automatically extend the plan expiry date.</p>
+              )}
             </div>
 
             <div>
@@ -860,9 +1064,12 @@ export const PlanManager = () => {
                   <input
                     type="number"
                     required
+                    min="0"
+                    inputMode="decimal"
                     placeholder="2499"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setFormData({ ...formData, price: sanitizeDecimal(e.target.value) })}
                     className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   />
                 </div>
@@ -877,12 +1084,15 @@ export const PlanManager = () => {
                   min="0.5"
                   step="any"
                   required
+                  inputMode="decimal"
                   placeholder="e.g. 1, 2, 3, 5, 9, 12"
                   value={formData.durationMonths}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
                   onChange={(e) => {
-                    const months = parseFloat(e.target.value) || 1;
+                    const cleanVal = sanitizeDecimal(e.target.value);
+                    const months = parseFloat(cleanVal) || 1;
                     const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
-                    setFormData({ ...formData, durationMonths: e.target.value, period: periodLabel });
+                    setFormData({ ...formData, durationMonths: cleanVal, period: periodLabel });
                   }}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
@@ -935,6 +1145,75 @@ export const PlanManager = () => {
                 onChange={(e) => setFormData({ ...formData, period: e.target.value })}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
+
+            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1">
+              <label className="block text-xs font-bold text-amber-900 flex items-center justify-between">
+                <span>Maximum Allowed Discount (₹)</span>
+                <span className="text-[10px] text-amber-700 font-normal">Cap for billing & sales</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold text-xs">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={formData.maxDiscount || ''}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setFormData({ ...formData, maxDiscount: sanitizeDecimal(e.target.value) })}
+                  className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <p className="text-[10px] text-amber-700">Billing discounts cannot exceed this maximum discount limit.</p>
+            </div>
+
+            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+              <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  Promotional Offer & Additional Days
+                </span>
+                <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10 Days Extra, Festive Promo, Flat ₹500 OFF"
+                    value={formData.offer}
+                    onChange={(e) => setFormData({ ...formData, offer: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={formData.offerDays || ''}
+                      onKeyDown={(e) => preventNonNumericKey(e, false)}
+                      onChange={(e) => setFormData({ ...formData, offerDays: sanitizeDigits(e.target.value, 4) })}
+                      className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
+                  </div>
+                </div>
+              </div>
+
+              {Number(formData.offerDays) > 0 ? (
+                <p className="text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                  Member expiry will automatically be extended by +{formData.offerDays} days upon enrollment/renewal!
+                </p>
+              ) : (
+                <p className="text-[10px] text-emerald-700">Add bonus days (e.g. 10 days) to automatically extend the plan expiry date.</p>
+              )}
             </div>
 
             <div>
@@ -1012,8 +1291,11 @@ export const PlanManager = () => {
                 <input
                   type="number"
                   required
+                  min="0"
+                  inputMode="decimal"
                   value={serviceFormData.price}
-                  onChange={(e) => setServiceFormData({ ...serviceFormData, price: Number(e.target.value) })}
+                  onKeyDown={(e) => preventNonNumericKey(e, true)}
+                  onChange={(e) => setServiceFormData({ ...serviceFormData, price: sanitizeDecimal(e.target.value) })}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1060,6 +1342,52 @@ export const PlanManager = () => {
               </div>
             </div>
 
+            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+              <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  Promotional Offer & Additional Days
+                </span>
+                <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10% Early Bird, 2 Free Trial Sessions"
+                    value={serviceFormData.offer}
+                    onChange={(e) => setServiceFormData({ ...serviceFormData, offer: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={serviceFormData.offerDays || ''}
+                      onChange={(e) => setServiceFormData({ ...serviceFormData, offerDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
+                  </div>
+                </div>
+              </div>
+
+              {Number(serviceFormData.offerDays) > 0 ? (
+                <p className="text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                  Service validity will automatically be extended by +{serviceFormData.offerDays} days!
+                </p>
+              ) : (
+                <p className="text-[10px] text-emerald-700">Add bonus days to extend package validity.</p>
+              )}
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Description & Perks</label>
               <textarea
@@ -1097,6 +1425,7 @@ export const PlanManager = () => {
           </form>
         )}
       </Modal>
+
     </div>
   );
 };
