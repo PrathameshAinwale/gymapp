@@ -110,10 +110,17 @@ class MemberController extends Controller
         }
 
         if ($request->has('balance') && !empty($request->balance) && $request->balance !== 'All') {
-            $balUpper = strtoupper($request->balance);
-            if (in_array($balUpper, ['DUE', 'PENDING', 'HAS_DUE'])) {
-                $query->whereHas('memberProfile', function ($q) {
-                    $q->where('dues_amount', '>', 0);
+            $balUpper = strtoupper(str_replace(' ', '_', trim($request->balance)));
+            if (in_array($balUpper, ['DUE', 'PENDING', 'HAS_DUE', 'HASDUE'])) {
+                $query->where(function ($q) {
+                    $q->whereHas('memberProfile', function ($sub) {
+                        $sub->where('dues_amount', '>', 0);
+                    })->orWhereHas('invoices', function ($sub) {
+                        $sub->where('status', 'Pending');
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                            $sub->orWhere('pending_amount', '>', 0);
+                        }
+                    });
                 });
             } elseif (in_array($balUpper, ['PAID', 'CLEAR'])) {
                 $query->whereHas('memberProfile', function ($q) {
@@ -121,6 +128,11 @@ class MemberController extends Controller
                         $sub->whereNull('dues_amount')
                             ->orWhere('dues_amount', '<=', 0);
                     });
+                })->whereDoesntHave('invoices', function ($sub) {
+                    $sub->where('status', 'Pending');
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                        $sub->orWhere('pending_amount', '>', 0);
+                    }
                 });
             }
         }
@@ -675,6 +687,9 @@ class MemberController extends Controller
         }
         if ($request->has('qr_pass_code') || $request->has('qrPassCode')) {
             $profile->qr_pass_code = $request->qr_pass_code ?? $request->qrPassCode;
+        }
+        if ($request->has('dues_amount') || $request->has('duesAmount')) {
+            $profile->dues_amount = (float)($request->dues_amount ?? $request->duesAmount);
         }
         $profile->save();
 

@@ -134,6 +134,66 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     return calculateMemberStatus ? calculateMemberStatus(m?.expiryDate, m?.status) : (m?.status || 'Active');
   };
 
+  const getMemberDues = useCallback((m) => {
+    if (!m) return 0;
+    // 1. Direct member fields
+    const directFields = [
+      m?.duesAmount,
+      m?.dues_amount,
+      m?.balanceDue,
+      m?.balance_due,
+      m?.pendingAmount,
+      m?.pending_amount,
+      m?.dueAmount,
+      m?.due_amount,
+      m?.balance,
+      m?.due,
+      m?.dues
+    ];
+    for (const val of directFields) {
+      if (val !== undefined && val !== null && val !== '') {
+        const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+        if (!isNaN(num) && num > 0) return num;
+      }
+    }
+
+    // 2. Cross-reference invoices for this member
+    if (Array.isArray(invoices) && invoices.length > 0) {
+      const cleanMemberId = String(m?.id || m?.userId || '').replace(/\D/g, '');
+      const memberInvoices = invoices.filter((inv) => {
+        const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
+        if (cleanMemberId && invMemId && cleanMemberId === invMemId) return true;
+        if (inv.memberId && String(inv.memberId) === String(m.id)) return true;
+        if (m.email && inv.memberEmail && inv.memberEmail.toLowerCase() === m.email.toLowerCase()) return true;
+        if (m.name && inv.memberName && inv.memberName.toLowerCase().trim() === m.name.toLowerCase().trim()) return true;
+        return false;
+      });
+
+      for (const inv of memberInvoices) {
+        const invPending = [
+          inv.pendingAmount,
+          inv.pending_amount,
+          inv.duesAmount,
+          inv.dues_amount,
+          inv.balanceDue,
+          inv.balance_due
+        ];
+        for (const val of invPending) {
+          if (val !== undefined && val !== null && val !== '') {
+            const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+        if (inv.status === 'Pending' || String(inv.status).toLowerCase() === 'pending') {
+          const num = parseFloat(String(inv.amount || 0).replace(/[^0-9.-]+/g, ''));
+          if (!isNaN(num) && num > 0) return num;
+        }
+      }
+    }
+
+    return 0;
+  }, [invoices]);
+
   const handleRefreshMembers = async () => {
     setIsRefreshing(true);
     try {
@@ -466,10 +526,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
       // Balance Filter
       if (balanceFilter === 'DUE') {
-        const balance = parseFloat(m?.duesAmount ?? m?.balanceDue ?? m?.balance ?? 0);
+        const balance = getMemberDues(m);
         if (balance <= 0) return false;
       } else if (balanceFilter === 'PAID') {
-        const balance = parseFloat(m?.duesAmount ?? m?.balanceDue ?? m?.balance ?? 0);
+        const balance = getMemberDues(m);
         if (balance > 0) return false;
       }
 
@@ -492,7 +552,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     trainerFilter,
     balanceFilter,
     genderFilter,
-    calculateMemberStatus
+    calculateMemberStatus,
+    getMemberDues
   ]);
 
   return (
@@ -624,13 +685,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             >
               <IndianRupee className={`w-3.5 h-3.5 ${balanceFilter === 'DUE' ? 'text-rose-600' : 'text-slate-500'}`} />
               <span>Balance Due</span>
-              {members.filter((m) => Number(m?.duesAmount ?? m?.balanceDue ?? m?.balance ?? 0) > 0).length > 0 && (
+              {(members || []).filter((m) => getMemberDues(m) > 0).length > 0 && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                     balanceFilter === 'DUE' ? 'bg-rose-600 text-white' : 'bg-rose-100 text-rose-700'
                   }`}
                 >
-                  {members.filter((m) => Number(m?.duesAmount ?? m?.balanceDue ?? m?.balance ?? 0) > 0).length}
+                  {(members || []).filter((m) => getMemberDues(m) > 0).length}
                 </span>
               )}
             </button>
@@ -714,7 +775,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             {balanceFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-lg text-xs font-medium">
                 <IndianRupee className="w-3 h-3 text-rose-600" />
-                Balance: {balanceFilter === 'DUE' ? 'Balance Due' : 'Paid in Full'}
+                Balance: {balanceFilter === 'DUE' ? 'Has Due' : 'Paid in Full'}
                 <button type="button" onClick={() => setBalanceFilter('ALL')} className="hover:text-rose-950 cursor-pointer">
                   <X className="w-3 h-3" />
                 </button>
@@ -829,7 +890,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </button>
                   <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end">
                     {statusBadge}
-                    {Number(member.duesAmount || 0) > 0 && (
+                    {getMemberDues(member) > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
                         <IndianRupee className="w-2.5 h-2.5" /> Due
                       </span>
@@ -854,9 +915,9 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Balance Due</span>
-                    {Number(member.duesAmount || 0) > 0 ? (
+                    {getMemberDues(member) > 0 ? (
                       <span className="font-bold text-rose-600 truncate block">
-                        ₹{Number(member.duesAmount).toLocaleString('en-IN')} Due
+                        ₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due
                       </span>
                     ) : (
                       <span className="font-semibold text-emerald-700 truncate block">
@@ -1069,10 +1130,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
                       {/* Balance Due */}
                       <td className="py-3 px-4">
-                        {Number(member.duesAmount || 0) > 0 ? (
+                        {getMemberDues(member) > 0 ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                            <span>₹{Number(member.duesAmount).toLocaleString('en-IN')} Due</span>
+                            <span>₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1086,7 +1147,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <td className="py-3 px-4">
                         <div className="flex flex-col gap-1 items-start">
                           {statusBadge}
-                          {Number(member.duesAmount || 0) > 0 && (
+                          {getMemberDues(member) > 0 && (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
                               <AlertCircle className="w-2.5 h-2.5" /> Balance Due
                             </span>
@@ -1257,10 +1318,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Total Dues</div>
                     <div className="font-bold text-slate-900 mt-0.5 text-sm">
-                      ₹{Number(selectedMember.duesAmount || 0).toLocaleString('en-IN')}
+                      ₹{Number(getMemberDues(selectedMember) || 0).toLocaleString('en-IN')}
                     </div>
                     <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                      {Number(selectedMember.duesAmount || 0) === 0 ? 'All Clear' : 'Payment Due'}
+                      {Number(getMemberDues(selectedMember) || 0) === 0 ? 'All Clear' : 'Payment Due'}
                     </div>
                   </div>
                 </div>
@@ -2517,11 +2578,11 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 </select>
               </div>
 
-              {/* Balance Due & Gender */}
+              {/* Payment Balance & Gender */}
               <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                    <span>Balance Due Filter</span>
+                    <span>Payment Balance</span>
                     {balanceFilter !== 'ALL' && (
                       <button type="button" onClick={() => setBalanceFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
                         Reset
@@ -2530,9 +2591,9 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </label>
                   <div className="grid grid-cols-3 gap-1">
                     {[
-                      { id: 'ALL', label: 'All Members' },
-                      { id: 'DUE', label: 'Balance Due' },
-                      { id: 'PAID', label: 'Fully Paid' },
+                      { id: 'ALL', label: 'All' },
+                      { id: 'DUE', label: 'Has Due' },
+                      { id: 'PAID', label: 'Paid' },
                     ].map((b) => (
                       <button
                         key={b.id}
@@ -2540,9 +2601,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         onClick={() => setBalanceFilter(b.id)}
                         className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${
                           balanceFilter === b.id
-                            ? b.id === 'DUE'
-                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
-                              : 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
