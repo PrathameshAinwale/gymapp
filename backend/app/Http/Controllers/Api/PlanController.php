@@ -14,11 +14,14 @@ class PlanController extends Controller
         $gymId = $this->resolveGymId($request);
         $query = Plan::query();
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId)
-                  ->orWhereNull('gym_id')
-                  ->orWhere('gym_id', 1);
-            });
+            $query->where('gym_id', $gymId);
+        } else {
+            $paramGymId = $request->input('gym_id') ?? $request->query('gym_id');
+            if ($paramGymId) {
+                $query->where('gym_id', (int) $paramGymId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         $plans = $query->get()->map(function ($plan) {
@@ -67,10 +70,19 @@ class PlanController extends Controller
         return [];
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $numericId = str_replace('plan-', '', $id);
         $plan = Plan::findOrFail($numericId);
+        $gymId = $this->resolveGymId($request);
+        $user = $request->user() ?: auth('sanctum')->user();
+
+        if ($user && $user->role !== 'superadmin' && $gymId && (int)$plan->gym_id !== (int)$gymId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to access this plan.'
+            ], 403);
+        }
 
         return response()->json([
             'success' => true,
@@ -118,6 +130,11 @@ class PlanController extends Controller
         }
 
         $gymId = $this->resolveGymId($request);
+        if (!$gymId) {
+            $user = $request->user() ?: auth('sanctum')->user();
+            $gymId = $user?->gym_id;
+        }
+
         $durationMonths = (int)($request->duration_months ?? $request->durationMonths ?? 1);
         $period = $request->period ?? ($durationMonths > 1 ? "{$durationMonths} Months" : 'Monthly');
 
@@ -139,7 +156,25 @@ class PlanController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Plan created successfully',
-            'data' => $this->show('plan-' . $plan->id)->original['data'],
+            'data' => [
+                'id' => 'plan-' . $plan->id,
+                'numericId' => $plan->id,
+                'gymId' => $plan->gym_id,
+                'name' => $plan->name,
+                'price' => $plan->price,
+                'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'offer' => $plan->offer,
+                'offerText' => $plan->offer,
+                'offerDays' => (int)($plan->offer_days ?? 0),
+                'offer_days' => (int)($plan->offer_days ?? 0),
+                'period' => $plan->period,
+                'durationMonths' => $plan->duration_months,
+                'popular' => (bool)$plan->popular,
+                'color' => $plan->color,
+                'features' => $this->parseFeatures($plan->features),
+                'activeSubscribers' => 0,
+            ],
         ], 201);
     }
 
@@ -147,6 +182,15 @@ class PlanController extends Controller
     {
         $numericId = str_replace('plan-', '', $id);
         $plan = Plan::findOrFail($numericId);
+        $gymId = $this->resolveGymId($request);
+        $user = $request->user() ?: auth('sanctum')->user();
+
+        if ($user && $user->role !== 'superadmin' && $gymId && (int)$plan->gym_id !== (int)$gymId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to update this plan.'
+            ], 403);
+        }
 
         if ($request->has('name')) $plan->name = $request->name;
         if ($request->has('price')) $plan->price = $request->price;
@@ -169,14 +213,42 @@ class PlanController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Plan updated successfully',
-            'data' => $this->show('plan-' . $plan->id)->original['data'],
+            'data' => [
+                'id' => 'plan-' . $plan->id,
+                'numericId' => $plan->id,
+                'gymId' => $plan->gym_id,
+                'name' => $plan->name,
+                'price' => $plan->price,
+                'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                'offer' => $plan->offer,
+                'offerText' => $plan->offer,
+                'offerDays' => (int)($plan->offer_days ?? 0),
+                'offer_days' => (int)($plan->offer_days ?? 0),
+                'period' => $plan->period,
+                'durationMonths' => $plan->duration_months,
+                'popular' => (bool)$plan->popular,
+                'color' => $plan->color,
+                'features' => $this->parseFeatures($plan->features),
+                'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
+            ],
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $numericId = str_replace('plan-', '', $id);
         $plan = Plan::findOrFail($numericId);
+        $gymId = $this->resolveGymId($request);
+        $user = $request->user() ?: auth('sanctum')->user();
+
+        if ($user && $user->role !== 'superadmin' && $gymId && (int)$plan->gym_id !== (int)$gymId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to delete this plan.'
+            ], 403);
+        }
+
         $plan->delete();
 
         return response()->json([

@@ -85,19 +85,23 @@ export const WhatsAppAutomation = () => {
     logWhatsAppMessage,
     fetchWhatsAppLogs,
     fetchWhatsAppStats,
+    broadcastWhatsAppTemplate,
+    broadcastWhatsAppDirect,
+    processWhatsAppAutoSend,
     addToast
   } = useGymData();
 
   const { currentUser } = useAuth();
 
   // Active Tab: 'templates' | 'triggers' | 'broadcast' | 'logs'
-  const [activeTab, setActiveTab] = useState('triggers');
+  const [activeTab, setActiveTab] = useState('templates');
 
   // Filter & Search States
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState('ALL');
   const [templateRoleFilter, setTemplateRoleFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRunningAutoTriggers, setIsRunningAutoTriggers] = useState(false);
 
   // Template Modal State (Create or Edit)
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -115,6 +119,17 @@ export const WhatsAppAutomation = () => {
   // Direct Preview / Test Send Modal State
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [testPhoneNumber, setTestPhoneNumber] = useState('');
+
+  // 1-Click Broadcast Dispatch Modal State
+  const [oneClickModal, setOneClickModal] = useState({
+    isOpen: false,
+    template: null,
+    targetRole: 'all',
+    planName: '',
+    customNote: '',
+    isBroadcasting: false,
+    results: null
+  });
 
   // Broadcaster State
   const [broadcastTarget, setBroadcastTarget] = useState('members_all'); // 'members_all' | 'members_active' | 'trainers' | 'staff'
@@ -135,20 +150,51 @@ export const WhatsAppAutomation = () => {
         fetchWhatsAppTemplates?.(),
         fetchWhatsAppTriggers?.(),
         fetchWhatsAppLogs?.(),
-        fetchWhatsAppStats?.()
+        fetchWhatsAppStats?.(),
+        processWhatsAppAutoSend?.()
       ]);
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const handleRunAutoTriggers = async () => {
+    setIsRunningAutoTriggers(true);
+    try {
+      const res = await processWhatsAppAutoSend?.();
+      if (res?.success) {
+        addToast(res.message || 'Auto-trigger engine executed successfully!', 'success');
+      }
+    } catch (err) {
+      addToast('Auto-trigger check failed.', 'error');
+    } finally {
+      setIsRunningAutoTriggers(false);
+    }
+  };
+
+  const getRecipientCountForRole = (role) => {
+    const memCount = members.length || 0;
+    const coachCount = trainers.length || 0;
+    if (role === 'member') return memCount;
+    if (role === 'trainer') return coachCount;
+    if (role === 'staff') return 5;
+    return memCount + coachCount;
+  };
+
   // ── Open Editor Modal ──────────────────────────────────────
   const handleOpenCreateModal = (presetCategory = 'birthday') => {
     setEditingTemplate(null);
+    const targetRole = (presetCategory === 'birthday' || presetCategory === 'expiry_reminder') ? 'member' : 'all';
+    const defaultName = presetCategory === 'new_plan' 
+      ? 'New Gym Membership Plan Announcement'
+      : presetCategory === 'birthday' 
+        ? 'Member Birthday Celebration Perk'
+        : '';
+
     setFormData({
-      name: '',
+      name: defaultName,
       category: presetCategory,
-      target_role: presetCategory === 'birthday' ? 'member' : 'all',
+      target_role: targetRole,
       message_body: getDefaultMessageBody(presetCategory),
       is_active: true,
       is_auto_enabled: true,
@@ -173,6 +219,8 @@ export const WhatsAppAutomation = () => {
 
   const getDefaultMessageBody = (cat) => {
     switch (cat) {
+      case 'new_plan':
+        return `*Special Announcement from {{gym_name}}!* 🚀\n\nHello {{name}},\n\nWe are thrilled to launch our brand-new membership plan: *{{plan_name}}*! 🏋️‍♂️✨\n\nExperience upgraded workout zones, elite coaching guidance, and premium fitness perks designed to fast-track your health goals.\n\n🔥 *Special Launch Offer*: Upgrade or enroll this week to lock in exclusive founder pricing!\n\n📲 Visit front desk or explore at {{portal_url}}\nLet's crush your fitness goals together!`;
       case 'birthday':
         return `*Happy Birthday {{name}}!*\n\nWishing you strength, great health, and limitless PRs this year from all of us at *{{gym_name}}*!\n\nDrop by reception today for a special birthday workout perk! Enjoy your day!`;
       case 'expiry_reminder':
@@ -190,6 +238,13 @@ export const WhatsAppAutomation = () => {
 
   const renderCategoryBadge = (category) => {
     switch (category) {
+      case 'new_plan':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+            <Zap className="w-3 h-3 text-purple-600" />
+            <span>New Plan / Offer</span>
+          </span>
+        );
       case 'birthday':
         return (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200 flex items-center gap-1">
@@ -238,6 +293,7 @@ export const WhatsAppAutomation = () => {
 
   const getDefaultTiming = (cat) => {
     if (cat === 'birthday') return 'on_birthday';
+    if (cat === 'new_plan') return 'on_new_plan';
     if (cat === 'expiry_reminder') return 'days_before_expiry_7';
     if (cat === 'welcome') return 'on_signup';
     if (cat === 'fee_due') return 'on_dues_pending';
@@ -293,6 +349,77 @@ export const WhatsAppAutomation = () => {
       setIsEditorOpen(false);
     } catch (err) {
       // toast already handled in context
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ── 1-Click Broadcast Handlers ─────────────────────────────
+  const handleOpenOneClickBroadcast = (tpl) => {
+    setOneClickModal({
+      isOpen: true,
+      template: tpl,
+      targetRole: tpl.target_role || 'all',
+      planName: tpl.category === 'new_plan' ? 'Elite All-Access Plan' : '',
+      customNote: '',
+      isBroadcasting: false,
+      results: null
+    });
+  };
+
+  const handleExecuteOneClickBroadcast = async () => {
+    if (!oneClickModal.template) return;
+    setOneClickModal((prev) => ({ ...prev, isBroadcasting: true }));
+    try {
+      const res = await broadcastWhatsAppTemplate(oneClickModal.template.id, {
+        target_role: oneClickModal.targetRole,
+        plan_name: oneClickModal.planName,
+        custom_note: oneClickModal.customNote
+      });
+      if (res?.success) {
+        setOneClickModal((prev) => ({
+          ...prev,
+          isBroadcasting: false,
+          results: res.recipients || []
+        }));
+        await handleRefreshAll();
+      }
+    } catch (err) {
+      setOneClickModal((prev) => ({ ...prev, isBroadcasting: false }));
+    }
+  };
+
+  const handleSaveAndBroadcastNow = async (e) => {
+    e?.preventDefault();
+    if (!formData.name.trim() || !formData.message_body.trim()) {
+      addToast('Please provide a template title and message content.', 'error');
+      return;
+    }
+    if (hasSqlInjection(formData.name)) {
+      alert('Security Warning: SQL or script injection characters detected in template title.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const sanitized = {
+        ...formData,
+        name: sanitizeText(formData.name),
+        message_body: sanitizeText(formData.message_body)
+      };
+      let savedTpl = null;
+      if (editingTemplate) {
+        savedTpl = await updateWhatsAppTemplate(editingTemplate.id, sanitized);
+      } else {
+        savedTpl = await createWhatsAppTemplate(sanitized);
+      }
+      setIsEditorOpen(false);
+
+      if (savedTpl) {
+        handleOpenOneClickBroadcast(savedTpl);
+      }
+    } catch (err) {
+      // toast handled
     } finally {
       setIsSaving(false);
     }
@@ -422,6 +549,8 @@ export const WhatsAppAutomation = () => {
   const expiringSoonCount = whatsappTriggers?.summary?.expiring_soon ?? whatsappStats?.expiring_soon ?? 0;
   const pendingDuesCount = whatsappTriggers?.summary?.pending_dues ?? 0;
   const absenteesCount = whatsappTriggers?.summary?.absentees ?? 0;
+  const birthdayCelebrants = whatsappTriggers?.triggers?.birthdays || [];
+  const birthdayCelebrantsNames = birthdayCelebrants.map((b) => b.name).filter(Boolean).join(', ');
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
@@ -563,8 +692,8 @@ export const WhatsAppAutomation = () => {
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         {[
-          { id: 'triggers', label: 'Daily Trigger Center', icon: Zap, count: birthdaysTodayCount + expiringSoonCount },
           { id: 'templates', label: 'Message Templates', icon: FileText, count: whatsappTemplates.length },
+          { id: 'triggers', label: "Today's Birthdays (Database Match)", icon: Cake, count: birthdaysTodayCount },
           { id: 'broadcast', label: 'Instant Broadcaster', icon: Send },
           { id: 'logs', label: 'Delivery Audit Logs', icon: History, count: whatsappLogs.length }
         ].map((tab) => {
@@ -605,6 +734,60 @@ export const WhatsAppAutomation = () => {
         {/* ══════════════════════════════════════════════════════════ */}
         {activeTab === 'triggers' && (
           <div className="space-y-6">
+            {/* Automated Daily Birthday & Trigger Engine Status Banner */}
+            <div className="rounded-xl sm:rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-white to-teal-50/60 p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-600/20">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                      Automated Member Birthday & Daily Trigger Engine
+                    </h3>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                      ACTIVE & RUNNING
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    When a member's birthday arrives, their personalized WhatsApp greeting is automatically dispatched and recorded in audit logs.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                <button
+                  onClick={handleRunAutoTriggers}
+                  disabled={isRunningAutoTriggers}
+                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title="Run auto-scan and greeting dispatch for today"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin text-emerald-600' : 'text-emerald-700'}`} />
+                  <span>{isRunningAutoTriggers ? 'Executing Trigger...' : 'Run Auto-Trigger Check'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Architecture Clarification Callout */}
+            <div className="rounded-xl sm:rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 via-white to-blue-50/70 p-4 sm:p-5 shadow-2xs flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <span>Single Master Birthday Template Architecture</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold border border-sky-200">
+                    No Separate Triggers Needed
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  You do <strong>not</strong> need to configure individual triggers or separate templates for each person (no trigger for Atharva Patil, no trigger for Test). There is strictly <strong>one single Birthday Template</strong> in Message Templates.
+                  Every day, the system checks the database for members whose Date of Birth matches today. When found, their name is dynamically swapped into <code className="bg-sky-100 text-sky-900 px-1 py-0.5 rounded font-mono font-bold">&#123;&#123;name&#125;&#125;</code> and dispatched to their WhatsApp number.
+                </p>
+              </div>
+            </div>
+
             {/* 1. Birthday Celebration Hub */}
             <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -696,6 +879,15 @@ export const WhatsAppAutomation = () => {
                         {/* Message Preview Box */}
                         <div className="mt-3 p-3 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 leading-relaxed font-sans line-clamp-3">
                           {item.message}
+                        </div>
+
+                        {/* Dynamic Substitution Indicator */}
+                        <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-pink-50/80 border border-pink-100 flex items-center justify-between text-[11px] text-pink-950 font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-pink-600 shrink-0" />
+                            <span>Dynamic &#123;&#123;name&#125;&#125; → <strong>{item.name}</strong></span>
+                          </span>
+                          <span className="text-slate-500 font-mono text-[10px]">DOB: {item.dob || 'Today'}</span>
                         </div>
                       </div>
 
@@ -895,6 +1087,7 @@ export const WhatsAppAutomation = () => {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                 {[
                   { id: 'ALL', label: 'All Templates', icon: null },
+                  { id: 'new_plan', label: 'New Plan / Offer', icon: Zap },
                   { id: 'birthday', label: 'Birthday', icon: Cake },
                   { id: 'expiry_reminder', label: 'Expiry Reminder', icon: Clock },
                   { id: 'welcome', label: 'Welcome', icon: Sparkles },
@@ -969,11 +1162,18 @@ export const WhatsAppAutomation = () => {
                               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                                 {tpl.target_role}
                               </span>
-                              {tpl.is_auto_enabled && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
-                                  <Zap className="w-3 h-3 text-sky-600" />
-                                  <span>Auto Trigger</span>
+                              {tpl.category === 'birthday' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-pink-600" />
+                                  <span>1 Master Dynamic Template</span>
                                 </span>
+                              ) : (
+                                tpl.is_auto_enabled && (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
+                                    <Zap className="w-3 h-3 text-sky-600" />
+                                    <span>Auto Trigger</span>
+                                  </span>
+                                )
                               )}
                             </div>
                           </div>
@@ -998,6 +1198,35 @@ export const WhatsAppAutomation = () => {
                         <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line line-clamp-5 select-text">
                           {tpl.message_body}
                         </div>
+
+                        {/* Dynamic Database Birthday Auto-Scan Callout */}
+                        {tpl.category === 'birthday' && (
+                          <div className="mt-3 p-3 rounded-xl bg-pink-50/80 border border-pink-200 text-xs text-pink-950 space-y-1.5">
+                            <div className="flex items-center justify-between font-bold text-pink-900">
+                              <span className="flex items-center gap-1.5 text-xs">
+                                <Cake className="w-3.5 h-3.5 text-pink-600" />
+                                <span>1 Template Powers All Celebrants</span>
+                              </span>
+                              <span className="text-[9px] px-2 py-0.5 rounded-full bg-pink-200 text-pink-800 font-bold uppercase tracking-wider">
+                                Dynamic &#123;&#123;name&#125;&#125;
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-pink-800 leading-snug">
+                              No separate triggers or templates per person. The system queries the database daily for matching birthdays. When found, this single template sends to that user with <code className="bg-pink-100 text-pink-900 px-1 py-0.2 rounded font-mono font-bold">&#123;&#123;name&#125;&#125;</code> swapped dynamically.
+                            </p>
+                            {birthdayCelebrants.length > 0 && (
+                              <div className="pt-1.5 border-t border-pink-200/70 flex flex-wrap items-center justify-between gap-1 text-[11px] text-pink-900">
+                                <span className="font-semibold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Today in Database: {birthdayCelebrants.map((b) => b.name).join(', ')}
+                                </span>
+                                <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-1.5 py-0.5 rounded">
+                                  {birthdayCelebrants.length} Found Today
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Card Footer Actions */}
@@ -1026,13 +1255,46 @@ export const WhatsAppAutomation = () => {
                           </button>
                         </div>
 
-                        <button
-                          onClick={() => handleOpenEditModal(tpl)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Edit</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {tpl.category === 'birthday' ? (
+                            <button
+                              onClick={handleSendToAllBirthdays}
+                              disabled={isBatchSending || birthdaysTodayCount === 0}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer ${
+                                birthdaysTodayCount > 0
+                                  ? 'bg-pink-600 hover:bg-pink-500 text-white shadow-pink-600/20'
+                                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                              }`}
+                              title={
+                                birthdaysTodayCount > 0
+                                  ? `Auto-send birthday greetings to today's ${birthdaysTodayCount} celebrant(s)`
+                                  : 'No member birthdays in database today'
+                              }
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>
+                                {isBatchSending ? 'Dispatching...' : `Auto-Send Today's Birthdays (${birthdaysTodayCount})`}
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenOneClickBroadcast(tpl)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
+                              title={`1-Click Broadcast to all ${tpl.target_role === 'all' ? 'users' : tpl.target_role + 's'}`}
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>1-Click Send ({getRecipientCountForRole(tpl.target_role)})</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleOpenEditModal(tpl)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1327,36 +1589,68 @@ export const WhatsAppAutomation = () => {
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
                   >
-                    <option value="birthday">Birthday Greeting</option>
-                    <option value="expiry_reminder">Expiry Reminder</option>
+                    <option value="new_plan">New Gym Membership Plan / Offer 🚀</option>
+                    <option value="birthday">Member Birthday Celebration Perk 🎂</option>
+                    <option value="expiry_reminder">Expiry Reminder (1–7 Days)</option>
                     <option value="membership_expired">Overdue / Expired</option>
-                    <option value="welcome">Welcome & Onboarding</option>
-                    <option value="fee_due">Payment & Fee Due</option>
+                    <option value="welcome">Welcome & Onboarding Pack</option>
+                    <option value="fee_due">Payment & Fee Due Notice</option>
                     <option value="absentee">Inactivity Check-in</option>
-                    <option value="custom">Custom Announcement</option>
+                    <option value="custom">General Announcement / Promotion</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Role</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Audience</label>
                   <select
                     value={formData.target_role}
                     onChange={(e) => setFormData({ ...formData, target_role: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                   >
-                    <option value="member">Members</option>
-                    <option value="trainer">Trainers & Coaches</option>
-                    <option value="staff">Staff Employees</option>
-                    <option value="all">Everyone / All Roles</option>
+                    <option value="all">Everyone / All Users ({getRecipientCountForRole('all')} recipients)</option>
+                    <option value="member">Members Only ({getRecipientCountForRole('member')} recipients)</option>
+                    <option value="trainer">Trainers & Coaches ({getRecipientCountForRole('trainer')} recipients)</option>
+                    <option value="staff">Staff Employees (5 recipients)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Birthday Single Master Template Notice */}
+              {formData.category === 'birthday' && (
+                <div className="p-3 rounded-xl bg-pink-50 border border-pink-200 text-xs text-pink-950 flex items-start gap-2.5">
+                  <Cake className="w-4 h-4 text-pink-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-pink-900">Single Master Birthday Template:</span>
+                    <p className="text-[11px] text-pink-800 mt-0.5 leading-snug">
+                      You only write <strong>one</strong> template for all members. Do <strong>not</strong> create separate templates or triggers for different people. Simply write <code className="bg-pink-100 text-pink-900 px-1 py-0.2 rounded font-mono font-bold">&#123;&#123;name&#125;&#125;</code> in your message. Whenever any member's birthday is today in the database, this template triggers automatically and personalizes the greeting with their name.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Timing Trigger Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Trigger Condition / Dispatch Timing</label>
+                <select
+                  value={formData.timing_trigger}
+                  onChange={(e) => setFormData({ ...formData, timing_trigger: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="on_birthday">🎂 Auto-Trigger on Member/Coach Birthday (Daily Scan)</option>
+                  <option value="on_new_plan">🚀 1-Click Broadcast on New Membership Plan Launch</option>
+                  <option value="days_before_expiry_7">⏰ 7 Days Before Membership Expiry</option>
+                  <option value="days_before_expiry_3">⚠️ 3 Days Before Membership Expiry</option>
+                  <option value="on_signup">🎉 Automatically on New Registration / Sign-up</option>
+                  <option value="on_dues_pending">💳 When Membership Fee / Dues are Pending</option>
+                  <option value="manual">📢 Manual / 1-Click On Demand Broadcast</option>
+                </select>
               </div>
 
               {/* Variable Chips Insertion Bar */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-700">Click to Insert Dynamic Placeholders</label>
-                  <span className="text-[10px] text-emerald-700 font-semibold">Auto-replaced on send</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold">Auto-personalized for each member</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
                   {[
@@ -1415,26 +1709,40 @@ export const WhatsAppAutomation = () => {
                     onChange={(e) => setFormData({ ...formData, is_auto_enabled: e.target.checked })}
                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-white border-slate-300"
                   />
-                  <span>Enable Daily Auto-Trigger</span>
+                  <span>Enable Auto-Trigger for Matching Members</span>
                 </label>
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditorOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {isSaving ? 'Saving...' : editingTemplate ? 'Update Template' : 'Create Template'}
-                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSaving ? 'Saving...' : editingTemplate ? 'Update Template' : 'Save Template'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSaveAndBroadcastNow}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Save template and immediately broadcast to intended recipients with 1 click"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Save & 1-Click Send to All ({getRecipientCountForRole(formData.target_role)})</span>
+                  </button>
+                </div>
               </div>
             </form>
 
@@ -1536,6 +1844,187 @@ export const WhatsAppAutomation = () => {
                 <MessageCircle className="w-4 h-4" />
                 <span>Test on WhatsApp</span>
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* MODAL: 1-CLICK BROADCAST DISPATCHER                       */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {oneClickModal?.isOpen && (
+        <Modal
+          isOpen={oneClickModal.isOpen}
+          onClose={() => !oneClickModal.isBroadcasting && setOneClickModal({ ...oneClickModal, isOpen: false })}
+          title={`1-Click Broadcast: ${oneClickModal.template?.name || 'Send WhatsApp'}`}
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-4">
+            {/* Header info banner */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shadow-emerald-600/20">
+                  <Send className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+                      {oneClickModal.targetRole === 'all' ? 'All Users (Members & Coaches)' : oneClickModal.targetRole + 's'}
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      1-Click Delivery
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Messages are automatically generated, personalized, and dispatched to all intended recipients' WhatsApp numbers.
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-black text-slate-900">
+                  {getRecipientCountForRole(oneClickModal.targetRole)}
+                </div>
+                <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Recipients</div>
+              </div>
+            </div>
+
+            {/* Template Preview */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Populated Message Preview</label>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-line max-h-40 overflow-y-auto select-text">
+                {renderPreviewText(oneClickModal.template?.message_body || '', {
+                  name: 'Rahul Sharma',
+                  plan: oneClickModal.planName || 'Elite All-Access Plan'
+                })}
+              </div>
+            </div>
+
+            {/* Plan Name override if New Plan */}
+            {(oneClickModal.template?.category === 'new_plan' || oneClickModal.template?.message_body?.includes('{{plan_name}}')) && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">New Membership Plan Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Platinum All-Access 2026, Summer Shred Plan"
+                  value={oneClickModal.planName}
+                  onChange={(e) => setOneClickModal({ ...oneClickModal, planName: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+
+            {/* Dispatched Results or Recipients Preview List */}
+            {oneClickModal.results ? (
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-emerald-100/70 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Successfully dispatched to all {oneClickModal.results.length} intended user(s)!</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-800 font-semibold">Logged in Database Audit Trail</span>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-slate-50">
+                  {oneClickModal.results.map((rec) => (
+                    <div key={rec.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white transition-colors">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[11px] border border-emerald-200">
+                          {rec.name?.[0] || 'U'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900">{rec.name}</div>
+                          <div className="text-[10px] text-slate-500">{rec.phone} • {rec.role}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center gap-1">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Dispatched
+                        </span>
+                        {rec.wa_link && (
+                          <a
+                            href={rec.wa_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-md bg-white border border-slate-200 hover:border-emerald-400 text-slate-600 hover:text-emerald-700 transition-colors"
+                            title="Open direct WhatsApp conversation"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Intended Recipients ({getRecipientCountForRole(oneClickModal.targetRole)} Total)
+                </label>
+                <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-slate-50">
+                  {(oneClickModal.targetRole.includes('member')
+                    ? members
+                    : oneClickModal.targetRole === 'trainer'
+                    ? trainers
+                    : [...members, ...trainers]
+                  ).slice(0, 10).map((u) => (
+                    <div key={u.id} className="p-2 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                          {u.name?.[0] || 'U'}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-800">{u.name}</span>
+                          <span className="text-[10px] text-slate-500 ml-2">({u.phone || 'No phone'})</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        {u.role || (u.planName ? 'Member' : 'User')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setOneClickModal({ ...oneClickModal, isOpen: false })}
+                disabled={oneClickModal.isBroadcasting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer disabled:opacity-50"
+              >
+                {oneClickModal.results ? 'Close' : 'Cancel'}
+              </button>
+
+              {!oneClickModal.results ? (
+                <button
+                  type="button"
+                  onClick={handleExecuteOneClickBroadcast}
+                  disabled={oneClickModal.isBroadcasting}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/25 active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className={`w-3.5 h-3.5 ${oneClickModal.isBroadcasting ? 'animate-pulse' : ''}`} />
+                  <span>
+                    {oneClickModal.isBroadcasting
+                      ? 'Dispatching WhatsApp Messages...'
+                      : `Confirm 1-Click Send to All (${getRecipientCountForRole(oneClickModal.targetRole)} Users)`}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOneClickModal({ ...oneClickModal, isOpen: false });
+                    setActiveTab('logs');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+                >
+                  View Delivery Audit Logs
+                </button>
+              )}
             </div>
           </div>
         </Modal>

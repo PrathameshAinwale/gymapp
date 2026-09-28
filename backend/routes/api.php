@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\SuperadminController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\OperationsController;
+use App\Http\Controllers\Api\AdmsController;
 // New Feature Controllers
 use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\OfferController;
@@ -302,6 +303,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/biometrics/devices', [OperationsController::class, 'storeBiometricDevice']);
     Route::post('/biometrics/pulse/{id}', [OperationsController::class, 'triggerTurnstilePulse']);
     Route::get('/biometrics/logs', [OperationsController::class, 'getBiometricLogs']);
+    Route::post('/attendance/biometric-punch', [AdmsController::class, 'manualPunch']);
+    Route::any('/iclock/cdata', [AdmsController::class, 'cdata']);
+    Route::any('/iclock/getrequest', [AdmsController::class, 'getrequest']);
+    Route::any('/iclock/devicecmd', [AdmsController::class, 'devicecmd']);
     Route::get('/gate-overrides', [OperationsController::class, 'getEntryApprovals']);
     Route::post('/gate-overrides/{id}/approve', [OperationsController::class, 'approveGateEntry']);
     Route::post('/gate-overrides/{id}/deny', [OperationsController::class, 'denyGateEntry']);
@@ -363,6 +368,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/templates/{id}/toggle', [WhatsAppController::class, 'toggleTemplate']);
         Route::get('/triggers', [WhatsAppController::class, 'scanTriggers']);
         Route::get('/triggers/scan', [WhatsAppController::class, 'scanTriggers']);
+        Route::post('/templates/{id}/broadcast', [WhatsAppController::class, 'broadcastTemplate']);
+        Route::post('/broadcast', [WhatsAppController::class, 'broadcastDirect']);
+        Route::post('/triggers/process-auto-send', [WhatsAppController::class, 'processAutoTriggers']);
+        Route::get('/recipients-preview', [WhatsAppController::class, 'recipientsPreview']);
         Route::post('/logs', [WhatsAppController::class, 'storeLog']);
         Route::get('/logs', [WhatsAppController::class, 'indexLogs']);
         Route::get('/stats', [WhatsAppController::class, 'stats']);
@@ -375,5 +384,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/gyms', [SuperadminController::class, 'storeGym']);
         Route::put('/gyms/{id}', [SuperadminController::class, 'updateGym']);
         Route::delete('/gyms/{id}', [SuperadminController::class, 'deleteGym']);
+        Route::post('/gyms/{id}/impersonate', [SuperadminController::class, 'impersonateGym']);
     });
 });

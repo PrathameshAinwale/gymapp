@@ -21,7 +21,12 @@ import {
   Info,
   CalendarDays,
   Filter,
-  X
+  X,
+  Fingerprint,
+  Radio,
+  Server,
+  Wifi,
+  Check
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -41,6 +46,9 @@ export const AttendanceTracker = () => {
     recordStaffCheckIn,
     members = [],
     trainers = [],
+    biometricDevices = [],
+    fetchBiometricDevices,
+    simulateBiometricPunch,
     fetchAttendance,
     fetchMembers,
     fetchTrainers,
@@ -51,7 +59,15 @@ export const AttendanceTracker = () => {
     fetchAttendance?.();
     fetchMembers?.();
     fetchTrainers?.();
-  }, [fetchAttendance, fetchMembers, fetchTrainers]);
+    fetchBiometricDevices?.();
+
+    // Auto-poll every 15 seconds so physical biometric punches update live
+    const interval = setInterval(() => {
+      fetchAttendance?.();
+      fetchBiometricDevices?.();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAttendance, fetchMembers, fetchTrainers, fetchBiometricDevices]);
 
   const todayIso = getTodayIso();
   const yesterdayIso = getYesterdayIso();
@@ -76,9 +92,30 @@ export const AttendanceTracker = () => {
 
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false);
+  const [isSimulateModalOpen, setIsSimulateModalOpen] = useState(false);
+  const [simMemberId, setSimMemberId] = useState(members[0]?.id || '');
+  const [customPin, setCustomPin] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [loadingStaffId, setLoadingStaffId] = useState(null);
   const [isCheckingInManual, setIsCheckingInManual] = useState(false);
+
+  const handleSimulatePunch = async (e) => {
+    e.preventDefault();
+    const pinToUse = customPin.trim() || (simMemberId ? String(simMemberId).replace('mem-', '') : (members[0]?.id ? String(members[0].id).replace('mem-', '') : '96'));
+    setIsSimulating(true);
+    try {
+      const res = await simulateBiometricPunch(pinToUse, 'eSSL-PULSEFIT-DEVICE');
+      addToast(res?.message || `Biometric punch verified for PIN #${pinToUse}!`);
+      setIsSimulateModalOpen(false);
+      setCustomPin('');
+    } catch (err) {
+      addToast(err?.message || 'Biometric punch simulation failed', 'error');
+    } finally {
+      setIsSimulating(false);
+    }
+  };
 
   const isToday = selectedDate === todayIso;
   const isYesterday = selectedDate === yesterdayIso;
@@ -261,7 +298,27 @@ export const AttendanceTracker = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsBiometricModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            title="Configure eSSL ADMS Cloud Server"
+          >
+            <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
+            <span>eSSL Machine Config</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsSimulateModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            title="Simulate / Test a Biometric Punch"
+          >
+            <Radio className="w-3.5 h-3.5 text-purple-600" />
+            <span>Test Punch</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
@@ -290,6 +347,54 @@ export const AttendanceTracker = () => {
               <span>Switch to Live Today</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* eSSL Biometric ADMS Cloud Integration Live Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3.5 sm:p-4 border border-slate-800 shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
+              <Fingerprint className="w-6 h-6" />
+              <span className="absolute top-1 right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide">
+                  eSSL Biometric Turnstile Gateway (ADMS Protocol)
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Online &amp; Listening
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Active Receiver: <code className="text-blue-300 bg-blue-950/60 px-1 py-0.5 rounded text-[10px]">/iclock/cdata</code> · Machine Mode: <strong className="text-amber-300">ADMS Cloud Push</strong> · Live attendance punches sync directly to database.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setIsBiometricModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 border border-blue-400/40 text-blue-200 text-xs font-semibold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+            >
+              <Server className="w-3.5 h-3.5 text-blue-300" />
+              <span>Machine Settings Guide</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSimulateModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs flex items-center gap-1.5"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Test Biometric Punch</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1222,6 +1327,195 @@ export const AttendanceTracker = () => {
         </div>,
         document.body
       )}
+      {/* eSSL CLOUD SERVER CONFIGURATION MODAL */}
+      <Modal
+        isOpen={isBiometricModalOpen}
+        onClose={() => setIsBiometricModalOpen(false)}
+        title="eSSL Biometric Machine (ADMS Cloud Server Setup)"
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4">
+          {/* Header Notice */}
+          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
+            <Fingerprint className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block text-blue-950 text-sm">ADMS Cloud Server Push Architecture</span>
+              <p className="mt-0.5 text-blue-800 leading-relaxed">
+                Your eSSL machine has native <strong>ADMS (Automatic Data Master Server)</strong> firmware. It pushes attendance punches directly to our server over standard HTTP web calls whenever a member scans their fingerprint or face.
+              </p>
+            </div>
+          </div>
+
+          {/* Device Screen Mockup matching user's photo */}
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 text-white font-mono shadow-inner">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5 font-sans font-bold text-amber-400 text-sm">
+                <Server className="w-4 h-4 text-amber-400" />
+                Cloud Server Setting (On Your eSSL Machine)
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
+                ADMS Active
+              </span>
+            </div>
+
+            <div className="mt-3 divide-y divide-slate-800 text-xs sm:text-sm">
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-slate-400 font-sans">Server Mode</span>
+                <span className="font-bold text-emerald-400 font-mono">ADMS</span>
+              </div>
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-slate-400 font-sans">Enable Domain Name</span>
+                <span className="font-bold text-blue-300 font-mono">
+                  ON <span className="text-slate-500 text-xs font-normal font-sans">(if using domain)</span> OR OFF <span className="text-slate-500 text-xs font-normal font-sans">(if IP)</span>
+                </span>
+              </div>
+              <div className="py-2.5 flex items-center justify-between gap-2">
+                <span className="text-slate-400 font-sans shrink-0">Server Address</span>
+                <span className="font-bold text-amber-300 font-mono text-right select-all">
+                  archfit.archenterprises.co.in <span className="text-slate-500 text-xs block font-sans font-normal">or your server IP (e.g. 192.168.1.X)</span>
+                </span>
+              </div>
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-slate-400 font-sans">Server Port</span>
+                <span className="font-bold text-emerald-400 font-mono select-all">
+                  80 <span className="text-slate-500 text-xs font-normal font-sans">(Production)</span> or 8000 <span className="text-slate-500 text-xs font-normal font-sans">(Local)</span>
+                </span>
+              </div>
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-slate-400 font-sans">Enable Proxy Server</span>
+                <span className="font-bold text-slate-400 font-mono">OFF</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Setup Checklist */}
+          <div className="space-y-2 text-xs text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <span className="font-bold text-slate-900 block text-xs">How to Make It Work Step-by-Step:</span>
+            <ul className="space-y-1.5 list-disc list-inside text-slate-600">
+              <li>
+                <strong>Step 1:</strong> On your eSSL machine menu, go to <em>Comm. &gt; Cloud Server Setting</em>.
+              </li>
+              <li>
+                <strong>Step 2:</strong> Change <strong>Server Address</strong> from <code className="text-rose-600 bg-rose-50 px-1 py-0.5 rounded font-mono">103.233.24.207</code> to your backend URL (e.g. <code className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded font-mono">archfit.archenterprises.co.in</code> or your PC IP).
+              </li>
+              <li>
+                <strong>Step 3:</strong> Change <strong>Server Port</strong> from <code className="text-rose-600 bg-rose-50 px-1 py-0.5 rounded font-mono">8070</code> to <code className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded font-mono">80</code> (or <code className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded font-mono">8000</code>).
+              </li>
+              <li>
+                <strong>Step 4:</strong> Save and reboot the eSSL machine.
+              </li>
+              <li>
+                <strong>Step 5:</strong> When a member scans their fingerprint/face, the machine posts to <code className="text-blue-700 bg-blue-50 px-1 py-0.5 rounded font-mono">/iclock/cdata</code>. The attendance is recorded instantly with check-in/out and workout duration!
+              </li>
+            </ul>
+          </div>
+
+          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsBiometricModalOpen(false);
+                setIsSimulateModalOpen(true);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Radio className="w-3.5 h-3.5 text-purple-600" />
+              <span>Test Punch Now</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsBiometricModalOpen(false)}
+              className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SIMULATE BIOMETRIC PUNCH TEST MODAL */}
+      <Modal
+        isOpen={isSimulateModalOpen}
+        onClose={() => setIsSimulateModalOpen(false)}
+        title="Simulate eSSL Biometric Punch"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSimulatePunch} className="space-y-4">
+          <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-start gap-2.5">
+            <Radio className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-purple-900">
+              <span className="font-bold block text-purple-950">Test Real-Time Biometric Punch</span>
+              <p className="mt-0.5 text-purple-700 text-[11px]">
+                Sends a simulated ADMS punch through the eSSL receiver pipeline. If the member is outside, it checks them in. If they are already inside, it checks them out and calculates duration!
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Select Member (by Name &amp; ID)
+            </label>
+            <select
+              value={simMemberId}
+              onChange={(e) => {
+                setSimMemberId(e.target.value);
+                setCustomPin('');
+              }}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-purple-500 cursor-pointer font-medium"
+            >
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (Member ID: {String(m.id).replace('mem-', '')} · {m.planName || 'Active Plan'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink mx-3 text-slate-400 text-[10px] uppercase font-bold">Or Enter Custom Device PIN</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Biometric Device PIN / Badge Number
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 96 or 1"
+              value={customPin}
+              onChange={(e) => setCustomPin(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-purple-500 font-mono"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">
+              Tip: The PIN matches the user ID enrolled on the biometric machine.
+            </span>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsSimulateModalOpen(false)}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSimulating}
+              className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
+            >
+              {isSimulating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Fingerprint className="w-3.5 h-3.5" />
+              )}
+              <span>{isSimulating ? 'Processing Punch...' : 'Verify Biometric Punch'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

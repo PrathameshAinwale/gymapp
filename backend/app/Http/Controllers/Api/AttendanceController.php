@@ -38,8 +38,9 @@ class AttendanceController extends Controller
                 if (!$att->duration && $att->check_in_time && ($att->punch_out_time ?? $att->check_out_time)) {
                     $outTime = $att->punch_out_time ?? $att->check_out_time;
                     try {
-                        $in   = Carbon::parse($att->date . ' ' . $att->check_in_time);
-                        $out  = Carbon::parse($att->date . ' ' . $outTime);
+                        $dateStr = $att->date instanceof \Illuminate\Support\Carbon ? $att->date->toDateString() : (string)$att->date;
+                        $in   = Carbon::parse($dateStr . ' ' . $att->check_in_time);
+                        $out  = Carbon::parse($dateStr . ' ' . $outTime);
                         $mins = max(0, $in->diffInMinutes($out));
                         $h    = intdiv($mins, 60);
                         $m    = $mins % 60;

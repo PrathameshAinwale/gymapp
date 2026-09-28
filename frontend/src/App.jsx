@@ -59,10 +59,9 @@ import { LeaveManagement } from './components/owner/LeaveManagement';
 import { TrainerLeaveView } from './components/trainer/TrainerLeaveView';
 import { WhatsAppAutomation } from './components/owner/WhatsAppAutomation';
 
-
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials } = useAuth();
-  const { isOwnerTabLoading } = useGymData();
+  const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

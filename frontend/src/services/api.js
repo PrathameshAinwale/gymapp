@@ -581,7 +581,7 @@ export const api = {
   // Attendance Endpoints
   attendance: {
     getAll: async (params = {}) => {
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/attendance${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
@@ -589,7 +589,7 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/attendance/check-in`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ member_id: memberId, type }),
+        body: JSON.stringify(withGymParam({ member_id: memberId, type })),
       });
       return handleResponse(res);
     },
@@ -597,8 +597,24 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/attendance/check-out`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ attendance_id: attendanceId }),
+        body: JSON.stringify(withGymParam({ attendance_id: attendanceId })),
       });
+      return handleResponse(res);
+    },
+    biometricPunch: async (pin, sn = 'eSSL-ADMS-DEVICE') => {
+      const res = await apiFetch(`${API_BASE_URL}/attendance/biometric-punch`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(withGymParam({ pin, sn })),
+      });
+      return handleResponse(res);
+    },
+    getBiometricDevices: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/biometrics/devices`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getBiometricLogs: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/biometrics/logs`, { headers: getHeaders() });
       return handleResponse(res);
     },
   },
@@ -1068,6 +1084,13 @@ export const api = {
       });
       return handleResponse(res);
     },
+    impersonateGym: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/impersonate`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Staff Account Provisioning
@@ -1385,6 +1408,38 @@ export const api = {
     getLogs: async (params = {}) => {
       const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/whatsapp/logs${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    broadcastTemplate: async (id, data = {}) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/templates/${id}/broadcast`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    broadcastDirect: async (data) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/broadcast`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    processAutoSend: async (params = {}) => {
+      const payload = withGymParam(params);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/triggers/process-auto-send`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    getRecipientsPreview: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/recipients-preview${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     getStats: async (params = {}) => {

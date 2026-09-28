@@ -28,6 +28,14 @@ class Gym extends Model
         'operating_hours',
         'currency',
         'initial_password',
+        'features',
+        'state',
+        'pincode',
+        'logo',
+        'website',
+        'gst_number',
+        'subscription_expires_at',
+        'notes',
     ];
 
     protected $hidden = [
@@ -38,6 +46,8 @@ class Gym extends Model
     {
         return [
             'initial_password' => 'hashed',
+            'features' => 'array',
+            'subscription_expires_at' => 'date',
         ];
     }
 

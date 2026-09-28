@@ -130,10 +130,28 @@ class WhatsAppController extends Controller
             'created_by'      => optional($request->user())->id,
         ]);
 
+        $broadcastResult = null;
+        if ($request->boolean('broadcast_now')) {
+            $broadcastResult = $this->executeBroadcast(
+                $gymId,
+                $template,
+                $template->target_role,
+                $request->input('plan_name'),
+                $request->input('custom_note'),
+                $request->input('user_ids')
+            );
+        } elseif ($template->category === 'birthday' && $template->is_auto_enabled) {
+            // Auto-check and greet if any member or coach has birthday today
+            $this->executeAutoTriggersDirect($gymId);
+        }
+
         return response()->json([
-            'success' => true,
-            'message' => "Template '{$template->name}' created successfully!",
-            'data'    => $template,
+            'success'          => true,
+            'message'          => $request->boolean('broadcast_now')
+                ? "Template '{$template->name}' created and broadcasted with 1-click!"
+                : "Template '{$template->name}' created successfully!",
+            'data'             => $template,
+            'broadcast_result' => $broadcastResult ? $broadcastResult->getData(true) : null,
         ], 201);
     }
 
@@ -155,6 +173,10 @@ class WhatsAppController extends Controller
         ]);
 
         $template->update($validated);
+
+        if ($template->category === 'birthday' && $template->is_auto_enabled) {
+            $this->executeAutoTriggersDirect($gymId);
+        }
 
         return response()->json([
             'success' => true,
@@ -648,4 +670,405 @@ class WhatsAppController extends Controller
             ],
         ]);
     }
+
+    /**
+     * 10. Broadcast a specific template to intended recipients with 1-click
+     */
+    public function broadcastTemplate(Request $request, $id)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $template = WhatsAppTemplate::findOrFail($id);
+
+        $targetRole = $request->input('target_role', $template->target_role);
+        $planName = $request->input('plan_name');
+        $customNote = $request->input('custom_note');
+
+        return $this->executeBroadcast($gymId, $template, $targetRole, $planName, $customNote, $request->input('user_ids'));
+    }
+
+    /**
+     * 11. Direct Broadcast to target audience
+     */
+    public function broadcastDirect(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+
+        $validated = $request->validate([
+            'message_body' => 'required|string',
+            'target_role'  => 'required|string|max:50',
+            'category'     => 'nullable|string|max:50',
+            'template_id'  => 'nullable|integer',
+            'plan_name'    => 'nullable|string',
+            'custom_note'  => 'nullable|string',
+            'user_ids'     => 'nullable|array',
+        ]);
+
+        $template = null;
+        if (!empty($validated['template_id'])) {
+            $template = WhatsAppTemplate::find($validated['template_id']);
+        }
+
+        if (!$template) {
+            $template = new WhatsAppTemplate([
+                'gym_id'          => $gymId,
+                'name'            => 'Direct Broadcast',
+                'category'        => $validated['category'] ?? 'new_plan',
+                'target_role'     => $validated['target_role'],
+                'message_body'    => $validated['message_body'],
+                'timing_trigger'  => 'manual',
+            ]);
+        }
+
+        return $this->executeBroadcast(
+            $gymId,
+            $template,
+            $validated['target_role'],
+            $validated['plan_name'] ?? null,
+            $validated['custom_note'] ?? null,
+            $validated['user_ids'] ?? null
+        );
+    }
+
+    /**
+     * Helper to execute broadcast dispatch to users with logging
+     */
+    public function executeBroadcast($gymId, $template, string $targetRole, ?string $planName = null, ?string $customNote = null, ?array $userIds = null)
+    {
+        $gym = Gym::find($gymId);
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
+
+        // Query users based on target role
+        $query = User::with(['memberProfile.plan', 'trainerProfile'])
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '');
+
+        if ($gymId) {
+            $query->where(function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
+        }
+
+        if (!empty($userIds) && is_array($userIds)) {
+            $query->whereIn('id', $userIds);
+        } else {
+            if ($targetRole === 'member') {
+                $query->where('role', 'member');
+            } elseif ($targetRole === 'trainer') {
+                $query->where('role', 'trainer');
+            } elseif ($targetRole === 'staff') {
+                $query->whereIn('role', ['staff', 'receptionist', 'manager', 'accounts']);
+            }
+            // 'all' targets all users belonging to this gym
+        }
+
+        $users = $query->get();
+        $dispatched = [];
+
+        foreach ($users as $user) {
+            $phone = $user->phone;
+            $clean = $this->cleanPhone($phone);
+            if (!$clean) continue;
+
+            $resolvedPlanName = $planName 
+                ?: ($user->memberProfile?->plan?->name ?: 'Membership Plan');
+
+            $expDate = $user->memberProfile?->expiry_date 
+                ? Carbon::parse($user->memberProfile->expiry_date)->format('d M Y') 
+                : '';
+
+            $rendered = $this->renderMessage($template->message_body, [
+                'name'        => $user->name,
+                'gym_name'    => $gymName,
+                'role'        => ucfirst($user->role),
+                'phone'       => $phone,
+                'plan_name'   => $resolvedPlanName,
+                'expiry_date' => $expDate,
+                'portal_url'  => $portalUrl,
+                'custom_note' => $customNote ?? '',
+                'date'        => Carbon::today()->format('d M Y'),
+            ]);
+
+            // Create log record in database
+            $log = WhatsAppLog::create([
+                'gym_id'          => $gymId,
+                'template_id'     => $template->id ?? null,
+                'recipient_id'    => $user->id,
+                'recipient_name'  => $user->name,
+                'recipient_phone' => $phone,
+                'recipient_role'  => $user->role ?: 'member',
+                'category'        => $template->category ?: 'new_plan',
+                'message'         => $rendered,
+                'status'          => 'sent',
+                'channel'         => 'whatsapp_web',
+                'trigger_type'    => ($template->category === 'new_plan' || strtolower($targetRole) === 'all')
+                    ? 'broadcast_all'
+                    : 'broadcast',
+                'sent_at'         => Carbon::now(),
+            ]);
+
+            $dispatched[] = [
+                'id'          => $user->id,
+                'name'        => $user->name,
+                'phone'       => $phone,
+                'clean_phone' => $clean,
+                'role'        => $user->role,
+                'message'     => $rendered,
+                'wa_link'     => "https://wa.me/{$clean}?text=" . urlencode($rendered),
+                'log_id'      => $log->id,
+                'status'      => 'sent',
+            ];
+        }
+
+        return response()->json([
+            'success'     => true,
+            'message'     => "Message dispatched to " . count($dispatched) . " intended recipient(s) with 1-click!",
+            'count'       => count($dispatched),
+            'target_role' => $targetRole,
+            'recipients'  => $dispatched,
+        ]);
+    }
+
+    /**
+     * 12. Process daily automated triggers (Birthdays, Expiries)
+     * Scans members & trainers celebrating birthdays today and auto-dispatches greetings.
+     */
+    public function processAutoTriggers(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $result = $this->executeAutoTriggersDirect($gymId);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Automated triggers executed! {$result['birthdays_count']} birthday message(s) processed.",
+            'data'    => $result,
+        ]);
+    }
+
+    /**
+     * Core trigger processing logic used by both API and Artisan Console Command
+     */
+    public function executeAutoTriggersDirect(?int $gymId = null): array
+    {
+        $gym = $gymId ? Gym::find($gymId) : Gym::first();
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
+
+        $today = Carbon::today();
+        $todayMonth = (int) $today->format('m');
+        $todayDay   = (int) $today->format('d');
+
+        // Check recipients already greeted today to prevent duplicates
+        $todayLogsQuery = WhatsAppLog::whereDate('sent_at', $today->toDateString());
+        if ($gymId) {
+            $todayLogsQuery->where('gym_id', $gymId);
+        }
+        $todayLogs = $todayLogsQuery->pluck('recipient_phone')->toArray();
+
+        // Load active automated templates
+        $templates = WhatsAppTemplate::where('is_active', true)
+            ->where('is_auto_enabled', true)
+            ->get();
+
+        $getTemplate = function ($category, $role = 'member') use ($templates) {
+            return $templates->first(function ($t) use ($category, $role) {
+                return $t->category === $category && ($t->target_role === $role || $t->target_role === 'all');
+            }) ?: $templates->firstWhere('category', $category);
+        };
+
+        $dispatchedBirthdays = [];
+        $dispatchedExpiries = [];
+
+        // A. Member Birthdays Today
+        $bdayMemberTpl = $getTemplate('birthday', 'member')?->message_body
+            ?? "*Happy Birthday {{name}}!*\n\nWishing you strength, health, and limitless PRs this year from all of us at *{{gym_name}}*! Drop by today for a special birthday workout perk!";
+
+        $memberBirthdaysQuery = MemberProfile::with(['user', 'plan'])
+            ->whereNotNull('dob')
+            ->where('dob', '!=', '')
+            ->whereMonth('dob', $todayMonth)
+            ->whereDay('dob', $todayDay);
+
+        if ($gymId) {
+            $memberBirthdaysQuery->whereHas('user', function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
+        }
+        $memberBirthdays = $memberBirthdaysQuery->get();
+
+        foreach ($memberBirthdays as $mp) {
+            $user = $mp->user;
+            if (!$user || !$user->phone) continue;
+
+            $clean = $this->cleanPhone($user->phone);
+            if (in_array($clean, $todayLogs) || in_array($user->phone, $todayLogs)) {
+                continue; // Already greeted today
+            }
+
+            $dobFormatted = $mp->dob ? Carbon::parse($mp->dob)->format('d M Y') : null;
+            $age = $mp->dob ? Carbon::parse($mp->dob)->age : $mp->age;
+
+            $msg = $this->renderMessage($bdayMemberTpl, [
+                'name'       => $user->name,
+                'gym_name'   => $gymName,
+                'role'       => 'Member',
+                'phone'      => $user->phone,
+                'plan_name'  => $mp->plan?->name ?? 'Active Plan',
+                'portal_url' => $portalUrl,
+                'age'        => (string) $age,
+                'dob'        => (string) $dobFormatted,
+            ]);
+
+            $log = WhatsAppLog::create([
+                'gym_id'          => $user->gym_id ?? ($gymId ?: 1),
+                'template_id'     => $getTemplate('birthday', 'member')?->id,
+                'recipient_id'    => $user->id,
+                'recipient_name'  => $user->name,
+                'recipient_phone' => $user->phone,
+                'recipient_role'  => 'member',
+                'category'        => 'birthday',
+                'message'         => $msg,
+                'status'          => 'sent',
+                'channel'         => 'whatsapp_web',
+                'trigger_type'    => 'automated_birthday',
+                'sent_at'         => Carbon::now(),
+            ]);
+
+            $dispatchedBirthdays[] = [
+                'user_id' => $user->id,
+                'name'    => $user->name,
+                'phone'   => $user->phone,
+                'role'    => 'member',
+                'age'     => $age,
+                'message' => $msg,
+                'wa_link' => $clean ? "https://wa.me/{$clean}?text=" . urlencode($msg) : null,
+                'log_id'  => $log->id,
+            ];
+            $todayLogs[] = $clean;
+            $todayLogs[] = $user->phone;
+        }
+
+        // B. Trainer & Staff Birthdays Today
+        $bdayTrainerTpl = $getTemplate('birthday', 'trainer')?->message_body
+            ?? "*Happy Birthday Coach {{name}}!*\n\nThank you for inspiring, coaching, and empowering our members every single day at *{{gym_name}}*! Have a phenomenal celebration!";
+
+        $trainerBirthdaysQuery = TrainerProfile::with('user')
+            ->whereNotNull('dob')
+            ->where('dob', '!=', '')
+            ->whereMonth('dob', $todayMonth)
+            ->whereDay('dob', $todayDay);
+
+        if ($gymId) {
+            $trainerBirthdaysQuery->whereHas('user', function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
+        }
+        $trainerBirthdays = $trainerBirthdaysQuery->get();
+
+        foreach ($trainerBirthdays as $tp) {
+            $user = $tp->user;
+            if (!$user || !$user->phone) continue;
+
+            $clean = $this->cleanPhone($user->phone);
+            if (in_array($clean, $todayLogs) || in_array($user->phone, $todayLogs)) {
+                continue;
+            }
+
+            $dobFormatted = $tp->dob ? Carbon::parse($tp->dob)->format('d M Y') : null;
+            $age = $tp->dob ? Carbon::parse($tp->dob)->age : $tp->age;
+
+            $msg = $this->renderMessage($bdayTrainerTpl, [
+                'name'       => $user->name,
+                'gym_name'   => $gymName,
+                'role'       => 'Trainer',
+                'phone'      => $user->phone,
+                'portal_url' => $portalUrl,
+                'age'        => (string) $age,
+                'dob'        => (string) $dobFormatted,
+            ]);
+
+            $log = WhatsAppLog::create([
+                'gym_id'          => $user->gym_id ?? ($gymId ?: 1),
+                'template_id'     => $getTemplate('birthday', 'trainer')?->id,
+                'recipient_id'    => $user->id,
+                'recipient_name'  => $user->name,
+                'recipient_phone' => $user->phone,
+                'recipient_role'  => 'trainer',
+                'category'        => 'birthday',
+                'message'         => $msg,
+                'status'          => 'sent',
+                'channel'         => 'whatsapp_web',
+                'trigger_type'    => 'automated_birthday',
+                'sent_at'         => Carbon::now(),
+            ]);
+
+            $dispatchedBirthdays[] = [
+                'user_id' => $user->id,
+                'name'    => $user->name,
+                'phone'   => $user->phone,
+                'role'    => 'trainer',
+                'age'     => $age,
+                'message' => $msg,
+                'wa_link' => $clean ? "https://wa.me/{$clean}?text=" . urlencode($msg) : null,
+                'log_id'  => $log->id,
+            ];
+            $todayLogs[] = $clean;
+            $todayLogs[] = $user->phone;
+        }
+
+        return [
+            'birthdays_count' => count($dispatchedBirthdays),
+            'expiries_count'  => count($dispatchedExpiries),
+            'total_processed' => count($dispatchedBirthdays) + count($dispatchedExpiries),
+            'birthdays'       => $dispatchedBirthdays,
+            'expiries'        => $dispatchedExpiries,
+            'timestamp'       => Carbon::now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * 13. Preview recipients count & samples for target role
+     */
+    public function recipientsPreview(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $targetRole = $request->query('target_role', 'all');
+
+        $query = User::with(['memberProfile.plan', 'trainerProfile'])
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '');
+
+        if ($gymId) {
+            $query->where(function ($q) use ($gymId) {
+                $q->where('gym_id', $gymId)
+                  ->orWhereNull('gym_id')
+                  ->orWhere('gym_id', 1);
+            });
+        }
+
+        if ($targetRole === 'member') {
+            $query->where('role', 'member');
+        } elseif ($targetRole === 'trainer') {
+            $query->where('role', 'trainer');
+        } elseif ($targetRole === 'staff') {
+            $query->whereIn('role', ['staff', 'receptionist', 'manager', 'accounts']);
+        }
+
+        $totalCount = (clone $query)->count();
+        $sample = $query->limit(5)->get(['id', 'name', 'phone', 'role']);
+
+        return response()->json([
+            'success'     => true,
+            'target_role' => $targetRole,
+            'total_count' => $totalCount,
+            'samples'     => $sample,
+        ]);
+    }
 }
+

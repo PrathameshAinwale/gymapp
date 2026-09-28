@@ -19,11 +19,7 @@ class TrainerController extends Controller
             ->with(['trainerProfile', 'trainerProfile.assignedMembers.user']);
 
         if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId)
-                  ->orWhereNull('gym_id')
-                  ->orWhere('gym_id', 1);
-            });
+            $query->where('gym_id', $gymId);
         }
 
         $trainers = $query->get()

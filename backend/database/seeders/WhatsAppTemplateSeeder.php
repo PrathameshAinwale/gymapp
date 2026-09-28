@@ -92,6 +92,16 @@ class WhatsAppTemplateSeeder extends Seeder
             ],
             [
                 'gym_id'          => $gymId,
+                'name'            => 'New Gym Membership Plan Launch Announcement',
+                'category'        => 'new_plan',
+                'target_role'     => 'all',
+                'timing_trigger'  => 'on_new_plan',
+                'is_active'       => true,
+                'is_auto_enabled' => false,
+                'message_body'    => "*Exciting Announcement from {{gym_name}}!* 🚀\n\nHello {{name}},\n\nWe are thrilled to unveil our brand-new membership plan: *{{plan_name}}*! 🏋️‍♂️✨\n\nEnjoy upgraded state-of-the-art workout facilities, elite personal coaching, and premium recovery amenities designed to fast-track your health journey.\n\n🔥 *Special Launch Offer*: Upgrade or enroll this week to lock in exclusive founder pricing!\n\n📲 Visit front desk or explore at {{portal_url}}\nLet's crush your goals together!",
+            ],
+            [
+                'gym_id'          => $gymId,
                 'name'            => 'General Gym Announcement',
                 'category'        => 'custom',
                 'target_role'     => 'all',

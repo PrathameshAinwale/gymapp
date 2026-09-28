@@ -42,7 +42,8 @@ import {
   CheckCircle2,
   IndianRupee,
   Calendar,
-  Cake
+  Cake,
+  Tag
 } from 'lucide-react';
 
 export const AddMemberModal = ({
@@ -205,6 +206,11 @@ export const AddMemberModal = ({
     price: 1999,
     period: 'Monthly (1 Month)',
     durationMonths: 1,
+    maxDiscount: 0,
+    offer: '',
+    offerDays: 0,
+    featuresText: 'Full gym floor access & strength zone\nPersonal fitness orientation session\nLocker, steam room & shower access\nArchFit mobile app tracking',
+    popular: false,
     category: 'General Membership',
     sessions: 12,
     validityDays: 30,
@@ -220,6 +226,11 @@ export const AddMemberModal = ({
         price: 1999,
         period: 'Monthly (1 Month)',
         durationMonths: 1,
+        maxDiscount: 0,
+        offer: '',
+        offerDays: 0,
+        featuresText: 'Full gym floor access & strength zone\nPersonal fitness orientation session\nLocker, steam room & shower access\nArchFit mobile app tracking',
+        popular: false,
         category: 'General Membership',
         sessions: 1,
         validityDays: 30,
@@ -271,22 +282,32 @@ export const AddMemberModal = ({
     setIsSavingQuickPlan(true);
     try {
       if (quickAddPlanType === 'membership') {
+        const feats = quickPlanForm.featuresText
+          ? quickPlanForm.featuresText.split('\n').map((f) => f.trim()).filter(Boolean)
+          : ['Access to gym floor & cardio machines', 'Locker, steam room & shower access', 'ArchFit mobile app tracking'];
+
         const created = await addPlan({
           name: quickPlanForm.name.trim(),
           price: Number(quickPlanForm.price),
-          period: quickPlanForm.period,
+          max_discount: Number(quickPlanForm.maxDiscount) || 0,
+          maxDiscount: Number(quickPlanForm.maxDiscount) || 0,
+          offer: quickPlanForm.offer?.trim() || null,
+          offer_days: Number(quickPlanForm.offerDays) || 0,
+          offerDays: Number(quickPlanForm.offerDays) || 0,
+          period: quickPlanForm.period || 'Monthly (1 Month)',
           durationMonths: Number(quickPlanForm.durationMonths) || 1,
-          popular: false,
-          features: [
-            'Access to gym floor & cardio machines',
-            'Locker, steam room & shower access',
-            'ArchFit Mobile App Access'
-          ]
+          popular: Boolean(quickPlanForm.popular),
+          features: feats
         });
+
         if (created?.id) {
           setFormData((prev) => ({ ...prev, planId: created.id }));
+          const calculatedEnd = computePlanEndDate(membershipStartDate || getTodayDateStr(), created);
+          if (calculatedEnd) {
+            setMembershipEndDate(calculatedEnd);
+          }
         }
-        addToast(`Membership plan "${quickPlanForm.name}" created and selected!`, 'success');
+        addToast(`Membership plan "${quickPlanForm.name}" created and applied!`, 'success');
       } else if (quickAddPlanType === 'recovery') {
         const created = await addRecoveryPlan({
           name: quickPlanForm.name.trim(),
@@ -2754,18 +2775,19 @@ export const AddMemberModal = ({
         )}
       </Modal>
 
-      {/* Quick Add Plan Modal */}
+      {/* Quick Add Plan Modal (Nested-Safe Dialog) */}
       <Modal
         isOpen={Boolean(quickAddPlanType)}
         onClose={() => setQuickAddPlanType(null)}
+        isNested={true}
         title={
           quickAddPlanType === 'membership'
-            ? 'Add Membership Plan'
+            ? 'Add New Membership Plan'
             : quickAddPlanType === 'recovery'
               ? 'Add Recovery & Wellness Plan'
               : 'Add Personal Training Package'
         }
-        maxWidth="max-w-lg"
+        maxWidth={quickAddPlanType === 'membership' ? 'max-w-xl' : 'max-w-lg'}
       >
         <form onSubmit={handleSaveQuickPlan} className="space-y-4 text-left">
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
@@ -2775,69 +2797,77 @@ export const AddMemberModal = ({
             </span>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Plan / Package Name *</label>
-            <input
-              type="text"
-              required
-              placeholder={
-                quickAddPlanType === 'membership'
-                  ? 'e.g. 1 Month Standard, 3 Months Pro'
-                  : quickAddPlanType === 'recovery'
-                    ? 'e.g. Ice Bath Therapy, Sauna Session'
-                    : 'e.g. 12 Sessions Personal Training'
-              }
-              value={quickPlanForm.name}
-              onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Fee / Price (₹) *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+          {quickAddPlanType === 'membership' ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Plan Package Name *</label>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   required
-                  value={quickPlanForm.price}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, price: e.target.value })}
-                  className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  placeholder="e.g. 1 Month Standard / Annual VIP"
+                  value={quickPlanForm.name}
+                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
-            </div>
 
-            {quickAddPlanType === 'membership' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
-                  <span className="text-[10px] text-emerald-600 font-semibold">{quickPlanForm.durationMonths} Mo Validity</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="1999"
+                      value={quickPlanForm.price}
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, price: sanitizeDecimal(e.target.value) })}
+                      className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="number"
-                  min="0.5"
-                  step="any"
-                  required
-                  placeholder="e.g. 1, 2, 3, 5, 9, 12"
-                  value={quickPlanForm.durationMonths}
-                  onChange={(e) => {
-                    const months = parseFloat(e.target.value) || 1;
-                    const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
-                    setQuickPlanForm({ ...quickPlanForm, durationMonths: e.target.value, period: periodLabel });
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
-                />
 
-                <div className="flex flex-wrap gap-1.5 pt-1">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
+                    <span className="text-[10px] text-emerald-600 font-semibold">{quickPlanForm.durationMonths} Mo Validity</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="any"
+                    required
+                    inputMode="decimal"
+                    placeholder="e.g. 1, 2, 3, 5, 9, 12"
+                    value={quickPlanForm.durationMonths}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => {
+                      const cleanVal = sanitizeDecimal(e.target.value);
+                      const months = parseFloat(cleanVal) || 1;
+                      const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
+                      setQuickPlanForm({ ...quickPlanForm, durationMonths: cleanVal, period: periodLabel });
+                    }}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Duration Presets */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Quick Duration Presets
+                </label>
+                <div className="flex flex-wrap gap-1.5">
                   {[
-                    { m: 1, label: '1M' },
-                    { m: 2, label: '2M' },
-                    { m: 3, label: '3M' },
-                    { m: 6, label: '6M' },
-                    { m: 9, label: '9M' },
-                    { m: 12, label: '1Yr' }
+                    { m: 1, label: '1 Month' },
+                    { m: 2, label: '2 Months' },
+                    { m: 3, label: '3 Months (Quarterly)' },
+                    { m: 6, label: '6 Months (Half-Yearly)' },
+                    { m: 9, label: '9 Months' },
+                    { m: 12, label: '1 Year (Annual)' }
                   ].map((preset) => (
                     <button
                       key={preset.m}
@@ -2850,51 +2880,183 @@ export const AddMemberModal = ({
                           period: periodLabel
                         });
                       }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${Number(quickPlanForm.durationMonths) === preset.m
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                        Number(quickPlanForm.durationMonths) === preset.m
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
+                      }`}
                     >
                       {preset.label}
                     </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            {quickAddPlanType === 'recovery' && (
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Therapy Category</label>
-                <select
-                  value={quickPlanForm.instructorOrType}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, instructorOrType: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="Ice Plunge">Ice Plunge / Cold Bath</option>
-                  <option value="Infrared Sauna">Infrared Sauna</option>
-                  <option value="Massage Gun">Percussion Massage Gun</option>
-                  <option value="Cryotherapy">Cryotherapy</option>
-                  <option value="Physiotherapy">Physiotherapy & Stretch</option>
-                </select>
-              </div>
-            )}
-
-            {quickAddPlanType === 'pt' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Included Sessions</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Billing Cycle Label</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={quickPlanForm.sessions}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, sessions: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  type="text"
+                  placeholder="e.g. Monthly, Quarterly, Annual"
+                  value={quickPlanForm.period}
+                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, period: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-            )}
-          </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1">
+                <label className="block text-xs font-bold text-amber-900 flex items-center justify-between">
+                  <span>Maximum Allowed Discount (₹)</span>
+                  <span className="text-[10px] text-amber-700 font-normal">Cap for billing & sales</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={quickPlanForm.maxDiscount ?? 0}
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, maxDiscount: sanitizeDecimal(e.target.value) })}
+                    className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold"
+                  />
+                </div>
+                <p className="text-[10px] text-amber-700">Billing discounts cannot exceed this maximum discount limit.</p>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+                <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                    Promotional Offer & Additional Days
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 10 Days Extra, Festive Promo, Flat ₹500 OFF"
+                      value={quickPlanForm.offer || ''}
+                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, offer: e.target.value })}
+                      className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={quickPlanForm.offerDays || ''}
+                        onKeyDown={(e) => preventNonNumericKey(e, false)}
+                        onChange={(e) => setQuickPlanForm({ ...quickPlanForm, offerDays: sanitizeDigits(e.target.value, 4) })}
+                        className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Included Features & Perks (One per line)
+                </label>
+                <textarea
+                  rows={3}
+                  value={quickPlanForm.featuresText}
+                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, featuresText: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <input
+                  type="checkbox"
+                  id="quickPopular"
+                  checked={quickPlanForm.popular}
+                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, popular: e.target.checked })}
+                  className="accent-emerald-600 w-4 h-4 rounded cursor-pointer"
+                />
+                <label htmlFor="quickPopular" className="text-xs text-slate-700 font-semibold cursor-pointer">
+                  Mark as "Most Popular Tier"
+                </label>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Plan / Package Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder={
+                    quickAddPlanType === 'recovery'
+                      ? 'e.g. Ice Bath Therapy, Sauna Session'
+                      : 'e.g. 12 Sessions Personal Training'
+                  }
+                  value={quickPlanForm.name}
+                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Fee / Price (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                    <input
+                      type="number"
+                      min={0}
+                      required
+                      value={quickPlanForm.price}
+                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, price: e.target.value })}
+                      className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                {quickAddPlanType === 'recovery' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Therapy Category</label>
+                    <select
+                      value={quickPlanForm.instructorOrType}
+                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, instructorOrType: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      <option value="Ice Plunge">Ice Plunge / Cold Bath</option>
+                      <option value="Infrared Sauna">Infrared Sauna</option>
+                      <option value="Massage Gun">Percussion Massage Gun</option>
+                      <option value="Cryotherapy">Cryotherapy</option>
+                      <option value="Physiotherapy">Physiotherapy & Stretch</option>
+                    </select>
+                  </div>
+                )}
+
+                {quickAddPlanType === 'pt' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Included Sessions</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={quickPlanForm.sessions}
+                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, sessions: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setQuickAddPlanType(null)}

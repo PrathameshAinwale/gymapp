@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, Key, AlertCircle, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, Key, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { api } from '../../services/api';
 import { isValidEmail, hasSqlInjection, sanitizeText } from '../../utils/validation';
 
@@ -10,13 +10,19 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const handleQuickFill = () => {
+    setEmail('archdevops360@gmail.com');
+    setPassword('111111');
+    setError(null);
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     const cleanEmail = sanitizeText(email);
     const cleanPassword = password ? password.trim() : '';
 
     if (!cleanEmail || !cleanPassword) {
-      setError('Please enter both Superadmin email and security key.');
+      setError('Please enter both Superadmin ID and security password.');
       return;
     }
 
@@ -43,11 +49,9 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
           setIsLoading(false);
           return;
         }
-        localStorage.setItem('pulsefit_superadmin_user', JSON.stringify(res.user));
-        if (res.token) {
-          localStorage.setItem('pulsefit_superadmin_token', res.token);
-        }
-        onLoginSuccess(res.user);
+        
+        // Pass user and token to parent (never store persistent user so /superadmin prompts every time)
+        onLoginSuccess(res.user, res.token);
         return;
       }
 
@@ -60,41 +64,41 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden selection:bg-emerald-500 selection:text-black">
-      {/* Background Decorative Cyber Glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#060810] text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden selection:bg-cyan-500 selection:text-black">
+      {/* Background Decorative Cyber & Mesh Glows */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-gradient-to-tr from-cyan-600/15 via-blue-600/10 to-purple-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md z-10 animate-fadeIn">
         {/* Top Control Center Badge */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-black tracking-widest uppercase mb-4 shadow-lg shadow-emerald-500/10">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-black tracking-widest uppercase mb-4 shadow-lg shadow-cyan-500/10">
             <ShieldCheck className="w-4 h-4" />
-            <span>Platform Master Controller</span>
+            <span>Root Clearance Gate</span>
           </div>
 
           <h1 className="text-3xl font-black tracking-tight text-white font-heading">
-            SUPER<span className="text-emerald-400">ADMIN</span> PORTAL
+            SUPER<span className="text-cyan-400">ADMIN</span> PORTAL
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
-            Restricted root access for multi-gym provisioning & account management
+          <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
+            Multi-gym infrastructure, owner management & SaaS plans
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-[#0f172a]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/80 relative">
+        <div className="bg-[#0b101e]/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 relative">
           <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-inner">
                 <Key className="w-4 h-4" />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-white">Direct URL Gate</h2>
-                <span className="text-[11px] text-slate-400">Security Clearance Level 0</span>
+                <span className="text-[10px] text-slate-400 font-mono">/superadmin Security Check</span>
               </div>
             </div>
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              CONFIDENTIAL
+            <span className="text-[9px] font-black px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+              MANDATORY LOGIN
             </span>
           </div>
 
@@ -108,7 +112,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                Master Admin Email
+                Master Admin ID / Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -119,8 +123,8 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700/70 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                  placeholder="Enter Superadmin Email"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all font-sans"
+                  placeholder="archdevops360@gmail.com"
                   autoComplete="email"
                 />
               </div>
@@ -128,7 +132,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                Master Security Key
+                Master Security Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -139,8 +143,8 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-11 py-2.5 bg-slate-900/80 border border-slate-700/70 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
-                  placeholder="Enter Master Security Key"
+                  className="w-full pl-10 pr-11 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all font-mono"
+                  placeholder="••••••"
                   autoComplete="current-password"
                 />
                 <button
@@ -154,10 +158,22 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
               </div>
             </div>
 
+            {/* Quick Fill Helper */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleQuickFill}
+                className="w-full py-1.5 px-3 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-[11px] text-slate-400 hover:text-cyan-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer font-mono"
+              >
+                <Sparkles className="w-3 h-3 text-cyan-400" />
+                <span>Fill Master Credentials: archdevops360@gmail.com</span>
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm tracking-wide transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-slate-950 font-black text-sm tracking-wide transition-all shadow-lg shadow-cyan-500/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
@@ -171,9 +187,9 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
           </form>
         </div>
 
-        {/* Bottom Note */}
-        <p className="text-center text-xs text-slate-600 mt-6">
-          PULSE FIT PLATFORM INFRASTRUCTURE • PRIVILEGED SESSION
+        {/* Security Notice */}
+        <p className="text-center text-[11px] text-slate-600 mt-6 tracking-wider uppercase font-mono">
+          Strict Security • ID & Password required on every entry to /superadmin
         </p>
       </div>
     </div>

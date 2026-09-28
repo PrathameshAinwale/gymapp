@@ -1133,6 +1133,26 @@ export const GymDataProvider = ({ children }) => {
     } catch (e) { console.warn('Fetch attendance error:', e.message); }
   }, []);
 
+  const fetchBiometricDevices = useCallback(async () => {
+    try {
+      const res = await api.attendance.getBiometricDevices();
+      if (Array.isArray(res?.data)) setBiometricDevices(res.data);
+      return res?.data;
+    } catch (e) { console.warn('Fetch biometric devices error:', e.message); }
+  }, []);
+
+  const simulateBiometricPunch = useCallback(async (pin, sn) => {
+    try {
+      const res = await api.attendance.biometricPunch(pin, sn);
+      await fetchAttendance();
+      await fetchBiometricDevices();
+      return res;
+    } catch (e) {
+      console.warn('Biometric punch error:', e.message);
+      throw e;
+    }
+  }, [fetchAttendance, fetchBiometricDevices]);
+
   const fetchEquipment = useCallback(async () => {
     try {
       const res = await api.equipment.getAll();
@@ -1249,13 +1269,25 @@ export const GymDataProvider = ({ children }) => {
         const res = await api.gymInfo.get();
         if (res?.data) {
           const cleanInfo = {
+            id: res.data.id || null,
             name: res.data.name || '',
             tagline: res.data.tagline || '',
+            logo: res.data.logo || '',
             address: res.data.address || '',
+            city: res.data.city || '',
+            state: res.data.state || '',
+            pincode: res.data.pincode || '',
             phone: res.data.phone || '',
             email: res.data.email || '',
+            website: res.data.website || '',
             operatingHours: res.data.operatingHours || res.data.operating_hours || '',
             currency: res.data.currency || '₹',
+            gstNumber: res.data.gstNumber || res.data.gst_number || '',
+            packageTier: res.data.packageTier || res.data.package || 'Basic',
+            package: res.data.packageTier || res.data.package || 'Basic',
+            features: Array.isArray(res.data.features) ? res.data.features : [],
+            subscriptionExpiresAt: res.data.subscriptionExpiresAt || '',
+            status: res.data.status || 'Active',
           };
           setGymInfo(cleanInfo);
           return cleanInfo;
@@ -1477,6 +1509,52 @@ export const GymDataProvider = ({ children }) => {
       }
     } catch (e) { console.warn('Fetch whatsapp stats error:', e.message); }
   }, []);
+
+  const broadcastWhatsAppTemplate = useCallback(async (id, data = {}) => {
+    try {
+      const res = await api.whatsapp.broadcastTemplate(id, data);
+      if (res?.success) {
+        addToast(res.message || `Dispatched to ${res.count} recipient(s)!`, 'success');
+        fetchWhatsAppLogs();
+        fetchWhatsAppStats?.();
+        return res;
+      }
+    } catch (err) {
+      console.error('Broadcast template error:', err.message);
+      addToast(`Broadcast failed: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppLogs, fetchWhatsAppStats]);
+
+  const broadcastWhatsAppDirect = useCallback(async (data) => {
+    try {
+      const res = await api.whatsapp.broadcastDirect(data);
+      if (res?.success) {
+        addToast(res.message || `Broadcasted to ${res.count} recipient(s)!`, 'success');
+        fetchWhatsAppLogs();
+        fetchWhatsAppStats?.();
+        return res;
+      }
+    } catch (err) {
+      console.error('Broadcast direct error:', err.message);
+      addToast(`Broadcast failed: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchWhatsAppLogs, fetchWhatsAppStats]);
+
+  const processWhatsAppAutoSend = useCallback(async (params = {}) => {
+    try {
+      const res = await api.whatsapp.processAutoSend(params);
+      if (res?.success) {
+        fetchWhatsAppTriggers();
+        fetchWhatsAppLogs();
+        fetchWhatsAppStats();
+        return res;
+      }
+    } catch (err) {
+      console.warn('Process auto send error:', err.message);
+    }
+  }, [fetchWhatsAppTriggers, fetchWhatsAppLogs, fetchWhatsAppStats]);
 
   const fetchDashboardStats = useCallback(async () => {
     try {
@@ -3657,6 +3735,8 @@ export const GymDataProvider = ({ children }) => {
         fetchPlans,
         fetchClasses,
         fetchAttendance,
+        fetchBiometricDevices,
+        simulateBiometricPunch,
         fetchEquipment,
         fetchInvoices,
         fetchExpenses,
@@ -3762,7 +3842,10 @@ export const GymDataProvider = ({ children }) => {
         fetchWhatsAppTriggers,
         logWhatsAppMessage,
         fetchWhatsAppLogs,
-        fetchWhatsAppStats
+        fetchWhatsAppStats,
+        broadcastWhatsAppTemplate,
+        broadcastWhatsAppDirect,
+        processWhatsAppAutoSend
       }}
     >
       {children}

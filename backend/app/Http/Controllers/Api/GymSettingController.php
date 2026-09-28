@@ -17,13 +17,25 @@ class GymSettingController extends Controller
                 return response()->json([
                     'success' => true,
                     'data' => [
+                        'id' => $gym->id,
                         'name' => $gym->name ?? '',
                         'tagline' => $gym->tagline ?? '',
+                        'logo' => $gym->logo ?? '',
                         'address' => $gym->address ?? '',
+                        'city' => $gym->city ?? '',
+                        'state' => $gym->state ?? '',
+                        'pincode' => $gym->pincode ?? '',
                         'phone' => $gym->phone ?? '',
                         'email' => $gym->email ?? '',
+                        'website' => $gym->website ?? '',
                         'operatingHours' => $gym->operating_hours ?? '',
                         'currency' => $gym->currency ?? '₹',
+                        'gstNumber' => $gym->gst_number ?? '',
+                        'package' => $gym->package_tier ?? $gym->package ?? 'Basic',
+                        'packageTier' => $gym->package_tier ?? $gym->package ?? 'Basic',
+                        'features' => $gym->features ?? [],
+                        'subscriptionExpiresAt' => $gym->subscription_expires_at?->format('Y-m-d') ?? '',
+                        'status' => $gym->status ?? 'Active',
                     ]
                 ]);
             }

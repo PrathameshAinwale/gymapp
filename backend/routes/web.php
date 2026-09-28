@@ -7,6 +7,13 @@ Route::middleware('api')->group(function () {
     require __DIR__.'/api.php';
 });
 
+use App\Http\Controllers\Api\AdmsController;
+
+// eSSL / ZKTeco ADMS Cloud Server Hardware Routes
+Route::any('/iclock/cdata', [AdmsController::class, 'cdata']);
+Route::any('/iclock/getrequest', [AdmsController::class, 'getrequest']);
+Route::any('/iclock/devicecmd', [AdmsController::class, 'devicecmd']);
+
 // SPA fallback: serve React's index.html for non-API routes in production
 Route::get('/{any}', function () {
     $indexPath = public_path('index.html');
@@ -14,7 +21,7 @@ Route::get('/{any}', function () {
         return response()->file($indexPath);
     }
     return view('welcome');
-})->where('any', '^(?!api|v1|sanctum|_debugbar).*$');
+})->where('any', '^(?!api|v1|iclock|sanctum|_debugbar).*$');
 
 Route::get('/', function () {
     $indexPath = public_path('index.html');

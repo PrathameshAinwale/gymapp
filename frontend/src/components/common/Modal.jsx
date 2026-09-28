@@ -2,9 +2,22 @@ import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-let programmaticBackCount = 0;
+let activeModalStack = [];
 
-export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' }) => {
+export const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth = 'max-w-xl',
+  zIndexOverride = null,
+  isNested = false
+}) => {
+  const modalIdRef = useRef(null);
+  if (!modalIdRef.current) {
+    modalIdRef.current = Math.random().toString(36).substring(2, 9);
+  }
+  const modalId = modalIdRef.current;
   const hasPushedHistoryRef = useRef(false);
   const onCloseRef = useRef(onClose);
 
@@ -15,54 +28,85 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
   useEffect(() => {
     if (!isOpen) return;
 
+    // Register this modal in the active modal stack
+    activeModalStack.push({ id: modalId, onClose: onCloseRef });
+    const isRootModal = activeModalStack.length === 1;
+
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onCloseRef.current?.();
+      if (e.key === 'Escape') {
+        // Only the topmost modal handles Escape
+        const top = activeModalStack[activeModalStack.length - 1];
+        if (top?.id === modalId) {
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') {
+            e.stopImmediatePropagation();
+          }
+          onCloseRef.current?.();
+        }
+      }
     };
 
     const handlePopState = () => {
-      if (programmaticBackCount > 0) {
-        programmaticBackCount--;
-        return;
-      }
-      // Back pressed while modal was open
+      // Only respond to history back if this modal pushed history
+      if (!hasPushedHistoryRef.current) return;
       hasPushedHistoryRef.current = false;
       onCloseRef.current?.();
     };
 
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown, true);
 
-    // Push modal state so back button closes the modal first
-    window.history.pushState({ isModal: true, app: 'gym' }, '');
-    hasPushedHistoryRef.current = true;
+    // Only push history state for root modals, not for nested sub-modals,
+    // to prevent closing parent modals when sub-modals unmount
+    if (isRootModal && !isNested) {
+      window.addEventListener('popstate', handlePopState);
+      try {
+        window.history.pushState({ isModal: true, app: 'gym', modalId }, '');
+        hasPushedHistoryRef.current = true;
+      } catch (err) {
+        console.warn('History pushState error:', err);
+      }
+    }
 
     return () => {
-      document.body.style.overflow = 'unset';
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
+      // Unregister from stack
+      activeModalStack = activeModalStack.filter((m) => m.id !== modalId);
+      if (activeModalStack.length === 0) {
+        document.body.style.overflow = 'unset';
+      }
 
-      // If closed by button/code (not by popstate), cleanly pop the pushed modal entry
+      window.removeEventListener('keydown', handleKeyDown, true);
+
       if (hasPushedHistoryRef.current) {
         hasPushedHistoryRef.current = false;
-        if (window.history.state?.isModal) {
-          programmaticBackCount++;
-          window.history.back();
-          setTimeout(() => {
-            if (programmaticBackCount > 0) programmaticBackCount--;
-          }, 300);
+        window.removeEventListener('popstate', handlePopState);
+        try {
+          if (window.history.state?.isModal && window.history.state?.modalId === modalId) {
+            window.history.back();
+          }
+        } catch (err) {
+          console.warn('History back error:', err);
         }
       }
     };
-  }, [isOpen]);
+  }, [isOpen, isNested]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
+  const stackIndex = activeModalStack.findIndex((m) => m.id === modalId);
+  const calculatedZIndex = zIndexOverride || (stackIndex > 0 ? 10000 + stackIndex * 50 : 9999);
+
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-hidden">
+    <div
+      style={{ zIndex: calculatedZIndex }}
+      className="fixed inset-0 flex items-center justify-center p-3 sm:p-5 overflow-hidden"
+    >
       {/* Viewport Backdrop */}
       <div
-        onClick={() => onCloseRef.current?.()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCloseRef.current?.();
+        }}
         className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity animate-fadeIn"
       />
 
@@ -77,7 +121,10 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
             {title}
           </h3>
           <button
-            onClick={() => onCloseRef.current?.()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseRef.current?.();
+            }}
             type="button"
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0 active:scale-95"
             title="Close dialog"

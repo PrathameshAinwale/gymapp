@@ -210,6 +210,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const NavItem = ({ item, isMobile = false }) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
+
     return (
       <button
         key={item.id}
@@ -341,4 +342,4 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
       )}
     </>
   );
-};
+};
