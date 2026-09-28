@@ -677,9 +677,10 @@ export const AddMemberModal = ({
         amount: newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount,
         totalAmount: newlyCreatedCredentials.totalAmount,
         duesAmount: newlyCreatedCredentials.duesAmount || 0,
+        pendingAmount: newlyCreatedCredentials.duesAmount || 0,
         date: new Date().toISOString().split('T')[0],
         paymentMethod: newlyCreatedCredentials.paymentMethod || paymentMethod || 'UPI',
-        status: (Number(newlyCreatedCredentials.duesAmount || 0) > 0) ? 'Partial' : 'Paid'
+        status: (Number(newlyCreatedCredentials.duesAmount || 0) > 0) ? 'Pending' : 'Paid'
       };
       const doc = generateInvoicePdf(invData, gymInfo, targetMember);
       if (doc) {
@@ -703,9 +704,10 @@ export const AddMemberModal = ({
       amount: newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount,
       totalAmount: newlyCreatedCredentials.totalAmount,
       duesAmount: newlyCreatedCredentials.duesAmount || 0,
+      pendingAmount: newlyCreatedCredentials.duesAmount || 0,
       date: new Date().toISOString().split('T')[0],
       paymentMethod: newlyCreatedCredentials.paymentMethod || paymentMethod || 'UPI',
-      status: (Number(newlyCreatedCredentials.duesAmount || 0) > 0) ? 'Partial' : 'Paid'
+      status: (Number(newlyCreatedCredentials.duesAmount || 0) > 0) ? 'Pending' : 'Paid'
     };
     shareInvoicePdfToMobile(invData, gymInfo, (msg, type) => addToast(msg, type));
   };
@@ -779,8 +781,8 @@ export const AddMemberModal = ({
             dues_amount: calculatedBalanceDue,
             payment_method: paymentMethod || 'UPI',
             date: new Date().toISOString().split('T')[0],
-            notes: `Top-up upgrade: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Partial Payment - Balance Due: ₹${calculatedBalanceDue.toLocaleString('en-IN')})` : ''}`,
-            status: calculatedBalanceDue > 0 ? 'Partial' : 'Paid'
+            notes: `Top-up upgrade: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending - Balance Due: ₹${calculatedBalanceDue.toLocaleString('en-IN')})` : ''}`,
+            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid'
           });
 
           if (inflowRes?.data?.invoiceNumber || inflowRes?.data?.id) {

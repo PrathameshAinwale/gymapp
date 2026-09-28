@@ -272,15 +272,26 @@ export const InvoicesPage = () => {
       const sortedInvoices = [...item.invoices].sort(
         (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
       );
+      const matchedMemberObj = (members || []).find((m) => String(m.id) === String(item.memberId));
       const totalAmount = sortedInvoices.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-      const paidCount = sortedInvoices.filter((i) => (i.status || '').toLowerCase() === 'paid').length;
-      const pendingCount = sortedInvoices.filter((i) => (i.status || '').toLowerCase() !== 'paid').length;
+      const totalPending = sortedInvoices.reduce((sum, i) => {
+        const p = Number(i.pendingAmount ?? i.duesAmount ?? ((i.status || '').toLowerCase() === 'pending' || (i.status || '').toLowerCase() === 'partial' ? (matchedMemberObj?.duesAmount || 0) : 0));
+        return sum + p;
+      }, 0);
+      const paidCount = sortedInvoices.filter((i) => {
+        const isPend = (i.status || '').toLowerCase() === 'pending' || (i.status || '').toLowerCase() === 'partial' || Number(i.pendingAmount || i.duesAmount || 0) > 0;
+        return (i.status || '').toLowerCase() === 'paid' && !isPend;
+      }).length;
+      const pendingCount = sortedInvoices.filter((i) => {
+        return (i.status || '').toLowerCase() !== 'paid' || Number(i.pendingAmount || i.duesAmount || 0) > 0;
+      }).length;
       const latestDate = sortedInvoices[0]?.date || 'N/A';
 
       result.push({
         ...item,
         invoices: sortedInvoices,
         totalAmount,
+        totalPending,
         invoiceCount: sortedInvoices.length,
         paidCount,
         pendingCount,
@@ -1147,6 +1158,11 @@ export const InvoicesPage = () => {
                       <div className="text-xs sm:text-sm font-bold text-slate-900">
                         ₹{currentTotal.toLocaleString('en-IN')}
                       </div>
+                      {Number(member.totalPending || 0) > 0 && (
+                        <div className="text-[10px] font-bold text-rose-600 flex items-center justify-end gap-0.5">
+                          <span>₹{Number(member.totalPending).toLocaleString('en-IN')} Pending</span>
+                        </div>
+                      )}
                       <div className="text-[10px] text-slate-400 font-medium">
                         {invoicesList.length} {invoicesList.length === 1 ? 'Invoice' : 'Invoices'}
                       </div>
@@ -1241,22 +1257,57 @@ export const InvoicesPage = () => {
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
-                                  <span
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                      (inv.status || '').toLowerCase() === 'paid'
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                    }`}
-                                  >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                                    <span>{inv.status || 'Paid'}</span>
-                                  </span>
+                                  {(() => {
+                                    const invPending = Number(
+                                      inv.pendingAmount ??
+                                      inv.duesAmount ??
+                                      inv.dues_amount ??
+                                      ((inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial'
+                                        ? (member?.duesAmount || 0)
+                                        : 0)
+                                    );
+                                    const isPendingInv = (inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial' || invPending > 0;
+
+                                    if (isPendingInv) {
+                                      return (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                          <span>Pending</span>
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                        <span>Paid</span>
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 text-right whitespace-nowrap">
-                                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                                    ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
-                                  </span>
+                                  {(() => {
+                                    const invPending = Number(
+                                      inv.pendingAmount ??
+                                      inv.duesAmount ??
+                                      inv.dues_amount ??
+                                      ((inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial'
+                                        ? (member?.duesAmount || 0)
+                                        : 0)
+                                    );
+                                    return (
+                                      <div>
+                                        <span className="font-bold text-slate-900 text-xs sm:text-sm block">
+                                          ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                                        </span>
+                                        {invPending > 0 && (
+                                          <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                                            ₹{invPending.toLocaleString('en-IN')} Pending
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 text-center whitespace-nowrap">
@@ -1453,10 +1504,32 @@ export const InvoicesPage = () => {
                   </div>
 
                   <div className="text-left sm:text-right shrink-0">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                      Payment Verified
-                    </span>
+                    {(() => {
+                      const selPending = Number(
+                        selectedInvoice.pendingAmount ??
+                        selectedInvoice.duesAmount ??
+                        selectedInvoice.dues_amount ??
+                        ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
+                          ? (selectedInvoiceMember?.duesAmount || 0)
+                          : 0)
+                      );
+                      const isPendingModal = (selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial' || selPending > 0;
+
+                      if (isPendingModal) {
+                        return (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1.5 shadow-2xs">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            Pending {selPending > 0 ? `• ₹${selPending.toLocaleString('en-IN')} Due` : ''}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          Payment Verified
+                        </span>
+                      );
+                    })()}
                     <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
                       Receipt #{selectedInvoice.id?.toUpperCase()}
                     </div>
@@ -1511,10 +1584,32 @@ export const InvoicesPage = () => {
                     </div>
                     <div className="flex justify-between pt-1 border-t border-slate-200/60">
                       <span className="text-slate-500">Settlement Status:</span>
-                      <strong className="text-emerald-700 flex items-center gap-1 font-bold">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Paid & Active</span>
-                      </strong>
+                      {(() => {
+                        const selPending = Number(
+                          selectedInvoice.pendingAmount ??
+                          selectedInvoice.duesAmount ??
+                          selectedInvoice.dues_amount ??
+                          ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
+                            ? (selectedInvoiceMember?.duesAmount || 0)
+                            : 0)
+                        );
+                        const isPendingModal = (selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial' || selPending > 0;
+
+                        if (isPendingModal) {
+                          return (
+                            <strong className="text-amber-700 flex items-center gap-1 font-bold">
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Pending {selPending > 0 ? `(₹${selPending.toLocaleString('en-IN')} Due)` : ''}</span>
+                            </strong>
+                          );
+                        }
+                        return (
+                          <strong className="text-emerald-700 flex items-center gap-1 font-bold">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>Paid & Active</span>
+                          </strong>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1531,10 +1626,29 @@ export const InvoicesPage = () => {
                       </h3>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
-                      <span className="text-xl sm:text-2xl font-black text-slate-900">
-                        ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
-                      </span>
+                      {(() => {
+                        const selPending = Number(
+                          selectedInvoice.pendingAmount ??
+                          selectedInvoice.duesAmount ??
+                          selectedInvoice.dues_amount ??
+                          ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
+                            ? (selectedInvoiceMember?.duesAmount || 0)
+                            : 0)
+                        );
+                        return (
+                          <>
+                            <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
+                            <span className="text-xl sm:text-2xl font-black text-slate-900">
+                              ₹{Number(selectedInvoice.totalAmount || (Number(selectedInvoice.amount || 0) + selPending)).toLocaleString('en-IN')}
+                            </span>
+                            {selPending > 0 && (
+                              <span className="text-[11px] font-bold text-rose-600 block mt-0.5">
+                                (₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')} Paid • ₹{selPending.toLocaleString('en-IN')} Pending)
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 

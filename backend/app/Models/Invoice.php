@@ -15,6 +15,8 @@ class Invoice extends Model
         'user_id',
         'plan_id',
         'amount',
+        'pending_amount',
+        'total_amount',
         'date',
         'payment_method',
         'status',
@@ -28,6 +30,8 @@ class Invoice extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'pending_amount' => 'float',
+        'total_amount' => 'float',
         'date' => 'date',
     ];
 

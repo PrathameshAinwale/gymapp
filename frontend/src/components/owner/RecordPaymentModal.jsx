@@ -451,8 +451,8 @@ export const RecordPaymentModal = ({
             dues_amount: calculatedBalanceDue,
             payment_method: resolvedPaymentMethodString,
             date: paymentDate || new Date().toISOString().split('T')[0],
-            notes: notes || `Recorded from Invoices billing: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Balance Due: ₹${calculatedBalanceDue})` : ''}`,
-            status: calculatedBalanceDue > 0 ? 'Partial' : 'Paid'
+            notes: notes || `Recorded from Invoices billing: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
+            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid'
           });
 
           if (inflowRes?.data?.invoiceNumber || inflowRes?.data?.id) {
@@ -551,9 +551,10 @@ export const RecordPaymentModal = ({
         amount: effectivePaidAmount,
         totalAmount: totalCalculatedBill,
         duesAmount: calculatedBalanceDue,
+        pendingAmount: calculatedBalanceDue,
         date: paymentDate || new Date().toISOString().split('T')[0],
         paymentMethod: resolvedPaymentMethodString,
-        status: calculatedBalanceDue > 0 ? 'Partial' : 'Paid',
+        status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
         expiryDate: includeBasePlan ? membershipEndDate : currentMember?.expiryDate,
         itemsBreakdown: lineTitles
       });
@@ -618,9 +619,22 @@ export const RecordPaymentModal = ({
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
-              <Receipt className="w-3.5 h-3.5" />
-              <span>Invoice #{completedInvoiceData.invoiceNumber}</span>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300">
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Invoice #{completedInvoiceData.invoiceNumber}</span>
+              </div>
+              {Number(completedInvoiceData.duesAmount) > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Pending • ₹{Number(completedInvoiceData.duesAmount).toLocaleString('en-IN')} Due</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Paid in Full</span>
+                </span>
+              )}
             </div>
           </div>
 

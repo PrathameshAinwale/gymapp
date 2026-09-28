@@ -1942,7 +1942,12 @@ export const GymDataProvider = ({ children }) => {
     amount,
     paymentDate,
     expiryDate,
-    paymentMethod = 'UPI'
+    paymentMethod = 'UPI',
+    status,
+    duesAmount,
+    balanceDue,
+    pendingAmount,
+    totalAmount
   }) => {
     const selectedPlan = plans.find((p) => p.id === planId) || plans[0];
     const member = members.find((m) => m.id === memberId);
@@ -1988,6 +1993,9 @@ export const GymDataProvider = ({ children }) => {
     const resolvedPlanName = planName || selectedPlan?.name || 'Membership Plan';
     const resolvedAmount = Number(amount !== undefined && amount !== null ? amount : selectedPlan?.price || 0);
     const resolvedDate = paymentDate || new Date().toISOString().split('T')[0];
+    const resolvedDues = Number(pendingAmount ?? duesAmount ?? balanceDue ?? 0);
+    const resolvedTotal = totalAmount !== undefined ? Number(totalAmount) : (resolvedAmount + resolvedDues);
+    const resolvedStatus = status || (resolvedDues > 0 ? 'Pending' : 'Paid');
 
     const newInvoice = {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1995,9 +2003,12 @@ export const GymDataProvider = ({ children }) => {
       memberName: resolvedMemberName,
       planName: resolvedPlanName,
       amount: resolvedAmount,
+      totalAmount: resolvedTotal,
+      pendingAmount: resolvedDues,
+      duesAmount: resolvedDues,
       date: resolvedDate,
       paymentMethod: paymentMethod || 'UPI',
-      status: 'Paid',
+      status: resolvedStatus,
       invoiceUrl: '#'
     };
 
@@ -2039,7 +2050,7 @@ export const GymDataProvider = ({ children }) => {
               planName: resolvedPlanName,
               status: paymentStatus,
               expiryDate: calculatedExpiry,
-              duesAmount: 0
+              duesAmount: resolvedDues
             };
           }
           return m;
@@ -2050,7 +2061,8 @@ export const GymDataProvider = ({ children }) => {
         await api.members.update(memberId, {
           plan_name: resolvedPlanName,
           status: paymentStatus,
-          expiry_date: calculatedExpiry
+          expiry_date: calculatedExpiry,
+          dues_amount: resolvedDues
         });
       } catch (e) {
         // Fallback
@@ -2065,9 +2077,12 @@ export const GymDataProvider = ({ children }) => {
           planId: selectedPlan?.id,
           planName: resolvedPlanName,
           amount: resolvedAmount,
+          totalAmount: resolvedTotal,
+          pendingAmount: resolvedDues,
+          duesAmount: resolvedDues,
           paymentMethod: paymentMethod || 'UPI',
           date: resolvedDate,
-          status: 'Paid'
+          status: resolvedStatus
         });
         if (res?.data) {
           setInvoices((prev) => {
@@ -2089,10 +2104,13 @@ export const GymDataProvider = ({ children }) => {
           plan_id: selectedPlan?.id,
           plan_name: resolvedPlanName,
           amount: resolvedAmount,
+          total_amount: resolvedTotal,
+          pending_amount: resolvedDues,
+          dues_amount: resolvedDues,
           payment_method: paymentMethod || 'UPI',
           payment_date: resolvedDate,
           expiry_date: calculatedExpiry,
-          status: 'Paid'
+          status: resolvedStatus
         });
         if (res?.data) {
           setInvoices((prev) => {

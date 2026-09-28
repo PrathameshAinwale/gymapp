@@ -23,21 +23,35 @@ class InvoiceController extends Controller
             ]);
         }
 
-        $query = Invoice::with(['user', 'plan'])->where('gym_id', $gymId)->latest();
+        $query = Invoice::with(['user.memberProfile', 'plan'])->where('gym_id', $gymId)->latest();
 
         $invoices = $query->get()->map(function ($inv) {
             $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $inv->invoice_number)->first();
+            $userProfile = $inv->user?->memberProfile;
+            $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
+            $status = $inv->status;
+            if ($pendingAmount > 0) {
+                $status = 'Pending';
+            } elseif (!$status) {
+                $status = 'Paid';
+            }
+
             return [
                 'id' => $inv->invoice_number,
                 'numericId' => $inv->id,
                 'gymId' => $inv->gym_id,
                 'memberId' => 'mem-' . $inv->user_id,
                 'memberName' => $inv->user?->name ?? 'Unknown',
+                'memberPhone' => $inv->user?->phone,
+                'memberEmail' => $inv->user?->email,
                 'planName' => $matchingInflow?->plan_name ?: ($inv->plan?->name ?? 'Fitness Package'),
                 'amount' => (float)$inv->amount,
+                'totalAmount' => (float)($inv->total_amount ?? ($inv->amount + $pendingAmount)),
+                'pendingAmount' => $pendingAmount,
+                'duesAmount' => $pendingAmount,
                 'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
                 'paymentMethod' => $inv->payment_method,
-                'status' => $inv->status,
+                'status' => $status,
                 'invoiceUrl' => $inv->invoice_url ?? '#',
             ];
         });
@@ -88,16 +102,22 @@ class InvoiceController extends Controller
         }
 
         $amount = (float)($request->amount ?? $plan?->price ?? 0);
+        $duesAmount = (float)($request->dues_amount ?? $request->duesAmount ?? $request->pending_amount ?? $request->pendingAmount ?? 0);
         $date = $request->payment_date ?? $request->paymentDate ?? $request->date ?? now()->toDateString();
         $method = $request->payment_method ?? $request->paymentMethod ?? 'UPI';
-        $status = $request->status ?? 'Paid';
+        $status = $request->status;
+        if ($duesAmount > 0) {
+            $status = 'Pending';
+        } elseif (!$status) {
+            $status = 'Paid';
+        }
 
         $gymId = $this->resolveGymId($request) ?? $user->gym_id;
         if (!$gymId) {
             return response()->json(['success' => false, 'message' => 'Gym ID is required to create invoice.'], 422);
         }
 
-        $invoice = Invoice::create([
+        $invoiceData = [
             'gym_id' => $gymId,
             'invoice_number' => 'INV-' . date('Y') . '-' . rand(1000, 9999),
             'user_id' => $user->id,
@@ -107,13 +127,24 @@ class InvoiceController extends Controller
             'payment_method' => $method,
             'status' => $status,
             'invoice_url' => '#',
-        ]);
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+            $invoiceData['pending_amount'] = $duesAmount;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+            $invoiceData['total_amount'] = (float)($request->total_amount ?? $request->totalAmount ?? ($amount + $duesAmount));
+        }
+
+        $invoice = Invoice::create($invoiceData);
 
         // Automatically update member profile status & expiry date in database
         if ($user->memberProfile) {
             $updateData = [
                 'status' => 'Active',
             ];
+            if ($duesAmount > 0) {
+                $updateData['dues_amount'] = $duesAmount;
+            }
             if ($plan) {
                 $updateData['plan_id'] = $plan->id;
             }
@@ -141,6 +172,9 @@ class InvoiceController extends Controller
                 'memberName' => $user->name,
                 'planName' => $plan?->name ?? ($request->plan_name ?? $request->planName ?? 'Membership Package'),
                 'amount' => (float)$invoice->amount,
+                'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
+                'pendingAmount' => $duesAmount,
+                'duesAmount' => $duesAmount,
                 'date' => is_string($invoice->date) ? $invoice->date : $invoice->date->format('Y-m-d'),
                 'paymentMethod' => $invoice->payment_method,
                 'status' => $invoice->status,

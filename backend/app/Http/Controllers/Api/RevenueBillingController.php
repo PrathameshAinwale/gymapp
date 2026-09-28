@@ -233,6 +233,7 @@ class RevenueBillingController extends Controller
             $planName = $plan?->name;
         }
 
+        $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', $request->input('pending_amount', 0))));
         $refNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
 
         $record = RevenueBilling::create([
@@ -249,7 +250,7 @@ class RevenueBillingController extends Controller
             'amount' => (float)$request->amount,
             'date' => $request->date ?: now()->toDateString(),
             'payment_method' => $request->payment_method ?? $request->paymentMethod ?? 'UPI',
-            'status' => $request->status ?? 'Paid',
+            'status' => $duesAmount > 0 ? 'Pending' : ($request->status ?? 'Paid'),
             'notes' => $request->notes,
             'created_by' => $request->user()?->id,
         ]);
@@ -257,7 +258,7 @@ class RevenueBillingController extends Controller
         // Mirror to invoices for backward compatibility
         try {
             if ($userId && User::where('id', $userId)->exists()) {
-                Invoice::create([
+                $invPayload = [
                     'gym_id' => $gymId,
                     'invoice_number' => $refNo,
                     'user_id' => $userId,
@@ -266,7 +267,14 @@ class RevenueBillingController extends Controller
                     'date' => $record->date,
                     'payment_method' => $record->payment_method,
                     'status' => $record->status,
-                ]);
+                ];
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                    $invPayload['pending_amount'] = $duesAmount;
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+                    $invPayload['total_amount'] = (float)($request->total_amount ?? $request->totalAmount ?? ((float)$request->amount + $duesAmount));
+                }
+                Invoice::create($invPayload);
             }
         } catch (\Exception $e) {
             \Log::warning('Invoice mirror note: ' . $e->getMessage());
@@ -378,6 +386,16 @@ class RevenueBillingController extends Controller
      */
     protected function formatInflow(RevenueBilling $item): array
     {
+        $userProfile = $item->user?->memberProfile;
+        $matchingInvoice = \App\Models\Invoice::where('invoice_number', $item->reference_no)->first();
+        $pendingAmount = (float)($matchingInvoice?->pending_amount ?? $userProfile?->dues_amount ?? 0);
+        $status = $item->status;
+        if ($pendingAmount > 0) {
+            $status = 'Pending';
+        } elseif (!$status) {
+            $status = 'Paid';
+        }
+
         return [
             'id' => $item->reference_no,
             'recordId' => 'rev-in-' . $item->id,
@@ -391,9 +409,12 @@ class RevenueBillingController extends Controller
             'title' => $item->title,
             'category' => $item->category ?: 'Membership Fee',
             'amount' => (float)$item->amount,
+            'totalAmount' => (float)($matchingInvoice?->total_amount ?? ($item->amount + $pendingAmount)),
+            'pendingAmount' => $pendingAmount,
+            'duesAmount' => $pendingAmount,
             'date' => $item->date instanceof \DateTimeInterface ? $item->date->format('Y-m-d') : (string)$item->date,
             'paymentMethod' => $item->payment_method ?: 'UPI',
-            'status' => $item->status ?: 'Paid',
+            'status' => $status,
             'notes' => $item->notes,
             'invoiceUrl' => '#',
             'createdAt' => $item->created_at?->toIso8601String(),

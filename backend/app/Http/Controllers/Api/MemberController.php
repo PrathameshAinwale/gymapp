@@ -109,6 +109,22 @@ class MemberController extends Controller
             });
         }
 
+        if ($request->has('balance') && !empty($request->balance) && $request->balance !== 'All') {
+            $balUpper = strtoupper($request->balance);
+            if (in_array($balUpper, ['DUE', 'PENDING', 'HAS_DUE'])) {
+                $query->whereHas('memberProfile', function ($q) {
+                    $q->where('dues_amount', '>', 0);
+                });
+            } elseif (in_array($balUpper, ['PAID', 'CLEAR'])) {
+                $query->whereHas('memberProfile', function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->whereNull('dues_amount')
+                            ->orWhere('dues_amount', '<=', 0);
+                    });
+                });
+            }
+        }
+
         if ($request->has('trainer_id') && !empty($request->trainer_id)) {
             $query->whereHas('memberProfile', function ($q) use ($request) {
                 $q->where('trainer_id', $request->trainer_id);
@@ -431,11 +447,12 @@ class MemberController extends Controller
             $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
             $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
             if ($duesAmount > 0) {
-                $invoiceTitle .= " (Partial - Balance Due: ₹" . number_format($duesAmount) . ")";
+                $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
             }
 
+            $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
             $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
-            Invoice::create([
+            $invPayload = [
                 'gym_id' => $gymId,
                 'invoice_number' => $invNo,
                 'user_id' => $user->id,
@@ -443,8 +460,15 @@ class MemberController extends Controller
                 'amount' => $finalAmount,
                 'date' => now()->toDateString(),
                 'payment_method' => $paymentMethod,
-                'status' => $duesAmount > 0 ? 'Partial' : 'Paid',
-            ]);
+                'status' => $invStatus,
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                $invPayload['pending_amount'] = $duesAmount;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+                $invPayload['total_amount'] = (float)($totalBill > 0 ? $totalBill : ($finalAmount + $duesAmount));
+            }
+            Invoice::create($invPayload);
 
             RevenueBilling::create([
                 'gym_id' => $gymId,
@@ -460,8 +484,8 @@ class MemberController extends Controller
                 'amount' => $finalAmount,
                 'date' => now()->toDateString(),
                 'payment_method' => $paymentMethod,
-                'status' => 'Paid',
-                'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance due: ₹{$duesAmount}" : 'Full payment received upon registration',
+                'status' => $invStatus,
+                'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
                 'created_by' => $request->user()?->id,
             ]);
         }

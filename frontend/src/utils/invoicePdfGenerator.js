@@ -111,6 +111,15 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   const paymentMode = invoice.paymentMethod || 'UPI';
   const planName = invoice.planName || 'Comprehensive Gym Membership Pass';
   const totalAmount = Number(invoice.amount) || 0;
+  const pendingAmount = Number(
+    invoice.pendingAmount ??
+    invoice.duesAmount ??
+    invoice.dues_amount ??
+    ((invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial'
+      ? (member?.duesAmount || member?.dues_amount || 0)
+      : 0)
+  );
+  const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
   const taxableBase = Math.round(totalAmount / 1.18);
   const totalGst = totalAmount - taxableBase;
   const cgst = Math.round(totalGst / 2);
@@ -121,15 +130,23 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-  // Top Emerald Accent Bar
-  doc.setFillColor(16, 185, 129); // emerald-500
+  // Top Accent Bar (Amber for pending, emerald for paid)
+  if (isPending) {
+    doc.setFillColor(245, 158, 11); // amber-500
+  } else {
+    doc.setFillColor(16, 185, 129); // emerald-500
+  }
   doc.rect(0, 0, pageWidth, 5, 'F');
 
   // 1. BRAND & RECEIPT HEADER
   let curY = margin + 4;
 
   // Gym Monogram / Logo Mark
-  doc.setFillColor(16, 185, 129);
+  if (isPending) {
+    doc.setFillColor(245, 158, 11);
+  } else {
+    doc.setFillColor(16, 185, 129);
+  }
   doc.roundedRect(margin, curY, 11, 11, 2, 2, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
@@ -148,22 +165,39 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.text('Premium Fitness, Strength & Wellness Club', margin + 15, curY + 10.5);
 
   // Right Side: Receipt Status Pill
-  const pillW = 54;
+  const pillW = 56;
   const pillH = 14;
   const pillX = pageWidth - margin - pillW;
-  doc.setFillColor(236, 253, 245); // emerald-50
-  doc.setDrawColor(167, 243, 208); // emerald-200
-  doc.roundedRect(pillX, curY - 1, pillW, pillH, 3, 3, 'FD');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(5, 150, 105); // emerald-600
-  doc.text('OFFICIAL RECEIPT', pillX + pillW / 2, curY + 4.5, { align: 'center' });
+  if (isPending) {
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.setDrawColor(245, 158, 11); // amber-500
+    doc.roundedRect(pillX, curY - 1, pillW, pillH, 3, 3, 'FD');
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(16, 185, 129);
-  doc.text(`Payment Verified & Paid`, pillX + pillW / 2, curY + 9.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(180, 83, 9); // amber-700
+    doc.text('PENDING INVOICE', pillX + pillW / 2, curY + 4.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`Due: Rs. ${pendingAmount.toLocaleString('en-IN')}`, pillX + pillW / 2, curY + 9.5, { align: 'center' });
+  } else {
+    doc.setFillColor(236, 253, 245); // emerald-50
+    doc.setDrawColor(167, 243, 208); // emerald-200
+    doc.roundedRect(pillX, curY - 1, pillW, pillH, 3, 3, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(5, 150, 105); // emerald-600
+    doc.text('OFFICIAL RECEIPT', pillX + pillW / 2, curY + 4.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`Payment Verified & Paid`, pillX + pillW / 2, curY + 9.5, { align: 'center' });
+  }
 
   // Gym Contact Sub-bar
   curY += 16;
@@ -231,8 +265,13 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.text(`Payment Mode: ${paymentMode}`, cardBX + 5, curY + 24.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(5, 150, 105);
-  doc.text(`Status: Paid & Settled (Full)`, cardBX + 5, curY + 30);
+  if (isPending) {
+    doc.setTextColor(217, 119, 6); // amber-600
+    doc.text(`Status: Pending (Rs. ${pendingAmount.toLocaleString('en-IN')} Due)`, cardBX + 5, curY + 30);
+  } else {
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Status: Paid & Settled (Full)`, cardBX + 5, curY + 30);
+  }
 
   // 3. MEMBERSHIP PLAN & PRIVILEGES HERO CARD
   curY += cardH + 8;
@@ -341,31 +380,53 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.text('Plan Base Fee:', sumBoxX + 5, rY);
   doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
-  rY += 6;
+  rY += 5.5;
   doc.text('CGST (9%):', sumBoxX + 5, rY);
   doc.text(`Rs. ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
-  rY += 5.5;
+  rY += 5;
   doc.text('SGST (9%):', sumBoxX + 5, rY);
   doc.text(`Rs. ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
+  if (isPending && pendingAmount > 0) {
+    rY += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.text('Pending Balance Due:', sumBoxX + 5, rY);
+    doc.text(`Rs. ${pendingAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+  }
+
   // Total Banner inside box
-  rY += 4;
+  rY += 3.5;
   doc.setDrawColor(203, 213, 225);
   doc.line(sumBoxX + 4, rY, pageWidth - margin - 4, rY);
 
-  rY += 2.5;
-  doc.setFillColor(240, 253, 244);
-  doc.roundedRect(sumBoxX + 3, rY, sumBoxW - 6, 12, 1.5, 1.5, 'F');
+  rY += 2;
+  if (isPending) {
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.roundedRect(sumBoxX + 3, rY, sumBoxW - 6, 11, 1.5, 1.5, 'F');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(15, 23, 42);
-  doc.text('TOTAL PAID:', sumBoxX + 6, rY + 7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(180, 83, 9);
+    doc.text('AMOUNT RECEIVED:', sumBoxX + 6, rY + 7);
 
-  doc.setFontSize(12.5);
-  doc.setTextColor(5, 150, 105);
-  doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 6, rY + 8, { align: 'right' });
+    doc.setFontSize(10.5);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 6, rY + 7, { align: 'right' });
+  } else {
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(sumBoxX + 3, rY, sumBoxW - 6, 11, 1.5, 1.5, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('TOTAL PAID:', sumBoxX + 6, rY + 7);
+
+    doc.setFontSize(11.5);
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 6, rY + 7, { align: 'right' });
+  }
 
   // 5. CLUB POLICIES & DIGITAL SEAL
   curY += finH + 10;
@@ -445,10 +506,19 @@ export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToas
     const invoiceId = (invoice.id || 'INV-001').toUpperCase();
     const rawPhone = member?.phone || invoice.phone || '';
     const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
-    const amount = Number(invoice.amount || 0).toLocaleString('en-IN');
-    const planName = invoice.planName || 'Gym Membership Pass';
+    const pendingAmount = Number(
+      invoice.pendingAmount ??
+      invoice.duesAmount ??
+      invoice.dues_amount ??
+      ((invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial'
+        ? (member?.duesAmount || member?.dues_amount || 0)
+        : 0)
+    );
+    const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
 
-    const messageText = `*ARCHFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`;
+    const messageText = isPending
+      ? `*ARCHFIT ATHLETIC CLUB - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`
+      : `*ARCHFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`;
 
     // 1. Native Web Share API with Files
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
