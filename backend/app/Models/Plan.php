@@ -13,12 +13,14 @@ class Plan extends Model
         'gym_id',
         'name',
         'price',
+        'discount',
         'max_discount',
         'offer',
         'offer_days',
         'period',
         'duration_months',
         'popular',
+        'status',
         'color',
         'features',
         'active_subscribers',
@@ -31,6 +33,7 @@ class Plan extends Model
 
     protected $casts = [
         'price' => 'float',
+        'discount' => 'float',
         'max_discount' => 'float',
         'offer_days' => 'integer',
         'duration_months' => 'integer',

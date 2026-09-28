@@ -131,6 +131,8 @@ class MemberController extends Controller
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
                 'trainerName' => $profile?->trainer?->name ?? 'None / Self Guided',
+                'executive' => $profile?->executive ?? '',
+                'trainingType' => $profile?->training_type ?? 'self',
                 'gender' => $profile?->gender ?? 'Unspecified',
                 'age' => $profile?->age,
                 'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
@@ -140,6 +142,9 @@ class MemberController extends Controller
                 'goal' => $profile?->goal,
                 'medicalNotes' => $profile?->medical_notes ?? '',
                 'emergencyContact' => $profile?->emergency_contact ?? 'N/A',
+                'kycDocType' => $profile?->kyc_doc_type ?? 'Aadhaar Card',
+                'kycDocNumber' => $profile?->kyc_doc_number ?? '',
+                'kycStatus' => $profile?->kyc_status ?? 'Verified',
                 'attendanceStreak' => $profile?->attendance_streak ?? 0,
                 'qrPassCode' => $profile?->qr_pass_code ?? ('PF-M-' . $user->id),
                 'duesAmount' => $profile?->dues_amount ?? 0,
@@ -179,6 +184,8 @@ class MemberController extends Controller
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
                 'trainerName' => $profile?->trainer?->name ?? 'None / Self Guided',
+                'executive' => $profile?->executive ?? '',
+                'trainingType' => $profile?->training_type ?? 'self',
                 'gender' => $profile?->gender,
                 'age' => $profile?->age,
                 'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
@@ -188,6 +195,9 @@ class MemberController extends Controller
                 'goal' => $profile?->goal,
                 'medicalNotes' => $profile?->medical_notes,
                 'emergencyContact' => $profile?->emergency_contact,
+                'kycDocType' => $profile?->kyc_doc_type ?? 'Aadhaar Card',
+                'kycDocNumber' => $profile?->kyc_doc_number ?? '',
+                'kycStatus' => $profile?->kyc_status ?? 'Verified',
                 'attendanceStreak' => $profile?->attendance_streak ?? 0,
                 'qrPassCode' => $profile?->qr_pass_code,
                 'duesAmount' => $profile?->dues_amount ?? 0,
@@ -374,9 +384,27 @@ class MemberController extends Controller
         $dob = $rawDob ? \Illuminate\Support\Carbon::parse($rawDob)->toDateString() : ($profile->dob ?? null);
         $computedAge = $dob ? \Illuminate\Support\Carbon::parse($dob)->age : ($request->age ?? $profile->age ?? null);
 
+        $rawTrainingType = $request->input('training_type', $request->input('trainingType', 'self'));
+        $rawExecutive = $request->input('executive', $request->input('staff_name', $request->input('staffName')));
+        $rawKycDocType = $request->input('kyc_doc_type', $request->input('kycDocType', 'Aadhaar Card'));
+        $rawKycDocNumber = $request->input('kyc_doc_number', $request->input('kycDocNumber'));
+        $rawKycStatus = $request->input('kyc_status', $request->input('kycStatus', 'Verified'));
+
+        if (!empty($rawKycDocNumber)) {
+            if ($rawKycDocType === 'Aadhaar Card') {
+                $user->aadhaar_card = $rawKycDocNumber;
+            } elseif ($rawKycDocType === 'PAN Card') {
+                $user->pan_card = $rawKycDocNumber;
+            }
+            $user->save();
+        }
+
         $profile->fill([
             'plan_id' => $planId,
             'trainer_id' => $trainerId,
+            'executive' => $rawExecutive,
+            'training_type' => $rawTrainingType,
+            'phone' => $request->phone,
             'status' => $computedStatus,
             'join_date' => $joinDate,
             'expiry_date' => $expiryDate,
@@ -389,6 +417,9 @@ class MemberController extends Controller
             'goal' => $request->goal ?? $profile->goal ?? 'Fitness & Conditioning',
             'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
             'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? 'N/A',
+            'kyc_doc_type' => $rawKycDocType,
+            'kyc_doc_number' => $rawKycDocNumber,
+            'kyc_status' => $rawKycStatus,
             'qr_pass_code' => $qrCode,
             'dues_amount' => $duesAmount,
         ]);
@@ -494,6 +525,11 @@ class MemberController extends Controller
                 'goal' => $profile->goal,
                 'medicalNotes' => $profile->medical_notes,
                 'emergencyContact' => $profile->emergency_contact,
+                'executive' => $profile->executive ?? '',
+                'trainingType' => $profile->training_type ?? 'self',
+                'kycDocType' => $profile->kyc_doc_type ?? 'Aadhaar Card',
+                'kycDocNumber' => $profile->kyc_doc_number ?? '',
+                'kycStatus' => $profile->kyc_status ?? 'Verified',
                 'trainerId' => $trainerId ? 'trn-' . $trainerId : null,
                 'trainerName' => $profile->trainer?->name ?? 'None / Self Guided',
                 'duesAmount' => (float)$duesAmount,
@@ -588,8 +624,33 @@ class MemberController extends Controller
         if ($request->has('emergency_contact') || $request->has('emergencyContact')) {
             $profile->emergency_contact = $request->emergency_contact ?? $request->emergencyContact;
         }
-        if ($request->has('dues_amount') || $request->has('duesAmount')) {
-            $profile->dues_amount = (float)($request->dues_amount ?? $request->duesAmount);
+        if ($request->has('gender')) $profile->gender = $request->gender;
+        if ($request->has('training_type') || $request->has('trainingType')) {
+            $profile->training_type = $request->training_type ?? $request->trainingType;
+        }
+        if ($request->has('executive') || $request->has('staff_name') || $request->has('staffName')) {
+            $profile->executive = $request->executive ?? $request->staff_name ?? $request->staffName;
+        }
+        if ($request->has('kyc_doc_type') || $request->has('kycDocType')) {
+            $profile->kyc_doc_type = $request->kyc_doc_type ?? $request->kycDocType;
+        }
+        if ($request->has('kyc_doc_number') || $request->has('kycDocNumber')) {
+            $profile->kyc_doc_number = $request->kyc_doc_number ?? $request->kycDocNumber;
+            if ($profile->kyc_doc_type === 'Aadhaar Card') {
+                $user->aadhaar_card = $profile->kyc_doc_number;
+            } elseif ($profile->kyc_doc_type === 'PAN Card') {
+                $user->pan_card = $profile->kyc_doc_number;
+            }
+            $user->save();
+        }
+        if ($request->has('kyc_status') || $request->has('kycStatus')) {
+            $profile->kyc_status = $request->kyc_status ?? $request->kycStatus;
+        }
+        if ($request->has('phone')) {
+            $profile->phone = $request->phone;
+        }
+        if ($request->has('qr_pass_code') || $request->has('qrPassCode')) {
+            $profile->qr_pass_code = $request->qr_pass_code ?? $request->qrPassCode;
         }
         $profile->save();
 

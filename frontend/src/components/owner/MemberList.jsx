@@ -201,6 +201,11 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
       goal: m.goal || 'General Fitness',
       medicalNotes: m.medicalNotes || '',
       emergencyContact: m.emergencyContact || '',
+      executive: m.executive || '',
+      trainingType: m.trainingType || m.training_type || 'self',
+      kycDocType: m.kycDocType || m.kyc_doc_type || 'Aadhaar Card',
+      kycDocNumber: m.kycDocNumber || m.kyc_doc_number || '',
+      kycStatus: m.kycStatus || m.kyc_status || 'Verified',
       phone: m.phone || '',
       email: m.email || '',
       name: m.name || '',
@@ -2050,6 +2055,45 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {/* Executive & KYC Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-slate-200/60">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Handled By / Executive</label>
+                  <input
+                    type="text"
+                    placeholder="Staff name / desk"
+                    value={editingMember.executive || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, executive: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Type</label>
+                  <select
+                    value={editingMember.kycDocType || 'Aadhaar Card'}
+                    onChange={(e) => setEditingMember({ ...editingMember, kycDocType: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="Aadhaar Card">Aadhaar Card</option>
+                    <option value="PAN Card">PAN Card</option>
+                    <option value="Driving License">Driving License</option>
+                    <option value="Passport">Passport</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Number</label>
+                  <input
+                    type="text"
+                    placeholder="Document ID number"
+                    value={editingMember.kycDocNumber || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, kycDocNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
                 </div>
               </div>
             </div>

@@ -30,7 +30,6 @@ export const Modal = ({
 
     // Register this modal in the active modal stack
     activeModalStack.push({ id: modalId, onClose: onCloseRef });
-    const isRootModal = activeModalStack.length === 1;
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -46,27 +45,8 @@ export const Modal = ({
       }
     };
 
-    const handlePopState = () => {
-      // Only respond to history back if this modal pushed history
-      if (!hasPushedHistoryRef.current) return;
-      hasPushedHistoryRef.current = false;
-      onCloseRef.current?.();
-    };
-
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown, true);
-
-    // Only push history state for root modals, not for nested sub-modals,
-    // to prevent closing parent modals when sub-modals unmount
-    if (isRootModal && !isNested) {
-      window.addEventListener('popstate', handlePopState);
-      try {
-        window.history.pushState({ isModal: true, app: 'gym', modalId }, '');
-        hasPushedHistoryRef.current = true;
-      } catch (err) {
-        console.warn('History pushState error:', err);
-      }
-    }
 
     return () => {
       // Unregister from stack
@@ -74,22 +54,9 @@ export const Modal = ({
       if (activeModalStack.length === 0) {
         document.body.style.overflow = 'unset';
       }
-
       window.removeEventListener('keydown', handleKeyDown, true);
-
-      if (hasPushedHistoryRef.current) {
-        hasPushedHistoryRef.current = false;
-        window.removeEventListener('popstate', handlePopState);
-        try {
-          if (window.history.state?.isModal && window.history.state?.modalId === modalId) {
-            window.history.back();
-          }
-        } catch (err) {
-          console.warn('History back error:', err);
-        }
-      }
     };
-  }, [isOpen, isNested]);
+  }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -143,3 +110,5 @@ export const Modal = ({
 
   return createPortal(modalContent, document.body);
 };
+
+export default Modal;

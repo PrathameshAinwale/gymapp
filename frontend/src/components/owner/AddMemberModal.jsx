@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
+import { MembershipPlanModal } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import {
@@ -140,6 +141,7 @@ export const AddMemberModal = ({
     height: '',
     medicalNotes: '',
     emergencyContact: '',
+    executive: '',
     kycDocType: 'Aadhaar Card',
     kycDocNumber: '',
     kycStatus: 'Verified'
@@ -625,6 +627,7 @@ export const AddMemberModal = ({
       height: 175,
       medicalNotes: '',
       emergencyContact: '',
+      executive: '',
       kycDocType: 'Aadhaar Card',
       kycDocNumber: '',
       kycStatus: 'Verified'
@@ -1020,6 +1023,7 @@ export const AddMemberModal = ({
         height: formData.height,
         medicalNotes: formData.medicalNotes,
         emergencyContact: formData.emergencyContact,
+        executive: formData.executive || '',
         kycDocType: formData.kycDocType || 'Aadhaar Card',
         kycDocNumber: formData.kycDocNumber || 'Not provided',
         kycStatus: formData.kycStatus || 'Verified',
@@ -2358,15 +2362,27 @@ export const AddMemberModal = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact & Phone</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Jane Doe (+91 98200 12345)"
-                  value={formData.emergencyContact}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Emergency Contact & Phone</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jane Doe (+91 98200 12345)"
+                    value={formData.emergencyContact}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Executive / Handled By (Staff)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Front Desk Alex / Trainer Max"
+                    value={formData.executive}
+                    onChange={(e) => setFormData({ ...formData, executive: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
             </>
           )}
@@ -2775,19 +2791,33 @@ export const AddMemberModal = ({
         )}
       </Modal>
 
-      {/* Quick Add Plan Modal (Nested-Safe Dialog) */}
+      {/* Shared Reusable Membership Plan Modal (Nested-Safe Dialog) */}
+      <MembershipPlanModal
+        isOpen={quickAddPlanType === 'membership'}
+        onClose={() => setQuickAddPlanType(null)}
+        isNested={true}
+        onSuccess={(created) => {
+          if (created?.id) {
+            setFormData((prev) => ({ ...prev, planId: created.id }));
+            const calculatedEnd = computePlanEndDate(membershipStartDate || getTodayDateStr(), created);
+            setMembershipEndDate(calculatedEnd);
+            addToast(`Plan "${created.name}" created and applied to this member!`, 'success');
+          }
+          setQuickAddPlanType(null);
+        }}
+      />
+
+      {/* Quick Add Service (PT / Recovery) Modal */}
       <Modal
-        isOpen={Boolean(quickAddPlanType)}
+        isOpen={Boolean(quickAddPlanType && quickAddPlanType !== 'membership')}
         onClose={() => setQuickAddPlanType(null)}
         isNested={true}
         title={
-          quickAddPlanType === 'membership'
-            ? 'Add New Membership Plan'
-            : quickAddPlanType === 'recovery'
-              ? 'Add Recovery & Wellness Plan'
-              : 'Add Personal Training Package'
+          quickAddPlanType === 'recovery'
+            ? 'Add Recovery & Wellness Plan'
+            : 'Add Personal Training Package'
         }
-        maxWidth={quickAddPlanType === 'membership' ? 'max-w-xl' : 'max-w-lg'}
+        maxWidth="max-w-lg"
       >
         <form onSubmit={handleSaveQuickPlan} className="space-y-4 text-left">
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
@@ -2797,199 +2827,7 @@ export const AddMemberModal = ({
             </span>
           </div>
 
-          {quickAddPlanType === 'membership' ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Plan Package Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 1 Month Standard / Annual VIP"
-                  value={quickPlanForm.name}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      inputMode="decimal"
-                      placeholder="1999"
-                      value={quickPlanForm.price}
-                      onKeyDown={(e) => preventNonNumericKey(e, true)}
-                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, price: sanitizeDecimal(e.target.value) })}
-                      className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">Duration (Months) *</label>
-                    <span className="text-[10px] text-emerald-600 font-semibold">{quickPlanForm.durationMonths} Mo Validity</span>
-                  </div>
-                  <input
-                    type="number"
-                    min="0.5"
-                    step="any"
-                    required
-                    inputMode="decimal"
-                    placeholder="e.g. 1, 2, 3, 5, 9, 12"
-                    value={quickPlanForm.durationMonths}
-                    onKeyDown={(e) => preventNonNumericKey(e, true)}
-                    onChange={(e) => {
-                      const cleanVal = sanitizeDecimal(e.target.value);
-                      const months = parseFloat(cleanVal) || 1;
-                      const periodLabel = months === 1 ? 'Monthly (1 Month)' : months === 3 ? 'Quarterly (3 Months)' : months === 6 ? 'Half-Yearly (6 Months)' : months === 12 ? 'Annual (12 Months)' : `${months} Months`;
-                      setQuickPlanForm({ ...quickPlanForm, durationMonths: cleanVal, period: periodLabel });
-                    }}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Quick Duration Presets */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Quick Duration Presets
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { m: 1, label: '1 Month' },
-                    { m: 2, label: '2 Months' },
-                    { m: 3, label: '3 Months (Quarterly)' },
-                    { m: 6, label: '6 Months (Half-Yearly)' },
-                    { m: 9, label: '9 Months' },
-                    { m: 12, label: '1 Year (Annual)' }
-                  ].map((preset) => (
-                    <button
-                      key={preset.m}
-                      type="button"
-                      onClick={() => {
-                        const periodLabel = preset.m === 1 ? 'Monthly (1 Month)' : preset.m === 3 ? 'Quarterly (3 Months)' : preset.m === 6 ? 'Half-Yearly (6 Months)' : preset.m === 12 ? 'Annual (12 Months)' : `${preset.m} Months`;
-                        setQuickPlanForm({
-                          ...quickPlanForm,
-                          durationMonths: preset.m,
-                          period: periodLabel
-                        });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                        Number(quickPlanForm.durationMonths) === preset.m
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Billing Cycle Label</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Monthly, Quarterly, Annual"
-                  value={quickPlanForm.period}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, period: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1">
-                <label className="block text-xs font-bold text-amber-900 flex items-center justify-between">
-                  <span>Maximum Allowed Discount (₹)</span>
-                  <span className="text-[10px] text-amber-700 font-normal">Cap for billing & sales</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold text-xs">₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={quickPlanForm.maxDiscount ?? 0}
-                    onKeyDown={(e) => preventNonNumericKey(e, true)}
-                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, maxDiscount: sanitizeDecimal(e.target.value) })}
-                    className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold"
-                  />
-                </div>
-                <p className="text-[10px] text-amber-700">Billing discounts cannot exceed this maximum discount limit.</p>
-              </div>
-
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
-                <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                    Promotional Offer & Additional Days
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 10 Days Extra, Festive Promo, Flat ₹500 OFF"
-                      value={quickPlanForm.offer || ''}
-                      onChange={(e) => setQuickPlanForm({ ...quickPlanForm, offer: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={quickPlanForm.offerDays || ''}
-                        onKeyDown={(e) => preventNonNumericKey(e, false)}
-                        onChange={(e) => setQuickPlanForm({ ...quickPlanForm, offerDays: sanitizeDigits(e.target.value, 4) })}
-                        className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Included Features & Perks (One per line)
-                </label>
-                <textarea
-                  rows={3}
-                  value={quickPlanForm.featuresText}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, featuresText: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="quickPopular"
-                  checked={quickPlanForm.popular}
-                  onChange={(e) => setQuickPlanForm({ ...quickPlanForm, popular: e.target.checked })}
-                  className="accent-emerald-600 w-4 h-4 rounded cursor-pointer"
-                />
-                <label htmlFor="quickPopular" className="text-xs text-slate-700 font-semibold cursor-pointer">
-                  Mark as "Most Popular Tier"
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
+          <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Plan / Package Name *</label>
                 <input
@@ -3054,7 +2892,6 @@ export const AddMemberModal = ({
                 )}
               </div>
             </div>
-          )}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button

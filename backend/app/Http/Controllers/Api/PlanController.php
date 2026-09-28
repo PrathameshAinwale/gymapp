@@ -31,6 +31,7 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'offer' => $plan->offer,
@@ -40,6 +41,7 @@ class PlanController extends Controller
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
+                'status' => $plan->status ?? 'Active',
                 'color' => $plan->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
                 'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
@@ -92,6 +94,7 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'offer' => $plan->offer,
@@ -101,6 +104,7 @@ class PlanController extends Controller
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
+                'status' => $plan->status ?? 'Active',
                 'color' => $plan->color,
                 'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
@@ -113,11 +117,13 @@ class PlanController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'price' => 'required|numeric',
+            'discount' => 'nullable|numeric',
             'max_discount' => 'nullable|numeric',
             'maxDiscount' => 'nullable|numeric',
             'period' => 'nullable|string',
-            'duration_months' => 'nullable|integer',
-            'durationMonths' => 'nullable|integer',
+            'duration_months' => 'nullable|numeric',
+            'durationMonths' => 'nullable|numeric',
+            'status' => 'nullable|string',
             'features' => 'nullable|array',
         ]);
 
@@ -142,12 +148,14 @@ class PlanController extends Controller
             'gym_id' => $gymId,
             'name' => $request->name,
             'price' => $request->price,
+            'discount' => $request->discount ?? 0,
             'max_discount' => $request->max_discount ?? $request->maxDiscount ?? 0,
             'offer' => $request->offer ?? $request->offerText ?? null,
             'offer_days' => (int)($request->offer_days ?? $request->offerDays ?? 0),
             'period' => $period,
             'duration_months' => $durationMonths,
             'popular' => $request->popular ?? false,
+            'status' => $request->status ?? 'Active',
             'color' => $request->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
             'features' => $request->features ?? [],
             'active_subscribers' => 0,
@@ -162,6 +170,7 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'offer' => $plan->offer,
@@ -171,6 +180,7 @@ class PlanController extends Controller
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
+                'status' => $plan->status ?? 'Active',
                 'color' => $plan->color,
                 'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => 0,
@@ -194,6 +204,7 @@ class PlanController extends Controller
 
         if ($request->has('name')) $plan->name = $request->name;
         if ($request->has('price')) $plan->price = $request->price;
+        if ($request->has('discount')) $plan->discount = $request->discount;
         if ($request->has('max_discount') || $request->has('maxDiscount')) {
             $plan->max_discount = $request->max_discount ?? $request->maxDiscount;
         }
@@ -204,8 +215,11 @@ class PlanController extends Controller
             $plan->offer_days = (int)($request->offer_days ?? $request->offerDays ?? 0);
         }
         if ($request->has('period')) $plan->period = $request->period;
-        if ($request->has('duration_months')) $plan->duration_months = $request->duration_months;
+        if ($request->has('duration_months') || $request->has('durationMonths')) {
+            $plan->duration_months = (int)($request->duration_months ?? $request->durationMonths);
+        }
         if ($request->has('popular')) $plan->popular = $request->popular;
+        if ($request->has('status')) $plan->status = $request->status;
         if ($request->has('color')) $plan->color = $request->color;
         if ($request->has('features')) $plan->features = $request->features;
         $plan->save();
@@ -219,6 +233,7 @@ class PlanController extends Controller
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
                 'price' => $plan->price,
+                'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
                 'offer' => $plan->offer,
@@ -228,6 +243,7 @@ class PlanController extends Controller
                 'period' => $plan->period,
                 'durationMonths' => $plan->duration_months,
                 'popular' => (bool)$plan->popular,
+                'status' => $plan->status ?? 'Active',
                 'color' => $plan->color,
                 'features' => $this->parseFeatures($plan->features),
                 'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
