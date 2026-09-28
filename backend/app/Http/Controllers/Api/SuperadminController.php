@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class SuperadminController extends Controller
@@ -184,34 +185,48 @@ class SuperadminController extends Controller
             }
 
             // 2. Create the Gym entity
-            $gym = Gym::create([
+            // Build core data (columns that always exist)
+            $gymData = [
                 'name' => $request->gym_name,
                 'owner_id' => $owner->id,
                 'tagline' => $request->tagline ?: null,
-                'logo' => $request->logo ?: null,
                 'address' => $request->gym_address ?: ($request->address ?: null),
                 'city' => $request->gym_city ?: null,
-                'state' => $request->state ?: null,
-                'pincode' => $request->pincode ?: null,
                 'phone' => $request->gym_phone ?: ($request->phone ?: $request->owner_phone),
                 'email' => $request->gym_email ?: ($request->email ?: $request->owner_email),
-                'website' => $request->website ?: null,
                 'operating_hours' => $request->operating_hours ?: ($request->operatingHours ?: null),
                 'currency' => $request->currency ?: '₹',
-                'gst_number' => $request->gst_number ?: null,
                 'package' => $tier,
                 'package_tier' => $tier,
                 'billing_cycle' => $billingCycle,
                 'package_amount' => $amount,
-                'subscription_expires_at' => $request->subscription_expires_at ?: now()->addMonths($billingCycle === 'Annual' ? 12 : 1),
                 'max_members' => $request->max_members ?? 250,
                 'max_trainers' => $request->max_trainers ?? 7,
                 'max_branches' => $request->max_branches ?? 1,
                 'status' => 'Active',
-                'notes' => $request->notes ?: null,
-                'features' => $features,
                 'initial_password' => Hash::make($request->owner_password),
-            ]);
+            ];
+
+            // Conditionally add columns that were introduced via migration
+            // This prevents "Column not found" on production if migrations haven't run yet
+            $optionalColumns = [
+                'logo'                    => $request->logo ?: null,
+                'state'                   => $request->state ?: null,
+                'pincode'                 => $request->pincode ?: null,
+                'website'                 => $request->website ?: null,
+                'gst_number'              => $request->gst_number ?: null,
+                'subscription_expires_at' => $request->subscription_expires_at ?: now()->addMonths($billingCycle === 'Annual' ? 12 : 1),
+                'notes'                   => $request->notes ?: null,
+                'features'                => $features,
+            ];
+
+            foreach ($optionalColumns as $col => $val) {
+                if (Schema::hasColumn('gyms', $col)) {
+                    $gymData[$col] = $val;
+                }
+            }
+
+            $gym = Gym::create($gymData);
 
             // 3. Link owner's gym_id
             $owner->gym_id = $gym->id;
@@ -287,27 +302,27 @@ class SuperadminController extends Controller
 
         if ($request->has('name')) $gym->name = $request->name;
         if ($request->has('tagline')) $gym->tagline = $request->tagline;
-        if ($request->has('logo')) $gym->logo = $request->logo;
+        if ($request->has('logo') && Schema::hasColumn('gyms', 'logo')) $gym->logo = $request->logo;
         if ($request->has('address') || $request->has('gym_address')) {
             $gym->address = $request->address ?? $request->gym_address;
         }
         if ($request->has('city') || $request->has('gym_city')) {
             $gym->city = $request->city ?? $request->gym_city;
         }
-        if ($request->has('state')) $gym->state = $request->state;
-        if ($request->has('pincode')) $gym->pincode = $request->pincode;
+        if ($request->has('state') && Schema::hasColumn('gyms', 'state')) $gym->state = $request->state;
+        if ($request->has('pincode') && Schema::hasColumn('gyms', 'pincode')) $gym->pincode = $request->pincode;
         if ($request->has('phone') || $request->has('gym_phone')) {
             $gym->phone = $request->phone ?? $request->gym_phone;
         }
         if ($request->has('email') || $request->has('gym_email')) {
             $gym->email = $request->email ?? $request->gym_email;
         }
-        if ($request->has('website')) $gym->website = $request->website;
+        if ($request->has('website') && Schema::hasColumn('gyms', 'website')) $gym->website = $request->website;
         if ($request->has('operating_hours') || $request->has('operatingHours')) {
             $gym->operating_hours = $request->operating_hours ?? $request->operatingHours;
         }
         if ($request->has('currency')) $gym->currency = $request->currency;
-        if ($request->has('gst_number')) $gym->gst_number = $request->gst_number;
+        if ($request->has('gst_number') && Schema::hasColumn('gyms', 'gst_number')) $gym->gst_number = $request->gst_number;
         if ($request->has('package_tier') || $request->has('package')) {
             $tier = $request->package_tier ?? $request->package;
             $gym->package_tier = $tier;
@@ -315,13 +330,13 @@ class SuperadminController extends Controller
         }
         if ($request->has('billing_cycle')) $gym->billing_cycle = $request->billing_cycle;
         if ($request->has('package_amount')) $gym->package_amount = $request->package_amount;
-        if ($request->has('subscription_expires_at')) $gym->subscription_expires_at = $request->subscription_expires_at;
+        if ($request->has('subscription_expires_at') && Schema::hasColumn('gyms', 'subscription_expires_at')) $gym->subscription_expires_at = $request->subscription_expires_at;
         if ($request->has('max_members')) $gym->max_members = $request->max_members;
         if ($request->has('max_trainers')) $gym->max_trainers = $request->max_trainers;
         if ($request->has('max_branches')) $gym->max_branches = $request->max_branches;
         if ($request->has('status')) $gym->status = $request->status;
-        if ($request->has('notes')) $gym->notes = $request->notes;
-        if ($request->has('features')) $gym->features = $request->features;
+        if ($request->has('notes') && Schema::hasColumn('gyms', 'notes')) $gym->notes = $request->notes;
+        if ($request->has('features') && Schema::hasColumn('gyms', 'features')) $gym->features = $request->features;
 
         // If updating password
         if ($request->filled('new_password')) {
