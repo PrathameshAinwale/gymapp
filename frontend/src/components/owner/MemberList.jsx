@@ -672,30 +672,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Quick Balance Due Filter Button */}
-            <button
-              type="button"
-              onClick={() => setBalanceFilter((prev) => (prev === 'DUE' ? 'ALL' : 'DUE'))}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                balanceFilter === 'DUE'
-                  ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400/20 shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-              }`}
-              title="Filter members with balance dues"
-            >
-              <IndianRupee className={`w-3.5 h-3.5 ${balanceFilter === 'DUE' ? 'text-rose-600' : 'text-slate-500'}`} />
-              <span>Balance Due</span>
-              {(members || []).filter((m) => getMemberDues(m) > 0).length > 0 && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    balanceFilter === 'DUE' ? 'bg-rose-600 text-white' : 'bg-rose-100 text-rose-700'
-                  }`}
-                >
-                  {(members || []).filter((m) => getMemberDues(m) > 0).length}
-                </span>
-              )}
-            </button>
-
             {/* Dedicated Filter Button */}
             <button
               type="button"
