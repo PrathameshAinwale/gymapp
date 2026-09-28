@@ -94,7 +94,7 @@ Route::get('/setup-database', function (Request $request) {
     // 2. Write or ensure MySQL configuration in .env if missing or requested
     $wroteEnv = false;
     if ($request->has('db_pass') || $request->has('db_user') || !file_exists(base_path('.env'))) {
-        $dbHost = $request->query('db_host', '127.0.0.1');
+        $dbHost = $request->query('db_host', 'localhost');
         $dbPort = $request->query('db_port', '3306');
         $dbDatabase = $request->query('db_name', 'u773098752_gym_app_db');
         $dbUsername = $request->query('db_user', 'u773098752_gym_app_db');
@@ -124,13 +124,27 @@ Route::get('/setup-database', function (Request $request) {
         }
     }
 
+    // Auto-fix DB_HOST=127.0.0.1 to localhost in existing .env (Linux shared hosts block 127.0.0.1 TCP socket)
+    if (file_exists(base_path('.env'))) {
+        $env = @file_get_contents(base_path('.env'));
+        if ($env && (str_contains($env, 'DB_HOST=127.0.0.1') || $request->has('fix_host'))) {
+            $targetHost = $request->query('db_host', 'localhost');
+            $env = preg_replace('/^DB_HOST=.*$/m', "DB_HOST={$targetHost}", $env);
+            @file_put_contents(base_path('.env'), $env);
+            $wroteEnv = true;
+        }
+    }
+
     // Clear runtime configuration cache so Laravel reads the fresh .env
     try {
         \Illuminate\Support\Facades\Artisan::call('config:clear');
     } catch (\Throwable $t) {}
 
     try {
-        $dbHost = env('DB_HOST', $request->query('db_host', '127.0.0.1'));
+        $dbHost = env('DB_HOST', $request->query('db_host', 'localhost'));
+        if ($dbHost === '127.0.0.1' && PHP_OS_FAMILY !== 'Windows') {
+            $dbHost = 'localhost';
+        }
         $dbName = env('DB_DATABASE', $request->query('db_name', 'u773098752_gym_app_db'));
         $dbUser = env('DB_USERNAME', $request->query('db_user', 'u773098752_gym_app_db'));
         $dbPass = env('DB_PASSWORD', $request->query('db_pass', 'H^8vSpq5'));
@@ -145,8 +159,28 @@ Route::get('/setup-database', function (Request $request) {
         \Illuminate\Support\Facades\DB::purge('mysql');
         \Illuminate\Support\Facades\DB::reconnect('mysql');
 
-        // Test PDO connection to MySQL
-        \Illuminate\Support\Facades\DB::connection('mysql')->getPdo();
+        // Test PDO connection to MySQL with automatic fallback from 127.0.0.1 to localhost
+        try {
+            \Illuminate\Support\Facades\DB::connection('mysql')->getPdo();
+        } catch (\Throwable $connEx) {
+            if ($dbHost !== 'localhost') {
+                $dbHost = 'localhost';
+                config(['database.connections.mysql.host' => 'localhost']);
+                \Illuminate\Support\Facades\DB::purge('mysql');
+                \Illuminate\Support\Facades\DB::reconnect('mysql');
+                \Illuminate\Support\Facades\DB::connection('mysql')->getPdo();
+                // Persist localhost fix to .env
+                if (file_exists(base_path('.env'))) {
+                    $env = @file_get_contents(base_path('.env'));
+                    if ($env) {
+                        $env = preg_replace('/^DB_HOST=.*$/m', 'DB_HOST=localhost', $env);
+                        @file_put_contents(base_path('.env'), $env);
+                    }
+                }
+            } else {
+                throw $connEx;
+            }
+        }
 
         // Run database migrations
         \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
@@ -161,6 +195,7 @@ Route::get('/setup-database', function (Request $request) {
 
         return response()->json([
             'status'           => 'success',
+            'host'             => $dbHost,
             'database'         => $dbName,
             'env_created'      => $wroteEnv,
             'copied_from'      => $copiedFrom,
@@ -174,7 +209,7 @@ Route::get('/setup-database', function (Request $request) {
             'env_created' => $wroteEnv,
             'copied_from' => $copiedFrom,
             'message'     => 'Database operation failed: ' . $e->getMessage(),
-            'hint'        => 'If 127.0.0.1 connection is refused, pass ?db_host=localhost'
+            'hint'        => 'Ensure database credentials are valid in .env. Host was set to: ' . ($dbHost ?? 'unknown')
         ], 500);
     }
 });

@@ -56,6 +56,17 @@ if (!file_exists($backendPath . '/.env')) {
     }
 }
 
+// 1.2 Auto-fix DB_HOST=127.0.0.1 to localhost on Hostinger / Linux shared hosting
+// Linux shared hosts restrict TCP socket connection to 127.0.0.1:3306 (Operation not permitted)
+if (file_exists($backendPath . '/.env')) {
+    $currentEnv = @file_get_contents($backendPath . '/.env');
+    if ($currentEnv && str_contains($currentEnv, 'DB_HOST=127.0.0.1')) {
+        $updatedEnv = str_replace('DB_HOST=127.0.0.1', 'DB_HOST=localhost', $currentEnv);
+        @file_put_contents($backendPath . '/.env', $updatedEnv);
+        @unlink($backendPath . '/bootstrap/cache/config.php');
+    }
+}
+
 // 2. Maintenance mode check
 if (file_exists($maintenance = $backendPath . '/storage/framework/maintenance.php')) {
     require $maintenance;

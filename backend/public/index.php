@@ -40,6 +40,16 @@ if (!file_exists(__DIR__ . '/../.env')) {
     }
 }
 
+// Auto-fix DB_HOST=127.0.0.1 to localhost on Hostinger / Linux shared hosting
+if (file_exists(__DIR__ . '/../.env')) {
+    $envContent = @file_get_contents(__DIR__ . '/../.env');
+    if ($envContent && str_contains($envContent, 'DB_HOST=127.0.0.1')) {
+        $envContent = str_replace('DB_HOST=127.0.0.1', 'DB_HOST=localhost', $envContent);
+        @file_put_contents(__DIR__ . '/../.env', $envContent);
+        @unlink(__DIR__ . '/../bootstrap/cache/config.php');
+    }
+}
+
 // Register the Composer autoloader...
 require __DIR__.'/../vendor/autoload.php';
 
