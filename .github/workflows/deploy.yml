@@ -362,7 +362,9 @@ jobs:
           test -f dist/.htaccess && echo ".htaccess confirmed in dist/"
 
       - name: Brief Pause for Hostinger FTP Connection Handshake
-        run: sleep 20
+        run: |
+          echo "Pausing 35 seconds to ensure Hostinger clears backend FTP connection pool..."
+          sleep 35
 
       - name: FTP Upload Frontend
         id: ftp-frontend
@@ -376,7 +378,7 @@ jobs:
           local-dir: ./frontend/dist/
           port: 21
           protocol: ftp
-          timeout: 180000
+          timeout: 240000
           exclude: |
             **/.git*
             **/.git*/**
@@ -385,11 +387,13 @@ jobs:
       - name: Pause Before FTP Retry (if initial upload timed out)
         if: steps.ftp-frontend.outcome != 'success'
         run: |
-          echo "Initial FTP upload timed out or failed. Pausing 25 seconds for Hostinger to reset connection..."
-          sleep 25
+          echo "Initial FTP upload timed out or failed. Pausing 35 seconds for Hostinger firewall to reset connection..."
+          sleep 35
 
       - name: FTP Upload Frontend (Retry Attempt)
+        id: ftp-frontend-retry
         if: steps.ftp-frontend.outcome != 'success'
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.HOSTINGER_FTP_SERVER }}
@@ -399,8 +403,87 @@ jobs:
           local-dir: ./frontend/dist/
           port: 21
           protocol: ftp
-          timeout: 180000
+          timeout: 240000
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
+
+      - name: Fallback Direct FTP Upload (Resilient Python with Passive Mode & Retries)
+        if: steps.ftp-frontend.outcome != 'success' && steps.ftp-frontend-retry.outcome != 'success'
+        env:
+          FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          FTP_USER: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          SERVER_DIR: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
+        run: |
+          python3 - << 'PYEOF'
+          import os, sys, time, ftplib
+
+          server = os.environ.get('FTP_SERVER', '').strip()
+          user = os.environ.get('FTP_USER', '').strip()
+          password = os.environ.get('FTP_PASS', '').strip()
+          server_dir = (os.environ.get('SERVER_DIR') or 'public_html/').strip()
+          local_dir = './frontend/dist'
+
+          print(f"Target server: {server}")
+          print(f"Target directory: {server_dir}")
+
+          def ensure_remote_dir(ftp, remote_dir):
+              parts = [p for p in remote_dir.replace('\\', '/').split('/') if p]
+              ftp.cwd('/')
+              for p in parts:
+                  try:
+                      ftp.cwd(p)
+                  except Exception:
+                      try:
+                          ftp.mkd(p)
+                      except Exception:
+                          pass
+                      ftp.cwd(p)
+
+          def upload_directory(ftp, local_path, remote_path):
+              ensure_remote_dir(ftp, remote_path)
+              
+              for item in sorted(os.listdir(local_path)):
+                  if item.startswith('.git'):
+                      continue
+                  l_item = os.path.join(local_path, item)
+                  if os.path.isdir(l_item):
+                      sub_remote = f"{remote_path.rstrip('/')}/{item}"
+                      upload_directory(ftp, l_item, sub_remote)
+                      ensure_remote_dir(ftp, remote_path)
+                  else:
+                      with open(l_item, 'rb') as f:
+                          size = os.path.getsize(l_item)
+                          print(f"Uploading {item} ({size} bytes) -> {remote_path}...")
+                          ftp.storbinary(f"STOR {item}", f)
+
+          success = False
+          for attempt in range(1, 6):
+              try:
+                  print(f"\n--- Connecting to FTP {server}:21 (Attempt {attempt}/5) ---")
+                  ftp = ftplib.FTP(timeout=60)
+                  ftp.connect(server, 21)
+                  ftp.login(user, password)
+                  ftp.set_pasv(True)
+                  print("Connected and logged in successfully with Passive Mode.")
+                  upload_directory(ftp, local_dir, server_dir)
+                  try:
+                      ftp.quit()
+                  except Exception:
+                      pass
+                  print("All frontend files deployed successfully via fallback!")
+                  success = True
+                  break
+              except Exception as e:
+                  print(f"Attempt {attempt} failed: {e}")
+                  if attempt < 5:
+                      wait_time = attempt * 15
+                      print(f"Pausing {wait_time}s before retrying connection...")
+                      time.sleep(wait_time)
+
+          if not success:
+              print("All FTP upload attempts failed.")
+              sys.exit(1)
+          PYEOF
