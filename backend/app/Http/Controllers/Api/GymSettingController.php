@@ -82,10 +82,10 @@ class GymSettingController extends Controller
             if ($request->has('address')) $gym->address = $request->input('address') ?: null;
             if ($request->has('phone')) $gym->phone = $request->input('phone') ?: null;
             if ($request->has('email')) $gym->email = $request->input('email') ?: null;
-            if ($request->has('operatingHours') || $request->has('operating_hours')) {
+            if (($request->has('operatingHours') || $request->has('operating_hours')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'operating_hours')) {
                 $gym->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
             }
-            if ($request->has('currency')) $gym->currency = $request->input('currency') ?: '₹';
+            if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: '₹';
             $gym->save();
         }
 
