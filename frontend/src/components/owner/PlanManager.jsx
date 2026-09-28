@@ -80,6 +80,17 @@ export const PlanManager = () => {
   const [editingPlan, setEditingPlan] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Service form state (PT, Classes, Recovery tabs)
+  const [serviceFormData, setServiceFormData] = useState({
+    name: '',
+    price: 4999,
+    sessions: '12 Sessions',
+    validityDays: 30,
+    instructorOrType: 'Head Coach',
+    offer: '',
+    offerDays: 0,
+    description: 'Personalized training with dedicated 1-on-1 technique assessment, workout programming, and diet coaching.'
+  });
 
 
   // Group Classes state populated from backend database
