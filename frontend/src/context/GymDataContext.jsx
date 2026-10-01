@@ -474,142 +474,6 @@ const SEED_ATTENDANCE = [
   { id: "att-1", memberId: "mem-9", memberName: "Kabir Mehra", avatar: "", planName: "Silver Monthly Pass", checkInTime: "07:00 AM", checkOutTime: "08:15 AM", duration: "1h 15m", date: getOffsetIso(-3), rawDate: getOffsetIso(-3), displayDate: formatDateDisplay(getOffsetIso(-3)), status: "Completed", gate: "Main Turnstile A" }
 ];
 
-const SEED_ADVANCE_REQUESTS = [
-  {
-    id: "adv-1",
-    staffId: "trn-2",
-    staffName: "Coach Alex Rivers",
-    role: "Head Strength Coach",
-    amount: 25000,
-    requestDate: "2026-09-10",
-    reason: "Family medical emergency and urgent hospital deposit",
-    repaymentMonth: "October 2026",
-    status: "Pending",
-    disbursedDate: null,
-    approvedBy: null
-  },
-  {
-    id: "adv-2",
-    staffId: "trn-3",
-    staffName: "Coach Elena Rostova",
-    role: "Senior Functional Coach",
-    amount: 15000,
-    requestDate: "2026-09-05",
-    reason: "CrossFit Level 3 International Certification fee",
-    repaymentMonth: "September 2026",
-    status: "Approved",
-    disbursedDate: "2026-09-06",
-    approvedBy: "Vikramaditya Singhania (Superadmin)"
-  },
-  {
-    id: "adv-3",
-    staffId: "trn-4",
-    staffName: "Coach Marcus Thorne",
-    role: "Mobility & Yoga Specialist",
-    amount: 12000,
-    requestDate: "2026-08-20",
-    reason: "Annual house lease renewal advance",
-    repaymentMonth: "August 2026",
-    status: "Disbursed",
-    disbursedDate: "2026-08-21",
-    approvedBy: "Sunita Deshmukh (Accounts)"
-  }
-];
-
-const SEED_PT_SESSIONS = [
-  {
-    id: "pts-1",
-    memberId: "mem-5",
-    memberName: "Aarav Sharma",
-    memberEmail: "member@pulsefit.in",
-    trainerId: "trn-2",
-    trainerName: "Coach Alex Rivers",
-    packageTitle: "Elite 1-on-1 PT (12 Sessions)",
-    totalSessions: 12,
-    completedSessions: 5,
-    remainingSessions: 7,
-    startDate: "2026-08-10",
-    otp: "4821",
-    logs: [
-      { sessionNo: 1, date: "2026-08-12 07:30 AM", verifiedWithOtp: true, trainerNotes: "Baseline bench & squat biomechanics form assessment" },
-      { sessionNo: 2, date: "2026-08-15 07:30 AM", verifiedWithOtp: true, trainerNotes: "Hypertrophy Push workout, 4 sets chest press" },
-      { sessionNo: 3, date: "2026-08-19 07:30 AM", verifiedWithOtp: true, trainerNotes: "Pull day deadlifts and heavy lat pulldowns" },
-      { sessionNo: 4, date: "2026-08-23 07:30 AM", verifiedWithOtp: true, trainerNotes: "Leg day squats and Romanian deadlifts" },
-      { sessionNo: 5, date: "2026-08-28 07:30 AM", verifiedWithOtp: true, trainerNotes: "Shoulder stability & overhead barbell press" }
-    ]
-  },
-  {
-    id: "pts-2",
-    memberId: "mem-6",
-    memberName: "Priya Patel",
-    memberEmail: "priya.p@gmail.com",
-    trainerId: "trn-3",
-    trainerName: "Coach Elena Rostova",
-    packageTitle: "VIP Executive Transformation (24 Sessions)",
-    totalSessions: 24,
-    completedSessions: 8,
-    remainingSessions: 16,
-    startDate: "2026-08-05",
-    otp: "7392",
-    logs: [
-      { sessionNo: 1, date: "2026-08-06 06:45 AM", verifiedWithOtp: true, trainerNotes: "Cardio VO2 max & core stability test" },
-      { sessionNo: 2, date: "2026-08-09 06:45 AM", verifiedWithOtp: true, trainerNotes: "HIIT circuit with kettlebells & rowing" }
-    ]
-  }
-];
-
-const SEED_TRAINER_REVIEWS = [
-  {
-    id: "rev-1",
-    trainerId: "trn-2",
-    trainerName: "Coach Alex Rivers",
-    memberId: "mem-5",
-    memberName: "Aarav Sharma",
-    rating: 5,
-    comment: "Coach Alex has transformed my strength! Added 25kg to my deadlift in 2 months with zero injury. Best biomechanics coach in Mumbai.",
-    date: "2026-09-02"
-  },
-  {
-    id: "rev-2",
-    trainerId: "trn-2",
-    trainerName: "Coach Alex Rivers",
-    memberId: "mem-7",
-    memberName: "Rohan Verma",
-    rating: 5,
-    comment: "Extreme attention to posture and progressive overload. Highly disciplined and supportive!",
-    date: "2026-08-28"
-  },
-  {
-    id: "rev-3",
-    trainerId: "trn-3",
-    trainerName: "Coach Elena Rostova",
-    memberId: "mem-6",
-    memberName: "Priya Patel",
-    rating: 5,
-    comment: "Elena's HIIT circuits and fat loss protocols are unmatched. Lost 4kg in 6 weeks while gaining toned endurance!",
-    date: "2026-09-05"
-  },
-  {
-    id: "rev-4",
-    trainerId: "trn-4",
-    trainerName: "Coach Marcus Thorne",
-    memberId: "mem-8",
-    memberName: "Ananya Iyer",
-    rating: 5,
-    comment: "Fixed my chronic lumbar spine stiffness through yoga mobility drills. Feel 10 years younger.",
-    date: "2026-08-30"
-  }
-];
-
-const SEED_EQUIPMENT = [
-  { id: "eq-1", numericId: 1, name: "Hammer Strength Power Olympic Rack (Zone A)", brand: "Hammer Strength", category: "Free Weights & Racks", location: "Zone A - Heavy Iron", status: "Operational", condition: "Excellent", lastServiced: "2026-08-01", lastServiceDate: "2026-08-01", nextServiceDue: "2026-11-01" },
-  { id: "eq-2", numericId: 2, name: "Technogym Skillmill Curved Treadmill", brand: "Technogym", category: "Cardio Machines", location: "Zone C - Cardio Deck", status: "Operational", condition: "Good", lastServiced: "2026-07-15", lastServiceDate: "2026-07-15", nextServiceDue: "2026-10-15" },
-  { id: "eq-3", numericId: 3, name: "Life Fitness Dual Adjustable Cable Cross 8-Stack", brand: "Life Fitness", category: "Cable & Selectorized", location: "Zone B - Selectorized", status: "Operational", condition: "Excellent", lastServiced: "2026-08-10", lastServiceDate: "2026-08-10", nextServiceDue: "2026-11-10" },
-  { id: "eq-4", numericId: 4, name: "Eleiko IWF Competition Barbell & Bumper Plate Set (300kg)", brand: "Eleiko", category: "Free Weights & Racks", location: "Zone A - Heavy Iron", status: "Operational", condition: "Excellent", lastServiced: "2026-08-05", lastServiceDate: "2026-08-05", nextServiceDue: "2026-12-05" },
-  { id: "eq-5", numericId: 5, name: "Concept2 RowErg PM5 Indoor Rower", brand: "Concept2", category: "Cardio Machines", location: "Zone C - Cardio Deck", status: "Maintenance Needed", condition: "Fair", lastServiced: "2026-06-20", lastServiceDate: "2026-06-20", nextServiceDue: "2026-09-20" },
-  { id: "eq-6", numericId: 6, name: "Matrix Fitness Ultra Leg Press 45-Degree", brand: "Matrix", category: "Cable & Selectorized", location: "Zone B - Selectorized", status: "Operational", condition: "Good", lastServiced: "2026-07-28", lastServiceDate: "2026-07-28", nextServiceDue: "2026-10-28" }
-];
-
 
 const SEED_EXERCISES = [
   { id: 'ex-1', name: 'Barbell Flat Bench Press', category: 'Chest', equipment: 'Barbell' },
@@ -628,15 +492,6 @@ const SEED_EXERCISES = [
   { id: 'ex-14', name: 'Standing Calf Raises', category: 'Legs', equipment: 'Machine' },
   { id: 'ex-15', name: 'Romanian Deadlifts (RDL)', category: 'Legs', equipment: 'Barbell' },
   { id: 'ex-16', name: 'Hanging Knee Raises & Plank', category: 'Core', equipment: 'Bodyweight' }
-];
-
-const SEED_BODY_METRICS = [
-  { month: 'Apr', weight: 84.5, bodyFat: 19.5, muscleMass: 35.2, chest: 104.0, waist: 88.0, biceps: 35.5 },
-  { month: 'May', weight: 82.8, bodyFat: 18.0, muscleMass: 36.0, chest: 105.5, waist: 86.0, biceps: 36.2 },
-  { month: 'Jun', weight: 81.2, bodyFat: 16.8, muscleMass: 36.8, chest: 106.5, waist: 84.0, biceps: 37.0 },
-  { month: 'Jul', weight: 79.8, bodyFat: 15.5, muscleMass: 37.5, chest: 108.0, waist: 82.5, biceps: 38.0 },
-  { month: 'Aug', weight: 78.4, bodyFat: 14.8, muscleMass: 37.9, chest: 109.0, waist: 81.2, biceps: 38.5 },
-  { month: 'Sep', weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0 }
 ];
 
 const SEED_DEFAULT_WORKOUT_PLAN = {
@@ -3868,7 +3723,6 @@ export const GymDataProvider = ({ children }) => {
         deleteProduct,
         recordProductSale,
         commissions,
-        fetchCommissions,
         addCommissionRecord,
         markCommissionPaid,
         consentForms,
@@ -3879,7 +3733,6 @@ export const GymDataProvider = ({ children }) => {
         unfreezeMembership,
         extendMembership,
         payrollRecords,
-        fetchPayroll,
         markPayrollPaid,
         updatePayrollAdjustments,
         advanceRequests,
