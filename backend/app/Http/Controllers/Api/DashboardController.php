@@ -130,6 +130,37 @@ class DashboardController extends Controller
             ];
         }
 
+        $gymOwner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
+
+        $recentInvoices = Invoice::with(['user.memberProfile', 'creator', 'plan'])
+            ->where('gym_id', $gymId)
+            ->latest()
+            ->take(6)
+            ->get()
+            ->map(function ($inv) use ($gymOwner) {
+                $rawCreator = $inv->created_by_name ?: ($inv->creator?->name ?: null);
+                $creatorRole = $inv->creator?->role;
+                if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
+                    $rawCreator = $gymOwner ? $gymOwner->name : 'prathamesh';
+                    $creatorRole = 'Owner';
+                }
+                $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
+                $createdByName = trim($cleanName) ?: 'prathamesh';
+                $creatorRole = ucfirst($creatorRole ?: 'Owner');
+                return [
+                    'id' => $inv->invoice_number,
+                    'numericId' => $inv->id,
+                    'memberName' => $inv->user?->name ?? 'Member',
+                    'memberPhone' => $inv->user?->phone,
+                    'planName' => $inv->plan?->name ?? 'Membership Fee',
+                    'amount' => (float)$inv->amount,
+                    'status' => $inv->status,
+                    'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
+                    'createdByName' => $createdByName,
+                    'creatorRole' => $creatorRole,
+                ];
+            });
+
         return response()->json([
             'success' => true,
             'stats' => [
@@ -147,6 +178,7 @@ class DashboardController extends Controller
             ],
             'revenueAnalytics' => $revenueAnalytics,
             'weeklyTraffic' => $weeklyTraffic,
+            'recentInvoices' => $recentInvoices,
         ]);
     }
 }

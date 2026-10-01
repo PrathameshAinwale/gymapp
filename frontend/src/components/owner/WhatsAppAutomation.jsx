@@ -47,6 +47,7 @@ import {
   sanitizePhone,
   sanitizeText
 } from '../../utils/validation';
+import { getWhatsAppUrl, openWhatsApp } from '../../utils/whatsapp';
 
 const BirthdayAvatar = ({ src, alt, className = "w-10 h-10 rounded-full", iconClassName = "w-5 h-5 text-pink-500" }) => {
   const [hasError, setHasError] = useState(false);
@@ -1410,16 +1411,7 @@ export const WhatsAppAutomation = () => {
                     const templateObj = whatsappTemplates.find(
                       (t) => String(t.id) === String(selectedTemplateForBroadcast)
                     );
-                    const clean = (person.phone || '').replace(/[^0-9]/g, '');
-                    const cleanPhone = clean.length === 10 ? '91' + clean : clean;
-                    const rendered = templateObj
-                      ? renderPreviewText(templateObj.message_body, {
-                          name: person.name,
-                          phone: person.phone,
-                          plan: person.planName || 'Active Membership'
-                        })
-                      : `Hi ${person.name}, greetings from ${gymInfo?.name || 'PulseFit Pro'}!`;
-                    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(rendered)}` : null;
+                    const waLink = person.phone ? getWhatsAppUrl(person.phone, rendered) : null;
 
                     return (
                       <div
@@ -1831,12 +1823,15 @@ export const WhatsAppAutomation = () => {
                     addToast('Please enter a valid 10-digit phone number for testing.', 'error');
                     return;
                   }
-                  const phoneWithCountry = '91' + cleaned;
                   const text = renderPreviewText(
                     previewTemplate.message_body,
                     previewTemplate.sampleOverrides || {}
                   );
-                  window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(text)}`, '_blank');
+                  openWhatsApp({
+                    phone: cleaned,
+                    text,
+                    onToast: addToast
+                  });
                   setPreviewTemplate(null);
                 }}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 cursor-pointer"

@@ -193,14 +193,19 @@ const handleResponse = async (response) => {
 export const api = {
   // Auth Endpoints
   auth: {
-    login: async (email, password) => {
+    login: async (loginOrEmail, password) => {
       const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          login: loginOrEmail,
+          email: loginOrEmail,
+          phone: loginOrEmail,
+          password
+        }),
       });
       return handleResponse(res);
     },
@@ -1101,25 +1106,63 @@ export const api = {
       return handleResponse(res);
     },
     create: async (staffData) => {
+      const payload = withGymParam(staffData);
       const res = await apiFetch(`${API_BASE_URL}/staff`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(staffData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
     update: async (id, staffData) => {
       const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
+      const payload = withGymParam(staffData);
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(staffData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
     delete: async (id) => {
       const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Staff Shift Management & Multi-Slot Configurations
+  shifts: {
+    getAll: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/shifts${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (shiftData) => {
+      const payload = withGymParam(shiftData);
+      const res = await apiFetch(`${API_BASE_URL}/shifts`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, shiftData) => {
+      const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
+      const payload = withGymParam(shiftData);
+      const res = await apiFetch(`${API_BASE_URL}/shifts/${numericId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
+      const res = await apiFetch(`${API_BASE_URL}/shifts/${numericId}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

@@ -72,10 +72,6 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
       <div className="w-full max-w-md z-10 animate-fadeIn">
         {/* Top Control Center Badge */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-black tracking-widest uppercase mb-4 shadow-lg shadow-cyan-500/10">
-            <ShieldCheck className="w-4 h-4" />
-            <span>Root Clearance Gate</span>
-          </div>
 
           <h1 className="text-3xl font-black tracking-tight text-white font-heading">
             SUPER<span className="text-cyan-400">ADMIN</span> PORTAL
@@ -97,9 +93,6 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
                 <span className="text-[10px] text-slate-400 font-mono">/superadmin Security Check</span>
               </div>
             </div>
-            <span className="text-[9px] font-black px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              MANDATORY LOGIN
-            </span>
           </div>
 
           {error && (
@@ -158,18 +151,6 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Quick Fill Helper */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={handleQuickFill}
-                className="w-full py-1.5 px-3 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-[11px] text-slate-400 hover:text-cyan-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer font-mono"
-              >
-                <Sparkles className="w-3 h-3 text-cyan-400" />
-                <span>Fill Master Credentials: archdevops360@gmail.com</span>
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
@@ -186,11 +167,6 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
             </button>
           </form>
         </div>
-
-        {/* Security Notice */}
-        <p className="text-center text-[11px] text-slate-600 mt-6 tracking-wider uppercase font-mono">
-          Strict Security • ID & Password required on every entry to /superadmin
-        </p>
       </div>
     </div>
   );

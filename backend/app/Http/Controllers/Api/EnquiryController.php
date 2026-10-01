@@ -456,6 +456,10 @@ class EnquiryController extends Controller
 
         if ($plan && $plan->price > 0) {
             $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
+            $authCreator = $request->user() ?: auth('sanctum')->user();
+            $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+            $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('staff_name', $request->input('executive', $authCreator?->name ?: $enquiry->staff_name))));
+
             Invoice::create([
                 'gym_id' => $gymId,
                 'invoice_number' => 'INV-' . strtoupper(substr(uniqid(), -6)),
@@ -465,6 +469,8 @@ class EnquiryController extends Controller
                 'date' => now()->toDateString(),
                 'payment_method' => $paymentMethod,
                 'status' => 'Paid',
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName ?: 'Staff / Admin',
             ]);
         }
 

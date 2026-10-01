@@ -20,7 +20,10 @@ class Invoice extends Model
         'date',
         'payment_method',
         'status',
+        'due_date',
         'invoice_url',
+        'created_by',
+        'created_by_name',
     ];
 
     public function gym()
@@ -33,6 +36,7 @@ class Invoice extends Model
         'pending_amount' => 'float',
         'total_amount' => 'float',
         'date' => 'date',
+        'due_date' => 'date',
     ];
 
     public function user()
@@ -43,5 +47,15 @@ class Invoice extends Model
     public function plan()
     {
         return $this->belongsTo(Plan::class, 'plan_id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

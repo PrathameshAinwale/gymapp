@@ -34,6 +34,7 @@ class MemberProfile extends Model
         'attendance_streak',
         'qr_pass_code',
         'dues_amount',
+        'due_date',
         'last_check_in',
     ];
 
@@ -45,6 +46,7 @@ class MemberProfile extends Model
         'height' => 'float',
         'attendance_streak' => 'integer',
         'dues_amount' => 'float',
+        'due_date' => 'date',
         'join_date' => 'date',
         'expiry_date' => 'date',
         'last_check_in' => 'datetime',

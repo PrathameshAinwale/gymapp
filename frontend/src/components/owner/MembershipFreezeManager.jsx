@@ -48,6 +48,8 @@ export const MembershipFreezeManager = () => {
     members,
     fetchFreezes,
     fetchMembers,
+    fetchInvoices,
+    fetchDashboardStats,
     addToast
   } = useGymData();
 
@@ -143,6 +145,8 @@ export const MembershipFreezeManager = () => {
     toMemberPhone: '',
     isExistingTarget: true,
     transferCharge: 500,
+    transferDate: new Date().toISOString().split('T')[0],
+    membershipStartDate: new Date().toISOString().split('T')[0],
     isFullPayment: true,
     paymentMethod: 'UPI',
     splitCashAmount: 0,
@@ -392,13 +396,11 @@ export const MembershipFreezeManager = () => {
     }
 
     // Calculate days remaining
-    let daysRemaining = 30;
-    if (fromMember.expiryDate) {
-      const exp = new Date(fromMember.expiryDate);
-      const now = new Date();
-      const diff = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-      daysRemaining = Math.max(diff, 0);
-    }
+    const daysRemaining = remainingDaysSource > 0
+      ? remainingDaysSource
+      : (fromMember.expiryDate ? Math.max(1, Math.ceil((new Date(fromMember.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))) : 30);
+    const transferDate = transferData.transferDate || new Date().toISOString().split('T')[0];
+    const membershipStartDate = transferData.membershipStartDate || transferDate;
 
     try {
       setIsSubmittingTransfer(true);
@@ -414,10 +416,13 @@ export const MembershipFreezeManager = () => {
         planName: fromMember.planName || 'Membership Plan',
         daysRemaining,
         transferCharge: Number(transferData.transferCharge) || 0,
+        transferFee: Number(transferData.transferCharge) || 0,
         paymentMethod: transferData.paymentMethod === 'Split'
           ? `Split (Cash: ₹${transferData.splitCashAmount || 0} + Online [${transferProvider}]: ₹${transferData.splitOnlineAmount || 0})`
           : transferData.paymentMethod,
-        reason: transferData.reason
+        reason: transferData.reason,
+        transferDate,
+        membershipStartDate
       });
 
       if (res?.data) {
@@ -425,8 +430,14 @@ export const MembershipFreezeManager = () => {
       } else {
         await loadTransfers();
       }
-      fetchMembers?.();
-      addToast?.(`Membership successfully transferred to ${targetName}!`);
+      await Promise.allSettled([
+        loadTransfers(),
+        fetchMembers?.(),
+        fetchInvoices?.(),
+        fetchDashboardStats?.(),
+        fetchFreezes?.()
+      ]);
+      addToast?.(`Membership transferred to ${targetName}! Source marked expired and invoice created.`);
       setIsTransferModalOpen(false);
     } catch (err) {
       console.error('Transfer failed:', err);
@@ -441,6 +452,22 @@ export const MembershipFreezeManager = () => {
   const remainingDaysSource = selectedSourceMember?.expiryDate
     ? Math.max(0, Math.ceil((new Date(selectedSourceMember.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)))
     : 0;
+
+  const calcRecipientExpiry = useMemo(() => {
+    const sDate = transferData.membershipStartDate || transferData.transferDate || new Date().toISOString().split('T')[0];
+    const days = remainingDaysSource > 0 ? remainingDaysSource : 30;
+    if (!sDate) return '';
+    const parts = sDate.split('-').map(Number);
+    if (parts.length === 3) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      d.setDate(d.getDate() + Number(days));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return '';
+  }, [transferData.membershipStartDate, transferData.transferDate, remainingDaysSource]);
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-10 max-w-7xl mx-auto">
@@ -932,7 +959,7 @@ export const MembershipFreezeManager = () => {
                       <th className="py-3.5 px-4">Days Transferred</th>
                       <th className="py-3.5 px-4">Transfer Fee</th>
                       <th className="py-3.5 px-4">Payment Mode</th>
-                      <th className="py-3.5 px-4">Date</th>
+                      <th className="py-3.5 px-4">Transfer / Start Date</th>
                       <th className="py-3.5 px-4">Reason</th>
                       <th className="py-3.5 px-4">Status</th>
                     </tr>
@@ -963,8 +990,11 @@ export const MembershipFreezeManager = () => {
                         <td className="py-3.5 px-4 text-slate-600">
                           {t.paymentMethod || 'UPI'}
                         </td>
-                        <td className="py-3.5 px-4 text-slate-500">
-                          {t.transferDate}
+                        <td className="py-3.5 px-4">
+                          <span className="font-semibold text-slate-800 block">{t.transferDate}</span>
+                          {t.membershipStartDate && (
+                            <span className="text-[10px] text-violet-600 font-medium block">Starts: {t.membershipStartDate}</span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={t.reason}>
                           {t.reason || '—'}
@@ -1463,6 +1493,62 @@ export const MembershipFreezeManager = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Transfer Date & New Membership Start Date */}
+          <div className="p-3.5 rounded-xl bg-violet-50/50 border border-violet-200/70 space-y-3">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-violet-600" />
+              <span>Transfer & Validity Dates</span>
+            </span>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Transfer Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={transferData.transferDate}
+                  onChange={(e) => setTransferData({ ...transferData, transferDate: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 font-semibold cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Membership Start Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={transferData.membershipStartDate}
+                  onChange={(e) => setTransferData({ ...transferData, membershipStartDate: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 font-semibold cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Transfer Impact & Validity Calculation Banner */}
+            <div className="p-2.5 rounded-lg bg-white border border-violet-100 text-xs space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-violet-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
+                  Transferee Validity Period:
+                </span>
+                <span className="text-[11px] font-black text-violet-700 bg-violet-100/70 px-2 py-0.5 rounded">
+                  {remainingDaysSource > 0 ? remainingDaysSource : 30} Days Left
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-700">
+                Valid from <span className="font-bold text-slate-900">{transferData.membershipStartDate}</span> to <span className="font-bold text-slate-900">{calcRecipientExpiry || 'N/A'}</span>
+              </div>
+              <div className="pt-1 border-t border-slate-100 text-[10px] text-amber-700 flex items-center gap-1 font-medium">
+                <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>Source member will be marked as <strong className="text-amber-900">Expired</strong> immediately upon transfer.</span>
+              </div>
+            </div>
           </div>
 
           {/* Transfer Charge Amount & Payment Options */}

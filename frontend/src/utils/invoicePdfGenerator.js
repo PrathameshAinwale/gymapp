@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { formatWhatsAppPhone, openWhatsApp } from './whatsapp';
 
 // Helper to convert numbers to Indian Rupee Words
 function numberToWordsINR(amount) {
@@ -206,6 +207,10 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setTextColor(100, 116, 139);
   doc.text(`${gymAddress}  •  Phone: ${gymPhone}  •  GSTIN: ${gymGstin}`, margin, curY);
 
+  let rawCreator = invoice.createdByName || invoice.created_by_name || invoice.executive || invoice.creatorName || invoice.creator?.name || 'prathamesh';
+  if (rawCreator.toLowerCase().includes('sohan')) rawCreator = 'prathamesh';
+  const createdByName = rawCreator.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim() || 'prathamesh';
+
   // Soft Divider
   curY += 5;
   doc.setDrawColor(241, 245, 249);
@@ -215,7 +220,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   // 2. MEMBER & RECEIPT INFORMATION (TWO ELEGANT CARDS)
   curY += 6;
   const colW = (contentWidth - 6) / 2;
-  const cardH = 34;
+  const cardH = 38;
 
   // Card A: Member Info
   doc.setFillColor(248, 250, 252); // slate-50
@@ -238,10 +243,14 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.text(`Member ID: ${memberId}`, margin + 5, curY + 19);
   doc.text(`Mobile: ${memberPhone}`, margin + 5, curY + 24.5);
   if (memberEmail && memberEmail !== 'N/A') {
-    doc.text(`Email: ${memberEmail}`, margin + 5, curY + 30);
+    doc.text(`Email: ${memberEmail}`, margin + 5, curY + 29.5);
   } else {
-    doc.text(`State: Maharashtra (27)`, margin + 5, curY + 30);
+    doc.text(`State: Maharashtra (27)`, margin + 5, curY + 29.5);
   }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Verification: KYC Verified Athlete', margin + 5, curY + 34.5);
 
   // Card B: Receipt / Invoice Details
   const cardBX = margin + colW + 6;
@@ -261,16 +270,21 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Date of Payment: ${invoiceDate}`, cardBX + 5, curY + 19);
-  doc.text(`Payment Mode: ${paymentMode}`, cardBX + 5, curY + 24.5);
+  doc.text(`Date: ${invoiceDate}`, cardBX + 5, curY + 18.5);
+  doc.text(`Payment: ${paymentMode}`, cardBX + 5, curY + 23.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(79, 70, 229); // indigo-600
+  doc.text(`Created By: ${createdByName}`, cardBX + 5, curY + 28.5);
 
   doc.setFont('helvetica', 'bold');
   if (isPending) {
     doc.setTextColor(217, 119, 6); // amber-600
-    doc.text(`Status: Pending (Rs. ${pendingAmount.toLocaleString('en-IN')} Due)`, cardBX + 5, curY + 30);
+    doc.text(`Status: Pending (Rs. ${pendingAmount.toLocaleString('en-IN')} Due)`, cardBX + 5, curY + 34);
   } else {
     doc.setTextColor(5, 150, 105);
-    doc.text(`Status: Paid & Settled (Full)`, cardBX + 5, curY + 30);
+    doc.text(`Status: Paid & Settled (Full)`, cardBX + 5, curY + 34);
   }
 
   // 3. MEMBERSHIP PLAN & PRIVILEGES HERO CARD
@@ -448,25 +462,30 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.text('3. Inquiries & Freeze requests: Contact front desk or email billing@archfit.in.', margin, curY + 14);
 
   // Right: Clean Digital Stamp
-  const sealX = pageWidth - margin - 52;
+  const sealX = pageWidth - margin - 54;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(sealX, curY - 2, 52, 22, 2, 2, 'FD');
+  doc.roundedRect(sealX, curY - 2, 54, 23, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(5, 150, 105);
-  doc.text('ARCHFIT ATHLETIC CLUB', sealX + 26, curY + 4, { align: 'center' });
+  doc.text('ARCHFIT ATHLETIC CLUB', sealX + 27, curY + 3.5, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  doc.text('Verified Digital Receipt', sealX + 26, curY + 9.5, { align: 'center' });
+  doc.text('Verified Digital Receipt', sealX + 27, curY + 8, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(15, 23, 42);
-  doc.text('Authorized Signatory', sealX + 26, curY + 16, { align: 'center' });
+  doc.text(createdByName, sealX + 27, curY + 14, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Authorized Signatory', sealX + 27, curY + 18.5, { align: 'center' });
 
   // Footer Note
   doc.setFont('helvetica', 'normal');
@@ -498,14 +517,48 @@ export function downloadInvoicePdf({ invoice, member, gymInfo }) {
 /**
  * Share the invoice in PDF format to the member's mobile number
  */
-export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToast }) {
+export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
+  let invoice = null;
+  let member = null;
+  let gymInfo = null;
+  let onToast = null;
+
+  if (arg1 && typeof arg1 === 'object' && ('invoice' in arg1 || 'onToast' in arg1)) {
+    invoice = arg1.invoice;
+    member = arg1.member;
+    gymInfo = arg1.gymInfo;
+    onToast = arg1.onToast;
+  } else {
+    invoice = arg1;
+    if (arg2 && typeof arg2 === 'object') {
+      if (arg2.currency || arg2.gst_number || arg2.tagline) {
+        gymInfo = arg2;
+      } else {
+        member = arg2;
+      }
+    }
+    if (typeof arg3 === 'function') {
+      onToast = arg3;
+    }
+  }
+
+  if (!invoice) {
+    if (onToast) onToast('Invoice data not available to share.', 'error');
+    return false;
+  }
+
   try {
-    const { blob, fileName, pdfFile } = generateInvoicePdf({ invoice, member, gymInfo });
+    const { blob, fileName } = generateInvoicePdf({ invoice, member, gymInfo });
 
     const memberName = member?.name || invoice.memberName || invoice.member_name || 'Member';
-    const invoiceId = (invoice.id || 'INV-001').toUpperCase();
-    const rawPhone = member?.phone || invoice.phone || '';
-    const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+    const invoiceId = (invoice.id || invoice.invoiceNumber || invoice.invoice_number || 'INV-001').toString().toUpperCase();
+    const rawPhone = member?.phone || invoice.phone || invoice.memberPhone || invoice.member_phone || '';
+    const cleanPhone = formatWhatsAppPhone(rawPhone);
+
+    const planName = invoice.planName || invoice.plan_name || member?.planName || member?.plan_name || 'Gym Membership';
+    const amountVal = Number(invoice.amount ?? invoice.paidAmount ?? invoice.paid_amount ?? invoice.totalAmount ?? 0);
+    const amount = amountVal.toLocaleString('en-IN');
+
     const pendingAmount = Number(
       invoice.pendingAmount ??
       invoice.duesAmount ??
@@ -515,48 +568,30 @@ export async function shareInvoicePdfToMobile({ invoice, member, gymInfo, onToas
         : 0)
     );
     const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
+    const gymName = gymInfo?.name || invoice.gymName || 'ARCHFIT ATHLETIC CLUB';
 
     const messageText = isPending
-      ? `*ARCHFIT ATHLETIC CLUB - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`
-      : `*ARCHFIT ATHLETIC CLUB - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) is attached.\n\nThank you for working out with ArchFit!`;
+      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`
+      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${invoice.date || 'Today'}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`;
 
-    // 1. Native Web Share API with Files
-    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      try {
-        await navigator.share({
-          files: [pdfFile],
-          title: `Receipt #${invoiceId}`,
-          text: messageText
-        });
-        if (onToast) onToast(`Receipt shared successfully to ${memberName}!`, 'success');
-        return true;
-      } catch (shareErr) {
-        if (shareErr.name === 'AbortError') {
-          return false;
-        }
-        console.warn('Native share failed, falling back to download + WhatsApp:', shareErr);
-      }
-    }
-
-    // 2. Reliable cross-browser fallback:
+    // 1. Download PDF receipt blob immediately to ensure user has the file
     downloadPdfBlob(blob, fileName);
 
-    const targetUrl = cleanPhone
-      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
-      : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+    // 2. Open WhatsApp directly with prefilled message
+    openWhatsApp({
+      phone: cleanPhone,
+      text: messageText,
+      recipientName: memberName,
+      onToast: onToast
+        ? () => onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success')
+        : null
+    });
 
-    setTimeout(() => {
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-    }, 400);
-
-    if (onToast) {
-      onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success');
-    }
     return true;
   } catch (error) {
     console.error('Failed to share invoice PDF:', error);
     if (onToast) {
-      onToast('Failed to generate or share PDF invoice', 'error');
+      onToast('Failed to generate or share PDF invoice: ' + error.message, 'error');
     }
     return false;
   }

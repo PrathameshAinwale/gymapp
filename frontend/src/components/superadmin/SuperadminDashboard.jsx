@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { PulseFitLogo } from '../common/PulseFitLogo';
 import {
   Building2,
@@ -211,8 +212,13 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
       return;
     }
 
-    if (!isValidEmail(newGymForm.owner_email)) {
-      alert('Please enter a valid owner login email address.');
+    if (!newGymForm.owner_phone || !isValidPhone(newGymForm.owner_phone)) {
+      alert('Please enter a valid 10-digit owner mobile number.');
+      return;
+    }
+
+    if (newGymForm.owner_email && !isValidEmail(newGymForm.owner_email)) {
+      alert('Please enter a valid owner email address.');
       return;
     }
 
@@ -369,11 +375,15 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
   return (
     <div className="min-h-screen bg-[#06080f] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
       {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-black text-xs shadow-2xl shadow-cyan-500/30 flex items-center gap-2 animate-fadeIn">
+      {toastMessage && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{ zIndex: 999999 }}
+          className="fixed top-5 right-5 z-[999999] px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-black text-xs shadow-2xl shadow-cyan-500/30 flex items-center gap-2 animate-fadeIn"
+        >
           <Sparkles className="w-4 h-4" />
           <span>{toastMessage}</span>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Top Superadmin Navigation Header */}
@@ -956,10 +966,11 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Login Email *</label>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Email (Optional)</label>
                       <input
                         type="email"
                         value={editGymForm.owner_email}
+                        placeholder="owner@example.com (optional)"
                         onChange={(e) => setEditGymForm({ ...editGymForm, owner_email: e.target.value })}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
                       />
@@ -1166,9 +1177,10 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Phone</label>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Phone Number *</label>
                       <input
                         type="tel"
+                        required
                         placeholder="e.g. 9820154321"
                         value={newGymForm.owner_phone}
                         onChange={(e) => setNewGymForm({ ...newGymForm, owner_phone: sanitizePhone(e.target.value) })}
@@ -1179,11 +1191,10 @@ export const SuperadminDashboard = ({ superUser, onLogout }) => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Email *</label>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">Owner Email (Optional)</label>
                       <input
                         type="email"
-                        required
-                        placeholder="owner@gym.com"
+                        placeholder="owner@gym.com (optional)"
                         value={newGymForm.owner_email}
                         onChange={(e) => setNewGymForm({ ...newGymForm, owner_email: e.target.value })}
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"

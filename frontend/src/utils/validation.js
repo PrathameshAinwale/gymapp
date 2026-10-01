@@ -207,7 +207,7 @@ export const isValidEmail = (email) => {
 export const isValidPhone = (phone) => {
   if (!phone) return false;
   const digits = String(phone).replace(/\D/g, '');
-  return digits.length === 10 && /^[6-9]\d{9}$/.test(digits);
+  return digits.length === 10 && /^\d{10}$/.test(digits);
 };
 
 /**

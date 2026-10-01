@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RevenueBillingController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\WhatsAppController;
+use App\Http\Controllers\Api\ShiftController;
 
 // API Health Check with live DB connectivity check
 Route::get('/health', function () {
@@ -363,6 +364,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/staff', [StaffController::class, 'store']);
     Route::put('/staff/{id}', [StaffController::class, 'update']);
     Route::delete('/staff/{id}', [StaffController::class, 'destroy']);
+
+    // Staff Shift Management & Multi-Slot Configurations
+    Route::apiResource('shifts', ShiftController::class);
 
     // PT Sessions (active packages + OTP-verified session logging)
     Route::get('/pt-sessions', [PtSessionController::class, 'index']);

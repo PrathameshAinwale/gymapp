@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { AddMemberModal } from './AddMemberModal';
+import { MemberProfileView } from './MemberProfileView';
 import {
   CustomizeStatCardsModal,
   ALL_STAT_CARD_DEFINITIONS,
@@ -17,8 +18,10 @@ import {
   isValidPhone,
   isValidEmail
 } from '../../utils/validation';
+import { getWhatsAppUrl } from '../../utils/whatsapp';
 import {
   Users,
+  Search,
   AlertTriangle,
   IndianRupee,
   TrendingUp,
@@ -53,7 +56,9 @@ import {
   BarChart3,
   RotateCw,
   CalendarDays,
-  User
+  User,
+  Phone,
+  Mail
 } from 'lucide-react';
 import {
   AreaChart,
@@ -87,9 +92,36 @@ const StaffAvatar = ({ src, alt, className = "w-8 h-8 rounded-full", iconClassNa
   );
 };
 
-export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
+export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProfile }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCustomizeCardsOpen, setIsCustomizeCardsOpen] = useState(false);
+
+  // Universal Member Search Bar State
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedProfileMember, setSelectedProfileMember] = useState(null);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return String(dateStr).split('T')[0];
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) {
+      return String(dateStr);
+    }
+  };
 
   const {
     gymInfo,
@@ -120,6 +152,75 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
   }, [fetchAllFromBackend]);
 
   const { currentUser, currentRole, canAccessFinancials } = useAuth();
+
+  // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, ID
+  const searchResults = useMemo(() => {
+    if (!memberSearchQuery || !memberSearchQuery.trim()) return [];
+    const term = memberSearchQuery.toLowerCase().trim();
+    const termDigits = term.replace(/\D/g, '');
+
+    return (members || []).filter((m) => {
+      // 1. Name match
+      if ((m.name || '').toLowerCase().includes(term)) return true;
+
+      // 2. Mobile / Phone match
+      const mPhone = String(m.phone || '');
+      const mPhoneDigits = mPhone.replace(/\D/g, '');
+      if (mPhone.toLowerCase().includes(term)) return true;
+      if (termDigits.length >= 2 && mPhoneDigits.includes(termDigits)) return true;
+
+      // 3. Email match
+      if ((m.email || '').toLowerCase().includes(term)) return true;
+
+      // 4. Member ID / Code
+      if ((m.id || '').toLowerCase().includes(term)) return true;
+      if ((m.memberId || '').toLowerCase().includes(term)) return true;
+
+      // 5. Plan Name
+      if ((m.planName || '').toLowerCase().includes(term)) return true;
+
+      // 6. Dates: Joining Date, Expiry Date, Created Date, Due Date
+      const dateValues = [
+        m.joinDate,
+        m.join_date,
+        m.joiningDate,
+        m.joining_date,
+        m.createdAt,
+        m.created_at,
+        m.expiryDate,
+        m.expiry_date,
+        m.dueDate,
+        m.due_date
+      ];
+
+      for (const d of dateValues) {
+        if (!d) continue;
+        const dStr = String(d).toLowerCase();
+        if (dStr.includes(term)) return true;
+
+        try {
+          const parsed = new Date(d);
+          if (!isNaN(parsed.getTime())) {
+            const formattedGB = parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toLowerCase();
+            const monthFull = parsed.toLocaleDateString('en-US', { month: 'long' }).toLowerCase();
+            const monthShort = parsed.toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
+            if (formattedGB.includes(term) || monthFull.includes(term) || monthShort.includes(term)) {
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 7. Status match
+      const effStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : m.status;
+      if (String(effStatus || '').toLowerCase().includes(term)) return true;
+
+      // 8. Coach Name
+      if ((m.trainerName || m.trainer || '').toLowerCase().includes(term)) return true;
+
+      return false;
+    }).slice(0, 8);
+  }, [members, memberSearchQuery, calculateMemberStatus]);
 
   // Segment tab state for Priority Action Hub (reduces page clutter)
   const [activeActionTab, setActiveActionTab] = useState('leads'); // 'leads' | 'renewals'
@@ -399,6 +500,37 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
   const netCashBalance = (totalRevenue || gymInflowSum) - gymExpensesSum;
 
+  const resolveCreatorName = (name) => {
+    if (!name) return currentUser?.name || 'prathamesh';
+    const str = String(name).trim();
+    if (str.toLowerCase().includes('sohan')) return currentUser?.name || 'prathamesh';
+    const cleaned = str.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim();
+    return cleaned || currentUser?.name || 'prathamesh';
+  };
+
+  // Recent invoices audit log with creator details
+  const recentInvoicesAudit = useMemo(() => {
+    if (ownerStats?.recentInvoices && ownerStats.recentInvoices.length > 0) {
+      return ownerStats.recentInvoices.map((inv) => ({
+        ...inv,
+        createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name),
+        creatorRole: inv.creatorRole || 'Owner'
+      }));
+    }
+    return (invoices || []).slice(0, 6).map((inv) => ({
+      id: inv.invoiceNumber || inv.invoice_number || inv.id || 'INV',
+      numericId: inv.id,
+      memberName: inv.member_name || inv.memberName || inv.name || 'Member',
+      memberPhone: inv.memberPhone || inv.phone || '',
+      planName: inv.plan_name || inv.planName || inv.title || 'Gym Membership',
+      amount: Number(inv.amount || inv.total_amount || 0),
+      status: inv.status || 'Paid',
+      date: inv.date || inv.created_at || new Date().toISOString().split('T')[0],
+      createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name),
+      creatorRole: inv.creatorRole || 'Owner'
+    }));
+  }, [ownerStats, invoices, currentUser?.name]);
+
   // Dynamic values lookup map for all available stat cards
   const cardValuesMap = {
     active_members: activeMembersCount,
@@ -483,6 +615,153 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* UNIVERSAL DASHBOARD SEARCH BAR (Search by Name, Date, Mobile, Email, Plan, etc.) */}
+      <div className="relative w-full" ref={searchContainerRef}>
+        <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={memberSearchQuery}
+                onFocus={() => setIsSearchFocused(true)}
+                onChange={(e) => {
+                  setMemberSearchQuery(e.target.value);
+                  setIsSearchFocused(true);
+                }}
+                placeholder="Search by Name, Mobile, Email, Date, Plan..."
+                className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none"
+              />
+            </div>
+
+            {memberSearchQuery ? (
+              <button
+                type="button"
+                onClick={() => setMemberSearchQuery('')}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                title="Clear Search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1 text-[9px] text-slate-400 font-medium shrink-0">
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Name</span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Mobile</span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Email</span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Date</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Live Search Results Dropdown */}
+        {isSearchFocused && memberSearchQuery.trim().length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[400px] flex flex-col">
+            <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 text-[11px]">
+                Found {searchResults.length} member{searchResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchFocused(false);
+                  if (onOpenMemberProfile && searchResults[0]) {
+                    onOpenMemberProfile(searchResults[0].id);
+                  } else {
+                    setActiveTab?.('member-profile');
+                  }
+                }}
+                className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <span>Open Full Profile Page</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+              {searchResults.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 space-y-1">
+                  <p className="font-bold text-xs text-slate-700">No matching members found</p>
+                  <p className="text-[11px] text-slate-400">
+                    Try searching by full name, 10-digit mobile number, email, or date (e.g. 2026-10-01, Oct).
+                  </p>
+                </div>
+              ) : (
+                searchResults.map((m) => {
+                  const mStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : m.status;
+                  const mJoinDate = m.joinDate || m.join_date || m.joiningDate || m.joining_date || m.createdAt;
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => {
+                        setIsSearchFocused(false);
+                        setMemberSearchQuery('');
+                        if (onOpenMemberProfile) {
+                          onOpenMemberProfile(m.id);
+                        } else {
+                          setActiveTab?.('member-profile');
+                        }
+                      }}
+                      className="p-3 hover:bg-emerald-50/70 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {m.avatar ? (
+                          <img
+                            src={m.avatar}
+                            alt={m.name}
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-emerald-300"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center border border-emerald-200 shrink-0 group-hover:scale-105 transition-transform">
+                            {m.name?.charAt(0) || 'M'}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 truncate">
+                              {m.name}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                                mStatus === 'Active'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : mStatus === 'Expiring Soon'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                            >
+                              {mStatus}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
+                            {m.phone && <span className="font-medium text-slate-700 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" />{m.phone}</span>}
+                            {m.email && <span className="text-slate-400 truncate max-w-[140px] sm:max-w-[200px]">{m.email}</span>}
+                            <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">
+                              {m.planName || 'Plan'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Joined / Expiry</span>
+                        <span className="text-[11px] font-semibold text-slate-700 block">
+                          {formatDisplayDate(mJoinDate)} → {formatDisplayDate(m.expiryDate)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2. CUSTOMIZABLE STAT CARDS SECTION */}
@@ -1153,6 +1432,22 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
                     )}
                   </button>
                 )}
+                {canAccessFinancials && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveActionTab('invoices')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeActionTab === 'invoices'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Recent Invoices</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      {recentInvoicesAudit.length}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1199,11 +1494,12 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
                           <a
-                            href={`https://wa.me/${(lead.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                              `Hi ${lead.name}, greetings from Pulse Fitness! Following up on your enquiry for ${lead.interestedPlan}. Would you like to book a complimentary trial session this week?`
-                            )}`}
+                            href={getWhatsAppUrl(
+                              lead.phone,
+                              `Hi ${lead.name}, greetings from ${gymName || 'our gym'}! Following up on your enquiry for ${lead.interestedPlan}. Would you like to book a complimentary trial session this week?`
+                            )}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="flex-1 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
                           >
                             <MessageCircle className="w-3 h-3" />
@@ -1269,11 +1565,12 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
                           <a
-                            href={`https://wa.me/${(m.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                              `Hi ${m.name}, this is PULSE FIT Gym. Your ${m.planName} membership is up for renewal. Let us know if you'd like us to reserve your spot!`
-                            )}`}
+                            href={getWhatsAppUrl(
+                              m.phone,
+                              `Hi ${m.name}, this is ${gymName || 'our gym'}. Your ${m.planName} membership is up for renewal. Let us know if you'd like us to reserve your spot!`
+                            )}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="flex-1 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
                           >
                             <MessageCircle className="w-3 h-3" />
@@ -1350,6 +1647,91 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
                     className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
                   >
                     Open Staff Advance Pay Manager ({advanceRequests.length}) →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: RECENT INVOICES & CREATIONS */}
+            {canAccessFinancials && activeActionTab === 'invoices' && (
+              <div className="pt-4 space-y-3">
+                {recentInvoicesAudit.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-slate-400">
+                    No billing invoices generated yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {recentInvoicesAudit.slice(0, 4).map((inv) => (
+                      <div
+                        key={inv.id || inv.numericId}
+                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 hover:bg-white transition-all flex flex-col justify-between space-y-2.5 text-xs shadow-2xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-slate-400">
+                              #{inv.id}
+                            </span>
+                            <div className="font-bold text-slate-900 text-sm">{inv.memberName}</div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              {inv.planName}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-black text-slate-900 font-mono block">
+                              ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                            </span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              (inv.status || '').toLowerCase() === 'paid'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {inv.status || 'Paid'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* CREATOR AUDIT BADGE */}
+                        <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-100 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[9px] shrink-0">
+                              {(inv.createdByName || 'S').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[9px] text-emerald-800 uppercase tracking-wider block font-semibold leading-tight">
+                                Billed / Created By
+                              </span>
+                              <span className="font-bold text-emerald-950 text-xs truncate block">
+                                {inv.createdByName || 'Staff / Owner'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white text-emerald-800 border border-emerald-200 shrink-0">
+                            {inv.creatorRole || 'Staff'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px] text-slate-400">
+                          <span>Date: {inv.date}</span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('invoices')}
+                            className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <span>Open Invoices</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('invoices')}
+                    className="text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                  >
+                    Open All Invoices & Billing Records ({invoices.length}) →
                   </button>
                 </div>
               </div>
@@ -1525,6 +1907,105 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
 
         </div>
       </div>
+
+      {/* 6. RECENT INVOICES & BILL CREATION AUDIT LOG */}
+      {canAccessFinancials && (
+        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                  Recent Invoices & Staff Creation Audit
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Audit trail displaying newly generated member invoices and the staff or owner who billed them
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                {invoices.length} Total Records
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('invoices')}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+              >
+                <span>View All Invoices</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {recentInvoicesAudit.length === 0 ? (
+            <div className="text-center py-8 text-xs text-slate-400">
+              No billing invoices generated yet. Invoices created during member registration or top-ups will display creator details here.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="pb-2.5 font-semibold">Invoice ID</th>
+                    <th className="pb-2.5 font-semibold">Member</th>
+                    <th className="pb-2.5 font-semibold">Plan / Service</th>
+                    <th className="pb-2.5 font-semibold">Amount</th>
+                    <th className="pb-2.5 font-semibold">Status</th>
+                    <th className="pb-2.5 font-semibold">Billed / Created By</th>
+                    <th className="pb-2.5 font-semibold text-right">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {recentInvoicesAudit.map((inv) => (
+                    <tr key={inv.id || inv.numericId} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 font-mono font-bold text-slate-900">
+                        #{inv.id}
+                      </td>
+                      <td className="py-3">
+                        <div className="font-bold text-slate-800">{inv.memberName}</div>
+                        {inv.memberPhone && (
+                          <div className="text-[11px] text-slate-400">{inv.memberPhone}</div>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-600">
+                        {inv.planName}
+                      </td>
+                      <td className="py-3 font-mono font-bold text-slate-900">
+                        ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          (inv.status || '').toLowerCase() === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {inv.status || 'Paid'}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px]">
+                          <User className="w-3 h-3 text-emerald-700 shrink-0" />
+                          <span className="font-bold">{inv.createdByName || 'Staff / Owner'}</span>
+                          <span className="text-[9px] uppercase font-bold text-emerald-600 bg-white px-1.5 py-0.2 rounded border border-emerald-100">
+                            {inv.creatorRole || 'Staff'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 text-right text-slate-500 font-mono text-[11px]">
+                        {inv.date}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CUSTOMIZE STAT CARDS MODAL */}
       <CustomizeStatCardsModal
@@ -1719,6 +2200,21 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember }) => {
       <AddMemberModal
         isOpen={isAddMemberOpen}
         onClose={() => setIsAddMemberOpen(false)}
+      />
+
+      {/* Comprehensive Member Profile View Modal */}
+      <MemberProfileView
+        member={selectedProfileMember}
+        isOpen={!!selectedProfileMember}
+        onClose={() => setSelectedProfileMember(null)}
+        onRenewMember={(m) => {
+          setSelectedProfileMember(null);
+          setActiveTab?.('members');
+        }}
+        onEditMember={(m) => {
+          setSelectedProfileMember(null);
+          setActiveTab?.('members');
+        }}
       />
 
     </div>

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import { RecordPaymentModal } from './RecordPaymentModal';
+import { PayDueModal } from './PayDueModal';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import {
   Search,
@@ -51,6 +52,14 @@ export const InvoicesPage = () => {
   } = useGymData();
   const { currentUser } = useAuth();
 
+  const resolveCreatorName = (name) => {
+    if (!name) return currentUser?.name || 'prathamesh';
+    const str = String(name).trim();
+    if (str.toLowerCase().includes('sohan')) return currentUser?.name || 'prathamesh';
+    const cleaned = str.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim();
+    return cleaned || currentUser?.name || 'prathamesh';
+  };
+
   useEffect(() => {
     fetchInvoices?.();
     fetchMembers?.();
@@ -73,6 +82,7 @@ export const InvoicesPage = () => {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [pdfGeneratedData, setPdfGeneratedData] = useState(null);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [payingDueMember, setPayingDueMember] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
   // Active filters count
@@ -409,7 +419,9 @@ export const InvoicesPage = () => {
           matchingInvoices.some(
             (inv) =>
               (inv.id && inv.id.toLowerCase().includes(term)) ||
-              (inv.planName && inv.planName.toLowerCase().includes(term))
+              (inv.planName && inv.planName.toLowerCase().includes(term)) ||
+              (inv.createdByName && inv.createdByName.toLowerCase().includes(term)) ||
+              (inv.created_by_name && inv.created_by_name.toLowerCase().includes(term))
           );
 
         if (!matchesSearch || matchingInvoices.length === 0) return null;
@@ -455,6 +467,45 @@ export const InvoicesPage = () => {
       .filter((i) => (i.status || '').toLowerCase() !== 'paid')
       .reduce((acc, i) => acc + (Number(i.duesAmount || i.dues_amount || i.amount) || 0), 0);
   }, [currentDisplayedInvoices, activeFiltersCount, searchTerm, totalPendingAmount]);
+
+  const displayedAvgAmount = useMemo(() => {
+    if (currentDisplayedInvoices.length === 0) return 0;
+    return Math.round(displayedRevenue / currentDisplayedInvoices.length);
+  }, [displayedRevenue, currentDisplayedInvoices.length]);
+
+  const filterSummaryTitle = useMemo(() => {
+    const parts = [];
+    if (paymentMethodFilter && paymentMethodFilter !== 'ALL') {
+      parts.push(`${paymentMethodFilter} Payments`);
+    }
+    if (statusFilter && statusFilter !== 'ALL') {
+      parts.push(statusFilter === 'paid' ? 'Paid Invoices' : 'Pending Invoices');
+    }
+    if (selectedMonth) {
+      parts.push(`Month: ${selectedMonth}`);
+    } else if (startDate || endDate) {
+      parts.push(`Range: ${startDate || 'Any'} → ${endDate || 'Any'}`);
+    } else if (activeFilter && activeFilter !== 'ALL') {
+      const presetMap = {
+        TODAY: "Today's",
+        LAST_7_DAYS: "Last 7 Days",
+        LAST_30_DAYS: "Last 30 Days",
+        LAST_90_DAYS: "Last 90 Days",
+        THIS_YEAR: "This Year's",
+        PAID: "Paid Invoices",
+        PENDING: "Pending Dues"
+      };
+      parts.push(presetMap[activeFilter] || activeFilter);
+    }
+    if (searchTerm) {
+      parts.push(`Search: "${searchTerm}"`);
+    }
+
+    if (parts.length === 0) {
+      return 'All Billed Invoices';
+    }
+    return parts.join(' • ');
+  }, [paymentMethodFilter, statusFilter, selectedMonth, startDate, endDate, activeFilter, searchTerm]);
 
   // Autocomplete suggestions in search bar dropdown
   const searchSuggestions = useMemo(() => {
@@ -579,7 +630,7 @@ export const InvoicesPage = () => {
               className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
             >
               <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Record Payment</span>
+              <span>Create Invoice</span>
             </button>
           </div>
         </div>
@@ -858,6 +909,71 @@ export const InvoicesPage = () => {
         )}
       </div>
 
+      {/* TOTAL TAB: Live Filtered Inflow, Total Number of Fields, and Metrics for the Selected Filter */}
+      <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-white border border-emerald-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
+                  {filterSummaryTitle} Total Tab
+                </span>
+                {activeFiltersCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-2xs">
+                    {paymentMethodFilter !== 'ALL' ? `${paymentMethodFilter} Filter Active` : `${activeFiltersCount} Filters Active`}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                    All Invoices
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  ₹{displayedRevenue.toLocaleString('en-IN')}
+                </span>
+                <span className="text-xs text-slate-500 font-semibold">
+                  Total Collections ({((totalBilledRevenue > 0 ? (displayedRevenue / totalBilledRevenue) * 100 : 100)).toFixed(1)}% of Billed)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Metric Summary Boxes */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 shrink-0">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
+                Total Fields / Records
+              </span>
+              <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
+                {currentDisplayedInvoices.length} <span className="text-[10px] font-medium text-slate-500">Invoices</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
+                Average Payment
+              </span>
+              <div className="text-sm sm:text-base font-black text-emerald-700 mt-0.5">
+                ₹{displayedAvgAmount.toLocaleString('en-IN')}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
+                Billed Members
+              </span>
+              <div className="text-sm sm:text-base font-black text-slate-800 mt-0.5">
+                {filteredMembers.length} <span className="text-[10px] font-medium text-slate-500">Members</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Advanced Filter Modal (Portalled to document.body, matching ReportsManager) */}
       {showFilterModal && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
@@ -1035,6 +1151,37 @@ export const InvoicesPage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Live Filter Total Tab in Modal */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Live Total Tab ({filterSummaryTitle})</span>
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                    {currentDisplayedInvoices.length} {currentDisplayedInvoices.length === 1 ? 'Record' : 'Records'} Matched
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Total Filtered Amount
+                    </span>
+                    <span className="text-lg font-black text-slate-900">
+                      ₹{displayedRevenue.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Average Ticket Value
+                    </span>
+                    <span className="text-sm font-black text-emerald-800">
+                      ₹{displayedAvgAmount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer */}
@@ -1051,7 +1198,7 @@ export const InvoicesPage = () => {
                 onClick={() => setShowFilterModal(false)}
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
               >
-                Apply Filters ({filteredMembers.length} members)
+                Apply Filters (₹{displayedRevenue.toLocaleString('en-IN')} • {currentDisplayedInvoices.length} Invoices)
               </button>
             </div>
           </div>
@@ -1083,7 +1230,7 @@ export const InvoicesPage = () => {
                   ? "No billing records match your search or date filter. Try clearing filters or record a new member fee payment."
                   : "Track member billing transactions, issue GST invoices, and record fee collections."
               }
-              actionText="Record Fee Payment"
+              actionText="Create Bill"
               onAction={() => setIsRecordPaymentOpen(true)}
               secondaryActionText={searchTerm || activeFilter !== 'ALL' ? "Clear Filters" : undefined}
               onSecondaryAction={searchTerm || activeFilter !== 'ALL' ? () => { setSearchTerm(''); setActiveFilter('ALL'); } : undefined}
@@ -1210,12 +1357,24 @@ export const InvoicesPage = () => {
                               <th className="py-2 px-3">Item / Plan Details</th>
                               <th className="py-2 px-3">Payment Mode</th>
                               <th className="py-2 px-3">Status</th>
+                              <th className="py-2 px-3">Billed / Created By</th>
                               <th className="py-2 px-3 text-right">Amount</th>
                               <th className="py-2 px-3 text-center">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {invoicesList.map((inv) => (
+                            {invoicesList.map((inv) => {
+                              const invPending = Number(
+                                inv.pendingAmount ??
+                                inv.duesAmount ??
+                                inv.dues_amount ??
+                                ((inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial'
+                                  ? (member?.duesAmount || 0)
+                                  : 0)
+                              );
+                              const isPendingInv = (inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial' || invPending > 0;
+
+                              return (
                               <tr
                                 key={inv.id}
                                 className="hover:bg-slate-50/80 transition-colors"
@@ -1257,57 +1416,46 @@ export const InvoicesPage = () => {
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
-                                  {(() => {
-                                    const invPending = Number(
-                                      inv.pendingAmount ??
-                                      inv.duesAmount ??
-                                      inv.dues_amount ??
-                                      ((inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial'
-                                        ? (member?.duesAmount || 0)
-                                        : 0)
-                                    );
-                                    const isPendingInv = (inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial' || invPending > 0;
+                                  {isPendingInv ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                      <span>Pending</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                      <span>Paid</span>
+                                    </span>
+                                  )}
+                                </td>
 
-                                    if (isPendingInv) {
-                                      return (
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                          <span>Pending</span>
-                                        </span>
-                                      );
-                                    }
-                                    return (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                                        <span>Paid</span>
+                                <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                                      <User className="w-3 h-3" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-slate-800 text-xs block truncate max-w-[130px]">
+                                        {resolveCreatorName(inv.createdByName || inv.created_by_name)}
                                       </span>
-                                    );
-                                  })()}
+                                      <span className="text-[9px] text-slate-400 capitalize block leading-none">
+                                        {inv.creatorRole || 'Owner'}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 text-right whitespace-nowrap">
-                                  {(() => {
-                                    const invPending = Number(
-                                      inv.pendingAmount ??
-                                      inv.duesAmount ??
-                                      inv.dues_amount ??
-                                      ((inv.status || '').toLowerCase() === 'pending' || (inv.status || '').toLowerCase() === 'partial'
-                                        ? (member?.duesAmount || 0)
-                                        : 0)
-                                    );
-                                    return (
-                                      <div>
-                                        <span className="font-bold text-slate-900 text-xs sm:text-sm block">
-                                          ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
-                                        </span>
-                                        {invPending > 0 && (
-                                          <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
-                                            ₹{invPending.toLocaleString('en-IN')} Pending
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
+                                  <div>
+                                    <span className="font-bold text-slate-900 text-xs sm:text-sm block">
+                                      ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                                    </span>
+                                    {invPending > 0 && (
+                                      <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                                        ₹{invPending.toLocaleString('en-IN')} Pending
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
 
                                 <td className="py-2 sm:py-2.5 px-3 text-center whitespace-nowrap">
@@ -1344,10 +1492,34 @@ export const InvoicesPage = () => {
                                       <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                       <span>Send PDF</span>
                                     </button>
+
+                                    {/* 4. PAY REMAINING BALANCE DUE */}
+                                    {invPending > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const target = member || {
+                                            id: inv.memberId || inv.userId || inv.user_id,
+                                            name: inv.memberName,
+                                            phone: inv.memberPhone,
+                                            email: inv.memberEmail,
+                                            planName: inv.planName,
+                                            duesAmount: invPending,
+                                            dueDate: inv.dueDate || inv.due_date
+                                          };
+                                          setPayingDueMember(target);
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1 shadow-2xs"
+                                        title="Pay remaining balance amount"
+                                      >
+                                        <CreditCard className="w-3.5 h-3.5 text-rose-600" />
+                                        <span>Pay Due</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                            );})}
                           </tbody>
                         </table>
                       </div>
@@ -1582,6 +1754,13 @@ export const InvoicesPage = () => {
                       <span className="text-slate-500">Payment Mode:</span>
                       <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI'}</strong>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Created / Billed By:</span>
+                      <strong className="text-slate-800 flex items-center gap-1 font-semibold text-xs">
+                        <User className="w-3 h-3 text-slate-400" />
+                        <span>{resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name)}</span>
+                      </strong>
+                    </div>
                     <div className="flex justify-between pt-1 border-t border-slate-200/60">
                       <span className="text-slate-500">Settlement Status:</span>
                       {(() => {
@@ -1724,7 +1903,9 @@ export const InvoicesPage = () => {
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Digitally Verified</span>
                     </div>
-                    <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
+                    <div className="font-bold text-slate-800 text-xs mt-0.5">
+                      {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name)}
+                    </div>
                     <div className="text-[10px] text-slate-400">ArchFit Athletic Club</div>
                   </div>
                 </div>
@@ -1759,6 +1940,13 @@ export const InvoicesPage = () => {
       <RecordPaymentModal
         isOpen={isRecordPaymentOpen}
         onClose={() => setIsRecordPaymentOpen(false)}
+      />
+
+      {/* PAY REMAINING BALANCE MODAL */}
+      <PayDueModal
+        isOpen={!!payingDueMember}
+        onClose={() => setPayingDueMember(null)}
+        member={payingDueMember}
       />
 
     </div>

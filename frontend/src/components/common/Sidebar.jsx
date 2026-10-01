@@ -36,14 +36,15 @@ import {
   CalendarDays,
   ChevronDown,
   Star,
-  MessageSquare
+  MessageSquare,
+  Clock
 } from 'lucide-react';
 
 export const getNavSectionsForSuperadmin = () => [
   {
     title: 'Operations & Schedule',
     items: [
-      { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'members', label: 'Member Directory', icon: Users },
       { id: 'classes', label: 'Classes & Batches', icon: Calendar },
       { id: 'pt-sessions', label: 'PT Sessions Tracker', icon: Dumbbell },
@@ -63,6 +64,7 @@ export const getNavSectionsForSuperadmin = () => [
     title: 'Staff & Payroll',
     items: [
       { id: 'staff-accounts', label: 'Create Account / Staff', icon: UserPlus },
+      { id: 'shifts', label: 'Shift Timings & Slots', icon: Clock },
       { id: 'leaves', label: 'Leave Management', icon: CalendarDays },
       { id: 'advance-pay', label: 'Advance Pay Requests', icon: Coins },
       { id: 'payroll', label: 'Employee Payroll', icon: Wallet },
@@ -96,7 +98,7 @@ export const getNavSectionsForManager = () => [
   {
     title: 'Operations',
     items: [
-      { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'whatsapp-automation', label: 'WhatsApp & Templates', icon: MessageSquare },
       { id: 'analytics', label: 'Gym Analytics', icon: BarChart3 },
       { id: 'members', label: 'Member Directory', icon: Users },
@@ -173,7 +175,7 @@ export const getNavSectionsForRole = (role) => {
   return getNavSectionsForSuperadmin();
 };
 
-export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMobileOpen = () => {} }) => {
+export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMobileOpen = () => { } }) => {
   const { currentUser, currentRole, logout } = useAuth();
   const sections = getNavSectionsForRole(currentRole);
 
@@ -182,7 +184,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
     try {
       const saved = localStorage.getItem('pulsefit_sidebar_sections_v3');
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) { }
     // All sections closed by default
     return {};
   });
@@ -192,7 +194,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
       const next = { ...prev, [title]: !prev[title] };
       try {
         localStorage.setItem('pulsefit_sidebar_sections_v3', JSON.stringify(next));
-      } catch (e) {}
+      } catch (e) { }
       return next;
     });
   };
@@ -218,34 +220,30 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
           setActiveTab(item.id);
           if (isMobile) setIsMobileOpen(false);
         }}
-        className={`w-full flex items-center gap-3 px-3 rounded-xl text-[13px] font-semibold transition-all duration-150 group relative cursor-pointer active:scale-[0.98] ${
-          isMobile ? 'h-12' : 'h-10'
-        } ${
-          isActive
+        className={`w-full flex items-center gap-3 px-3 rounded-xl text-[13px] font-semibold transition-all duration-150 group relative cursor-pointer active:scale-[0.98] ${isMobile ? 'h-12' : 'h-10'
+          } ${isActive
             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-bold shadow-xs'
             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
-        }`}
+          }`}
       >
         {isActive && (
           <span className="absolute left-0.5 top-2.5 bottom-2.5 w-1 bg-emerald-600 rounded-full"></span>
         )}
 
         <Icon
-          className={`w-[18px] h-[18px] shrink-0 transition-colors ${
-            isActive
+          className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive
               ? 'text-emerald-600'
               : 'text-slate-400 group-hover:text-slate-700'
-          }`}
+            }`}
         />
         <span className="truncate whitespace-nowrap">{item.label}</span>
 
         {item.badge && (
           <span
-            className={`shrink-0 ml-auto px-1.5 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider ${
-              isActive
+            className={`shrink-0 ml-auto px-1.5 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider ${isActive
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-            }`}
+              }`}
           >
             {item.badge}
           </span>
@@ -255,7 +253,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   };
 
   const renderNavList = (isMobile = false) => (
-    <div 
+    <div
       className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 pb-8 space-y-2 no-scrollbar"
     >
       {sections.map((sec, idx) => {
@@ -276,9 +274,8 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Active item inside"></span>
                 )}
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${
-                    isOpen ? 'rotate-0' : '-rotate-90'
-                  }`}
+                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'
+                    }`}
                 />
               </div>
             </button>
@@ -308,7 +305,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           {/* Backdrop */}
-          <div 
+          <div
             className="drawer-overlay"
             onClick={() => setIsMobileOpen(false)}
             aria-label="Close menu backdrop"
@@ -342,4 +339,4 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
       )}
     </>
   );
-};
+};

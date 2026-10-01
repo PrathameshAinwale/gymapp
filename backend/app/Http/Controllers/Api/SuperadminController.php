@@ -115,9 +115,9 @@ class SuperadminController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'owner_name' => 'required|string|max:255',
-            'owner_email' => 'required|email|unique:users,email',
+            'owner_phone' => 'required|string|min:7|max:50',
+            'owner_email' => 'nullable|email',
             'owner_password' => 'required|string|min:4',
-            'owner_phone' => 'nullable|string|max:50',
             'gym_name' => 'required|string|max:255',
             'tagline' => 'nullable|string|max:255',
             'gym_address' => 'nullable|string|max:255',
@@ -141,6 +141,9 @@ class SuperadminController extends Controller
             'subscription_expires_at' => 'nullable|date',
             'notes' => 'nullable|string',
             'features' => 'nullable|array',
+        ], [
+            'owner_phone.required' => 'Owner mobile number is mandatory to register gym.',
+            'owner_phone.min' => 'Please enter a valid owner mobile number.',
         ]);
 
         if ($validator->fails()) {
@@ -156,7 +159,7 @@ class SuperadminController extends Controller
             // 1. Create the Gym Owner User account
             $owner = User::create([
                 'name' => $request->owner_name,
-                'email' => $request->owner_email,
+                'email' => !empty($request->owner_email) ? $request->owner_email : null,
                 'password' => Hash::make($request->owner_password),
                 'initial_password' => Hash::make($request->owner_password),
                 'must_change_password' => true,
@@ -355,9 +358,9 @@ class SuperadminController extends Controller
                 $gym->owner->phone = $request->owner_phone;
                 if (!$request->filled('phone')) $gym->phone = $request->owner_phone;
             }
-            if ($request->filled('owner_email')) {
-                $gym->owner->email = $request->owner_email;
-                if (!$request->filled('email')) $gym->email = $request->owner_email;
+            if ($request->has('owner_email')) {
+                $gym->owner->email = !empty($request->owner_email) ? $request->owner_email : null;
+                if (!$request->filled('email')) $gym->email = $gym->owner->email;
             }
             $gym->owner->save();
         }

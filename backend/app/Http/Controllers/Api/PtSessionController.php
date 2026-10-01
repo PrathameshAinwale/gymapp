@@ -203,17 +203,23 @@ class PtSessionController extends Controller
                 $invoiceUserId = User::where('gym_id', $gymId)->where('role', 'member')->value('id') ?? User::first()?->id;
             }
 
+            $authCreator = $request->user() ?: auth('sanctum')->user();
+            $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+            $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('executive', $request->input('trainer_name', $authCreator?->name))));
+
             try {
                 if ($invoiceUserId) {
                     $createdInvoice = Invoice::create([
-                        'gym_id'         => $gymId,
-                        'invoice_number' => $invNo,
-                        'user_id'        => $invoiceUserId,
-                        'plan_id'        => null,
-                        'amount'         => $billedAmount,
-                        'date'           => $startDate,
-                        'payment_method' => $paymentMethod,
-                        'status'         => $duesAmount > 0 ? 'Partial' : 'Paid',
+                        'gym_id'          => $gymId,
+                        'invoice_number'  => $invNo,
+                        'user_id'         => $invoiceUserId,
+                        'plan_id'         => null,
+                        'amount'          => $billedAmount,
+                        'date'            => $startDate,
+                        'payment_method'  => $paymentMethod,
+                        'status'          => $duesAmount > 0 ? 'Partial' : 'Paid',
+                        'created_by'      => $creatorId,
+                        'created_by_name' => $creatorName ?: 'Staff / Trainer',
                     ]);
                 }
             } catch (\Exception $e) {
@@ -223,26 +229,27 @@ class PtSessionController extends Controller
             try {
                 $inflowTitle = "PT Package - {$planTitle}" . ($duesAmount > 0 ? " (Partial - Due: ₹" . number_format($duesAmount, 2) . ")" : "");
                 $createdInflow = RevenueBilling::create([
-                    'gym_id'         => $gymId,
-                    'type'           => 'inflow',
-                    'reference_no'   => $invNo,
-                    'user_id'        => $invoiceUserId,
-                    'member_name'    => $validated['member_name'],
-                    'plan_id'        => null,
-                    'plan_name'      => $planTitle,
-                    'title'          => $inflowTitle,
-                    'category'       => 'Personal Training (PT)',
-                    'vendor'         => null,
-                    'amount'         => $billedAmount,
-                    'date'           => $startDate,
-                    'payment_method' => $paymentMethod,
-                    'status'         => 'Paid',
-                    'notes'          => !empty($validated['notes'])
+                    'gym_id'          => $gymId,
+                    'type'            => 'inflow',
+                    'reference_no'    => $invNo,
+                    'user_id'         => $invoiceUserId,
+                    'member_name'     => $validated['member_name'],
+                    'plan_id'         => null,
+                    'plan_name'       => $planTitle,
+                    'title'           => $inflowTitle,
+                    'category'        => 'Personal Training (PT)',
+                    'vendor'          => null,
+                    'amount'          => $billedAmount,
+                    'date'            => $startDate,
+                    'payment_method'  => $paymentMethod,
+                    'status'          => 'Paid',
+                    'notes'           => !empty($validated['notes'])
                         ? $validated['notes']
                         : ($duesAmount > 0
                             ? "Initial payment of ₹{$billedAmount} received for PT package. Balance due: ₹{$duesAmount}"
                             : "Full PT package fee received for {$validated['member_name']} ({$validated['total_sessions']} sessions with {$validated['trainer_name']})"),
-                    'created_by'     => $request->user()?->id,
+                    'created_by'      => $creatorId,
+                    'created_by_name' => $creatorName ?: 'Staff / Trainer',
                 ]);
             } catch (\Exception $e) {
                 \Log::warning('PT Package Inflow creation note: ' . $e->getMessage());

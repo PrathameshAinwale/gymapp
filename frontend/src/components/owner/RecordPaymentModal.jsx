@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useGymData } from '../../context/GymDataContext';
+import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import MemberSearchSelect from '../common/MemberSearchSelect';
 import { api } from '../../services/api';
@@ -58,9 +59,21 @@ export const RecordPaymentModal = ({
     recordPayment,
     addToast
   } = useGymData();
+  const { currentUser } = useAuth();
+
+  const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('sohan'))
+    ? currentUser.name
+    : 'prathamesh';
 
   // Selected Member
   const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [handledByStaffName, setHandledByStaffName] = useState(defaultHandledBy);
+
+  useEffect(() => {
+    if (!handledByStaffName && defaultHandledBy) {
+      setHandledByStaffName(defaultHandledBy);
+    }
+  }, [defaultHandledBy]);
 
   // 1. Base Membership Plan State
   const [includeBasePlan, setIncludeBasePlan] = useState(true);
@@ -88,13 +101,10 @@ export const RecordPaymentModal = ({
 
   // 4. Payment Settlement & Date
   const [paymentDate, setPaymentDate] = useState('');
-  const [isFullPayment, setIsFullPayment] = useState(true);
-  const [customPaidAmount, setCustomPaidAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('UPI');
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitOnlineAmount, setSplitOnlineAmount] = useState('');
-  const [splitOnlineProvider, setSplitOnlineProvider] = useState('GPay'); // 'GPay' | 'PhonePe' | 'Account' | 'Other'
-  const [splitOnlineProviderOther, setSplitOnlineProviderOther] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
+  const [upiAmount, setUpiAmount] = useState('');
+  const [accountTransferAmount, setAccountTransferAmount] = useState('');
+  const [balanceDueDate, setBalanceDueDate] = useState('');
   const [notes, setNotes] = useState('');
 
   // 5. Submission & Receipt States
@@ -239,14 +249,10 @@ export const RecordPaymentModal = ({
 
       setIncludeBasePlan(true);
       setIncludePtPackage(false);
-      setIncludeRecoveryPackage(false);
-      setIsFullPayment(true);
-      setCustomPaidAmount('');
-      setPaymentMethod('UPI');
-      setSplitCashAmount('');
-      setSplitOnlineAmount('');
-      setSplitOnlineProvider('GPay');
-      setSplitOnlineProviderOther('');
+      setCashAmount('');
+      setUpiAmount('');
+      setAccountTransferAmount('');
+      setBalanceDueDate('');
       setNotes('');
       setCompletedInvoiceData(null);
     }
@@ -359,11 +365,25 @@ export const RecordPaymentModal = ({
   const effectiveRecoveryPrice = includeRecoveryPackage ? (Number(recoveryPrice) || 0) : 0;
   const numDiscount = Math.max(0, Number(discountAmount) || 0);
   const totalCalculatedBill = Math.max(0, (effectiveBasePrice - numDiscount) + effectivePtPrice + effectiveRecoveryPrice);
-
-  const effectivePaidAmount = isFullPayment
-    ? totalCalculatedBill
-    : (customPaidAmount === '' ? 0 : Math.max(0, Number(customPaidAmount)));
+  const numCash = Math.max(0, Number(cashAmount) || 0);
+  const numUpi = Math.max(0, Number(upiAmount) || 0);
+  const numAccountTransfer = Math.max(0, Number(accountTransferAmount) || 0);
+  const effectivePaidAmount = numCash + numUpi + numAccountTransfer;
   const calculatedBalanceDue = Math.max(0, totalCalculatedBill - effectivePaidAmount);
+
+  const getResolvedPaymentMethod = () => {
+    const parts = [];
+    if (numCash > 0) parts.push(`Cash: ₹${numCash.toLocaleString('en-IN')}`);
+    if (numUpi > 0) parts.push(`UPI: ₹${numUpi.toLocaleString('en-IN')}`);
+    if (numAccountTransfer > 0) parts.push(`Account Transfer: ₹${numAccountTransfer.toLocaleString('en-IN')}`);
+    if (parts.length === 0) return 'Pending Payment';
+    if (parts.length === 1) {
+      if (numCash > 0) return 'Cash';
+      if (numUpi > 0) return 'UPI';
+      if (numAccountTransfer > 0) return 'Account Transfer';
+    }
+    return `Split (${parts.join(', ')})`;
+  };
 
   // Trainer Commission Calculation
   const ptCommissionAmount = (includePtPackage && currentTrainer)
@@ -376,7 +396,7 @@ export const RecordPaymentModal = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (hasSqlInjection(splitOnlineProviderOther) || hasSqlInjection(notes)) {
+    if (hasSqlInjection(notes)) {
       addToast('Invalid characters or disallowed database syntax detected.', 'error');
       return;
     }
@@ -393,6 +413,11 @@ export const RecordPaymentModal = ({
 
     if (totalCalculatedBill <= 0) {
       addToast('Total bill amount must be greater than ₹0.', 'error');
+      return;
+    }
+
+    if (calculatedBalanceDue > 0 && !balanceDueDate) {
+      addToast('Please select the date when the remaining balance due will be paid.', 'error');
       return;
     }
 
@@ -426,13 +451,7 @@ export const RecordPaymentModal = ({
         : (includePtPackage ? 'Personal Training' : 'Recovery & Wellness');
 
       const generatedInvoiceNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      const resolvedOnlineProvider = splitOnlineProvider === 'Other'
-        ? (splitOnlineProviderOther?.trim() || 'Other')
-        : (splitOnlineProvider || 'GPay');
-      const resolvedPaymentMethodString = (paymentMethod === 'Split' || paymentMethod === 'Split (Cash+Online)')
-        ? `Split (Cash: ₹${splitCashAmount || 0} + Online [${resolvedOnlineProvider}]: ₹${splitOnlineAmount || 0})`
-        : paymentMethod;
+      const resolvedPaymentMethodString = getResolvedPaymentMethod();
 
       // 1. Record Revenue Inflow in Database
       let backendInvoiceRef = generatedInvoiceNo;
@@ -449,10 +468,14 @@ export const RecordPaymentModal = ({
             amount: effectivePaidAmount,
             total_amount: totalCalculatedBill,
             dues_amount: calculatedBalanceDue,
+            due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
             payment_method: resolvedPaymentMethodString,
             date: paymentDate || new Date().toISOString().split('T')[0],
             notes: notes || `Recorded from Invoices billing: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
-            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid'
+            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+            created_by: currentUser?.userId || currentUser?.id,
+            created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
           });
 
           if (inflowRes?.data?.invoiceNumber || inflowRes?.data?.id) {
@@ -465,9 +488,14 @@ export const RecordPaymentModal = ({
             planId: includeBasePlan ? currentPlan?.id : null,
             planName: invoiceTitle,
             amount: effectivePaidAmount,
+            dues_amount: calculatedBalanceDue,
+            due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
             paymentDate,
             expiryDate: includeBasePlan ? membershipEndDate : currentMember?.expiryDate,
-            paymentMethod: resolvedPaymentMethodString
+            paymentMethod: resolvedPaymentMethodString,
+            created_by: currentUser?.userId || currentUser?.id,
+            created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
           });
         }
       } catch (err) {
@@ -480,7 +508,9 @@ export const RecordPaymentModal = ({
         const memberPayload = {
           ...currentMember,
           duesAmount: updatedDues,
-          dues_amount: updatedDues
+          dues_amount: updatedDues,
+          due_date: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
+          dueDate: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
         };
 
         if (includeBasePlan && currentPlan) {
@@ -556,7 +586,8 @@ export const RecordPaymentModal = ({
         paymentMethod: resolvedPaymentMethodString,
         status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
         expiryDate: includeBasePlan ? membershipEndDate : currentMember?.expiryDate,
-        itemsBreakdown: lineTitles
+        itemsBreakdown: lineTitles,
+        createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
       });
     } catch (err) {
       console.error('Record payment error:', err);
@@ -1237,13 +1268,13 @@ export const RecordPaymentModal = ({
             </div>
           </div>
 
-          {/* 4. PAYMENT DETAILS & SCOPE OF SETTLEMENT */}
+          {/* 4. PAYMENT METHOD & SETTLEMENT */}
           <div className="mt-2 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 shadow-2xs space-y-3.5">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-emerald-600" />
                 <span className="text-xs font-bold text-slate-900">
-                  Payment Details & Scope of Settlement
+                  Payment Method & Amounts Received
                 </span>
               </div>
               <div className="text-[10px] font-semibold text-slate-500">
@@ -1251,67 +1282,11 @@ export const RecordPaymentModal = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-              {/* Full Payment Done Checkbox */}
-              <div className={`p-3 rounded-xl border transition-all ${
-                isFullPayment 
-                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950' 
-                  : 'bg-amber-50/70 border-amber-200 text-amber-950'
-              }`}>
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isFullPayment}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setIsFullPayment(checked);
-                      if (checked) {
-                        setCustomPaidAmount('');
-                      } else {
-                        setCustomPaidAmount(totalCalculatedBill > 0 ? String(Math.round(totalCalculatedBill * 0.4)) : '');
-                      }
-                    }}
-                    className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <div>
-                    <span className="text-xs font-bold block flex items-center gap-1.5">
-                      <span>Full Payment Done</span>
-                      {isFullPayment && <Check className="w-3.5 h-3.5 text-emerald-600 inline" />}
-                    </span>
-                    <span className="text-[10px] text-slate-500 block mt-0.5">
-                      {isFullPayment ? '100% full payment received (₹0 balance)' : 'Partial payment / installment balance pending'}
-                    </span>
-                  </div>
-                </label>
-              </div>
-
-              {/* Payment Mode Selector Dropdown */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Payment Mode *
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="UPI">UPI</option>
-                  <option value="GPay">GPay (Google Pay)</option>
-                  <option value="PhonePe">PhonePe</option>
-                  <option value="Account Transfer">Account Transfer</option>
-                  <option value="Cash">Cash at Reception</option>
-                  <option value="Split">Split (Part Cash + Part Online / UPI)</option>
-                  <option value="Credit Card">Credit / Debit Card</option>
-                  <option value="Net Banking">Net Banking / NEFT</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Payment Date */}
+            {/* Payment Received Date */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Payment Date *</span>
+                <span>Payment Received Date *</span>
               </label>
               <input
                 type="date"
@@ -1322,175 +1297,167 @@ export const RecordPaymentModal = ({
               />
             </div>
 
-            {/* Split Payment Breakdown Box (Only when Split is selected) */}
-            {(paymentMethod === 'Split' || paymentMethod === 'Split (Cash+Online)') && (
-              <div className="p-3.5 rounded-xl bg-violet-50/80 border border-violet-200 space-y-3 animate-fadeIn">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5 text-violet-600" />
-                    <span>Split Payment Breakdown</span>
-                  </span>
-                  <span className="text-[10px] font-bold text-violet-700 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded">
-                    Total to Collect: ₹{effectivePaidAmount.toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Cash Portion (₹) *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        max={effectivePaidAmount}
-                        value={splitCashAmount}
-                        onKeyDown={(e) => preventNonNumericKey(e, true)}
-                        onChange={(e) => {
-                          const val = sanitizeDecimal(e.target.value);
-                          setSplitCashAmount(val);
-                          const num = Math.max(0, Number(val) || 0);
-                          const rem = Math.max(0, effectivePaidAmount - num);
-                          setSplitOnlineAmount(String(rem));
-                        }}
-                        placeholder="e.g. 2000"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400"
-                      />
-                    </div>
+            {/* 3 Payment Methods: Cash, UPI, Account Transfer */}
+            <div className="space-y-2.5">
+              {/* 1. Cash */}
+              <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+                <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
+                    💵
                   </div>
-
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Online / UPI Portion (₹) *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        max={effectivePaidAmount}
-                        value={splitOnlineAmount}
-                        onKeyDown={(e) => preventNonNumericKey(e, true)}
-                        onChange={(e) => {
-                          const val = sanitizeDecimal(e.target.value);
-                          setSplitOnlineAmount(val);
-                          const num = Math.max(0, Number(val) || 0);
-                          const rem = Math.max(0, effectivePaidAmount - num);
-                          setSplitCashAmount(String(rem));
-                        }}
-                        placeholder="e.g. 3000"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-violet-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400"
-                      />
-                    </div>
-
-                    {/* Online Received Via Options */}
-                    <div className="mt-2.5 space-y-1.5">
-                      <label className="block text-[10px] font-bold text-violet-900 uppercase tracking-wider">
-                        Online Received Via *
-                      </label>
-                      <div className="grid grid-cols-5 gap-1">
-                        {[
-                          { id: 'UPI', label: 'UPI' },
-                          { id: 'GPay', label: 'GPay' },
-                          { id: 'PhonePe', label: 'PhonePe' },
-                          { id: 'Account', label: 'Account' },
-                          { id: 'Other', label: 'Other' },
-                        ].map((provider) => (
-                          <button
-                            key={provider.id}
-                            type="button"
-                            onClick={() => setSplitOnlineProvider(provider.id)}
-                            className={`py-1 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
-                              splitOnlineProvider === provider.id
-                                ? 'bg-violet-600 text-white border-violet-600 shadow-xs'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50/50'
-                            }`}
-                          >
-                            {provider.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {splitOnlineProvider === 'Other' && (
-                        <input
-                          type="text"
-                          required
-                          value={splitOnlineProviderOther}
-                          onChange={(e) => setSplitOnlineProviderOther(e.target.value)}
-                          placeholder="Type provider (e.g. Paytm, Cred, Cheque)..."
-                          className="w-full px-2.5 py-1.5 bg-white border border-violet-300 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-400 mt-1"
-                        />
-                      )}
-                    </div>
+                    <span className="text-xs font-bold text-slate-800 block">Cash</span>
+                    <span className="text-[10px] text-slate-500 block">Cash at Reception</span>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-violet-200/70 font-medium">
-                  <span className="text-violet-800">
-                    Split: <strong>₹{Number(splitCashAmount || 0).toLocaleString('en-IN')} Cash</strong> + <strong>₹{Number(splitOnlineAmount || 0).toLocaleString('en-IN')} Online ({splitOnlineProvider === 'Other' ? (splitOnlineProviderOther || 'Other') : splitOnlineProvider})</strong>
-                  </span>
-                  <span className="font-bold text-violet-950 font-mono">
-                    Total: ₹{(Number(splitCashAmount || 0) + Number(splitOnlineAmount || 0)).toLocaleString('en-IN')}
-                  </span>
+                <div className="relative flex-1 max-w-xs flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-400 transition-all text-right"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Pay remaining in Cash"
+                    onClick={() => {
+                      const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedBill - other);
+                      setCashAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Full
+                  </button>
                 </div>
               </div>
-            )}
 
-            {/* Scope of Payment: Partial Payment Inputs & Balance Due Field */}
-            {!isFullPayment ? (
-              <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/90 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Amount Paid Right Now */}
-                  <div>
-                    <label className="block text-xs font-bold text-amber-950 mb-1">
-                      Amount Received Right Now (₹) *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        max={totalCalculatedBill}
-                        value={customPaidAmount}
-                        onKeyDown={(e) => preventNonNumericKey(e, true)}
-                        onChange={(e) => {
-                          const val = sanitizeDecimal(e.target.value);
-                          setCustomPaidAmount(val);
-                          if (paymentMethod === 'Split' || paymentMethod === 'Split (Cash+Online)') {
-                            const num = Math.max(0, Number(val) || 0);
-                            setSplitCashAmount(String(Math.round(num * 0.5)));
-                            setSplitOnlineAmount(String(num - Math.round(num * 0.5)));
-                          }
-                        }}
-                        placeholder="e.g. 4000"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
-                      />
-                    </div>
+              {/* 2. UPI */}
+              <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+                <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-100">
+                    📱
                   </div>
-
-                  {/* Remaining Balance Due Field */}
                   <div>
-                    <label className="block text-xs font-bold text-amber-950 mb-1">
-                      Remaining Balance Due (₹)
+                    <span className="text-xs font-bold text-slate-800 block">UPI</span>
+                    <span className="text-[10px] text-slate-500 block">GPay, PhonePe, Paytm</span>
+                  </div>
+                </div>
+                <div className="relative flex-1 max-w-xs flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={upiAmount}
+                      onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-400 transition-all text-right"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Pay remaining via UPI"
+                    onClick={() => {
+                      const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedBill - other);
+                      setUpiAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Full
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Account Transfer */}
+              <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+                <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0 border border-sky-100">
+                    🏦
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
+                    <span className="text-[10px] text-slate-500 block">NEFT / IMPS / Netbanking</span>
+                  </div>
+                </div>
+                <div className="relative flex-1 max-w-xs flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={accountTransferAmount}
+                      onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-400 transition-all text-right"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Pay remaining via Account Transfer"
+                    onClick={() => {
+                      const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedBill - other);
+                      setAccountTransferAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Full
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
+            {calculatedBalanceDue > 0 ? (
+              <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  {/* Balance Due Display */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Remaining Balance Due (Pending)
                     </label>
                     <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                      <span className="text-[11px] font-semibold text-slate-500">Balance Pending:</span>
+                      <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
                       <span className="text-sm font-black font-mono text-rose-600">
                         ₹{calculatedBalanceDue.toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
+
+                  {/* Date Option for Remaining Payment */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                      <span>Promised Due Date *</span>
+                      <span className="text-[10px] font-normal text-amber-800">When remaining will be paid</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="date"
+                        required
+                        value={balanceDueDate}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setBalanceDueDate(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Settlement Breakdown Summary */}
-                <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200 font-medium">
+                {/* Settlement Summary */}
+                <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
                   <span className="text-slate-600">
-                    Total: <strong className="text-slate-900 font-mono">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
+                    Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
                   </span>
                   <span className="text-emerald-700 font-semibold">
                     Paid Now: <strong className="font-mono">₹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
@@ -1501,16 +1468,34 @@ export const RecordPaymentModal = ({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Full payment of <strong>₹{totalCalculatedBill.toLocaleString('en-IN')}</strong> will be recorded with <strong>₹0</strong> balance due.</span>
+                  <span>Full payment of <strong>₹{totalCalculatedBill.toLocaleString('en-IN')}</strong> received. <strong>₹0</strong> balance due.</span>
                 </div>
-                <span className="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300 shrink-0">
-                  Full Payment Done
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300 shrink-0">
+                  Fully Paid
                 </span>
               </div>
             )}
+
+            {/* Handled By / Created By Staff Input */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Invoice Created / Handled By (Staff / Owner)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">Audit Record</span>
+              </label>
+              <input
+                type="text"
+                value={handledByStaffName}
+                onChange={(e) => setHandledByStaffName(e.target.value)}
+                placeholder="e.g. Rajesh Mehta (Manager) / Vikramaditya (Owner)"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
           </div>
 
           {/* FOOTER ACTIONS */}

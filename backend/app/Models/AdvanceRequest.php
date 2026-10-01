@@ -11,12 +11,13 @@ class AdvanceRequest extends Model
 
     protected $fillable = [
         'gym_id', 'trainer_id', 'trainer_name', 'trainer_avatar',
-        'amount', 'reason', 'repayment_month',
+        'amount', 'repaid_amount', 'reason', 'repayment_month',
         'status', 'request_date', 'disbursed_at', 'notes',
     ];
 
     protected $casts = [
         'amount' => 'float',
+        'repaid_amount' => 'float',
         'request_date' => 'date',
         'disbursed_at' => 'datetime',
     ];

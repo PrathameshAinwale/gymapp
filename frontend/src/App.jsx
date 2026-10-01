@@ -58,11 +58,14 @@ import { AnalyticsPage } from './components/owner/AnalyticsPage';
 import { LeaveManagement } from './components/owner/LeaveManagement';
 import { TrainerLeaveView } from './components/trainer/TrainerLeaveView';
 import { WhatsAppAutomation } from './components/owner/WhatsAppAutomation';
+import { ShiftManager } from './components/owner/ShiftManager';
+import { MemberProfilePage } from './components/owner/MemberProfilePage';
 
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials } = useAuth();
   const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -248,7 +251,15 @@ function MainApp() {
     if (currentRole === 'manager' && !canAccessFinancials) {
       const restrictedTabs = ['financials', 'invoices', 'advance-pay', 'payroll', 'reports', 'staff-accounts'];
       if (restrictedTabs.includes(activeTab)) {
-        return <OwnerDashboard setActiveTab={handleNavigateTab} />;
+        return (
+          <OwnerDashboard
+            setActiveTab={handleNavigateTab}
+            onOpenMemberProfile={(memberId) => {
+              setSelectedMemberProfileId(memberId);
+              handleNavigateTab('member-profile');
+            }}
+          />
+        );
       }
     }
 
@@ -262,6 +273,18 @@ function MainApp() {
         return (
           <OwnerDashboard
             setActiveTab={handleNavigateTab}
+            onOpenMemberProfile={(memberId) => {
+              setSelectedMemberProfileId(memberId);
+              handleNavigateTab('member-profile');
+            }}
+          />
+        );
+      case 'member-profile':
+        return (
+          <MemberProfilePage
+            initialMemberId={selectedMemberProfileId}
+            onBackToDashboard={() => handleNavigateTab('dashboard')}
+            onNavigateTab={handleNavigateTab}
           />
         );
       case 'whatsapp-automation':
@@ -297,6 +320,8 @@ function MainApp() {
       case 'staff-accounts':
       case 'trainers':
         return <StaffAccountManager />;
+      case 'shifts':
+        return <ShiftManager onNavigateTab={handleNavigateTab} />;
       case 'leaves':
         return <LeaveManagement />;
       case 'advance-pay':
@@ -320,7 +345,15 @@ function MainApp() {
       case 'settings':
         return <SettingsManager />;
       default:
-        return <OwnerDashboard setActiveTab={handleNavigateTab} />;
+        return (
+          <OwnerDashboard
+            setActiveTab={handleNavigateTab}
+            onOpenMemberProfile={(memberId) => {
+              setSelectedMemberProfileId(memberId);
+              handleNavigateTab('member-profile');
+            }}
+          />
+        );
     }
   };
 

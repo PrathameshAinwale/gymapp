@@ -10,30 +10,78 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Schema;
 
 class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $loginInput = trim($request->input('login', $request->input('email', $request->input('phone', $request->input('username', '')))));
+        $password = (string)$request->password;
 
-        if ($validator->fails()) {
+        if (empty($loginInput) || empty($password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
+                'message' => 'Please provide mobile number or email, and password.',
+                'errors' => [
+                    'email' => ['Please provide mobile number or email.'],
+                    'password' => ['Password is required.']
+                ]
             ], 422);
         }
 
-        $user = User::where('email', $request->email)->first();
+        // Clean digits if input is or contains a phone number
+        $digits = preg_replace('/\D+/', '', $loginInput);
+        $last10 = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        // Search candidates by email, phone, name, or username
+        $users = User::where(function ($q) use ($loginInput, $digits, $last10) {
+            $q->where('email', $loginInput)
+              ->orWhere('name', $loginInput);
+            if (!empty($digits)) {
+                $q->orWhere('phone', $loginInput)
+                  ->orWhere('phone', $digits);
+                if (strlen($last10) >= 7) {
+                    $q->orWhere('phone', 'like', "%{$last10}")
+                      ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?", ["%{$last10}"]);
+                }
+            }
+            if (!str_contains($loginInput, '@')) {
+                $q->orWhere('email', 'like', "{$loginInput}@%");
+            }
+        })->get();
+
+        // Check password against matching user(s)
+        $user = null;
+        $hasPlain = Schema::hasColumn('users', 'plain_password');
+        foreach ($users as $candidate) {
+            $matched = false;
+            if (Hash::check($password, $candidate->password)) {
+                $matched = true;
+            } elseif ($hasPlain && !empty($candidate->plain_password) && $candidate->plain_password === $password) {
+                $matched = true;
+            } elseif (!empty($candidate->initial_password) && (Hash::check($password, $candidate->initial_password) || $candidate->initial_password === $password)) {
+                $matched = true;
+            }
+
+            if ($matched) {
+                // Keep password hash and plain_password in sync
+                if (!Hash::check($password, $candidate->password)) {
+                    $candidate->password = Hash::make($password);
+                }
+                if ($hasPlain && $candidate->plain_password !== $password) {
+                    $candidate->plain_password = $password;
+                }
+                $candidate->save();
+                $user = $candidate;
+                break;
+            }
+        }
+
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid email or password'
+                'message' => 'Invalid mobile number/email or password.'
             ], 401);
         }
 
@@ -42,7 +90,7 @@ class AuthController extends Controller
             $user->load(['memberProfile.plan', 'memberProfile.trainer', 'gym']);
         } elseif ($user->role === 'trainer') {
             $user->load(['trainerProfile', 'gym']);
-        } elseif ($user->role === 'owner') {
+        } elseif ($user->role === 'owner' || $user->role === 'superadmin') {
             if (!$user->gym_id) {
                 $ownedGym = \App\Models\Gym::where('owner_id', $user->id)->first();
                 if ($ownedGym) {
@@ -50,6 +98,8 @@ class AuthController extends Controller
                     $user->save();
                 }
             }
+            $user->load('gym');
+        } else {
             $user->load('gym');
         }
 
@@ -65,7 +115,39 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        $existingUser = User::where('email', $request->email)->first();
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|min:7|max:20',
+            'email' => 'nullable|email',
+            'password' => 'required|string|min:4',
+            'role' => 'nullable|in:owner,trainer,member,manager,accounts,superadmin',
+            'avatar' => 'nullable|string',
+        ], [
+            'phone.required' => 'Mobile number is mandatory.',
+            'phone.min' => 'Please enter a valid mobile number.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $rawPhone = trim($request->phone ?? '');
+        $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+        $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+        // Check if member already exists with this phone
+        $existingUser = User::where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
+            $q->where('phone', $rawPhone)
+              ->orWhere('phone', $cleanDigits);
+            if (strlen($last10) >= 7) {
+                $q->orWhere('phone', 'like', "%{$last10}");
+            }
+        })->first();
+
         if ($existingUser) {
             if ($existingUser->role === 'member') {
                 if ($request->filled('password')) {
@@ -82,57 +164,13 @@ class AuthController extends Controller
                     'user' => $existingUser->load('memberProfile'),
                 ], 200);
             }
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => ['email' => ['The email has already been taken.']]
-            ], 422);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
-            'role' => 'nullable|in:owner,trainer,member',
-            'phone' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $rawPhone = trim($request->phone ?? '');
-        if (!empty($rawPhone)) {
-            $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
-            $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
-
-            $duplicatePhone = User::where('role', 'member')
-                ->where(function ($q) use ($rawPhone, $last10, $cleanDigits) {
-                    $q->where('phone', $rawPhone)
-                      ->orWhere('phone', $cleanDigits);
-                    if (strlen($last10) >= 7) {
-                        $q->orWhere('phone', 'like', "%{$last10}");
-                    }
-                })->first();
-
-            if ($duplicatePhone) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Member already exists with this mobile number.',
-                    'errors' => ['phone' => ['Member already exists with this mobile number.']]
-                ], 422);
-            }
         }
 
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => !empty($request->email) ? $request->email : null,
             'role' => $request->role ?? 'member',
-            'phone' => $request->phone,
+            'phone' => $rawPhone,
             'password' => Hash::make($request->password),
             'avatar' => $request->avatar ?? null,
         ]);
@@ -142,7 +180,7 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 'status' => 'Active',
                 'join_date' => now()->toDateString(),
-                'qr_pass_code' => 'PF-M-' . $user->id . '-' . strtoupper(substr($user->name, 0, 4)),
+                'qr_pass_code' => 'PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 4)),
             ]);
             $user->load('memberProfile');
         } elseif ($user->role === 'trainer') {

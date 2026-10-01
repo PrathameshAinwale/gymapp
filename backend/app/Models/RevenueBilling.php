@@ -28,6 +28,7 @@ class RevenueBilling extends Model
         'status',
         'notes',
         'created_by',
+        'created_by_name',
     ];
 
     protected $casts = [

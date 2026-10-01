@@ -23,6 +23,7 @@ class MembershipTransfer extends Model
         'transfer_fee',
         'payment_method',
         'transfer_date',
+        'membership_start_date',
         'reason',
         'status',
     ];
@@ -31,6 +32,7 @@ class MembershipTransfer extends Model
         'days_remaining' => 'integer',
         'transfer_fee' => 'float',
         'transfer_date' => 'date',
+        'membership_start_date' => 'date',
     ];
 
     public function gym()

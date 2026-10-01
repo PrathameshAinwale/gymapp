@@ -23,10 +23,10 @@ class InvoiceController extends Controller
             ]);
         }
 
-        $query = Invoice::with(['user.memberProfile', 'plan'])->where('gym_id', $gymId)->latest();
+        $query = Invoice::with(['user.memberProfile', 'plan', 'creator'])->where('gym_id', $gymId)->latest();
 
         $invoices = $query->get()->map(function ($inv) {
-            $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $inv->invoice_number)->first();
+            $matchingInflow = \App\Models\RevenueBilling::with('creator')->where('reference_no', $inv->invoice_number)->first();
             $userProfile = $inv->user?->memberProfile;
             $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
             $status = $inv->status;
@@ -35,6 +35,17 @@ class InvoiceController extends Controller
             } elseif (!$status) {
                 $status = 'Paid';
             }
+
+            $rawCreator = $inv->created_by_name ?: ($inv->creator?->name ?: ($matchingInflow?->created_by_name ?: ($matchingInflow?->creator?->name ?: null)));
+            $creatorRole = $inv->creator?->role ?: ($matchingInflow?->creator?->role ?: null);
+            if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
+                $owner = User::where('gym_id', $inv->gym_id)->where('role', 'owner')->first();
+                $rawCreator = $owner ? $owner->name : 'prathamesh';
+                $creatorRole = 'Owner';
+            }
+            $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
+            $createdByName = trim($cleanName) ?: 'prathamesh';
+            $creatorRole = ucfirst($creatorRole ?: 'Owner');
 
             return [
                 'id' => $inv->invoice_number,
@@ -50,9 +61,13 @@ class InvoiceController extends Controller
                 'pendingAmount' => $pendingAmount,
                 'duesAmount' => $pendingAmount,
                 'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
+                'dueDate' => $inv->due_date instanceof \DateTimeInterface ? $inv->due_date->format('Y-m-d') : ($inv->due_date ? (string)$inv->due_date : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null)),
                 'paymentMethod' => $inv->payment_method,
                 'status' => $status,
                 'invoiceUrl' => $inv->invoice_url ?? '#',
+                'createdBy' => $inv->created_by ?: $matchingInflow?->created_by,
+                'createdByName' => $createdByName,
+                'creatorRole' => $creatorRole,
             ];
         });
 
@@ -103,6 +118,7 @@ class InvoiceController extends Controller
 
         $amount = (float)($request->amount ?? $plan?->price ?? 0);
         $duesAmount = (float)($request->dues_amount ?? $request->duesAmount ?? $request->pending_amount ?? $request->pendingAmount ?? 0);
+        $dueDate = $request->due_date ?? $request->dueDate;
         $date = $request->payment_date ?? $request->paymentDate ?? $request->date ?? now()->toDateString();
         $method = $request->payment_method ?? $request->paymentMethod ?? 'UPI';
         $status = $request->status;
@@ -117,6 +133,18 @@ class InvoiceController extends Controller
             return response()->json(['success' => false, 'message' => 'Gym ID is required to create invoice.'], 422);
         }
 
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->created_by ?? $request->createdBy ?? $authCreator?->id;
+        $creatorName = $request->created_by_name ?? $request->createdByName ?? $request->executive ?? $request->staff_name ?? $request->staffName ?? $authCreator?->name;
+
+        if (!$creatorName && $creatorId) {
+            $creatorUser = User::find($creatorId);
+            $creatorName = $creatorUser?->name;
+        }
+        if (!$creatorName) {
+            $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff / Admin';
+        }
+
         $invoiceData = [
             'gym_id' => $gymId,
             'invoice_number' => 'INV-' . date('Y') . '-' . rand(1000, 9999),
@@ -127,12 +155,17 @@ class InvoiceController extends Controller
             'payment_method' => $method,
             'status' => $status,
             'invoice_url' => '#',
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
         ];
         if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
             $invoiceData['pending_amount'] = $duesAmount;
         }
         if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
             $invoiceData['total_amount'] = (float)($request->total_amount ?? $request->totalAmount ?? ($amount + $duesAmount));
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'due_date') && $dueDate) {
+            $invoiceData['due_date'] = $dueDate;
         }
 
         $invoice = Invoice::create($invoiceData);
@@ -144,6 +177,12 @@ class InvoiceController extends Controller
             ];
             if ($duesAmount > 0) {
                 $updateData['dues_amount'] = $duesAmount;
+                if ($dueDate) {
+                    $updateData['due_date'] = $dueDate;
+                }
+            } else {
+                $updateData['dues_amount'] = 0;
+                $updateData['due_date'] = null;
             }
             if ($plan) {
                 $updateData['plan_id'] = $plan->id;
@@ -175,10 +214,14 @@ class InvoiceController extends Controller
                 'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
                 'pendingAmount' => $duesAmount,
                 'duesAmount' => $duesAmount,
+                'dueDate' => $invoice->due_date ? (is_string($invoice->due_date) ? $invoice->due_date : $invoice->due_date->format('Y-m-d')) : null,
                 'date' => is_string($invoice->date) ? $invoice->date : $invoice->date->format('Y-m-d'),
                 'paymentMethod' => $invoice->payment_method,
                 'status' => $invoice->status,
                 'invoiceUrl' => '#',
+                'createdBy' => $invoice->created_by,
+                'createdByName' => $invoice->created_by_name ?: $creatorName,
+                'creatorRole' => $authCreator?->role ?? 'staff',
             ],
         ], 201);
     }

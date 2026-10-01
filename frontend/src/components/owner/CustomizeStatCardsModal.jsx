@@ -303,7 +303,7 @@ export const CustomizeStatCardsModal = ({
           <div>
             <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Personalize Your Command Center</span>
+              <span>Personalize Your Dashboard</span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Select which metrics appear on your main dashboard overview ({currentSelected.length} of {availableCards.length} selected).

@@ -176,9 +176,21 @@ export const AuthProvider = ({ children }) => {
           setAccounts((prev) => {
             const merged = [...prev];
             backendStaff.forEach((bs) => {
-              const idx = merged.findIndex(
-                (a) => a.email?.toLowerCase() === bs.email?.toLowerCase() || a.userId === bs.userId
-              );
+              const cleanBsPhone = bs.phone ? String(bs.phone).replace(/\D/g, '').slice(-10) : '';
+              const cleanBsId = String(bs.userId || bs.id || '').replace(/\D/g, '');
+              const cleanBsEmail = bs.email && bs.email.trim() ? bs.email.trim().toLowerCase() : null;
+
+              const idx = merged.findIndex((a) => {
+                const aPhone = a.phone ? String(a.phone).replace(/\D/g, '').slice(-10) : '';
+                const aId = String(a.userId || a.id || '').replace(/\D/g, '');
+                const aEmail = a.email && a.email.trim() ? a.email.trim().toLowerCase() : null;
+
+                if (cleanBsPhone && aPhone && cleanBsPhone === aPhone) return true;
+                if (cleanBsId && aId && cleanBsId === aId) return true;
+                if (cleanBsEmail && aEmail && cleanBsEmail === aEmail) return true;
+                return false;
+              });
+
               if (idx >= 0) {
                 merged[idx] = { ...merged[idx], ...bs };
               } else {
@@ -204,12 +216,12 @@ export const AuthProvider = ({ children }) => {
 
   // LOGIN FUNCTION: Supports Superadmin, Accounts, Manager, Trainer, and Member
   const login = async (emailInput, passwordInput) => {
-    const trimmedEmail = emailInput.trim().toLowerCase();
+    const trimmedLogin = emailInput.trim();
     const trimmedPass = passwordInput.trim();
 
     try {
       // 1. Attempt live Laravel Backend API Login
-      const res = await api.auth.login(trimmedEmail, trimmedPass);
+      const res = await api.auth.login(trimmedLogin, trimmedPass);
       if (res.success && res.user) {
         let userRole = res.user.role || 'superadmin';
         if (userRole === 'owner') userRole = 'superadmin';
@@ -271,13 +283,13 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: false,
-        error: res?.message || 'Invalid Credentials. Please check your email and password.'
+        error: res?.message || 'Invalid Credentials. Please check your mobile number or email, and password.'
       };
     } catch (apiErr) {
       console.warn('Backend API login error:', apiErr.message);
       return {
         success: false,
-        error: apiErr.message || 'Invalid Credentials. Please check your email and password.'
+        error: apiErr.message || 'Invalid Credentials. Please check your mobile number or email, and password.'
       };
     }
   };
@@ -393,6 +405,8 @@ export const AuthProvider = ({ children }) => {
     gym_id,
     gymId,
     dob,
+    joining_date,
+    joiningDate,
     aadhaar_card,
     aadhaar_image,
     pan_card,
@@ -411,17 +425,20 @@ export const AuthProvider = ({ children }) => {
     monthly_salary
   }) => {
     const activeGymId = gym_id || gymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || 1;
-    const roleNormalized = role.toLowerCase();
+    const roleNormalized = (role || 'trainer').toLowerCase();
+    const cleanEmail = email && email.trim() ? email.trim() : null;
     let backendUser = null;
+
     try {
       const res = await api.staff.create({
         name,
-        email,
+        email: cleanEmail,
         password: password || 'staff123',
         role: roleNormalized,
         phone: phone || '',
         gym_id: Number(activeGymId),
         dob: dob || null,
+        joining_date: joining_date || joiningDate || null,
         aadhaar_card: aadhaar_card || null,
         aadhaar_image: aadhaar_image || null,
         pan_card: pan_card || null,
@@ -445,24 +462,34 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       console.warn('Backend create staff note:', e.message);
       try {
-        await api.auth.register({
+        const regRes = await api.auth.register({
           name,
-          email,
+          email: cleanEmail,
           password: password || 'staff123',
           role: roleNormalized,
           phone: phone || '',
           gym_id: Number(activeGymId)
         });
-      } catch (regErr) {}
+        if (regRes?.user) {
+          backendUser = regRes.user;
+        }
+      } catch (regErr) {
+        throw new Error(e.message || regErr.message || 'Failed to create staff account on server');
+      }
     }
+
+    const generatedUsername = cleanEmail && cleanEmail.includes('@')
+      ? cleanEmail.split('@')[0]
+      : (phone || name.toLowerCase().replace(/\s+/g, ''));
 
     const newStaff = {
       id: backendUser?.id ? `usr-${roleNormalized}-${backendUser.id}` : `usr-${roleNormalized}-${Date.now().toString().slice(-4)}`,
       userId: backendUser?.id || Date.now(),
       name,
-      email,
-      username: email.split('@')[0],
+      email: cleanEmail || '',
+      username: generatedUsername,
       password: password || 'staff123',
+      plain_password: password || 'staff123',
       mustChangePassword: false,
       role: roleNormalized,
       roleLabel:
@@ -477,6 +504,7 @@ export const AuthProvider = ({ children }) => {
       badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Trainer Access',
       phone: phone || '',
       dob: dob || null,
+      joining_date: joining_date || joiningDate || backendUser?.joining_date || null,
       aadhaar_card: aadhaar_card || null,
       aadhaar_image: aadhaar_image || null,
       pan_card: pan_card || null,
@@ -493,7 +521,17 @@ export const AuthProvider = ({ children }) => {
       gym_id: Number(activeGymId)
     };
 
-    setAccounts((prev) => [newStaff, ...prev.filter((a) => a.email?.toLowerCase() !== email.toLowerCase())]);
+    const cleanNewPhone = phone ? String(phone).replace(/\D/g, '').slice(-10) : '';
+
+    setAccounts((prev) => [
+      newStaff,
+      ...prev.filter((a) => {
+        if (cleanEmail && a.email && a.email.toLowerCase() === cleanEmail.toLowerCase()) return false;
+        if (backendUser?.id && (a.id === newStaff.id || a.userId === backendUser.id)) return false;
+        if (cleanNewPhone && a.phone && String(a.phone).replace(/\D/g, '').slice(-10) === cleanNewPhone) return false;
+        return true;
+      })
+    ]);
     return newStaff;
   };
 

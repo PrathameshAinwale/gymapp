@@ -23,7 +23,7 @@ class StaffController extends Controller
         $selectCols = [
             'id', 'name', 'email', 'role', 'phone', 'avatar', 'gym_id', 
             'must_change_password', 'created_at',
-            'dob', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts'
+            'dob', 'joining_date', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts'
         ];
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
@@ -147,13 +147,14 @@ class StaffController extends Controller
     {
         $validated = $request->validate([
             'name'           => 'required|string|max:100',
-            'email'          => 'required|email|unique:users,email',
-            'password'       => 'required|string|min:6',
+            'phone'          => 'required|string|min:7|max:20',
+            'email'          => 'nullable|email',
+            'password'       => 'required|string|min:4',
             'role'           => 'required|in:manager,accounts,trainer',
-            'phone'          => 'nullable|string|max:20',
             'gym_id'         => 'nullable|integer',
             'avatar'         => 'nullable|string',
             'dob'            => 'nullable|date',
+            'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
             'pan_card'       => 'nullable|string|max:50',
@@ -170,22 +171,27 @@ class StaffController extends Controller
             'blood_group'    => 'nullable|string|max:10',
             'bloodGroup'     => 'nullable|string|max:10',
             'address'        => 'nullable|string',
+        ], [
+            'phone.required' => 'Mobile number is mandatory to register staff.',
+            'phone.min' => 'Please enter a valid mobile number.',
         ]);
 
         $gymId = $validated['gym_id'] ?? $this->resolveGymId($request);
         if (!$gymId) {
-            return response()->json(['success' => false, 'message' => 'Gym ID is required to create a staff account.'], 422);
+            $firstGym = \App\Models\Gym::first();
+            $gymId = $firstGym ? $firstGym->id : 1;
         }
 
         $userData = [
             'name'                 => $validated['name'],
-            'email'                => $validated['email'],
+            'email'                => !empty($validated['email']) ? trim($validated['email']) : null,
             'password'             => Hash::make($validated['password']),
             'role'                 => $validated['role'],
-            'phone'                => $validated['phone'] ?? null,
+            'phone'                => $validated['phone'],
             'gym_id'               => $gymId,
             'avatar'               => $request->avatar ?? null,
             'dob'                  => $validated['dob'] ?? null,
+            'joining_date'         => $validated['joining_date'] ?? null,
             'aadhaar_card'         => $validated['aadhaar_card'] ?? null,
             'aadhaar_image'        => $validated['aadhaar_image'] ?? null,
             'pan_card'             => $validated['pan_card'] ?? null,
@@ -199,7 +205,30 @@ class StaffController extends Controller
             $userData['plain_password'] = $validated['password'];
         }
 
-        $user = User::create($userData);
+        // Check if user already exists with this phone or email
+        $rawPhone = trim($validated['phone'] ?? '');
+        $cleanDigits = preg_replace('/\D+/', '', $rawPhone);
+        $last10 = strlen($cleanDigits) >= 10 ? substr($cleanDigits, -10) : $cleanDigits;
+
+        $existingUser = User::where(function ($q) use ($rawPhone, $cleanDigits, $last10, $validated) {
+            $q->where('phone', $rawPhone);
+            if (!empty($cleanDigits)) {
+                $q->orWhere('phone', $cleanDigits);
+            }
+            if (strlen($last10) >= 7) {
+                $q->orWhere('phone', 'like', "%{$last10}");
+            }
+            if (!empty($validated['email'])) {
+                $q->orWhere('email', trim($validated['email']));
+            }
+        })->first();
+
+        if ($existingUser) {
+            $existingUser->update($userData);
+            $user = $existingUser;
+        } else {
+            $user = User::create($userData);
+        }
 
         $responseData = $user->toArray();
         $responseData['password'] = $validated['password'];
@@ -261,11 +290,12 @@ class StaffController extends Controller
 
         $validated = $request->validate([
             'name'           => 'sometimes|string|max:100',
-            'email'          => "sometimes|email|unique:users,email,{$id}",
-            'phone'          => 'nullable|string|max:20',
+            'email'          => 'nullable|email',
+            'phone'          => 'sometimes|required|string|min:7|max:20',
             'role'           => 'sometimes|in:manager,accounts,trainer',
-            'password'       => 'nullable|string|min:6',
+            'password'       => 'nullable|string|min:4',
             'dob'            => 'nullable|date',
+            'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
             'pan_card'       => 'nullable|string|max:50',
@@ -282,13 +312,16 @@ class StaffController extends Controller
             'blood_group'    => 'nullable|string|max:10',
             'bloodGroup'     => 'nullable|string|max:10',
             'address'        => 'nullable|string',
+        ], [
+            'phone.required' => 'Mobile number is mandatory.',
         ]);
 
         if (isset($validated['name']))  $user->name  = $validated['name'];
-        if (isset($validated['email'])) $user->email = $validated['email'];
-        if (array_key_exists('phone', $validated)) $user->phone = $validated['phone'];
+        if (array_key_exists('email', $validated)) $user->email = !empty($validated['email']) ? $validated['email'] : null;
+        if (isset($validated['phone'])) $user->phone = $validated['phone'];
         if (isset($validated['role']))  $user->role  = $validated['role'];
         if (array_key_exists('dob', $validated)) $user->dob = $validated['dob'];
+        if (array_key_exists('joining_date', $validated)) $user->joining_date = $validated['joining_date'];
         if (array_key_exists('aadhaar_card', $validated)) $user->aadhaar_card = $validated['aadhaar_card'];
         if (array_key_exists('aadhaar_image', $validated)) $user->aadhaar_image = $validated['aadhaar_image'];
         if (array_key_exists('pan_card', $validated)) $user->pan_card = $validated['pan_card'];

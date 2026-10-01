@@ -10,6 +10,7 @@ import {
   sanitizePhone,
   preventNonPhoneKey
 } from '../../utils/validation';
+import { getWhatsAppUrl } from '../../utils/whatsapp';
 import {
   PhoneCall,
   Search,
@@ -809,7 +810,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                   <div className="flex items-center gap-1">
                     {enq.phone && (
                       <a
-                        href={`https://wa.me/${(enq.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${enq.name}, greetings from Pulse Fitness! Following up on your enquiry.`)}`}
+                        href={getWhatsAppUrl(enq.phone, `Hi ${enq.name}, greetings from Pulse Fitness! Following up on your enquiry.`)}
                         target="_blank"
                         rel="noreferrer"
                         className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all"
@@ -919,7 +920,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                           <span>{enq.phone}</span>
                           {enq.phone && (
                             <a
-                              href={`https://wa.me/${(enq.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${enq.name}, greetings from Pulse Fitness! We are following up on your enquiry for the ${enq.interestedPlan} plan. Would you like to book a complimentary trial session this week?`)}`}
+                              href={getWhatsAppUrl(enq.phone, `Hi ${enq.name}, greetings from Pulse Fitness! We are following up on your enquiry for the ${enq.interestedPlan} plan. Would you like to book a complimentary trial session this week?`)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold transition-colors"

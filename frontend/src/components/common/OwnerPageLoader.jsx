@@ -92,6 +92,13 @@ const TAB_CONFIGS = {
     accent: 'slate',
     layout: 'grid'
   },
+  shifts: {
+    title: 'Loading Shift Management',
+    subtitle: 'Fetching shift profiles, multi-slot working hours, and roster allocations...',
+    icon: Clock,
+    accent: 'emerald',
+    layout: 'grid'
+  },
   trainers: {
     title: 'Loading Certified Trainers',
     subtitle: 'Fetching personal coaches, specializations, client counts, and commission rates...',

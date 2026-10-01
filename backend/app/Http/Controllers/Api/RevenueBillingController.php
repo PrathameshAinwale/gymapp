@@ -29,7 +29,7 @@ class RevenueBillingController extends Controller
             ]);
         }
 
-        $query = RevenueBilling::inflow()->forGym($gymId);
+        $query = RevenueBilling::with(['user.memberProfile', 'plan', 'creator'])->inflow()->forGym($gymId);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -234,7 +234,22 @@ class RevenueBillingController extends Controller
         }
 
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', $request->input('pending_amount', 0))));
+        $dueDate = $request->input('due_date', $request->input('dueDate'));
         $refNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
+
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->created_by ?? $request->createdBy ?? $authCreator?->id;
+        $creatorName = $request->created_by_name ?? $request->createdByName ?? $request->executive ?? $request->staff_name ?? $request->staffName ?? $authCreator?->name;
+
+        if (!$creatorName && $creatorId) {
+            $creatorUser = User::find($creatorId);
+            $creatorName = $creatorUser?->name;
+        }
+        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+            $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: ($authCreator?->name ?: 'prathamesh');
+        }
+        $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
+        $creatorName = trim($cleanName) ?: 'prathamesh';
 
         $record = RevenueBilling::create([
             'gym_id' => $gymId,
@@ -252,12 +267,13 @@ class RevenueBillingController extends Controller
             'payment_method' => $request->payment_method ?? $request->paymentMethod ?? 'UPI',
             'status' => $duesAmount > 0 ? 'Pending' : ($request->status ?? 'Paid'),
             'notes' => $request->notes,
-            'created_by' => $request->user()?->id,
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
         ]);
 
-        // Mirror to invoices for backward compatibility
+        // Mirror to invoices for backward compatibility & sync member profile
         try {
-            if ($userId && User::where('id', $userId)->exists()) {
+            if ($userId && $userObj = User::find($userId)) {
                 $invPayload = [
                     'gym_id' => $gymId,
                     'invoice_number' => $refNo,
@@ -267,6 +283,8 @@ class RevenueBillingController extends Controller
                     'date' => $record->date,
                     'payment_method' => $record->payment_method,
                     'status' => $record->status,
+                    'created_by' => $creatorId,
+                    'created_by_name' => $creatorName,
                 ];
                 if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
                     $invPayload['pending_amount'] = $duesAmount;
@@ -274,7 +292,25 @@ class RevenueBillingController extends Controller
                 if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
                     $invPayload['total_amount'] = (float)($request->total_amount ?? $request->totalAmount ?? ((float)$request->amount + $duesAmount));
                 }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'due_date') && $dueDate) {
+                    $invPayload['due_date'] = $dueDate;
+                }
                 Invoice::create($invPayload);
+
+                if ($userObj->memberProfile) {
+                    $profUpdates = [];
+                    if ($request->has('dues_amount') || $request->has('duesAmount') || $request->has('pending_amount')) {
+                        $profUpdates['dues_amount'] = $duesAmount;
+                        if ($duesAmount > 0 && $dueDate) {
+                            $profUpdates['due_date'] = $dueDate;
+                        } elseif ($duesAmount <= 0) {
+                            $profUpdates['due_date'] = null;
+                        }
+                    }
+                    if (!empty($profUpdates)) {
+                        $userObj->memberProfile->update($profUpdates);
+                    }
+                }
             }
         } catch (\Exception $e) {
             \Log::warning('Invoice mirror note: ' . $e->getMessage());
@@ -396,6 +432,17 @@ class RevenueBillingController extends Controller
             $status = 'Paid';
         }
 
+        $rawCreator = $item->created_by_name ?: ($matchingInvoice?->created_by_name ?: ($item->creator?->name ?: ($matchingInvoice?->creator?->name ?: null)));
+        $creatorRole = $item->creator?->role ?: ($matchingInvoice?->creator?->role ?: null);
+        if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
+            $owner = User::where('gym_id', $item->gym_id)->where('role', 'owner')->first();
+            $rawCreator = $owner ? $owner->name : 'prathamesh';
+            $creatorRole = 'Owner';
+        }
+        $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
+        $createdByName = trim($cleanName) ?: 'prathamesh';
+        $creatorRole = ucfirst($creatorRole ?: 'Owner');
+
         return [
             'id' => $item->reference_no,
             'recordId' => 'rev-in-' . $item->id,
@@ -417,6 +464,9 @@ class RevenueBillingController extends Controller
             'status' => $status,
             'notes' => $item->notes,
             'invoiceUrl' => '#',
+            'createdBy' => $item->created_by ?: $matchingInvoice?->created_by,
+            'createdByName' => $createdByName,
+            'creatorRole' => $creatorRole,
             'createdAt' => $item->created_at?->toIso8601String(),
         ];
     }

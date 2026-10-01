@@ -23,6 +23,7 @@ class User extends Authenticatable
         'phone',
         'avatar',
         'dob',
+        'joining_date',
         'aadhaar_card',
         'aadhaar_image',
         'pan_card',

@@ -17,6 +17,8 @@ use App\Models\RecoveryPlan;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\MemberProfile;
+use App\Models\AdvanceRequest;
+use App\Models\RevenueBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -155,14 +157,21 @@ class OperationsController extends Controller
         $product->update(['stock' => $newStock, 'status' => $status]);
 
         $totalAmount = (float)$product->price * $qty;
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+        $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name ?: 'Staff / Store'));
+
         $inv = Invoice::create([
             'gym_id' => $product->gym_id ?? $this->resolveGymId($request),
             'invoice_number' => 'INV-PROD-' . strtoupper(substr(uniqid(), -6)),
             'user_id' => 1,
             'amount' => $totalAmount,
+            'date' => now()->toDateString(),
             'issue_date' => now()->toDateString(),
             'due_date' => now()->toDateString(),
             'status' => 'Paid',
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
             'items' => [['description' => "{$product->name} (Qty: {$qty})", 'amount' => $totalAmount]],
         ]);
 
@@ -351,9 +360,59 @@ class OperationsController extends Controller
             }
         }
 
+        // Auto-generate official Invoice and Cash Inflow
+        $gymId = $this->resolveGymId($request);
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+        $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name));
+        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+            $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
+            $creatorName = $owner ? $owner->name : 'prathamesh';
+        }
+        $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
+        $creatorName = trim($cleanName) ?: 'prathamesh';
+
+        $invPrefix = $type === 'extension' ? 'INV-EXT-' : 'INV-FRZ-';
+        $invNum = $invPrefix . strtoupper(substr(uniqid(), -6));
+        $actionTitle = $type === 'extension' ? "Membership Extension Fee (+{$daysFrozen} Days)" : "Membership Freeze Fee ({$daysFrozen} Days Hold)";
+        $actionCategory = $type === 'extension' ? 'Membership Extension' : 'Membership Freeze';
+
+        $inv = Invoice::create([
+            'gym_id' => $gymId,
+            'invoice_number' => $invNum,
+            'user_id' => $memberId ?: 1,
+            'amount' => $fee,
+            'total_amount' => $fee,
+            'pending_amount' => 0,
+            'date' => $freezeStartDate ?: now()->toDateString(),
+            'due_date' => $freezeStartDate ?: now()->toDateString(),
+            'payment_method' => $paymentMethod,
+            'status' => 'Paid',
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
+        ]);
+
+        RevenueBilling::create([
+            'gym_id' => $gymId,
+            'type' => 'inflow',
+            'reference_no' => $invNum,
+            'user_id' => $memberId ?: 1,
+            'member_name' => $freeze->member_name,
+            'plan_name' => $actionTitle,
+            'title' => "{$actionCategory} - {$freeze->member_name}",
+            'category' => $actionCategory,
+            'amount' => $fee,
+            'date' => $freezeStartDate ?: now()->toDateString(),
+            'payment_method' => $paymentMethod,
+            'status' => 'Paid',
+            'notes' => ($freeze->reason ? $freeze->reason . '. ' : '') . "{$actionTitle} from {$freezeStartDate} to {$freezeEndDate}.",
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => ($type === 'extension' ? 'Extension' : 'Freeze') . ' record saved in database',
+            'message' => ($type === 'extension' ? 'Extension' : 'Freeze') . ' record and invoice saved in database',
             'data' => [
                 'id' => 'frz-' . $freeze->id,
                 'numericId' => $freeze->id,
@@ -369,6 +428,7 @@ class OperationsController extends Controller
                 'reason' => $freeze->reason,
                 'status' => $freeze->status,
                 'approvedBy' => $freeze->approved_by,
+                'invoiceNumber' => $invNum,
             ]
         ], 201);
     }
@@ -394,6 +454,7 @@ class OperationsController extends Controller
                 'transferFee' => (float)$t->transfer_fee,
                 'paymentMethod' => $t->payment_method ?? 'Cash',
                 'transferDate' => $t->transfer_date?->format('Y-m-d') ?? (string)$t->transfer_date,
+                'membershipStartDate' => $t->membership_start_date?->format('Y-m-d') ?? ($t->membership_start_date ? (string)$t->membership_start_date : null),
                 'reason' => $t->reason,
                 'status' => $t->status ?? 'Completed',
             ];
@@ -410,48 +471,143 @@ class OperationsController extends Controller
         $toMemberIdRaw = $request->toMemberId ?? $request->to_member_id;
         $toMemberId = $toMemberIdRaw ? (int)str_replace('mem-', '', $toMemberIdRaw) : null;
 
-        $transfer = MembershipTransfer::create([
-            'gym_id' => $gymId,
-            'from_member_id' => $fromMemberId,
-            'from_member_name' => $request->fromMemberName ?? $request->from_member_name ?? 'Source Member',
-            'to_member_id' => $toMemberId,
-            'to_member_name' => $request->toMemberName ?? $request->to_member_name ?? 'Recipient Member',
-            'to_member_phone' => $request->toMemberPhone ?? $request->to_member_phone ?? null,
-            'plan_name' => $request->planName ?? $request->plan_name ?? 'Membership Plan',
-            'days_remaining' => (int)($request->daysRemaining ?? $request->days_remaining ?? 30),
-            'transfer_fee' => (float)($request->transferFee ?? $request->transfer_fee ?? 0),
-            'payment_method' => $request->paymentMethod ?? $request->payment_method ?? 'Cash',
-            'transfer_date' => $request->transferDate ?? $request->transfer_date ?? now()->toDateString(),
-            'reason' => $request->reason ?? 'Relocation/Transfer',
-            'status' => 'Completed',
-        ]);
+        $transferDate = $request->transferDate ?? $request->transfer_date ?? now()->toDateString();
+        $membershipStartDate = $request->membershipStartDate ?? $request->membership_start_date ?? $request->startDate ?? $transferDate;
+        $daysRemaining = (int)($request->daysRemaining ?? $request->days_remaining ?? 30);
+        $transferFee = (float)($request->transferFee ?? $request->transfer_fee ?? ($request->transferCharge ?? 0));
+        $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
+        $reason = $request->reason ?? 'Membership Transfer';
 
-        // Transfer membership: update source to Inactive / Transferred and update or set recipient expiry
+        // Calculate recipient expiry date: membershipStartDate + daysRemaining
+        $recipientExpiryDate = \Carbon\Carbon::parse($membershipStartDate)->addDays($daysRemaining)->toDateString();
+
+        // 1. Source Member: Status is set to Expired and expiry date set to transfer date (marked Expired)
+        $fromProfile = null;
         if ($fromMemberId) {
             $fromProfile = MemberProfile::where('user_id', $fromMemberId)->first();
             if ($fromProfile) {
-                $days = (int)($request->daysRemaining ?? 30);
-                $fromProfile->status = 'Transferred';
+                $fromProfile->status = 'Expired';
+                $fromProfile->expiry_date = \Carbon\Carbon::parse($transferDate)->subDay()->toDateString();
+                $fromProfile->notes = trim(($fromProfile->notes ? $fromProfile->notes . ' | ' : '') . "Membership transferred to " . ($request->toMemberName ?? 'Recipient') . " on {$transferDate}. Status set to Expired.");
                 $fromProfile->save();
-
-                // If recipient exists in system
-                if ($toMemberId) {
-                    $toProfile = MemberProfile::where('user_id', $toMemberId)->first();
-                    if ($toProfile) {
-                        $currentExpiry = $toProfile->expiry_date && \Carbon\Carbon::parse($toProfile->expiry_date)->isFuture()
-                            ? \Carbon\Carbon::parse($toProfile->expiry_date)
-                            : now();
-                        $toProfile->expiry_date = $currentExpiry->addDays($days)->toDateString();
-                        $toProfile->status = 'Active';
-                        $toProfile->save();
-                    }
-                }
             }
         }
 
+        // 2. Destination Member: Existing user or create new user/profile
+        if (!$toMemberId && !empty($request->toMemberPhone)) {
+            $existingUser = User::where('gym_id', $gymId)->where('phone', $request->toMemberPhone)->first();
+            if ($existingUser) {
+                $toMemberId = $existingUser->id;
+            }
+        }
+
+        if (!$toMemberId && !empty($request->toMemberName)) {
+            $newUser = User::create([
+                'gym_id' => $gymId,
+                'name' => $request->toMemberName,
+                'phone' => $request->toMemberPhone ?: null,
+                'email' => strtolower(str_replace(' ', '', $request->toMemberName)) . rand(100, 999) . '@gym.local',
+                'password' => bcrypt('password123'),
+                'plain_password' => 'password123',
+                'role' => 'member',
+            ]);
+            $toMemberId = $newUser->id;
+            MemberProfile::create([
+                'user_id' => $newUser->id,
+                'gym_id' => $gymId,
+                'member_id' => 'MEM' . rand(1000, 9999),
+                'start_date' => $membershipStartDate,
+                'expiry_date' => $recipientExpiryDate,
+                'plan_id' => $fromProfile?->plan_id,
+                'plan_name' => $fromProfile?->plan_name ?: ($request->planName ?? 'Transferred Membership'),
+                'status' => 'Active',
+                'notes' => "Transferred from " . ($request->fromMemberName ?? 'Source Member') . " on {$transferDate}. Valid from {$membershipStartDate} to {$recipientExpiryDate} ({$daysRemaining} days).",
+            ]);
+        } elseif ($toMemberId) {
+            $toProfile = MemberProfile::where('user_id', $toMemberId)->first();
+            if ($toProfile) {
+                $toProfile->start_date = $membershipStartDate;
+                $toProfile->expiry_date = $recipientExpiryDate;
+                $toProfile->status = 'Active';
+                if ($fromProfile && $fromProfile->plan_id) {
+                    $toProfile->plan_id = $fromProfile->plan_id;
+                }
+                if ($fromProfile && $fromProfile->plan_name) {
+                    $toProfile->plan_name = $fromProfile->plan_name;
+                }
+                $toProfile->notes = trim(($toProfile->notes ? $toProfile->notes . ' | ' : '') . "Transferred from " . ($request->fromMemberName ?? 'Source Member') . " on {$transferDate}. Valid from {$membershipStartDate} to {$recipientExpiryDate} ({$daysRemaining} days).");
+                $toProfile->save();
+            }
+        }
+
+        // 3. Create Transfer record in database
+        $transfer = MembershipTransfer::create([
+            'gym_id' => $gymId,
+            'from_member_id' => $fromMemberId,
+            'from_member_name' => $request->fromMemberName ?? 'Source Member',
+            'to_member_id' => $toMemberId,
+            'to_member_name' => $request->toMemberName ?? 'Recipient Member',
+            'to_member_phone' => $request->toMemberPhone ?? null,
+            'plan_name' => $fromProfile?->plan_name ?? ($request->planName ?? 'Membership Plan'),
+            'days_remaining' => $daysRemaining,
+            'transfer_fee' => $transferFee,
+            'payment_method' => $paymentMethod,
+            'transfer_date' => $transferDate,
+            'membership_start_date' => $membershipStartDate,
+            'reason' => $reason,
+            'status' => 'Completed',
+        ]);
+
+        // 4. Auto-generate official Invoice and Cash Inflow for the transfer
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+        $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name));
+        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+            $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
+            $creatorName = $owner ? $owner->name : 'prathamesh';
+        }
+        $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
+        $creatorName = trim($cleanName) ?: 'prathamesh';
+
+        $invNum = 'INV-TRF-' . strtoupper(substr(uniqid(), -6));
+        $billedUserId = $toMemberId ?: ($fromMemberId ?: 1);
+
+        $invoice = Invoice::create([
+            'gym_id' => $gymId,
+            'invoice_number' => $invNum,
+            'user_id' => $billedUserId,
+            'amount' => $transferFee,
+            'total_amount' => $transferFee,
+            'pending_amount' => 0,
+            'date' => $transferDate ?: now()->toDateString(),
+            'due_date' => $transferDate ?: now()->toDateString(),
+            'payment_method' => $paymentMethod,
+            'status' => 'Paid',
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
+        ]);
+
+        RevenueBilling::create([
+            'gym_id' => $gymId,
+            'type' => 'inflow',
+            'reference_no' => $invNum,
+            'user_id' => $billedUserId,
+            'member_name' => ($transfer->to_member_name ?? 'Recipient') . " (Transfer from " . ($transfer->from_member_name ?? 'Source') . ")",
+            'plan_name' => "Transfer Fee: " . ($transfer->from_member_name ?? 'Source') . " → " . ($transfer->to_member_name ?? 'Recipient'),
+            'title' => "Membership Transfer Fee - " . ($transfer->to_member_name ?? 'Recipient'),
+            'category' => 'Membership Transfer',
+            'amount' => $transferFee,
+            'date' => $transferDate ?: now()->toDateString(),
+            'payment_method' => $paymentMethod,
+            'status' => 'Paid',
+            'notes' => "Transfer of {$daysRemaining} days validity from {$transfer->from_member_name} to {$transfer->to_member_name}. Start Date: {$membershipStartDate}, Valid till: {$recipientExpiryDate}. Reason: {$transfer->reason}",
+            'created_by' => $creatorId,
+            'created_by_name' => $creatorName,
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => 'Membership transferred successfully',
+            'message' => 'Membership transferred successfully, source expired and invoice created',
             'data' => [
                 'id' => 'trf-' . $transfer->id,
                 'numericId' => $transfer->id,
@@ -465,8 +621,11 @@ class OperationsController extends Controller
                 'transferFee' => (float)$transfer->transfer_fee,
                 'paymentMethod' => $transfer->payment_method,
                 'transferDate' => (string)$transfer->transfer_date,
+                'membershipStartDate' => (string)$transfer->membership_start_date,
+                'recipientExpiryDate' => $recipientExpiryDate,
                 'reason' => $transfer->reason,
                 'status' => $transfer->status,
+                'invoiceNumber' => $invNum,
             ]
         ], 201);
     }
@@ -747,8 +906,56 @@ class OperationsController extends Controller
             }
         }
 
-        if ($request->has('notes')) {
-            $updates['notes'] = $request->notes;
+        // Deduct from employee's advance taken balance if active advance exists
+        if ($request->has('deductions') && (float)$request->deductions > 0) {
+            $deductionToApply = (float)$request->deductions;
+            
+            $advQuery = AdvanceRequest::query();
+            if ($p->employee_id) {
+                $advQuery->where(function ($q) use ($p) {
+                    $q->where('trainer_id', $p->employee_id)
+                      ->orWhere('trainer_name', $p->employee_name ?? '');
+                });
+            } elseif (!empty($p->employee_name)) {
+                $advQuery->where('trainer_name', $p->employee_name);
+            }
+
+            $advances = $advQuery->whereIn('status', ['Disbursed', 'Approved', 'Partially Repaid'])
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            foreach ($advances as $adv) {
+                if ($deductionToApply <= 0) break;
+
+                $currentRepaid = (float)($adv->repaid_amount ?? 0);
+                $remainingAdv = max(0, (float)$adv->amount - $currentRepaid);
+
+                if ($remainingAdv <= 0) continue;
+
+                $portionToDeduct = min($remainingAdv, $deductionToApply);
+                $newRepaid = $currentRepaid + $portionToDeduct;
+                $deductionToApply -= $portionToDeduct;
+
+                $advNotes = $adv->notes ? $adv->notes . ' | ' : '';
+                $remarkNote = !empty($request->notes) ? " ({$request->notes})" : (!empty($request->remarks) ? " ({$request->remarks})" : '');
+                $advNotes .= "Payroll deduction ₹" . number_format($portionToDeduct, 2) . " applied{$remarkNote} on " . now()->toDateString();
+
+                $newStatus = ($newRepaid >= (float)$adv->amount) ? 'Repaid' : 'Partially Repaid';
+
+                $advUpdate = [
+                    'status' => $newStatus,
+                    'notes' => $advNotes,
+                ];
+                if (\Schema::hasColumn('advance_requests', 'repaid_amount')) {
+                    $advUpdate['repaid_amount'] = $newRepaid;
+                }
+
+                $adv->update($advUpdate);
+            }
+        }
+
+        if ($request->has('notes') || $request->has('remarks')) {
+            $updates['notes'] = $request->notes ?? $request->remarks;
         }
         if ($request->has('adjustedBy') || $request->has('adjusted_by')) {
             $updates['adjusted_by'] = $request->adjustedBy ?? $request->adjusted_by;

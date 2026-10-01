@@ -108,9 +108,12 @@ class TrainerController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            'phone' => 'required|string|min:7|max:20',
+            'email' => 'nullable|email',
             'specialty' => 'nullable|string',
             'monthly_salary' => 'nullable|numeric',
+        ], [
+            'phone.required' => 'Mobile number is mandatory to register trainer.',
         ]);
 
         if ($validator->fails()) {
@@ -125,10 +128,10 @@ class TrainerController extends Controller
 
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => !empty($request->email) ? $request->email : null,
             'password' => Hash::make($request->password ?? 'trainer123'),
             'role' => 'trainer',
-            'phone' => $request->phone ?? null,
+            'phone' => $request->phone,
             'gym_id' => $gymId,
             'avatar' => $request->avatar ?? null,
         ]);

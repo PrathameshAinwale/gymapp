@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { api } from '../../services/api';
@@ -119,9 +119,9 @@ const StaffAvatar = ({ src, name, size = 'sm' }) => {
   );
 };
 
-export const StaffAccountManager = () => {
+export const StaffAccountManager = ({ onNavigateTab = null }) => {
   const { accounts, createStaffAccount, deleteStaffAccount, currentUser } = useAuth();
-  const { addToast, members = [], trainers = [], fetchTrainers } = useGymData();
+  const { addToast, members = [], trainers = [], fetchTrainers, shifts = [], fetchShifts } = useGymData();
 
   const activeGymId = currentUser?.gymId || currentUser?.gym_id;
 
@@ -137,6 +137,7 @@ export const StaffAccountManager = () => {
             const actualPass = s.plain_password || (s.password && s.password !== '••••••••' ? s.password : null);
             if (actualPass) {
               if (s.email) saved[s.email.toLowerCase()] = actualPass;
+              if (s.phone) saved[s.phone] = actualPass;
               if (s.id) saved[String(s.id)] = actualPass;
             }
           });
@@ -150,9 +151,34 @@ export const StaffAccountManager = () => {
 
   useEffect(() => {
     fetchStaffFromDb();
-  }, [activeGymId]);
+    fetchShifts?.();
+  }, [activeGymId, fetchShifts]);
+
+  // Dynamically formatted shift options from owner's shift configuration
+  const formattedShiftOptions = useMemo(() => {
+    if (!shifts || shifts.length === 0) {
+      return [];
+    }
+
+    return shifts
+      .filter((s) => s.is_active !== false)
+      .map((s) => {
+        let timingLabel = '';
+        if (Array.isArray(s.timings) && s.timings.length > 0) {
+          timingLabel = s.timings.map((t) => `${t.start_time} - ${t.end_time}`).join(' & ');
+        }
+        const fullValue = timingLabel ? `${s.name} (${timingLabel})` : s.name;
+        return {
+          id: s.id,
+          name: s.name,
+          value: fullValue,
+          label: fullValue
+        };
+      });
+  }, [shifts]);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
@@ -176,12 +202,13 @@ export const StaffAccountManager = () => {
     phone: '',
     password: '',
     dob: '',
+    joining_date: '',
     aadhaar_card: '',
     aadhaar_image: '',
     pan_card: '',
     pan_image: '',
     salary: '',
-    shifts: 'Morning Shift (6:00 AM - 2:00 PM)',
+    shifts: '',
     specialty: 'Head Strength & Conditioning Coach',
     experience: '3+ Years',
     bio: '',
@@ -204,12 +231,13 @@ export const StaffAccountManager = () => {
     role: 'manager', // 'manager' | 'accounts' | 'trainer'
     phone: '',
     dob: '',
+    joining_date: new Date().toISOString().split('T')[0],
     aadhaar_card: '',
     aadhaar_image: '',
     pan_card: '',
     pan_image: '',
     salary: '',
-    shifts: 'Morning Shift (6:00 AM - 2:00 PM)',
+    shifts: '',
     specialty: 'Head Strength & Conditioning Coach',
     experience: '3+ Years',
     bio: 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
@@ -243,6 +271,22 @@ export const StaffAccountManager = () => {
     const map = new Map();
     const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id || activeGymId || 0);
 
+    const getCanonicalKey = (item) => {
+      if (!item) return String(Math.random());
+      const cleanPhone = item.phone ? String(item.phone).replace(/\D/g, '').slice(-10) : '';
+      if (cleanPhone.length >= 7) {
+        return 'phone_' + cleanPhone;
+      }
+      const numId = String(item.userId || item.id || '').replace(/\D/g, '');
+      if (numId) {
+        return 'user_' + numId;
+      }
+      if (item.email && String(item.email).trim()) {
+        return 'email_' + String(item.email).trim().toLowerCase();
+      }
+      return 'raw_' + String(item.id || item.userId || Math.random());
+    };
+
     // Add auth context accounts
     accounts
       .filter((acc) => {
@@ -257,14 +301,15 @@ export const StaffAccountManager = () => {
       })
       .forEach((a) => {
         const pass = getStaffPassword(a);
-        map.set(a.email?.toLowerCase(), {
+        const accKey = getCanonicalKey(a);
+        map.set(accKey, {
           ...a,
           password: pass,
           plain_password: pass
         });
       });
 
-    // Overlay database records
+    // Overlay database records (primary source of truth)
     dbStaff
       .filter((stf) => {
         if (stf.role === 'superadmin' || stf.role === 'owner' || stf.role === 'member') {
@@ -277,8 +322,27 @@ export const StaffAccountManager = () => {
         return false;
       })
       .forEach((stf) => {
-        const emailKey = stf.email?.toLowerCase();
-        const existing = map.get(emailKey) || {};
+        const cleanStfPhone = stf.phone ? String(stf.phone).replace(/\D/g, '').slice(-10) : '';
+        const numStfId = String(stf.userId || stf.id || '').replace(/\D/g, '');
+        const staffKey = getCanonicalKey(stf);
+
+        // Remove any matching account entry added under alternate key to prevent duplicates
+        let existing = map.get(staffKey);
+        for (const [k, val] of map.entries()) {
+          const valCleanPhone = val.phone ? String(val.phone).replace(/\D/g, '').slice(-10) : '';
+          const valNumId = String(val.userId || val.id || '').replace(/\D/g, '');
+          const isSame =
+            (cleanStfPhone && valCleanPhone && cleanStfPhone === valCleanPhone) ||
+            (numStfId && valNumId && numStfId === valNumId) ||
+            (stf.email && val.email && stf.email.toLowerCase() === val.email.toLowerCase());
+
+          if (isSame) {
+            existing = existing || val;
+            map.delete(k);
+          }
+        }
+        existing = existing || {};
+
         const pass =
           (stf.plain_password && stf.plain_password !== '••••••••' && stf.plain_password !== 'password123')
             ? stf.plain_password
@@ -294,7 +358,7 @@ export const StaffAccountManager = () => {
           return mTrn === sId || mTrn === `trn-${sUsr}` || mTrn === sUsr;
         }) : []);
 
-        map.set(emailKey, {
+        map.set(staffKey, {
           ...existing,
           id: existing.id || `usr-${stf.role}-${stf.id}`,
           userId: stf.id,
@@ -339,8 +403,10 @@ export const StaffAccountManager = () => {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.password) {
-      addToast('Please fill in Name, Email and Password', 'error');
+    if (isSubmitting) return;
+
+    if (!formData.name || !formData.phone || !formData.password) {
+      addToast('Please fill in Name, Mobile Number and Password', 'error');
       return;
     }
 
@@ -356,12 +422,12 @@ export const StaffAccountManager = () => {
       return;
     }
 
-    if (!isValidEmail(formData.email)) {
+    if (formData.email && !isValidEmail(formData.email)) {
       addToast('Please enter a valid email address.', 'error');
       return;
     }
 
-    if (formData.phone && !isValidPhone(formData.phone)) {
+    if (!formData.phone || !isValidPhone(formData.phone)) {
       addToast('Please enter a valid 10-digit mobile number.', 'error');
       return;
     }
@@ -376,6 +442,7 @@ export const StaffAccountManager = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const newAcc = await createStaffAccount({
         name: formData.name,
@@ -384,6 +451,8 @@ export const StaffAccountManager = () => {
         role: formData.role,
         phone: formData.phone,
         dob: formData.dob,
+        joining_date: formData.joining_date || null,
+        joiningDate: formData.joining_date || null,
         aadhaar_card: formData.aadhaar_card,
         aadhaar_image: formData.aadhaar_image,
         pan_card: formData.pan_card,
@@ -402,13 +471,15 @@ export const StaffAccountManager = () => {
         monthly_salary: formData.salary
       });
 
-      saveStaffPassword(formData.email, formData.password);
+      if (formData.phone) saveStaffPassword(formData.phone, formData.password);
+      if (formData.email) saveStaffPassword(formData.email, formData.password);
       if (newAcc.userId) saveStaffPassword(newAcc.userId, formData.password);
 
       setIsCreateModalOpen(false);
       setCreatedCredentials({
         name: newAcc.name,
-        email: newAcc.email,
+        email: newAcc.email || formData.email || '',
+        phone: newAcc.phone || formData.phone || '',
         password: formData.password,
         role: newAcc.role,
         roleLabel: newAcc.roleLabel
@@ -421,12 +492,13 @@ export const StaffAccountManager = () => {
         role: 'manager',
         phone: '',
         dob: '',
+        joining_date: new Date().toISOString().split('T')[0],
         aadhaar_card: '',
         aadhaar_image: '',
         pan_card: '',
         pan_image: '',
         salary: '',
-        shifts: 'Morning Shift (6:00 AM - 2:00 PM)',
+        shifts: '',
         specialty: 'Head Strength & Conditioning Coach',
         experience: '3+ Years',
         bio: 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
@@ -441,6 +513,8 @@ export const StaffAccountManager = () => {
       fetchTrainers?.();
     } catch (err) {
       addToast(err.message || 'Failed to create staff account', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -453,12 +527,13 @@ export const StaffAccountManager = () => {
       phone: stf.phone || '',
       password: '',
       dob: stf.dob || '',
+      joining_date: stf.joining_date ? String(stf.joining_date).split('T')[0] : (stf.joiningDate ? String(stf.joiningDate).split('T')[0] : (stf.created_at ? String(stf.created_at).split('T')[0] : '')),
       aadhaar_card: stf.aadhaar_card || '',
       aadhaar_image: stf.aadhaar_image || '',
       pan_card: stf.pan_card || '',
       pan_image: stf.pan_image || '',
       salary: stf.salary || '',
-      shifts: stf.shifts || 'Morning Shift (6:00 AM - 2:00 PM)',
+      shifts: stf.shifts || '',
       specialty: stf.specialty || 'Head Strength & Conditioning Coach',
       experience: stf.experience || '3+ Years',
       bio: stf.bio || '',
@@ -488,12 +563,12 @@ export const StaffAccountManager = () => {
       return;
     }
 
-    if (!isValidEmail(editFormData.email)) {
+    if (editFormData.email && !isValidEmail(editFormData.email)) {
       addToast('Please enter a valid email address.', 'error');
       return;
     }
 
-    if (editFormData.phone && !isValidPhone(editFormData.phone)) {
+    if (!editFormData.phone || !isValidPhone(editFormData.phone)) {
       addToast('Please enter a valid 10-digit mobile number.', 'error');
       return;
     }
@@ -516,6 +591,7 @@ export const StaffAccountManager = () => {
         role: editFormData.role,
         phone: editFormData.phone || '',
         dob: editFormData.dob || null,
+        joining_date: editFormData.joining_date || null,
         aadhaar_card: editFormData.aadhaar_card || null,
         aadhaar_image: editFormData.aadhaar_image || null,
         pan_card: editFormData.pan_card || null,
@@ -620,7 +696,18 @@ export const StaffAccountManager = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          {onNavigateTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('shifts')}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+            >
+              <Clock className="w-4 h-4 text-emerald-600" />
+              <span>Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
@@ -703,7 +790,6 @@ export const StaffAccountManager = () => {
         <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Active Staff & Coach Directory</h3>
-            <p className="text-[11px] text-slate-500">Employee credentials, coach specializations, salary records & KYC verification</p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
@@ -762,7 +848,7 @@ export const StaffAccountManager = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                   <th className="py-3 px-4">Staff Member</th>
                   <th className="py-3 px-4">Role & Specialty</th>
-                  <th className="py-3 px-4">DOB / Age</th>
+                  <th className="py-3 px-4">Joining Date</th>
                   <th className="py-3 px-4">Salary</th>
                   <th className="py-3 px-4">Working Shift</th>
                   <th className="py-3 px-4">KYC Documents</th>
@@ -834,13 +920,23 @@ export const StaffAccountManager = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-600">
-                        {stf.dob ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{stf.dob}</span>
+                        {stf.joining_date || stf.joiningDate ? (
+                          <div className="flex items-center gap-1 font-semibold text-slate-900">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{stf.joining_date || stf.joiningDate}</span>
+                          </div>
+                        ) : stf.created_at ? (
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{String(stf.created_at).split('T')[0]}</span>
                           </div>
                         ) : (
                           <span className="text-slate-400">—</span>
+                        )}
+                        {stf.dob && (
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            DOB: {stf.dob}
+                          </div>
                         )}
                       </td>
 
@@ -976,7 +1072,7 @@ export const StaffAccountManager = () => {
       >
         <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
           {/* Basic Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Full Name *</label>
               <div className="relative">
@@ -987,6 +1083,20 @@ export const StaffAccountManager = () => {
                   placeholder="e.g. Ramesh Chandra"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Joining Date *</label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="date"
+                  required
+                  value={formData.joining_date}
+                  onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
@@ -1008,33 +1118,33 @@ export const StaffAccountManager = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Login ID / Email *</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. staff@archfit.in"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Phone Number</label>
+              <label className="block font-bold text-slate-700 mb-1">Mobile Number *</label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="tel"
+                  required
                   maxLength={10}
                   inputMode="numeric"
                   placeholder="e.g. 9820012345 (10 digits)"
                   value={formData.phone}
                   onKeyDown={preventNonPhoneKey}
                   onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Email Address (Optional)</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  placeholder="e.g. staff@archfit.in (optional)"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
             </div>
@@ -1111,17 +1221,39 @@ export const StaffAccountManager = () => {
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Shifts Working</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">Shifts Working</label>
+                {onNavigateTab && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('shifts')}
+                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Create Shift</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={formData.shifts}
                 onChange={(e) => setFormData({ ...formData, shifts: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
-                <option value="Morning Shift (6:00 AM - 2:00 PM)">Morning Shift (6:00 AM - 2:00 PM)</option>
-                <option value="Evening Shift (2:00 PM - 10:00 PM)">Evening Shift (2:00 PM - 10:00 PM)</option>
-                <option value="General / Full Day (9:00 AM - 6:00 PM)">General / Full Day (9:00 AM - 6:00 PM)</option>
-                <option value="Split Shift (6 AM - 11 AM & 5 PM - 9 PM)">Split Shift (6 AM - 11 AM & 5 PM - 9 PM)</option>
-                <option value="Night Shift (10:00 PM - 6:00 AM)">Night Shift (10:00 PM - 6:00 AM)</option>
+                {formattedShiftOptions.length === 0 ? (
+                  <option value="">-- No Shifts Created Yet (Click "+ Create Shift" above) --</option>
+                ) : (
+                  <>
+                    <option value="">-- Select Shift --</option>
+                    {formattedShiftOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </>
+                )}
+                {formData.shifts && !formattedShiftOptions.some((o) => o.value === formData.shifts) && (
+                  <option value={formData.shifts}>{formData.shifts}</option>
+                )}
               </select>
             </div>
           </div>
@@ -1382,9 +1514,19 @@ export const StaffAccountManager = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className={`px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
+              }`}
             >
-              Save Staff Member
+              {isSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Save Staff Member</span>
+              )}
             </button>
           </div>
         </form>
@@ -1411,9 +1553,15 @@ export const StaffAccountManager = () => {
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[11px]">
               <div>
-                <span className="text-slate-400 font-bold block">Login ID / Email:</span>
-                <span className="font-mono font-bold text-slate-900">{createdCredentials.email}</span>
+                <span className="text-slate-400 font-bold block">Mobile / Login ID:</span>
+                <span className="font-mono font-bold text-slate-900">{createdCredentials.phone || createdCredentials.email}</span>
               </div>
+              {createdCredentials.email && createdCredentials.email !== createdCredentials.phone && (
+                <div>
+                  <span className="text-slate-400 font-bold block">Email:</span>
+                  <span className="font-mono font-bold text-slate-900">{createdCredentials.email}</span>
+                </div>
+              )}
               <div>
                 <span className="text-slate-400 font-bold block">Password:</span>
                 <span className="font-mono font-bold text-slate-900">{createdCredentials.password}</span>
@@ -1421,14 +1569,14 @@ export const StaffAccountManager = () => {
             </div>
 
             <p className="text-[11px] text-slate-500 text-center">
-              Please share these credentials with the employee. They can sign in immediately at the portal login screen.
+              Please share these credentials with the employee. They can sign in immediately using their mobile number or email at the login screen.
             </p>
 
             <button
               type="button"
               onClick={() => {
                 copyToClipboard(
-                  `ArchFit Staff Login Credentials:\nName: ${createdCredentials.name}\nRole: ${createdCredentials.roleLabel || createdCredentials.role}\nLogin ID: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`,
+                  `ArchFit Staff Login Credentials:\nName: ${createdCredentials.name}\nRole: ${createdCredentials.roleLabel || createdCredentials.role}\nMobile / Login ID: ${createdCredentials.phone || createdCredentials.email}${createdCredentials.email ? `\nEmail: ${createdCredentials.email}` : ''}\nPassword: ${createdCredentials.password}`,
                   'created'
                 );
               }}
@@ -1468,22 +1616,43 @@ export const StaffAccountManager = () => {
             <div className="space-y-2.5">
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Login ID / Email
+                  Mobile / Login ID
                 </label>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="font-mono font-bold text-slate-900 text-xs truncate mr-2 select-all">
-                    {sharingStaff.email}
+                    {sharingStaff.phone || sharingStaff.email}
                   </span>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(sharingStaff.email, 'share-email')}
+                    onClick={() => copyToClipboard(sharingStaff.phone || sharingStaff.email, 'share-phone')}
                     className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer shrink-0"
-                    title="Copy Email"
+                    title="Copy Login ID"
                   >
-                    {copiedId === 'share-email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedId === 'share-phone' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
+
+              {sharingStaff.email && sharingStaff.email !== sharingStaff.phone && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Email Address
+                  </label>
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="font-mono font-bold text-slate-900 text-xs truncate mr-2 select-all">
+                      {sharingStaff.email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(sharingStaff.email, 'share-email')}
+                      className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer shrink-0"
+                      title="Copy Email"
+                    >
+                      {copiedId === 'share-email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -1520,7 +1689,7 @@ export const StaffAccountManager = () => {
               onClick={() => {
                 const pass = sharingStaff.plain_password || sharingStaff.password || getStaffPassword(sharingStaff);
                 copyToClipboard(
-                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nEmail: ${sharingStaff.email}\nPassword: ${pass}`,
+                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
                   'share-all'
                 );
               }}
@@ -1585,7 +1754,7 @@ export const StaffAccountManager = () => {
       >
         {editingStaff && (
           <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Full Name *</label>
                 <div className="relative">
@@ -1595,6 +1764,19 @@ export const StaffAccountManager = () => {
                     required
                     value={editFormData.name}
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Joining Date</label>
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="date"
+                    value={editFormData.joining_date}
+                    onChange={(e) => setEditFormData({ ...editFormData, joining_date: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                   />
                 </div>
@@ -1616,32 +1798,33 @@ export const StaffAccountManager = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Login ID / Email *</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Phone Number</label>
+                <label className="block font-bold text-slate-700 mb-1">Mobile Number *</label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="tel"
+                    required
                     maxLength={10}
                     inputMode="numeric"
                     placeholder="10 digit number"
                     value={editFormData.phone}
                     onKeyDown={preventNonPhoneKey}
                     onChange={(e) => setEditFormData({ ...editFormData, phone: sanitizePhone(e.target.value) })}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Email Address (Optional)</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    placeholder="e.g. staff@archfit.in (optional)"
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                   />
                 </div>
               </div>
@@ -1714,17 +1897,39 @@ export const StaffAccountManager = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Working Shifts</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700">Working Shifts</label>
+                  {onNavigateTab && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTab('shifts')}
+                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Manage Shifts</span>
+                    </button>
+                  )}
+                </div>
                 <select
                   value={editFormData.shifts}
                   onChange={(e) => setEditFormData({ ...editFormData, shifts: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="Morning Shift (6:00 AM - 2:00 PM)">Morning Shift (6:00 AM - 2:00 PM)</option>
-                  <option value="Evening Shift (2:00 PM - 10:00 PM)">Evening Shift (2:00 PM - 10:00 PM)</option>
-                  <option value="General / Full Day (9:00 AM - 6:00 PM)">General / Full Day (9:00 AM - 6:00 PM)</option>
-                  <option value="Split Shift (6 AM - 11 AM & 5 PM - 9 PM)">Split Shift (6 AM - 11 AM & 5 PM - 9 PM)</option>
-                  <option value="Night Shift (10:00 PM - 6:00 AM)">Night Shift (10:00 PM - 6:00 AM)</option>
+                  {formattedShiftOptions.length === 0 ? (
+                    <option value="">-- No Shifts Created Yet (Click "+ Manage Shifts" above) --</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Shift --</option>
+                      {formattedShiftOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                  {editFormData.shifts && !formattedShiftOptions.some((o) => o.value === editFormData.shifts) && (
+                    <option value={editFormData.shifts}>{editFormData.shifts}</option>
+                  )}
                 </select>
               </div>
             </div>

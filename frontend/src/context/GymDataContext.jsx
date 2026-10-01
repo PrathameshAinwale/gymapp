@@ -805,11 +805,14 @@ const mapAdvanceRequest = (r) => ({
   id: `adv-${r.id}`,
   numericId: r.id,
   staffId: `tr-${r.trainer_id}`,
+  trainerId: r.trainer_id,
   staffName: r.trainer_name || 'Staff Member',
   trainerName: r.trainer_name || 'Staff Member',
   trainerAvatar: r.trainer_avatar,
   role: r.role || 'Fitness Coach',
   amount: Number(r.amount),
+  repaidAmount: Number(r.repaid_amount || r.repaidAmount || 0),
+  balanceAmount: Math.max(0, Number(r.amount || 0) - Number(r.repaid_amount || r.repaidAmount || 0)),
   reason: r.reason,
   date: r.request_date || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
   requestDate: r.request_date || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
@@ -978,6 +981,9 @@ export const GymDataProvider = ({ children }) => {
     approved_this_month: 0,
     total_employees: 0,
   });
+
+  // Staff Shift Management & Multi-Slot Configurations
+  const [shifts, setShifts] = useState([]);
 
   // WhatsApp Message Templates & Automation Triggers
   const [whatsappTemplates, setWhatsappTemplates] = useState([]);
@@ -1556,6 +1562,66 @@ export const GymDataProvider = ({ children }) => {
     }
   }, [fetchWhatsAppTriggers, fetchWhatsAppLogs, fetchWhatsAppStats]);
 
+  // Staff Shift Management Callbacks
+  const fetchShifts = useCallback(async (params = {}) => {
+    try {
+      if (api.shifts?.getAll) {
+        const res = await api.shifts.getAll(params);
+        if (res?.data && Array.isArray(res.data)) {
+          setShifts(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch shifts note:', e.message);
+    }
+  }, []);
+
+  const createShift = useCallback(async (data) => {
+    try {
+      const res = await api.shifts.create(data);
+      if (res?.success) {
+        addToast(res.message || 'Shift created successfully!', 'success');
+        fetchShifts();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Create shift error:', err.message);
+      addToast(`Failed to create shift: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchShifts]);
+
+  const updateShift = useCallback(async (id, data) => {
+    try {
+      const res = await api.shifts.update(id, data);
+      if (res?.success) {
+        addToast(res.message || 'Shift updated successfully!', 'success');
+        fetchShifts();
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Update shift error:', err.message);
+      addToast(`Failed to update shift: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchShifts]);
+
+  const deleteShift = useCallback(async (id) => {
+    try {
+      const res = await api.shifts.delete(id);
+      if (res?.success) {
+        addToast(res.message || 'Shift deleted successfully!', 'success');
+        fetchShifts();
+        return res;
+      }
+    } catch (err) {
+      console.error('Delete shift error:', err.message);
+      addToast(`Failed to delete shift: ${err.message}`, 'error');
+      throw err;
+    }
+  }, [addToast, fetchShifts]);
+
   const fetchDashboardStats = useCallback(async () => {
     try {
       if (api.dashboard?.getOwnerStats) {
@@ -1612,7 +1678,8 @@ export const GymDataProvider = ({ children }) => {
         fetchLeaveBalances(),
         fetchLeaveSummary(),
         fetchWhatsAppTemplates(),
-        fetchWhatsAppStats()
+        fetchWhatsAppStats(),
+        fetchShifts()
       ]);
       setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false, leaves: false }));
 
@@ -1649,7 +1716,8 @@ export const GymDataProvider = ({ children }) => {
     fetchGymInfo,
     fetchDashboardStats,
     fetchWhatsAppTemplates,
-    fetchWhatsAppStats
+    fetchWhatsAppStats,
+    fetchShifts
   ]);
 
   // Safety timer to guarantee no owner page ever hangs on a loader
@@ -1734,6 +1802,7 @@ export const GymDataProvider = ({ children }) => {
     setPayrollRecords([]);
     setAdvanceRequests([]);
     setTrainerReviews([]);
+    setShifts([]);
     setOwnerStats({
       totalMembers: 0,
       activeMembers: 0,
@@ -2973,7 +3042,12 @@ export const GymDataProvider = ({ children }) => {
         type,
         reason
       });
-      fetchFreezes?.();
+      await Promise.allSettled([
+        fetchFreezes?.(),
+        fetchInvoices?.(),
+        fetchDashboardStats?.(),
+        fetchMembers?.()
+      ]);
     } catch (err) {
       console.warn('Freeze create sync error:', err.message);
     }
@@ -3039,8 +3113,9 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // Dynamic Payroll Adjustments (Incentives and Deductions)
-  const updatePayrollAdjustments = async (recordId, { bonus, deductions, notes }) => {
+  const updatePayrollAdjustments = async (recordId, { bonus, deductions, notes, remarks }) => {
     let calculatedNet = 0;
+    const finalRemarks = remarks || notes || '';
     setPayrollRecords((prev) =>
       prev.map((rec) => {
         if (rec.id === recordId || rec.numericId === recordId) {
@@ -3064,6 +3139,8 @@ export const GymDataProvider = ({ children }) => {
             ...rec,
             bonus: newBonus,
             deductions: newDeductions,
+            notes: finalRemarks || rec.notes,
+            remarks: finalRemarks || rec.remarks,
             netPay: calculatedNet
           };
         }
@@ -3075,9 +3152,11 @@ export const GymDataProvider = ({ children }) => {
       await api.payroll.adjust(recordId, {
         bonus,
         deductions,
-        notes: notes || 'Manual adjustment applied',
+        notes: finalRemarks || 'Manual adjustment applied',
+        remarks: finalRemarks || 'Manual adjustment applied',
         adjustedBy: currentUser?.name || 'Owner'
       });
+      fetchAdvanceRequests?.();
     } catch (err) {
       console.warn('Payroll adjustment sync note:', err.message);
     }
@@ -3863,7 +3942,13 @@ export const GymDataProvider = ({ children }) => {
         fetchWhatsAppStats,
         broadcastWhatsAppTemplate,
         broadcastWhatsAppDirect,
-        processWhatsAppAutoSend
+        processWhatsAppAutoSend,
+        // Staff Shift Management
+        shifts,
+        fetchShifts,
+        createShift,
+        updateShift,
+        deleteShift
       }}
     >
       {children}

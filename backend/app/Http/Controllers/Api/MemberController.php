@@ -176,6 +176,7 @@ class MemberController extends Controller
                 'attendanceStreak' => $profile?->attendance_streak ?? 0,
                 'qrPassCode' => $profile?->qr_pass_code ?? ('PF-M-' . $user->id),
                 'duesAmount' => $profile?->dues_amount ?? 0,
+                'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
                 'lastCheckIn' => $profile?->last_check_in ? $profile->last_check_in->diffForHumans() : 'Never',
             ];
         });
@@ -229,6 +230,7 @@ class MemberController extends Controller
                 'attendanceStreak' => $profile?->attendance_streak ?? 0,
                 'qrPassCode' => $profile?->qr_pass_code,
                 'duesAmount' => $profile?->dues_amount ?? 0,
+                'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
                 'workoutPlan' => $user->workoutPlans()->latest()->first(),
                 'dietPlan' => $user->dietPlans()->latest()->first(),
                 'bodyMetrics' => $user->bodyMetrics()->latest()->get(),
@@ -241,7 +243,7 @@ class MemberController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'required|email',
+            'email' => 'nullable|email',
             'phone' => 'required|string|min:7|max:20',
             'plan_id' => 'nullable',
             'planId' => 'nullable',
@@ -328,32 +330,33 @@ class MemberController extends Controller
             }
         }
 
-        // 2. Check if user already exists by email
-        $user = User::where('email', $request->email)->first();
+        // 2. Resolve or create user (Email is optional and can be shared across owner/member/staff)
+        $user = null;
+        if ($numTargetId && $numTargetId > 0) {
+            $user = User::find($numTargetId);
+        }
+
+        $emailVal = !empty($request->email) ? trim($request->email) : null;
+
         if ($user) {
-            if (!$numTargetId || $numTargetId !== $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Member already exists with this email address.',
-                    'errors' => [
-                        'email' => ['Member already exists with this email address.']
-                    ]
-                ], 422);
-            } else {
-                $user->name = $request->name;
-                $user->phone = $request->phone ?? $user->phone;
+            $user->name = $request->name;
+            $user->phone = $request->phone ?? $user->phone;
+            if ($request->has('email')) {
+                $user->email = $emailVal;
+            }
+            if ($request->filled('password')) {
                 $user->password = Hash::make($plainPassword);
                 $user->initial_password = Hash::make($plainPassword);
                 $user->must_change_password = true;
-                if ($request->filled('avatar')) {
-                    $user->avatar = $request->avatar;
-                }
-                $user->save();
             }
+            if ($request->filled('avatar')) {
+                $user->avatar = $request->avatar;
+            }
+            $user->save();
         } else {
             $user = User::create([
                 'name' => $request->name,
-                'email' => $request->email,
+                'email' => $emailVal,
                 'password' => Hash::make($plainPassword),
                 'initial_password' => Hash::make($plainPassword),
                 'must_change_password' => true,
@@ -427,6 +430,9 @@ class MemberController extends Controller
             $user->save();
         }
 
+        $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
+        $parsedDueDate = ($duesAmount > 0 && $rawDueDate) ? \Illuminate\Support\Carbon::parse($rawDueDate)->toDateString() : null;
+
         $profile->fill([
             'plan_id' => $planId,
             'trainer_id' => $trainerId,
@@ -450,6 +456,7 @@ class MemberController extends Controller
             'kyc_status' => $rawKycStatus,
             'qr_pass_code' => $qrCode,
             'dues_amount' => $duesAmount,
+            'due_date' => $parsedDueDate,
         ]);
         $profile->save();
 
@@ -464,6 +471,19 @@ class MemberController extends Controller
 
             $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
             $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+
+            $authCreator = $request->user() ?: auth('sanctum')->user();
+            $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+            $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('executive', $request->input('handled_by', $authCreator?->name))));
+            if (!$creatorName && $creatorId) {
+                $creatorName = User::find($creatorId)?->name;
+            }
+            if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+                $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: ($authCreator?->name ?: 'prathamesh');
+            }
+            $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
+            $creatorName = trim($cleanName) ?: 'prathamesh';
+
             $invPayload = [
                 'gym_id' => $gymId,
                 'invoice_number' => $invNo,
@@ -471,8 +491,11 @@ class MemberController extends Controller
                 'plan_id' => $plan?->id,
                 'amount' => $finalAmount,
                 'date' => now()->toDateString(),
+                'due_date' => $parsedDueDate,
                 'payment_method' => $paymentMethod,
                 'status' => $invStatus,
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
             ];
             if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
                 $invPayload['pending_amount'] = $duesAmount;
@@ -498,7 +521,8 @@ class MemberController extends Controller
                 'payment_method' => $paymentMethod,
                 'status' => $invStatus,
                 'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
-                'created_by' => $request->user()?->id,
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
             ]);
         }
 
@@ -569,6 +593,7 @@ class MemberController extends Controller
                 'trainerId' => $trainerId ? 'trn-' . $trainerId : null,
                 'trainerName' => $profile->trainer?->name ?? 'None / Self Guided',
                 'duesAmount' => (float)$duesAmount,
+                'dueDate' => $parsedDueDate,
                 'paidAmount' => (float)$receivedAmount,
                 'totalAmount' => (float)$totalBill,
                 'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
@@ -585,7 +610,7 @@ class MemberController extends Controller
         $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
 
         if ($request->has('name')) $user->name = $request->name;
-        if ($request->has('email')) $user->email = $request->email;
+        if ($request->has('email')) $user->email = !empty($request->email) ? trim($request->email) : null;
         if ($request->has('phone')) {
             $rawPhone = trim($request->phone ?? '');
             if (!empty($rawPhone)) {
@@ -690,6 +715,13 @@ class MemberController extends Controller
         }
         if ($request->has('dues_amount') || $request->has('duesAmount')) {
             $profile->dues_amount = (float)($request->dues_amount ?? $request->duesAmount);
+            if ($profile->dues_amount <= 0) {
+                $profile->due_date = null;
+            }
+        }
+        if ($request->has('due_date') || $request->has('dueDate')) {
+            $rawUpDueDate = $request->due_date ?? $request->dueDate;
+            $profile->due_date = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
         }
         $profile->save();
 

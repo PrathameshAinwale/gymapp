@@ -22,7 +22,8 @@ import {
   RotateCw,
   Printer,
   Building2,
-  X
+  X,
+  Coins
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -35,9 +36,11 @@ export const PayrollManager = () => {
     updatePayrollAdjustments,
     trainers,
     commissions = [],
+    advanceRequests = [],
     fetchPayroll,
     fetchTrainers,
-    fetchCommissions
+    fetchCommissions,
+    fetchAdvanceRequests
   } = useGymData();
   const { currentUser } = useAuth();
 
@@ -45,7 +48,8 @@ export const PayrollManager = () => {
     fetchPayroll?.();
     fetchTrainers?.();
     fetchCommissions?.();
-  }, [fetchPayroll, fetchTrainers, fetchCommissions]);
+    fetchAdvanceRequests?.();
+  }, [fetchPayroll, fetchTrainers, fetchCommissions, fetchAdvanceRequests]);
 
   // Generate the last 12 months (1 year archive)
   const last12Months = useMemo(() => {
@@ -81,7 +85,32 @@ export const PayrollManager = () => {
   const [viewingPayslip, setViewingPayslip] = useState(null);
   const [payingId, setPayingId] = useState(null);
   const [adjustingRecord, setAdjustingRecord] = useState(null);
-  const [adjustForm, setAdjustForm] = useState({ bonus: '', deductions: '' });
+  const [adjustForm, setAdjustForm] = useState({ bonus: '', deductions: '', remarks: '' });
+
+  // Calculate active/unpaid advance taken balance for currently adjusting staff
+  const activeAdvanceBalance = useMemo(() => {
+    if (!adjustingRecord || !advanceRequests || !Array.isArray(advanceRequests)) return 0;
+
+    const rawEmpId = String(adjustingRecord.employeeId || adjustingRecord.employee_id || adjustingRecord.trainerId || adjustingRecord.trainer_id || '').replace(/[^0-9]/g, '');
+    const empName = (adjustingRecord.trainerName || adjustingRecord.employeeName || adjustingRecord.name || '').trim().toLowerCase();
+
+    return advanceRequests
+      .filter((adv) => {
+        const advStatus = String(adv.status || '').toLowerCase();
+        const isActive = advStatus === 'disbursed' || advStatus === 'approved' || advStatus === 'partially repaid';
+        if (!isActive) return false;
+
+        const advTrainerId = String(adv.trainerId || adv.trainer_id || adv.staffId || '').replace(/[^0-9]/g, '');
+        const advName = (adv.trainerName || adv.staffName || adv.trainer_name || '').trim().toLowerCase();
+
+        return (rawEmpId && advTrainerId && rawEmpId === advTrainerId) || (empName && advName && empName === advName);
+      })
+      .reduce((sum, adv) => {
+        const amt = Number(adv.amount) || 0;
+        const repaid = Number(adv.repaidAmount ?? adv.repaid_amount ?? 0);
+        return sum + Math.max(0, amt - repaid);
+      }, 0);
+  }, [adjustingRecord, advanceRequests]);
 
   const isCurrentCycle = selectedMonth === last12Months[0]?.label;
 
@@ -540,6 +569,13 @@ export const PayrollManager = () => {
                   </div>
                 </div>
 
+                {(pay.notes || pay.remarks) && (
+                  <div className="text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-start gap-1">
+                    <span className="font-semibold text-slate-600 shrink-0">Note:</span>
+                    <span className="truncate">{pay.notes || pay.remarks}</span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
                   <button
                     type="button"
@@ -547,7 +583,8 @@ export const PayrollManager = () => {
                       setAdjustingRecord(pay);
                       setAdjustForm({
                         bonus: pay.bonus ? String(pay.bonus) : '',
-                        deductions: pay.deductions ? String(pay.deductions) : ''
+                        deductions: pay.deductions ? String(pay.deductions) : '',
+                        remarks: pay.notes || pay.remarks || ''
                       });
                     }}
                     className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 active:scale-95 cursor-pointer"
@@ -663,9 +700,23 @@ export const PayrollManager = () => {
 
                     <td className="py-3.5 px-5 font-semibold">
                       {Number(pay.deductions) > 0 ? (
-                        <span className="text-rose-600">-₹{Number(pay.deductions).toLocaleString('en-IN')}</span>
+                        <div>
+                          <span className="text-rose-600">-₹{Number(pay.deductions).toLocaleString('en-IN')}</span>
+                          {(pay.notes || pay.remarks) && (
+                            <span className="block text-[10px] text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
+                              {pay.notes || pay.remarks}
+                            </span>
+                          )}
+                        </div>
                       ) : (
-                        <span className="text-slate-400 font-normal">₹0</span>
+                        <div>
+                          <span className="text-slate-400 font-normal">₹0</span>
+                          {(pay.notes || pay.remarks) && (
+                            <span className="block text-[10px] text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
+                              {pay.notes || pay.remarks}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
 
@@ -694,7 +745,8 @@ export const PayrollManager = () => {
                             setAdjustingRecord(pay);
                             setAdjustForm({
                               bonus: pay.bonus ? String(pay.bonus) : '',
-                              deductions: pay.deductions ? String(pay.deductions) : ''
+                              deductions: pay.deductions ? String(pay.deductions) : '',
+                              remarks: pay.notes || pay.remarks || ''
                             });
                           }}
                           className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
@@ -758,6 +810,7 @@ export const PayrollManager = () => {
               e.preventDefault();
               const bVal = Number(adjustForm.bonus) || 0;
               const dVal = Number(adjustForm.deductions) || 0;
+              const remarksVal = adjustForm.remarks?.trim() || '';
 
               // Persist deduction for this staff/trainer so it always comes for that trainer/staff
               try {
@@ -773,7 +826,9 @@ export const PayrollManager = () => {
 
               updatePayrollAdjustments(adjustingRecord.id, {
                 bonus: bVal,
-                deductions: dVal
+                deductions: dVal,
+                notes: remarksVal,
+                remarks: remarksVal
               });
               setAdjustingRecord(null);
             }}
@@ -832,8 +887,59 @@ export const PayrollManager = () => {
                 onChange={(e) => setAdjustForm({ ...adjustForm, deductions: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-rose-500"
               />
+
+              {/* Advance taken balance indicator in small text */}
+              {activeAdvanceBalance > 0 ? (
+                <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-amber-900 font-medium">
+                    <Coins className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      Advance Taken Balance: <strong className="font-bold text-amber-800">₹{activeAdvanceBalance.toLocaleString('en-IN')}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustForm((prev) => ({
+                        ...prev,
+                        deductions: String(activeAdvanceBalance),
+                        remarks: prev.remarks || `Advance salary deduction (₹${activeAdvanceBalance.toLocaleString('en-IN')})`
+                      }));
+                    }}
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline hover:no-underline cursor-pointer shrink-0"
+                    title="Quickly fill deduction with remaining advance amount"
+                  >
+                    Deduct Advance
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
+                  <Coins className="w-3 h-3 text-slate-300 shrink-0" />
+                  <span>No active advance salary balance</span>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate-500 mt-1">
+                TDS, advance repayments, or penalties. Deductions made here will automatically be recovered from the staff's active advance balance.
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  Remark / Notes
+                </label>
+                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="Add note, e.g. Advance recovery, festival incentive, performance cut..."
+                value={adjustForm.remarks}
+                onChange={(e) => setAdjustForm({ ...adjustForm, remarks: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 resize-none"
+              />
               <p className="text-[10px] text-slate-500 mt-0.5">
-                TDS, advance repayments, or penalties. Once added, this deduction will automatically apply always for this staff/trainer.
+                Note will be saved with this adjustment and recorded on the staff's payslip and advance record.
               </p>
             </div>
 

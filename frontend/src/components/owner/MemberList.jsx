@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecordPaymentModal } from './RecordPaymentModal';
+import { PayDueModal } from './PayDueModal';
 import {
   hasSqlInjection,
   sanitizeDigits,
@@ -52,6 +53,7 @@ import {
 import { AddMemberModal } from './AddMemberModal';
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
+import { getWhatsAppUrl } from '../../utils/whatsapp';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
@@ -112,6 +114,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const [editingMember, setEditingMember] = useState(null);
   const [renewingMember, setRenewingMember] = useState(null);
   const [upgradingMember, setUpgradingMember] = useState(null);
+  const [payingDueMember, setPayingDueMember] = useState(null);
   const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -594,7 +597,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add New Member</span>
+            <span className="hidden sm:inline">Add Member</span>
             <span className="inline sm:hidden">Add Member</span>
           </button>
         </div>
@@ -797,7 +800,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             description={members.length === 0
               ? "There is currently no member data for this gym. Click below to add and register your first athlete."
               : `No members match the search query "${searchTerm}" or the selected status filter.`}
-            actionText="Add New Member"
+            actionText="Add  Member"
             onAction={() => setIsOpenAddModal(true)}
             secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
             onSecondaryAction={handleResetFilters}
@@ -907,7 +910,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <div className="flex items-center gap-1">
                     {member.phone && (
                       <a
-                        href={`https://wa.me/${(member.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${member.name}, greetings from Pulse Fitness!`)}`}
+                        href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from Pulse Fitness!`)}
                         target="_blank"
                         rel="noreferrer"
                         className="px-2 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all"
@@ -991,7 +994,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       description={members.length === 0
                         ? "There is currently no member data for this gym. Click below to add and register your first athlete."
                         : `No members match the search query "${searchTerm}" or the selected status filter.`}
-                      actionText="Add New Member"
+                      actionText="Add Member"
                       onAction={() => setIsOpenAddModal(true)}
                       secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
                       onSecondaryAction={handleResetFilters}
@@ -1066,7 +1069,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                               )}
                               {member.phone && (
                                 <a
-                                  href={`https://wa.me/${(member.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`)}`}
+                                  href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`)}
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -1107,10 +1110,18 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       {/* Balance Due */}
                       <td className="py-3 px-4">
                         {getMemberDues(member) > 0 ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                            <span>₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due</span>
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                              <span>₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due</span>
+                            </span>
+                            {member.dueDate && (
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1 font-medium">
+                                <Calendar className="w-2.5 h-2.5 text-amber-500" />
+                                <span>Due: <strong>{member.dueDate}</strong></span>
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -1123,17 +1134,24 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       <td className="py-3 px-4">
                         <div className="flex flex-col gap-1 items-start">
                           {statusBadge}
-                          {getMemberDues(member) > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
-                              <AlertCircle className="w-2.5 h-2.5" /> Balance Due
-                            </span>
-                          )}
                         </div>
                       </td>
 
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+
+                          {getMemberDues(member) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setPayingDueMember(member)}
+                              title="Pay Remaining Balance Amount"
+                              className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                            >
+                              <CreditCard className="w-3 h-3 text-rose-600" />
+                              <span>Pay Due</span>
+                            </button>
+                          )}
 
 
                           <button
@@ -1291,13 +1309,18 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     })()}
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className={`p-3 bg-white rounded-xl border shadow-2xs ${Number(getMemberDues(selectedMember) || 0) > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200/80'}`}>
                     <div className="text-[10px] uppercase font-bold text-slate-400">Total Dues</div>
-                    <div className="font-bold text-slate-900 mt-0.5 text-sm">
-                      ₹{Number(getMemberDues(selectedMember) || 0).toLocaleString('en-IN')}
+                    <div className={`font-bold mt-0.5 text-sm flex items-center justify-between ${Number(getMemberDues(selectedMember) || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                      <span>₹{Number(getMemberDues(selectedMember) || 0).toLocaleString('en-IN')}</span>
+
                     </div>
                     <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                      {Number(getMemberDues(selectedMember) || 0) === 0 ? 'All Clear' : 'Payment Due'}
+                      {Number(getMemberDues(selectedMember) || 0) === 0 ? 'All Clear' : (
+                        selectedMember.dueDate
+                          ? `Promised Date: ${selectedMember.dueDate}`
+                          : 'Payment Due'
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1309,7 +1332,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Receipt className="w-4 h-4 text-emerald-600" />
                     <span>Invoices Created Till Date ({memberInvoices.length})</span>
-                    <span className="text-[10px] font-normal text-slate-400 lowercase hidden sm:inline">(click row to view invoice)</span>
                   </span>
                   {memberInvoices.length > 0 && (
                     <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
@@ -1398,7 +1420,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   </span>
                   {selectedMember.phone && (
                     <a
-                      href={`https://wa.me/${(selectedMember.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${selectedMember.name}, greetings from Pulse Fitness!`)}`}
+                      href={getWhatsAppUrl(selectedMember.phone, `Hi ${selectedMember.name}, greetings from Pulse Fitness!`)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 transition-colors"
@@ -1470,6 +1492,21 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
               {/* 6. Modal Actions */}
               <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                 <div className="flex items-center gap-2">
+                  {Number(getMemberDues(selectedMember) || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const m = selectedMember;
+                        setSelectedMember(null);
+                        setPayingDueMember(m);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Pay Balance (₹{Number(getMemberDues(selectedMember)).toLocaleString('en-IN')})</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1501,14 +1538,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                     <span>Edit Details</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMember(null)}
-                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 transition-colors"
-                >
-                  Close
-                </button>
               </div>
             </div>
           );
@@ -1849,6 +1878,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         isOpen={!!renewingMember}
         onClose={() => setRenewingMember(null)}
         initialMember={renewingMember}
+      />
+
+      {/* PAY REMAINING BALANCE MODAL */}
+      <PayDueModal
+        isOpen={!!payingDueMember}
+        onClose={() => setPayingDueMember(null)}
+        member={payingDueMember}
       />
 
       {/* REGISTER NEW MEMBER OR UPGRADE EXISTING MEMBER MODAL */}
