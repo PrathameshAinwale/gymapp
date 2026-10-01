@@ -23,10 +23,20 @@ class InvoiceController extends Controller
             ]);
         }
 
-        $query = Invoice::with(['user.memberProfile', 'plan', 'creator'])->where('gym_id', $gymId)->latest();
+        $invoicesList = Invoice::with(['user.memberProfile', 'plan', 'creator'])->where('gym_id', $gymId)->latest()->get();
 
-        $invoices = $query->get()->map(function ($inv) {
-            $matchingInflow = \App\Models\RevenueBilling::with('creator')->where('reference_no', $inv->invoice_number)->first();
+        // Batch pre-fetch matching RevenueBilling and gym owner to eliminate N+1 queries
+        $invoiceNumbers = $invoicesList->pluck('invoice_number')->filter();
+        $inflowMap = \App\Models\RevenueBilling::with('creator')
+            ->whereIn('reference_no', $invoiceNumbers)
+            ->get()
+            ->keyBy('reference_no');
+
+        $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
+        $defaultOwnerName = $owner ? $owner->name : 'prathamesh';
+
+        $invoices = $invoicesList->map(function ($inv) use ($inflowMap, $defaultOwnerName) {
+            $matchingInflow = $inflowMap->get($inv->invoice_number);
             $userProfile = $inv->user?->memberProfile;
             $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
             $status = $inv->status;
@@ -39,12 +49,11 @@ class InvoiceController extends Controller
             $rawCreator = $inv->created_by_name ?: ($inv->creator?->name ?: ($matchingInflow?->created_by_name ?: ($matchingInflow?->creator?->name ?: null)));
             $creatorRole = $inv->creator?->role ?: ($matchingInflow?->creator?->role ?: null);
             if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
-                $owner = User::where('gym_id', $inv->gym_id)->where('role', 'owner')->first();
-                $rawCreator = $owner ? $owner->name : 'prathamesh';
+                $rawCreator = $defaultOwnerName;
                 $creatorRole = 'Owner';
             }
             $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
-            $createdByName = trim($cleanName) ?: 'prathamesh';
+            $createdByName = trim($cleanName) ?: $defaultOwnerName;
             $creatorRole = ucfirst($creatorRole ?: 'Owner');
 
             return [

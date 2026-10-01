@@ -231,10 +231,10 @@ class MemberController extends Controller
                 'qrPassCode' => $profile?->qr_pass_code,
                 'duesAmount' => $profile?->dues_amount ?? 0,
                 'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
-                'workoutPlan' => $user->workoutPlans()->latest()->first(),
-                'dietPlan' => $user->dietPlans()->latest()->first(),
-                'bodyMetrics' => $user->bodyMetrics()->latest()->get(),
-                'invoices' => $user->invoices()->latest()->get(),
+                'workoutPlan' => $user->workoutPlans->sortByDesc('created_at')->first(),
+                'dietPlan' => $user->dietPlans->sortByDesc('created_at')->first(),
+                'bodyMetrics' => $user->bodyMetrics->sortByDesc('created_at')->values(),
+                'invoices' => $user->invoices->sortByDesc('created_at')->values(),
             ]
         ]);
     }

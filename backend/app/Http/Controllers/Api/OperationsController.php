@@ -21,6 +21,7 @@ use App\Models\AdvanceRequest;
 use App\Models\RevenueBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class OperationsController extends Controller
 {
@@ -148,38 +149,55 @@ class OperationsController extends Controller
         $product = Product::findOrFail($numericId);
         $qty = (int)($request->quantity ?? 1);
 
+        if ($qty <= 0) {
+            return response()->json(['success' => false, 'message' => 'Quantity must be at least 1'], 422);
+        }
+
         if ($product->stock < $qty) {
             return response()->json(['success' => false, 'message' => 'Insufficient stock'], 400);
         }
 
-        $newStock = $product->stock - $qty;
-        $status = $newStock <= 0 ? 'Out of Stock' : ($newStock <= $product->min_stock_alert ? 'Low Stock' : 'In Stock');
-        $product->update(['stock' => $newStock, 'status' => $status]);
+        $activeGymId = $product->gym_id ?? $this->resolveGymId($request);
+        $targetUserId = $request->input('user_id', $request->input('userId', $request->input('member_id', $request->input('memberId'))));
+        $resolvedUserId = $targetUserId ? (int)str_replace('mem-', '', $targetUserId) : null;
+        if (!$resolvedUserId || !User::where('id', $resolvedUserId)->exists()) {
+            $resolvedUserId = User::where('gym_id', $activeGymId)->where('role', 'owner')->value('id')
+                ?? User::first()?->id
+                ?? 1;
+        }
 
         $totalAmount = (float)$product->price * $qty;
         $authCreator = $request->user() ?: auth('sanctum')->user();
         $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
         $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name ?: 'Staff / Store'));
 
-        $inv = Invoice::create([
-            'gym_id' => $product->gym_id ?? $this->resolveGymId($request),
-            'invoice_number' => 'INV-PROD-' . strtoupper(substr(uniqid(), -6)),
-            'user_id' => 1,
-            'amount' => $totalAmount,
-            'date' => now()->toDateString(),
-            'issue_date' => now()->toDateString(),
-            'due_date' => now()->toDateString(),
-            'status' => 'Paid',
-            'created_by' => $creatorId,
-            'created_by_name' => $creatorName,
-            'items' => [['description' => "{$product->name} (Qty: {$qty})", 'amount' => $totalAmount]],
-        ]);
+        $result = DB::transaction(function () use ($product, $qty, $totalAmount, $activeGymId, $resolvedUserId, $creatorId, $creatorName) {
+            $newStock = $product->stock - $qty;
+            $status = $newStock <= 0 ? 'Out of Stock' : ($newStock <= $product->min_stock_alert ? 'Low Stock' : 'In Stock');
+            $product->update(['stock' => $newStock, 'status' => $status]);
+
+            $inv = Invoice::create([
+                'gym_id' => $activeGymId,
+                'invoice_number' => 'INV-PROD-' . strtoupper(substr(uniqid(), -6)),
+                'user_id' => $resolvedUserId,
+                'amount' => $totalAmount,
+                'date' => now()->toDateString(),
+                'issue_date' => now()->toDateString(),
+                'due_date' => now()->toDateString(),
+                'status' => 'Paid',
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
+                'items' => [['description' => "{$product->name} (Qty: {$qty})", 'amount' => $totalAmount]],
+            ]);
+
+            return ['newStock' => $newStock, 'invoice' => $inv];
+        });
 
         return response()->json([
             'success' => true,
             'message' => "Sold {$qty}x {$product->name}!",
-            'newStock' => $newStock,
-            'invoice' => $inv,
+            'newStock' => $result['newStock'],
+            'invoice' => $result['invoice'],
         ]);
     }
 
