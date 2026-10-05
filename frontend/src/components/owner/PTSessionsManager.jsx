@@ -32,12 +32,6 @@ import {
   sanitizeDecimal
 } from '../../utils/validation';
 
-const fallbackPtPresets = [
-  { id: 'preset-1', name: 'Kickstarter PT (6 Sessions)', sessions: 6, price: 7499, duration_weeks: 3 },
-  { id: 'preset-2', name: 'Transformation Intensive (12 Sessions)', sessions: 12, price: 13999, duration_weeks: 6 },
-  { id: 'preset-3', name: 'Pro Athlete Mastery (24 Sessions)', sessions: 24, price: 24999, duration_weeks: 12 },
-];
-
 const calculateEndDate = (startDateStr, weeks) => {
   if (!startDateStr || !weeks) return '';
   const d = new Date(startDateStr);
@@ -93,22 +87,74 @@ export const PTSessionsManager = () => {
   const [form, setForm] = useState({
     memberId: '',
     trainerId: '',
-    selectedPtPlanId: '',
-    packageTitle: 'Transformation Intensive (12 Sessions)',
+    selectedPtPlanId: 'custom',
+    packageTitle: 'Custom 1-on-1 PT Package',
     totalSessions: 12,
-    packageAmount: '13999',
-    paidAmount: '13999',
+    packageAmount: '',
+    paidAmount: '',
     paymentMethod: 'UPI',
     splitCashAmount: '',
     splitOnlineAmount: '',
     splitOnlineProvider: 'GPay',
     commissionType: 'percent', // 'percent' | 'fixed'
     commissionPct: 20,
-    fixedCommission: '2800',
+    fixedCommission: '',
     startDate: initialStartDate,
-    endDate: calculateEndDate(initialStartDate, 6),
+    endDate: calculateEndDate(initialStartDate, 4),
     notes: ''
   });
+
+  // Open modal with fresh state depending on whether ptPlans exist
+  const handleOpenAllocateModal = () => {
+    const memId = members.length > 0 ? members[0].id : '';
+    const trnId = trainers.length > 0 ? trainers[0].id : '';
+
+    if (ptPlans && ptPlans.length > 0) {
+      const popular = ptPlans.find((p) => p.popular) || ptPlans[0];
+      const weeks = popular.duration_weeks || Math.ceil((popular.sessions || 12) / 2);
+      const price = Number(popular.price) || 0;
+      setForm({
+        memberId: memId,
+        trainerId: trnId,
+        selectedPtPlanId: popular.id,
+        packageTitle: popular.name,
+        totalSessions: Number(popular.sessions) || 12,
+        packageAmount: String(price),
+        paidAmount: String(price),
+        paymentMethod: 'UPI',
+        splitCashAmount: '',
+        splitOnlineAmount: '',
+        splitOnlineProvider: 'GPay',
+        commissionType: 'percent',
+        commissionPct: 20,
+        fixedCommission: String(Math.round((price * 20) / 100)),
+        startDate: initialStartDate,
+        endDate: calculateEndDate(initialStartDate, weeks),
+        notes: ''
+      });
+    } else {
+      setForm({
+        memberId: memId,
+        trainerId: trnId,
+        selectedPtPlanId: 'custom',
+        packageTitle: 'Custom 1-on-1 PT Package',
+        totalSessions: 12,
+        packageAmount: '',
+        paidAmount: '',
+        paymentMethod: 'UPI',
+        splitCashAmount: '',
+        splitOnlineAmount: '',
+        splitOnlineProvider: 'GPay',
+        commissionType: 'percent',
+        commissionPct: 20,
+        fixedCommission: '',
+        startDate: initialStartDate,
+        endDate: calculateEndDate(initialStartDate, 4),
+        notes: ''
+      });
+    }
+    setIsAllocateModalOpen(true);
+  };
 
   // Sync default member & trainer when lists load
   useEffect(() => {
@@ -123,47 +169,61 @@ export const PTSessionsManager = () => {
     }
   }, [trainers, form.trainerId]);
 
-  // Sync default plan preset when plans load
+  // Sync default plan preset only if genuine ptPlans exist
   useEffect(() => {
-    const available = ptPlans.length > 0 ? ptPlans : fallbackPtPresets;
-    if (available.length > 0 && !form.selectedPtPlanId) {
-      const popular = available.find((p) => p.popular) || available[0];
-      const weeks = popular.duration_weeks || Math.ceil((popular.sessions || 12) / 2);
-      const price = Number(popular.price) || 13999;
-      setForm((prev) => ({
-        ...prev,
-        selectedPtPlanId: popular.id,
-        packageTitle: popular.name,
-        totalSessions: Number(popular.sessions) || 12,
-        packageAmount: String(price),
-        paidAmount: String(price),
-        endDate: calculateEndDate(prev.startDate || initialStartDate, weeks),
-        fixedCommission: String(Math.round((price * 20) / 100))
-      }));
-    }
-  }, [ptPlans, form.selectedPtPlanId, initialStartDate]);
-
-  const handlePackageSelect = (planId) => {
-    if (planId === 'custom') {
+    if (ptPlans && ptPlans.length > 0) {
+      if (!form.selectedPtPlanId || form.selectedPtPlanId === 'custom') {
+        const popular = ptPlans.find((p) => p.popular) || ptPlans[0];
+        const weeks = popular.duration_weeks || Math.ceil((popular.sessions || 12) / 2);
+        const price = Number(popular.price) || 0;
+        setForm((prev) => ({
+          ...prev,
+          selectedPtPlanId: popular.id,
+          packageTitle: popular.name,
+          totalSessions: Number(popular.sessions) || 12,
+          packageAmount: String(price),
+          paidAmount: String(price),
+          endDate: calculateEndDate(prev.startDate || initialStartDate, weeks),
+          fixedCommission: String(Math.round((price * (Number(prev.commissionPct) || 20)) / 100))
+        }));
+      }
+    } else {
       setForm((prev) => ({
         ...prev,
         selectedPtPlanId: 'custom',
-        packageTitle: 'Custom 1-on-1 PT Package',
-        totalSessions: 12,
-        packageAmount: '6000',
-        paidAmount: '6000',
-        fixedCommission: '1200'
+        packageTitle: prev.packageTitle && !['Transformation Intensive (12 Sessions)', 'Kickstarter PT (6 Sessions)', 'Pro Athlete Mastery (24 Sessions)'].includes(prev.packageTitle)
+          ? prev.packageTitle
+          : 'Custom 1-on-1 PT Package'
+      }));
+    }
+  }, [ptPlans, initialStartDate]);
+
+  const handlePackageSelect = (planId) => {
+    if (planId === 'custom' || !planId) {
+      setForm((prev) => ({
+        ...prev,
+        selectedPtPlanId: 'custom',
+        packageTitle: prev.packageTitle && !['Transformation Intensive (12 Sessions)', 'Kickstarter PT (6 Sessions)', 'Pro Athlete Mastery (24 Sessions)'].includes(prev.packageTitle)
+          ? prev.packageTitle
+          : 'Custom 1-on-1 PT Package',
+        totalSessions: prev.totalSessions || 12,
+        packageAmount: prev.packageAmount && !['13999', '7499', '24999'].includes(prev.packageAmount)
+          ? prev.packageAmount
+          : '',
+        paidAmount: prev.paidAmount && !['13999', '7499', '24999'].includes(prev.paidAmount)
+          ? prev.paidAmount
+          : '',
+        fixedCommission: ''
       }));
       return;
     }
 
-    const availablePlans = ptPlans.length > 0 ? ptPlans : fallbackPtPresets;
-    const selected = availablePlans.find((p) => String(p.id) === String(planId));
+    const selected = (ptPlans || []).find((p) => String(p.id) === String(planId));
     if (selected) {
       const price = Number(selected.price) || 0;
       const sessions = Number(selected.sessions) || 12;
       const weeks = selected.duration_weeks || Math.ceil(sessions / 2);
-      const calculatedEnd = calculateEndDate(form.startDate, weeks);
+      const calculatedEnd = calculateEndDate(form.startDate || initialStartDate, weeks);
       const commPct = Number(form.commissionPct) || 20;
 
       setForm((prev) => ({
@@ -397,7 +457,7 @@ export const PTSessionsManager = () => {
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <button
             type="button"
-            onClick={() => setIsAllocateModalOpen(true)}
+            onClick={handleOpenAllocateModal}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -554,7 +614,7 @@ export const PTSessionsManager = () => {
                   : "Allocate 1-on-1 personal training session packages to gym members with dedicated certified coaches."
               }
               actionText="Allocate PT Package"
-              onAction={() => setIsAllocateModalOpen(true)}
+              onAction={handleOpenAllocateModal}
               secondaryActionText={searchTerm || activeFiltersCount > 0 ? "Clear All Filters" : undefined}
               onSecondaryAction={handleResetFilters}
               color="teal"
@@ -776,13 +836,24 @@ export const PTSessionsManager = () => {
                   onChange={(e) => handlePackageSelect(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-teal-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-teal-500 cursor-pointer shadow-xs"
                 >
-                  {(ptPlans.length > 0 ? ptPlans : fallbackPtPresets).map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} — {pkg.sessions} Sessions (₹{Number(pkg.price).toLocaleString('en-IN')})
-                    </option>
-                  ))}
-                  <option value="custom">⚙️ Custom / Ad-hoc PT Package</option>
+                  {ptPlans && ptPlans.length > 0 ? (
+                    <>
+                      {ptPlans.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.name} — {pkg.sessions} Sessions (₹{Number(pkg.price).toLocaleString('en-IN')})
+                        </option>
+                      ))}
+                      <option value="custom">⚙️ Custom / Ad-hoc PT Package</option>
+                    </>
+                  ) : (
+                    <option value="custom">⚙️ Custom / Ad-hoc PT Package</option>
+                  )}
                 </select>
+                {(!ptPlans || ptPlans.length === 0) && (
+                  <p className="text-[11px] text-slate-500">
+                    No predefined PT packages created in Plans & Packages. Enter custom package details below.
+                  </p>
+                )}
               </div>
 
               {/* Package Details Configuration */}
@@ -968,7 +1039,7 @@ export const PTSessionsManager = () => {
                         onKeyDown={(e) => preventNonNumericKey(e, true)}
                         value={form.paidAmount}
                         onChange={(e) => handlePaidAmountChange(e.target.value)}
-                        placeholder="e.g. 13999"
+                        placeholder="e.g. 5000"
                         className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-teal-500"
                         required
                       />
