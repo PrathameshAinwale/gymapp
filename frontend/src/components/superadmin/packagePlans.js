@@ -259,6 +259,7 @@ export const PLAN_ALLOWED_TABS = {
   bronze: [
     'dashboard',
     'members',
+    'member-profile',
     'enquiries',
     'plans',
     'membership-freeze',
@@ -279,6 +280,7 @@ export const PLAN_ALLOWED_TABS = {
   silver: [
     'dashboard',
     'members',
+    'member-profile',
     'enquiries',
     'plans',
     'membership-freeze',
@@ -299,6 +301,7 @@ export const PLAN_ALLOWED_TABS = {
   gold: [
     'dashboard',
     'members',
+    'member-profile',
     'enquiries',
     'plans',
     'membership-freeze',
@@ -339,6 +342,7 @@ export const PLAN_ALLOWED_TABS = {
     // Everything in Gold PLUS all Finance & Analytics (analytics, invoices):
     'dashboard',
     'members',
+    'member-profile',
     'enquiries',
     'plans',
     'membership-freeze',
@@ -387,6 +391,16 @@ export const getPlanByTier = (tierName) => {
 
 export const isTabAllowedForGym = (tabId, packageTier, customFeatures = null) => {
   if (!tabId) return true;
+
+  // Universal core tabs and views always accessible to all gyms
+  const universalAllowedTabs = [
+    'dashboard',
+    'member-profile',
+    'privacy-policy',
+    'terms-conditions',
+    'help-support'
+  ];
+  if (universalAllowedTabs.includes(tabId)) return true;
 
   // Normalize tier name
   const norm = (packageTier || 'platinum').toLowerCase().trim();

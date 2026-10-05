@@ -640,6 +640,22 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                   setMemberSearchQuery(e.target.value);
                   setIsSearchFocused(true);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const target = searchResults[0];
+                    if (target) {
+                      setIsSearchFocused(false);
+                      setMemberSearchQuery('');
+                      if (onOpenMemberProfile) {
+                        onOpenMemberProfile(target.id);
+                      } else {
+                        setSelectedProfileMember(target);
+                        setActiveTab?.('member-profile');
+                      }
+                    }
+                  }
+                }}
                 placeholder="Search by Name, Mobile, Email, Date, Plan..."
                 className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none"
               />
@@ -674,10 +690,17 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
               </span>
               <button
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setIsSearchFocused(false);
-                  if (onOpenMemberProfile && searchResults[0]) {
-                    onOpenMemberProfile(searchResults[0].id);
+                  const target = searchResults[0];
+                  if (target) {
+                    if (onOpenMemberProfile) {
+                      onOpenMemberProfile(target.id);
+                    } else {
+                      setSelectedProfileMember(target);
+                      setActiveTab?.('member-profile');
+                    }
                   } else {
                     setActiveTab?.('member-profile');
                   }
@@ -704,12 +727,14 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                   return (
                     <div
                       key={m.id}
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setIsSearchFocused(false);
                         setMemberSearchQuery('');
                         if (onOpenMemberProfile) {
                           onOpenMemberProfile(m.id);
                         } else {
+                          setSelectedProfileMember(m);
                           setActiveTab?.('member-profile');
                         }
                       }}

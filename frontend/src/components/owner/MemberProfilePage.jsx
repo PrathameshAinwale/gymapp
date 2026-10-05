@@ -63,14 +63,20 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
   // Directly locate THIS particular member from backend records
   const currentMember = useMemo(() => {
     if (!initialMemberId) return members[0] || null;
+    const targetStr = String(initialMemberId).trim().toLowerCase();
+    const targetDigits = targetStr.replace(/\D/g, '');
     return (
-      members.find(
-        (m) =>
-          String(m.id) === String(initialMemberId) ||
-          String(m.userId) === String(initialMemberId) ||
-          String(m.user_id) === String(initialMemberId) ||
-          String(m.id).replace(/\D/g, '') === String(initialMemberId).replace(/\D/g, '')
-      ) || members[0] || null
+      members.find((m) => {
+        if (!m) return false;
+        if (String(m.id).toLowerCase() === targetStr) return true;
+        if (String(m.userId).toLowerCase() === targetStr) return true;
+        if (String(m.user_id).toLowerCase() === targetStr) return true;
+        if (targetDigits && String(m.id).replace(/\D/g, '') === targetDigits) return true;
+        if (targetDigits && String(m.userId || m.user_id || '').replace(/\D/g, '') === targetDigits) return true;
+        if (m.name && m.name.toLowerCase().trim() === targetStr) return true;
+        if (targetDigits && m.phone && m.phone.replace(/\D/g, '').endsWith(targetDigits)) return true;
+        return false;
+      }) || members[0] || null
     );
   }, [members, initialMemberId]);
 
