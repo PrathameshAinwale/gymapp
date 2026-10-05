@@ -6,6 +6,7 @@ import { MembershipPlanModal } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate } from '../../utils/dateUtils';
+import { getWhatsAppUrl } from '../../utils/whatsapp';
 import {
   isValidEmail,
   isValidPhone,
@@ -182,6 +183,7 @@ export const AddMemberModal = ({
   const [isCreatingMember, setIsCreatingMember] = useState(false);
   const [newlyCreatedCredentials, setNewlyCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
 
   // Check if a member with the same phone already exists
   const duplicatePhoneMember = useMemo(() => {
@@ -857,6 +859,10 @@ export const AddMemberModal = ({
           id: targetMember.id,
           invoiceNumber: createdInvoiceNo,
           planName: invoiceTitle,
+          packageAmount: basePrice + ptPrice + recoveryPrice,
+          grossAmount: basePrice + ptPrice + recoveryPrice,
+          discountAmount: numDiscount,
+          netAmount: totalCalculatedAmount,
           totalAmount: totalCalculatedAmount,
           paidAmount: effectivePaidAmount,
           duesAmount: calculatedBalanceDue,
@@ -1086,10 +1092,16 @@ export const AddMemberModal = ({
       setNewlyCreatedCredentials({
         name: formData.name,
         email: formData.email,
+        phone: formData.phone,
         password: formData.password || 'member123',
         id: createdMember.id,
+        invoiceNumber: createdMember.invoiceNumber || createdMember.invoice_number || null,
         qrPassCode: createdMember.qrPassCode,
         planName: invoiceTitle,
+        packageAmount: basePrice + ptPrice + recoveryPrice,
+        grossAmount: basePrice + ptPrice + recoveryPrice,
+        discountAmount: numDiscount,
+        netAmount: totalCalculatedAmount,
         totalAmount: totalCalculatedAmount,
         paidAmount: effectivePaidAmount,
         duesAmount: calculatedBalanceDue,
@@ -1115,11 +1127,64 @@ export const AddMemberModal = ({
 
   const handleCopyCredentials = () => {
     if (!newlyCreatedCredentials) return;
-    const text = `Welcome to PULSE FIT!\nHere are your Member Login Credentials:\n• App URL: ${window.location.origin}/\n• Login Email: ${newlyCreatedCredentials.email}\n• Password: ${newlyCreatedCredentials.password}\n• Member ID: ${newlyCreatedCredentials.id}\n• Plan & Services: ${newlyCreatedCredentials.planName}\n• Membership Validity: ${newlyCreatedCredentials.startDate || newlyCreatedCredentials.joinDate || 'Today'} to ${newlyCreatedCredentials.expiryDate || 'N/A'}\n• Payment Method: ${newlyCreatedCredentials.paymentMethod || 'UPI'}\n• Total Bill: ₹${Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}\n• Amount Received: ₹${Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}${Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? `\n• Remaining Balance Due: ₹${Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')}` : '\n• Payment Status: Paid in Full'}`;
+    const gross = Number(newlyCreatedCredentials.packageAmount || newlyCreatedCredentials.grossAmount || newlyCreatedCredentials.totalAmount || 0);
+    const disc = Number(newlyCreatedCredentials.discountAmount || 0);
+    const net = Number(newlyCreatedCredentials.netAmount || newlyCreatedCredentials.totalAmount || 0);
+    const paid = Number(newlyCreatedCredentials.paidAmount ?? net);
+    const dues = Number(newlyCreatedCredentials.duesAmount || 0);
+
+    const text = `Welcome to ${gymInfo?.name || 'PulseFit Pro'}!\n\n` +
+      `Here are your Member Login Credentials:\n` +
+      `• Member ID: ${newlyCreatedCredentials.id}\n` +
+      `• Password: ${newlyCreatedCredentials.password}\n` +
+      (newlyCreatedCredentials.email ? `• Login Email: ${newlyCreatedCredentials.email}\n` : '') +
+      `• Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
+      `Bill Breakdown:\n` +
+      `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
+      (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
+      `• Net Amount: ₹${net.toLocaleString('en-IN')}\n` +
+      `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
+      (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
+
     navigator.clipboard.writeText(text);
     setCopied(true);
-    addToast('Credentials copied to clipboard!');
+    addToast('Credentials and bill breakdown copied to clipboard!', 'success');
     setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleCopyField = (val, fieldKey) => {
+    if (!val) return;
+    navigator.clipboard.writeText(String(val));
+    setCopiedField(fieldKey);
+    addToast(`Copied ${fieldKey === 'id' ? 'Member ID' : 'Password'}!`, 'success');
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleShareMemberWhatsApp = () => {
+    if (!newlyCreatedCredentials) return;
+    const gross = Number(newlyCreatedCredentials.packageAmount || newlyCreatedCredentials.grossAmount || newlyCreatedCredentials.totalAmount || 0);
+    const disc = Number(newlyCreatedCredentials.discountAmount || 0);
+    const net = Number(newlyCreatedCredentials.netAmount || newlyCreatedCredentials.totalAmount || 0);
+    const paid = Number(newlyCreatedCredentials.paidAmount ?? net);
+    const dues = Number(newlyCreatedCredentials.duesAmount || 0);
+
+    const text = `*Welcome to ${gymInfo?.name || 'PulseFit Pro'}!*\n\n` +
+      `Here are your Member Login Credentials:\n` +
+      `• Member ID: *${newlyCreatedCredentials.id}*\n` +
+      `• Password: *${newlyCreatedCredentials.password}*\n` +
+      (newlyCreatedCredentials.email ? `• Login Email: ${newlyCreatedCredentials.email}\n` : '') +
+      `• Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
+      `*Bill Breakdown:*\n` +
+      `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
+      (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
+      `• Net Amount: ₹${net.toLocaleString('en-IN')}\n` +
+      `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
+      (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
+
+    const url = getWhatsAppUrl(newlyCreatedCredentials.phone, text);
+    if (url) {
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -2563,137 +2628,162 @@ export const AddMemberModal = ({
       <Modal
         isOpen={!!newlyCreatedCredentials}
         onClose={() => setNewlyCreatedCredentials(null)}
-        title={newlyCreatedCredentials?.isUpgrade ? "Member Top-up Applied & Invoice Issued" : "Member Account Created & Credentials Ready"}
+        title={newlyCreatedCredentials?.isUpgrade ? "Member Top-up Applied & Invoice Issued" : "Member Account Created"}
         maxWidth="max-w-md"
       >
         {newlyCreatedCredentials && (
-          <div className="space-y-5 text-center">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto border ${newlyCreatedCredentials.isUpgrade
-                ? 'bg-violet-100 text-violet-700 border-violet-200'
-                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+          <div className="space-y-4 text-center">
+            {/* Header Icon & Member Info */}
+            <div className="flex flex-col items-center">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-xs mb-2 ${
+                newlyCreatedCredentials.isUpgrade
+                  ? 'bg-violet-100 text-violet-700 border-violet-200'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-200'
               }`}>
-              {newlyCreatedCredentials.isUpgrade ? <Receipt className="w-6 h-6" /> : <CheckCircle className="w-6 h-6" />}
-            </div>
-
-            <div>
-              <h4 className="font-heading font-extrabold text-lg text-slate-900">
+                {newlyCreatedCredentials.isUpgrade ? <Receipt className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+              </div>
+              <h4 className="font-heading font-extrabold text-lg text-slate-900 leading-tight">
                 {newlyCreatedCredentials.name}
               </h4>
-              <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                {newlyCreatedCredentials.isUpgrade ? `Top-up: ${newlyCreatedCredentials.planName}` : `Plan: ${newlyCreatedCredentials.planName}`}
-              </p>
+              <div className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                <Tag className="w-3 h-3 text-emerald-600" />
+                <span>{newlyCreatedCredentials.planName || 'Standard Membership'}</span>
+              </div>
             </div>
 
-            {/* Slip Box */}
-            {newlyCreatedCredentials.isUpgrade ? (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5 text-xs">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Invoice Number:</span>
-                  <span className="font-mono font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded border border-violet-200">
-                    #{newlyCreatedCredentials.invoiceNumber}
-                  </span>
+            {/* MEMBER CREDENTIALS CARD (Only for new registrations) */}
+            {!newlyCreatedCredentials.isUpgrade && (
+              <div className="p-3.5 rounded-2xl bg-slate-900 text-white text-left space-y-3 shadow-md border border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-slate-400">
+                    <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Member Login Credentials</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-medium">Ready to share</span>
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Member ID:</span>
-                  <span className="font-mono font-bold text-slate-900">{newlyCreatedCredentials.id}</span>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Member ID */}
+                  <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Member ID</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyField(newlyCreatedCredentials.id, 'id')}
+                        className="text-slate-400 hover:text-white transition-colors p-0.5 rounded cursor-pointer"
+                        title="Copy ID"
+                      >
+                        {copiedField === 'id' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <span className="font-mono font-bold text-sm text-white tracking-wide truncate">
+                      {newlyCreatedCredentials.id}
+                    </span>
+                  </div>
+
+                  {/* Password */}
+                  <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Password</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyField(newlyCreatedCredentials.password, 'password')}
+                        className="text-slate-400 hover:text-white transition-colors p-0.5 rounded cursor-pointer"
+                        title="Copy Password"
+                      >
+                        {copiedField === 'password' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <span className="font-mono font-bold text-sm text-emerald-400 tracking-wide truncate">
+                      {newlyCreatedCredentials.password}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Top-up Items:</span>
-                  <span className="font-bold text-emerald-700 text-right max-w-[200px] truncate">{newlyCreatedCredentials.planName}</span>
-                </div>
-                {newlyCreatedCredentials.trainerName && newlyCreatedCredentials.ptName && (
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                    <span className="text-slate-500 font-bold uppercase text-[10px]">Assigned Coach:</span>
-                    <span className="font-semibold text-slate-800">{newlyCreatedCredentials.trainerName}</span>
+
+                {newlyCreatedCredentials.email && (
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                    <span className="truncate">Login Email: <strong className="text-slate-200">{newlyCreatedCredentials.email}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyField(newlyCreatedCredentials.email, 'email')}
+                      className="text-slate-400 hover:text-white text-[10px] flex items-center gap-1 font-semibold ml-2 shrink-0 cursor-pointer"
+                    >
+                      {copiedField === 'email' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'email' ? 'Copied' : 'Copy'}</span>
+                    </button>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Total Bill:</span>
-                  <span className="font-mono font-bold text-slate-900 text-xs">
-                    ₹{Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Amount Received:</span>
-                  <span className="font-mono font-bold text-emerald-700 text-xs">
-                    ₹{Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Balance Due:</span>
-                  {Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? (
-                    <span className="font-mono font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
-                      ₹{Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')} Due
-                    </span>
-                  ) : (
-                    <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
-                      ₹0 (Paid in Full)
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5 text-xs">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Member ID:</span>
-                  <span className="font-mono font-bold text-slate-900">{newlyCreatedCredentials.id}</span>
-                </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Login Email / Username:</span>
-                  <span className="font-bold text-slate-900">{newlyCreatedCredentials.email}</span>
-                </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Assigned Password:</span>
-                  <span className="font-mono font-black text-emerald-800 text-sm bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                    {newlyCreatedCredentials.password}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Membership Plan:</span>
-                  <span className="font-bold text-emerald-700 text-xs">{newlyCreatedCredentials.planName}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Validity Period:</span>
-                  <span className="font-semibold text-slate-800 text-xs font-mono">
-                    {newlyCreatedCredentials.startDate || newlyCreatedCredentials.joinDate || 'Today'} → {newlyCreatedCredentials.expiryDate || 'N/A'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Payment Mode:</span>
-                  <span className="font-semibold text-slate-800 text-xs truncate max-w-[200px]" title={newlyCreatedCredentials.paymentMethod}>
-                    {newlyCreatedCredentials.paymentMethod || 'UPI'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Total Bill:</span>
-                  <span className="font-mono font-bold text-slate-900 text-xs">
-                    ₹{Number(newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Amount Received:</span>
-                  <span className="font-mono font-bold text-emerald-700 text-xs">
-                    ₹{Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Balance Due:</span>
-                  {Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? (
-                    <span className="font-mono font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
-                      ₹{Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')} Due
-                    </span>
-                  ) : (
-                    <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
-                      ₹0 (Paid in Full)
-                    </span>
-                  )}
-                </div>
               </div>
             )}
 
-            {/* Actions */}
+            {/* BILL BREAKDOWN CARD (Clean, no useless data) */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-slate-700">
+                  <Receipt className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Bill Breakdown</span>
+                </div>
+                {newlyCreatedCredentials.invoiceNumber && (
+                  <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded">
+                    Inv #{newlyCreatedCredentials.invoiceNumber}
+                  </span>
+                )}
+              </div>
+
+              {/* 1. Bill Package Amount */}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Bill Package Amount:</span>
+                <span className="font-mono font-semibold text-slate-900 text-xs">
+                  ₹{Number(newlyCreatedCredentials.packageAmount || newlyCreatedCredentials.grossAmount || newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* 2. Discount Offered */}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Discount Offered:</span>
+                {Number(newlyCreatedCredentials.discountAmount || 0) > 0 ? (
+                  <span className="font-mono font-bold text-emerald-600 text-xs">
+                    -₹{Number(newlyCreatedCredentials.discountAmount).toLocaleString('en-IN')}
+                  </span>
+                ) : (
+                  <span className="font-mono text-slate-400 text-xs">₹0</span>
+                )}
+              </div>
+
+              {/* 3. Net Amount */}
+              <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80">
+                <span className="text-slate-900 font-bold text-xs uppercase tracking-wide">Net Amount:</span>
+                <span className="font-mono font-black text-slate-900 text-sm">
+                  ₹{Number(newlyCreatedCredentials.netAmount || newlyCreatedCredentials.totalAmount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* 4. Amount Received */}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Amount Received:</span>
+                <span className="font-mono font-bold text-emerald-700 text-xs">
+                  ₹{Number(newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* 5. Balance Due */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
+                <span className="text-slate-700 font-semibold text-xs">Balance Due:</span>
+                {Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? (
+                  <span className="font-mono font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
+                    ₹{Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')} Due{newlyCreatedCredentials.dueDate ? ` (${newlyCreatedCredentials.dueDate})` : ''}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                    ₹0 (Paid in Full)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
             {newlyCreatedCredentials.isUpgrade ? (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button
                   type="button"
                   onClick={handleDownloadUpgradePdf}
@@ -2719,20 +2809,31 @@ export const AddMemberModal = ({
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button
                   type="button"
                   onClick={handleCopyCredentials}
                   className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials'}</span>
+                  <span>{copied ? 'Copied All!' : 'Copy Credentials'}</span>
                 </button>
+
+                {newlyCreatedCredentials.phone && (
+                  <button
+                    type="button"
+                    onClick={handleShareMemberWhatsApp}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={() => setNewlyCreatedCredentials(null)}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
                 >
                   Done
                 </button>
