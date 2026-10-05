@@ -250,6 +250,7 @@ export const AuthProvider = ({ children }) => {
             ? 'Trainer Access'
             : 'Member Pass';
 
+        const profile = res.user.trainer_profile || res.user.trainerProfile || {};
         const backendUser = {
           id: `usr-${userRole}-${res.user.id}`,
           userId: res.user.id,
@@ -263,7 +264,23 @@ export const AuthProvider = ({ children }) => {
           gymId: gymId,
           mustChangePassword: false,
           badge: badge,
-          gymName: gymName
+          gymName: gymName,
+          specialty: profile.specialty || '',
+          experience: profile.experience || '',
+          bio: profile.bio || '',
+          certifications: profile.certifications || [],
+          rating: profile.rating || 5.0,
+          monthlySalary: profile.monthly_salary ?? res.user.salary ?? 0,
+          salary: profile.monthly_salary ?? res.user.salary ?? 0,
+          age: profile.age ?? null,
+          dob: profile.dob ?? res.user.dob ?? null,
+          gender: profile.gender ?? res.user.gender ?? null,
+          bloodGroup: profile.blood_group ?? res.user.blood_group ?? null,
+          blood_group: profile.blood_group ?? res.user.blood_group ?? null,
+          address: profile.address ?? res.user.address ?? null,
+          shifts: res.user.shifts ?? null,
+          joiningDate: res.user.joining_date ?? null,
+          joining_date: res.user.joining_date ?? null
         };
 
         if (gymId) {
@@ -276,6 +293,7 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem('pulsefit_token', res.token);
         }
 
+        localStorage.setItem('pulsefit_currentUser_v2', JSON.stringify(backendUser));
         setCurrentUser(backendUser);
         setIsAuthenticated(true);
         return { success: true, user: backendUser };
@@ -548,6 +566,30 @@ export const AuthProvider = ({ children }) => {
     );
   };
 
+  // Update Current User profile details in state and persistent storage
+  const updateCurrentUser = (fields) => {
+    setCurrentUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...fields };
+      try {
+        localStorage.setItem('pulsefit_currentUser_v2', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    setAccounts((prev) =>
+      prev.map((acc) => {
+        if (
+          acc.id === currentUser?.id ||
+          (acc.userId && currentUser?.userId && Number(acc.userId) === Number(currentUser.userId)) ||
+          (acc.phone && currentUser?.phone && String(acc.phone).replace(/\D/g, '') === String(currentUser.phone).replace(/\D/g, ''))
+        ) {
+          return { ...acc, ...fields };
+        }
+        return acc;
+      })
+    );
+  };
+
   // QUICK SWITCH ROLE
   const switchRole = (newRole) => {
     const defaultUserForRole = accounts.find((acc) => acc.role === newRole) || defaultAccounts.find((a) => a.role === newRole) || defaultAccounts[0];
@@ -572,6 +614,7 @@ export const AuthProvider = ({ children }) => {
         accounts,
         login,
         logout,
+        updateCurrentUser,
         isLogoutConfirmOpen,
         isLoggingOut,
         requestLogout,

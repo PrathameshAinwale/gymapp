@@ -353,3 +353,34 @@ input[type="number"] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
 }
+
+/* ===== SIDEBAR HIGHLIGHT & UNDERLINE ANIMATIONS ===== */
+@keyframes underlineGlowSlide {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.sidebar-underline-glow {
+  background-size: 200% 200%;
+  animation: underlineGlowSlide 3s ease infinite;
+}
+
+@keyframes tabGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(16, 185, 129, 0.75));
+  }
+}
+
+.sidebar-active-glow {
+  animation: tabGlowPulse 2.8s ease-in-out infinite;
+}

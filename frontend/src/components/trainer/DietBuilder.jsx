@@ -89,13 +89,13 @@ export const DietBuilder = () => {
 
   // Meal Sub-form state inside Modal
   const [newMealForm, setNewMealForm] = useState({
-    name: 'Power Breakfast',
+    name: '',
     time: '08:30 AM',
-    items: '4 Boiled Eggs + 2 Multigrain Rotis with Curd + 1 Banana',
-    calories: 550,
-    protein: 34,
-    carbs: 65,
-    fats: 16
+    items: '',
+    calories: '',
+    protein: '',
+    carbs: '',
+    fats: ''
   });
 
   // Open create modal
@@ -183,6 +183,16 @@ export const DietBuilder = () => {
       const targetDay = nextDays[modalDayIdx];
       targetDay.meals = [...(targetDay.meals || []), newMeal];
       return { ...prev, days: nextDays };
+    });
+
+    setNewMealForm({
+      name: '',
+      time: '12:00 PM',
+      items: '',
+      calories: '',
+      protein: '',
+      carbs: '',
+      fats: ''
     });
 
     addToast(`Added "${newMealForm.name}" to ${formData.days[modalDayIdx].day}`);

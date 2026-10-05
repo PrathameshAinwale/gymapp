@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -12,7 +12,9 @@ import {
   Sun,
   FileText,
   AlertCircle,
-  Briefcase
+  Briefcase,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { hasSqlInjection } from '../../utils/validation';
@@ -31,6 +33,8 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
 
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Leave application form
@@ -79,6 +83,33 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
       );
     });
   }, [leaveBalances, currentUser]);
+
+  // Filter options with live counts
+  const filterOptions = useMemo(() => [
+    { value: 'ALL', label: 'All Statuses', count: myRequests.length },
+    { value: 'Pending', label: 'Pending Review', count: myRequests.filter((r) => r.status === 'Pending').length },
+    { value: 'Approved', label: 'Approved', count: myRequests.filter((r) => r.status === 'Approved').length },
+    { value: 'Rejected', label: 'Rejected', count: myRequests.filter((r) => r.status === 'Rejected').length }
+  ], [myRequests]);
+
+  const currentFilterLabel = filterOptions.find((o) => o.value === filterStatus)?.label || 'All Statuses';
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    if (isFilterDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isFilterDropdownOpen]);
 
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
@@ -133,18 +164,18 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-16 max-w-6xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-5xl mx-auto px-2 sm:px-0">
       {/* 1. Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-5 sm:p-6 rounded-2xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200">
-            <CalendarDays className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+            <CalendarDays className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-base sm:text-xl font-black font-heading text-slate-900 tracking-tight">
               My Leave Tracker & Applications
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               Check your remaining paid leave balance and submit leave applications to management.
             </p>
           </div>
@@ -153,29 +184,29 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
         <button
           type="button"
           onClick={() => setIsApplyModalOpen(true)}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Apply for Leave</span>
         </button>
       </div>
 
-      {/* 2. My Remaining Leave Balances */}
+      {/* 2. My Remaining Leave Balances (Small & Two in One Row) */}
       <div>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
           My Leaves Balance (2026)
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
           {/* Total Remaining */}
-          <div className="p-4 sm:p-5 bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-indigo-800 rounded-2xl shadow-sm">
-            <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider block">
+          <div className="p-3 sm:p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-indigo-800 rounded-xl sm:rounded-2xl shadow-xs">
+            <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider block truncate">
               Total Leaves Left
             </span>
-            <div className="text-2xl sm:text-3xl font-black text-white mt-1">
+            <div className="text-base sm:text-xl font-black text-white mt-1 truncate">
               {myBalanceRecord?.total_remaining ?? 27}{' '}
-              <span className="text-sm font-medium text-slate-300">Days</span>
+              <span className="text-xs font-medium text-slate-300">Days</span>
             </div>
-            <span className="text-[11px] text-slate-300 mt-1 block">
+            <span className="text-[10px] text-slate-300 mt-0.5 block truncate">
               Used: {myBalanceRecord?.total_used ?? 3} / Total: {myBalanceRecord?.total_allocated ?? 30}
             </span>
           </div>
@@ -187,17 +218,17 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
               return (
                 <div
                   key={b.id || b.leave_type}
-                  className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl shadow-xs"
+                  className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs"
                 >
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                     <span className="truncate">{b.leave_type}</span>
-                    <Icon className="w-4 h-4 text-indigo-500" />
+                    <Icon className="w-3.5 h-3.5 text-indigo-500 shrink-0 ml-1" />
                   </div>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
+                  <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
                     {b.remaining_days}{' '}
                     <span className="text-xs font-normal text-slate-400">Left</span>
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-1">
+                  <div className="text-[10px] text-slate-500 mt-0.5 block truncate">
                     Quota: {b.allocated_days} • Used: {b.used_days}
                   </div>
                 </div>
@@ -205,20 +236,35 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
             })
           ) : (
             <>
-              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-                <span className="text-xs font-bold text-slate-500 block">Privilege Leave (PL)</span>
-                <div className="text-2xl font-black text-slate-900 mt-1">10 <span className="text-xs font-normal text-slate-400">Left</span></div>
-                <span className="text-[11px] text-slate-400">Quota: 12 • Used: 2</span>
+              <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <span className="truncate">Privilege Leave</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0 ml-1" />
+                </div>
+                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                  10 <span className="text-xs font-normal text-slate-400">Left</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 12 • Used: 2</span>
               </div>
-              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-                <span className="text-xs font-bold text-slate-500 block">Sick Leave (SL)</span>
-                <div className="text-2xl font-black text-slate-900 mt-1">9 <span className="text-xs font-normal text-slate-400">Left</span></div>
-                <span className="text-[11px] text-slate-400">Quota: 10 • Used: 1</span>
+              <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <span className="truncate">Sick Leave</span>
+                  <HeartPulse className="w-3.5 h-3.5 text-rose-500 shrink-0 ml-1" />
+                </div>
+                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                  9 <span className="text-xs font-normal text-slate-400">Left</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 10 • Used: 1</span>
               </div>
-              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-                <span className="text-xs font-bold text-slate-500 block">Casual Leave (CL)</span>
-                <div className="text-2xl font-black text-slate-900 mt-1">8 <span className="text-xs font-normal text-slate-400">Left</span></div>
-                <span className="text-[11px] text-slate-400">Quota: 8 • Used: 0</span>
+              <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <span className="truncate">Casual Leave</span>
+                  <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />
+                </div>
+                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                  8 <span className="text-xs font-normal text-slate-400">Left</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 8 • Used: 0</span>
               </div>
             </>
           )}
@@ -226,24 +272,68 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
       </div>
 
       {/* 3. My Application History */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            My Past Applications & Approvals
-          </h2>
+      <div className="space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-20">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              My Past Applications & Approvals
+            </h2>
+            <p className="text-xs text-slate-500">History of leave requests and status</p>
+          </div>
 
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-            {['ALL', 'Pending', 'Approved', 'Rejected'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setFilterStatus(st)}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition-colors ${
-                  filterStatus === st ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+          {/* Custom Styled Filter Dropdown (Bounded within screen and card) */}
+          <div className="relative w-full sm:w-52" ref={filterDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsFilterDropdownOpen((prev) => !prev)}
+              className="w-full h-10 px-3.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer shadow-2xs"
+            >
+              <span className="truncate">
+                {currentFilterLabel} ({filterOptions.find((o) => o.value === filterStatus)?.count ?? 0})
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-1.5 ${
+                  isFilterDropdownOpen ? 'rotate-180 text-indigo-600' : ''
                 }`}
-              >
-                {st}
-              </button>
-            ))}
+              />
+            </button>
+
+            {isFilterDropdownOpen && (
+              <div className="absolute top-full right-0 left-0 sm:left-auto sm:w-56 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 overflow-hidden animate-fadeIn">
+                {filterOptions.map((opt) => {
+                  const isSelected = filterStatus === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setFilterStatus(opt.value);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-50 text-indigo-900 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50 active:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isSelected ? (
+                          <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        ) : (
+                          <div className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                        <span className="truncate">{opt.label}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        isSelected ? 'bg-indigo-200/70 text-indigo-900' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {opt.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

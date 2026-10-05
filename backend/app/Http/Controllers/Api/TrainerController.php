@@ -35,18 +35,23 @@ class TrainerController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'avatar' => $user->avatar,
-                    'specialty' => $profile?->specialty ?? 'Strength & Conditioning',
-                    'experience' => $profile?->experience ?? '3+ Years',
+                    'specialty' => $profile?->specialty ?? '',
+                    'experience' => $profile?->experience ?? '',
                     'rating' => $profile?->rating ?? 5.0,
                     'activeClientsCount' => $activeClientsCount,
-                    'monthlySalary' => $profile?->monthly_salary ?? 50000,
-                    'bio' => $profile?->bio ?? 'Dedicated fitness professional.',
+                    'monthlySalary' => $profile?->monthly_salary ?? $user->salary ?? 0,
+                    'salary' => $profile?->monthly_salary ?? $user->salary ?? 0,
+                    'bio' => $profile?->bio ?? '',
                     'certifications' => $profile?->certifications ?? [],
                     'age' => $profile?->age,
-                    'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
-                    'gender' => $profile?->gender,
-                    'bloodGroup' => $profile?->blood_group,
-                    'address' => $profile?->address,
+                    'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : ($user->dob ? \Illuminate\Support\Carbon::parse($user->dob)->toDateString() : null),
+                    'gender' => $profile?->gender ?? $user->gender,
+                    'bloodGroup' => $profile?->blood_group ?? $user->blood_group,
+                    'blood_group' => $profile?->blood_group ?? $user->blood_group,
+                    'address' => $profile?->address ?? $user->address,
+                    'shifts' => $user->shifts,
+                    'joiningDate' => $user->joining_date,
+                    'joining_date' => $user->joining_date,
                 ];
             });
 
@@ -84,20 +89,26 @@ class TrainerController extends Controller
                 'id' => 'trn-' . $user->id,
                 'userId' => $user->id,
                 'name' => $user->name,
+                'role' => 'Fitness Coach',
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'avatar' => $user->avatar,
-                'specialty' => $profile?->specialty,
-                'experience' => $profile?->experience,
-                'rating' => $profile?->rating,
-                'monthlySalary' => $profile?->monthly_salary,
-                'bio' => $profile?->bio,
+                'specialty' => $profile?->specialty ?? '',
+                'experience' => $profile?->experience ?? '',
+                'rating' => $profile?->rating ?? 5.0,
+                'monthlySalary' => $profile?->monthly_salary ?? $user->salary ?? 0,
+                'salary' => $profile?->monthly_salary ?? $user->salary ?? 0,
+                'bio' => $profile?->bio ?? '',
                 'certifications' => $profile?->certifications ?? [],
                 'age' => $profile?->age,
-                'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
-                'gender' => $profile?->gender,
-                'bloodGroup' => $profile?->blood_group,
-                'address' => $profile?->address,
+                'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : ($user->dob ? \Illuminate\Support\Carbon::parse($user->dob)->toDateString() : null),
+                'gender' => $profile?->gender ?? $user->gender,
+                'bloodGroup' => $profile?->blood_group ?? $user->blood_group,
+                'blood_group' => $profile?->blood_group ?? $user->blood_group,
+                'address' => $profile?->address ?? $user->address,
+                'shifts' => $user->shifts,
+                'joiningDate' => $user->joining_date,
+                'joining_date' => $user->joining_date,
                 'clients' => $clients,
                 'classes' => $user->taughtClasses,
             ]
@@ -134,21 +145,26 @@ class TrainerController extends Controller
             'phone' => $request->phone,
             'gym_id' => $gymId,
             'avatar' => $request->avatar ?? null,
+            'shifts' => $request->shifts ?? null,
+            'joining_date' => $request->joining_date ?? null,
+            'salary' => $request->salary ?? $request->monthly_salary ?? $request->monthlySalary ?? null,
         ]);
 
         $certifications = $request->certifications;
         if (is_string($certifications)) {
             $certifications = array_values(array_filter(array_map('trim', explode(',', $certifications))));
+        } elseif (!is_array($certifications)) {
+            $certifications = [];
         }
 
         $profile = TrainerProfile::create([
             'user_id' => $user->id,
-            'specialty' => $request->specialty ?? 'General Fitness',
-            'experience' => $request->experience ?? '2+ Years',
+            'specialty' => $request->specialty ?? '',
+            'experience' => $request->experience ?? '',
             'rating' => $request->rating ?? 5.0,
-            'monthly_salary' => $request->monthly_salary ?? $request->monthlySalary ?? 45000,
+            'monthly_salary' => $request->monthly_salary ?? $request->monthlySalary ?? $request->salary ?? 0,
             'bio' => $request->bio ?? '',
-            'certifications' => $certifications ?? [],
+            'certifications' => $certifications,
             'age' => $request->age ? (int)$request->age : null,
             'dob' => $request->dob ? \Illuminate\Support\Carbon::parse($request->dob)->toDateString() : null,
             'gender' => $request->gender,
@@ -169,19 +185,17 @@ class TrainerController extends Controller
         $user = User::where('role', 'trainer')->findOrFail($numericId);
         $profile = TrainerProfile::firstOrCreate(['user_id' => $user->id]);
 
-        if ($request->has('name')) $user->name = $request->name;
-        if ($request->has('email')) $user->email = $request->email;
-        if ($request->has('phone')) $user->phone = $request->phone;
+        // Editable personal/contact details
+        if ($request->has('name') && filled($request->name)) $user->name = $request->name;
+        if ($request->has('email')) $user->email = filled($request->email) ? $request->email : null;
+        if ($request->has('phone') && filled($request->phone)) $user->phone = $request->phone;
         if ($request->has('avatar')) $user->avatar = $request->avatar;
         $user->save();
 
-        if ($request->has('specialty')) $profile->specialty = $request->specialty;
-        if ($request->has('experience')) $profile->experience = $request->experience;
-        if ($request->has('rating')) $profile->rating = $request->rating;
-        if ($request->has('monthly_salary') || $request->has('monthlySalary')) {
-            $profile->monthly_salary = $request->monthly_salary ?? $request->monthlySalary;
-        }
-        if ($request->has('bio')) $profile->bio = $request->bio;
+        // Editable profile credentials
+        if ($request->has('specialty')) $profile->specialty = $request->specialty ?? '';
+        if ($request->has('experience')) $profile->experience = $request->experience ?? '';
+        if ($request->has('bio')) $profile->bio = $request->bio ?? '';
         if ($request->has('age')) $profile->age = $request->age ? (int)$request->age : null;
         if ($request->has('dob')) {
             $profile->dob = $request->dob ? \Illuminate\Support\Carbon::parse($request->dob)->toDateString() : null;
@@ -195,9 +209,15 @@ class TrainerController extends Controller
             $certs = $request->certifications;
             if (is_string($certs)) {
                 $certs = array_values(array_filter(array_map('trim', explode(',', $certs))));
+            } elseif (!is_array($certs)) {
+                $certs = [];
             }
             $profile->certifications = $certs;
         }
+
+        // STRICT CONSTRAINT: Coach CANNOT edit salary or employment-related data.
+        // Therefore, monthly_salary, salary, shifts, joining_date, and role are ignored here.
+
         $profile->save();
 
         return response()->json([

@@ -754,10 +754,10 @@ export const InvoicesPage = () => {
 
       {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Reports Page) */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-sm space-y-2">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1" ref={searchContainerRef}>
+          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -768,7 +768,7 @@ export const InvoicesPage = () => {
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search member name, phone, or invoice..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
             />
 
             {searchTerm && (

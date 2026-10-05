@@ -2563,18 +2563,18 @@ export const AddMemberModal = ({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+          <div className="sticky bottom-0 -mx-4 -mb-4 px-4 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 sm:static sm:mx-0 sm:mb-0 sm:p-0 sm:bg-transparent sm:border-t sm:border-slate-100 sm:pt-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 z-20">
             <button
               type="button"
               onClick={handleModalClose}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isCreatingMember || (isUpgradeMode ? totalCalculatedAmount <= 0 : (!consentAgreed || (!otpVerified && !signedInPerson)))}
-              className={`px-6 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 ${isUpgradeMode
+              className={`w-full sm:w-auto px-6 py-2.5 sm:py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isUpgradeMode
                   ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
                 }`}

@@ -174,7 +174,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
 
     requestAdvancePay({
       staffId: currentUser?.id || 'trn-2',
-      staffName: currentUser?.name || 'Coach Alex Rivers',
+      staffName: currentUser?.name || 'Coach',
       role: currentUser?.roleLabel || 'Senior Fitness Coach',
       amount: Number(advanceForm.amount),
       reason: sanitizeText(advanceForm.reason),
@@ -205,20 +205,11 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             </div>
 
             <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200 uppercase tracking-wider">
-                  Verified Head Coach
-                </span>
-                <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                  <span>{avgRating} ({myReviews.length} reviews)</span>
-                </span>
-              </div>
               <h1 className="text-xl sm:text-2xl font-black font-heading tracking-tight text-slate-900 truncate">
-                {currentUser?.name || 'Coach Alex Rivers'}
+                {currentUser?.name || 'Coach'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 truncate">
-                {currentUser?.specialty || 'Hypertrophy, Biomechanics & Elite Conditioning'}
+                {currentUser?.specialty || currentUser?.roleLabel || 'Fitness Coach'}
               </p>
             </div>
           </div>

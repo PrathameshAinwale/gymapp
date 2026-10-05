@@ -12,6 +12,7 @@ class GymSetting extends Model
     protected $fillable = [
         'name',
         'tagline',
+        'logo',
         'address',
         'phone',
         'email',

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PulseFit</string>
-    <string name="title_activity_main">PulseFit</string>
-    <string name="package_name">in.pulsefit.app</string>
-    <string name="custom_url_scheme">in.pulsefit.app</string>
+    <string name="app_name">ArchFit</string>
+    <string name="title_activity_main">ArchFit</string>
+    <string name="package_name">in.archfit.app</string>
+    <string name="custom_url_scheme">in.archfit.app</string>
 </resources>

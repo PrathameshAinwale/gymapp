@@ -54,6 +54,7 @@ import { AddMemberModal } from './AddMemberModal';
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getPlanByTier } from '../superadmin/packagePlans';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
@@ -79,6 +80,11 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
     addCommissionRecord,
     addToast
   } = useGymData();
+
+  const currentTier = gymInfo?.packageTier || gymInfo?.package || 'Bronze';
+  const planConfig = getPlanByTier(currentTier);
+  const maxMembersQuota = gymInfo?.maxMembers ?? gymInfo?.max_members ?? planConfig?.quotas?.maxMembers ?? 200;
+  const isMemberQuotaReached = maxMembersQuota !== null && members.length >= maxMembersQuota;
 
   useEffect(() => {
     fetchMembers?.();
@@ -592,8 +598,29 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
+          {maxMembersQuota !== null && (
+            <div className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
+              isMemberQuotaReached
+                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                : 'bg-slate-50 text-slate-700 border-slate-200'
+            }`}>
+              <span>Quota: {members.length}/{maxMembersQuota}</span>
+              {isMemberQuotaReached && (
+                <span className="text-[10px] uppercase font-black tracking-wide text-amber-900 bg-amber-200/80 px-1 py-0.5 rounded">
+                  Max Reached
+                </span>
+              )}
+            </div>
+          )}
+
           <button
-            onClick={() => setIsOpenAddModal(true)}
+            onClick={() => {
+              if (isMemberQuotaReached) {
+                addToast(`Member capacity reached (${maxMembersQuota} members max on your ${currentTier} plan). Please upgrade to a higher plan to add more members.`, 'error');
+                return;
+              }
+              setIsOpenAddModal(true);
+            }}
             className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -605,10 +632,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
       {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Invoices & Reports pages) */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1" ref={searchContainerRef}>
+          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -619,7 +646,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search member name, phone, email, plan, or coach..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
             />
             {searchTerm && (
               <button
@@ -2373,17 +2400,17 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
       {/* Advanced Filter Modal (Portalled to document.body, matching InvoicesPage & ReportsManager) */}
       {showFilterModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] flex sm:items-center items-stretch justify-center sm:p-5 p-0 overflow-hidden">
           <div
             onClick={() => setShowFilterModal(false)}
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fadeIn"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fadeIn hidden sm:block"
           />
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 animate-scaleUp my-auto max-h-[88vh]"
+            className="relative bg-white rounded-none sm:rounded-3xl max-w-lg w-full shadow-none sm:shadow-2xl sm:border border-slate-200 overflow-hidden flex flex-col z-10 animate-fadeIn sm:animate-scaleUp h-full sm:h-auto max-h-[100dvh] sm:max-h-[88vh]"
           >
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+            <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-700">
                   <Filter className="w-4 h-4" />

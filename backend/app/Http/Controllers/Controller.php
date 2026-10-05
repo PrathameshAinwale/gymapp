@@ -15,24 +15,56 @@ abstract class Controller
         // 1. Authenticated Sanctum User — most reliable source
         $user = $request->user() ?: auth('sanctum')->user();
         if ($user) {
-            if ($user->gym_id) {
+            // Superadmin has global platform access and can inspect any facility
+            if ($user->role === 'superadmin') {
+                $headerGymId = $request->header('X-Gym-Id') ?? $request->header('X-Gym-ID') ?? $request->header('x-gym-id');
+                if ($headerGymId) {
+                    $hVal = (int) $headerGymId;
+                    if ($hVal > 0 && Gym::where('id', $hVal)->exists()) {
+                        return $hVal;
+                    }
+                }
+                $paramGymId = $request->input('gym_id') ?? $request->input('gymId') ?? $request->query('gym_id') ?? $request->query('gymId');
+                if ($paramGymId) {
+                    $pVal = (int) $paramGymId;
+                    if ($pVal > 0 && Gym::where('id', $pVal)->exists()) {
+                        return $pVal;
+                    }
+                }
+                return $user->gym_id ?: (Gym::first()?->id ?? 1);
+            }
+
+            // Multi-gym owner branch header check
+            if ($user->role === 'owner') {
+                $headerGymId = $request->header('X-Gym-Id') ?? $request->header('X-Gym-ID') ?? $request->header('x-gym-id');
+                if ($headerGymId) {
+                    $hVal = (int) $headerGymId;
+                    if ($hVal > 0 && Gym::where('id', $hVal)->where('owner_id', $user->id)->exists()) {
+                        return $hVal;
+                    }
+                }
+            }
+
+            // Regular user (owner, trainer, member, manager, accounts):
+            // Strictly scoped to their own verified gym.
+            if ($user->gym_id && Gym::where('id', $user->gym_id)->exists()) {
                 return (int) $user->gym_id;
             }
+
             if ($user->role === 'owner') {
-                $ownedGym = Gym::where('owner_id', $user->id)->first() ?? Gym::first();
+                $ownedGym = Gym::where('owner_id', $user->id)->first();
                 if ($ownedGym) {
-                    if (!$ownedGym->owner_id) {
-                        $ownedGym->owner_id = $user->id;
-                        $ownedGym->save();
-                    }
                     $user->gym_id = $ownedGym->id;
                     $user->save();
                     return (int) $ownedGym->id;
                 }
             }
+
+            // CRITICAL: If the gym was deleted, NEVER fall back to another gym (e.g. Sohan's gym)
+            return null;
         }
 
-        // 2. Custom header X-Gym-Id or X-Gym-ID (case-tolerant)
+        // 2. Custom header X-Gym-Id or X-Gym-ID (case-tolerant) for guest/public endpoints
         $headerGymId = $request->header('X-Gym-Id') ?? $request->header('X-Gym-ID') ?? $request->header('x-gym-id');
         if ($headerGymId) {
             $hVal = (int) $headerGymId;
@@ -50,7 +82,7 @@ abstract class Controller
             }
         }
 
-        // 4. Fallback to primary gym to prevent data orphaning or empty datasets
-        return Gym::first()?->id ?? 1;
+        // 4. Fallback only for unauthenticated public browsing
+        return Gym::first()?->id ?? null;
     }
 }

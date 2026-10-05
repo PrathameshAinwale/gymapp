@@ -14,11 +14,13 @@ import {
   Calendar,
   X,
   Layers,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ShiftFormModal } from './ShiftFormModal';
 
 // Helper to convert "HH:MM" or "HH:MM AM/PM" to 12h display
 const formatTimeTo12Hour = (timeStr) => {
@@ -119,150 +121,14 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
   const [deleteConfirmShift, setDeleteConfirmShift] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    color: 'emerald',
-    is_active: true,
-    timings: [
-      { start_time: '06:00 AM', end_time: '02:00 PM', label: 'Slot 1' }
-    ]
-  });
-
   const openCreateModal = () => {
     setEditingShiftId(null);
-    setFormData({
-      name: '',
-      description: '',
-      color: 'emerald',
-      is_active: true,
-      timings: [
-        { start_time: '06:00 AM', end_time: '02:00 PM', label: 'Slot 1' }
-      ]
-    });
     setIsModalOpen(true);
   };
 
   const openEditModal = (shift) => {
     setEditingShiftId(shift.id);
-    const timings = Array.isArray(shift.timings) && shift.timings.length > 0
-      ? shift.timings.map((t, idx) => ({
-          start_time: t.start_time || '06:00 AM',
-          end_time: t.end_time || '02:00 PM',
-          label: t.label || `Slot ${idx + 1}`
-        }))
-      : [{ start_time: '06:00 AM', end_time: '02:00 PM', label: 'Slot 1' }];
-
-    setFormData({
-      name: shift.name || '',
-      description: shift.description || '',
-      color: shift.color || 'emerald',
-      is_active: shift.is_active !== undefined ? Boolean(shift.is_active) : true,
-      timings
-    });
     setIsModalOpen(true);
-  };
-
-  const handleAddTimingSlot = () => {
-    const nextSlotNum = formData.timings.length + 1;
-    // Suggest next timing after previous slot
-    let nextStart = '05:00 PM';
-    let nextEnd = '09:00 PM';
-    if (formData.timings.length === 1) {
-      nextStart = '05:00 PM';
-      nextEnd = '09:00 PM';
-    } else if (formData.timings.length === 2) {
-      nextStart = '09:00 PM';
-      nextEnd = '11:00 PM';
-    }
-    setFormData((prev) => ({
-      ...prev,
-      timings: [
-        ...prev.timings,
-        { start_time: nextStart, end_time: nextEnd, label: `Slot ${nextSlotNum}` }
-      ]
-    }));
-  };
-
-  const handleRemoveTimingSlot = (index) => {
-    if (formData.timings.length <= 1) {
-      addToast('A shift must have at least one timing slot.', 'error');
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      timings: prev.timings.filter((_, idx) => idx !== index)
-    }));
-  };
-
-  const handleUpdateTimingSlot = (index, field, value) => {
-    setFormData((prev) => {
-      const updated = [...prev.timings];
-      let formattedVal = value;
-      if (field === 'start_time' || field === 'end_time') {
-        formattedVal = formatTimeTo12Hour(value);
-      }
-      updated[index] = {
-        ...updated[index],
-        [field]: formattedVal
-      };
-      return { ...prev, timings: updated };
-    });
-  };
-
-  // Calculate total hours of the shift across all slots
-  const totalFormMinutes = useMemo(() => {
-    return formData.timings.reduce((sum, slot) => {
-      return sum + calculateSlotMinutes(slot.start_time, slot.end_time);
-    }, 0);
-  }, [formData.timings]);
-
-  const handleSubmitForm = async (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) {
-      addToast('Please enter a shift name.', 'error');
-      return;
-    }
-    if (!formData.timings || formData.timings.length === 0) {
-      addToast('Please configure at least one timing slot.', 'error');
-      return;
-    }
-
-    // Validate that each slot has valid start & end
-    for (let i = 0; i < formData.timings.length; i++) {
-      const slot = formData.timings[i];
-      if (!slot.start_time || !slot.end_time) {
-        addToast(`Timing slot #${i + 1} has incomplete start or end times.`, 'error');
-        return;
-      }
-    }
-
-    try {
-      setIsSubmitting(true);
-      const payload = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
-        color: formData.color || 'emerald',
-        is_active: formData.is_active,
-        timings: formData.timings.map((t, idx) => ({
-          start_time: formatTimeTo12Hour(t.start_time),
-          end_time: formatTimeTo12Hour(t.end_time),
-          label: t.label?.trim() || `Slot ${idx + 1}`
-        }))
-      };
-
-      if (editingShiftId) {
-        await updateShift(editingShiftId, payload);
-      } else {
-        await createShift(payload);
-      }
-      setIsModalOpen(false);
-    } catch (err) {
-      console.error('Save shift error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleConfirmDelete = async () => {
@@ -377,34 +243,35 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
       </div>
 
       {/* 2. FILTER & SEARCH BAR */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-2.5 sm:p-4 shadow-sm flex items-center justify-between gap-2 sm:gap-3">
+        <div className="relative flex-1 min-w-0 sm:max-w-xs">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search shift name or timings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all truncate"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <span className="text-xs text-slate-500 font-semibold hidden md:inline">Status:</span>
-          {['all', 'active', 'inactive'].map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setFilterActive(st)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
-                filterActive === st
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <label htmlFor="shift-status-filter" className="text-xs text-slate-500 font-bold shrink-0 hidden sm:inline">
+            Status:
+          </label>
+          <div className="relative w-32 sm:min-w-[160px]">
+            <select
+              id="shift-status-filter"
+              value={filterActive}
+              onChange={(e) => setFilterActive(e.target.value)}
+              className="w-full pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer appearance-none shadow-2xs truncate"
             >
-              {st}
-            </button>
-          ))}
+              <option value="all">All ({totalShiftsCount})</option>
+              <option value="active">Active ({activeShiftsCount})</option>
+              <option value="inactive">Inactive ({totalShiftsCount - activeShiftsCount})</option>
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 sm:right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
         </div>
       </div>
 
@@ -543,228 +410,13 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
         </div>
       )}
 
-      {/* 4. MODAL: CREATE / EDIT SHIFT */}
-      {isModalOpen && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title={editingShiftId ? 'Edit Shift Profile' : 'Create New Working Shift'}
-          maxWidth="max-w-2xl"
-        >
-          <form onSubmit={handleSubmitForm} className="space-y-5 py-1">
-            {/* Shift Name */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Shift Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g., Morning Floor Shift, Evening Rush, Split Duty"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400"
-              />
-            </div>
-
-            {/* Shift Tag Color & Status */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Color Tag Indicator
-                </label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {COLOR_OPTIONS.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, color: c.id })}
-                      className={`w-7 h-7 rounded-full ${c.bg} transition-all cursor-pointer flex items-center justify-center ${
-                        formData.color === c.id
-                          ? 'ring-2 ring-offset-2 ring-slate-900 scale-110 shadow-sm'
-                          : 'opacity-70 hover:opacity-100'
-                      }`}
-                      title={c.label}
-                    >
-                      {formData.color === c.id && <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[3]" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Availability Status
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
-                  className={`w-full py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                    formData.is_active
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-slate-100 text-slate-600 border-slate-200'
-                  }`}
-                >
-                  <span>{formData.is_active ? 'Active & Selectable' : 'Inactive (Archived)'}</span>
-                  <div
-                    className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
-                      formData.is_active ? 'bg-emerald-600' : 'bg-slate-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                        formData.is_active ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Shift Description / Notes <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <textarea
-                rows={2}
-                placeholder="e.g. Primary coach floor coverage during morning rush and circuit classes..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400 resize-none"
-              />
-            </div>
-
-            {/* TIMING SLOTS BUILDER */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-emerald-600" />
-                    <span>Shift Timing Slots</span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Add multiple timing options/slots to this shift (e.g. for split shifts or flexible schedules).
-                  </p>
-                </div>
-
-                <div className="px-2.5 py-1 rounded-lg bg-emerald-100/70 text-emerald-800 text-xs font-black border border-emerald-200">
-                  Total: {formatDurationDisplay(totalFormMinutes)}
-                </div>
-              </div>
-
-              {/* Slots List */}
-              <div className="space-y-3">
-                {formData.timings.map((slot, index) => {
-                  const sMinutes = calculateSlotMinutes(slot.start_time, slot.end_time);
-                  return (
-                    <div
-                      key={index}
-                      className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <input
-                          type="text"
-                          placeholder={`Slot ${index + 1} Name`}
-                          value={slot.label || ''}
-                          onChange={(e) => handleUpdateTimingSlot(index, 'label', e.target.value)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 w-44 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-bold text-slate-500">
-                            {formatDurationDisplay(sMinutes)}
-                          </span>
-                          {formData.timings.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveTimingSlot(index)}
-                              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Remove timing slot"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                            Start Time
-                          </label>
-                          <input
-                            type="time"
-                            required
-                            value={formatTimeTo24HourInput(slot.start_time)}
-                            onChange={(e) => handleUpdateTimingSlot(index, 'start_time', e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          />
-                          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                            Preview: {slot.start_time}
-                          </span>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                            End Time
-                          </label>
-                          <input
-                            type="time"
-                            required
-                            value={formatTimeTo24HourInput(slot.end_time)}
-                            onChange={(e) => handleUpdateTimingSlot(index, 'end_time', e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          />
-                          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                            Preview: {slot.end_time}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Add Slot Button */}
-              <button
-                type="button"
-                onClick={handleAddTimingSlot}
-                className="w-full py-2.5 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 text-emerald-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Add Another Timing Slot Option</span>
-              </button>
-            </div>
-
-            {/* Form Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <span>Saving...</span>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{editingShiftId ? 'Update Shift Profile' : 'Save & Publish Shift'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {/* 4. REUSED MODAL: CREATE / EDIT SHIFT */}
+      <ShiftFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        editingShift={editingShiftId ? shifts.find((s) => s.id === editingShiftId) : null}
+        onSuccess={() => setIsModalOpen(false)}
+      />
 
       {/* 5. MODAL: DELETE CONFIRMATION */}
       {deleteConfirmShift && (

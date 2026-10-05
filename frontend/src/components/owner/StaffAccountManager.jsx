@@ -50,10 +50,12 @@ import {
   ChevronRight,
   UserCheck,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Plus
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ShiftFormModal } from './ShiftFormModal';
 
 // Helper to retrieve saved/default password for staff
 const getStaffPassword = (stf) => {
@@ -121,7 +123,11 @@ const StaffAvatar = ({ src, name, size = 'sm' }) => {
 
 export const StaffAccountManager = ({ onNavigateTab = null }) => {
   const { accounts, createStaffAccount, deleteStaffAccount, currentUser } = useAuth();
-  const { addToast, members = [], trainers = [], fetchTrainers, shifts = [], fetchShifts } = useGymData();
+  const { addToast, members = [], trainers = [], fetchTrainers, shifts = [], fetchShifts, gymInfo } = useGymData();
+
+  const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Gold';
+  const isGoldTier = (currentTier || '').toLowerCase().includes('gold');
+  const maxStaffQuota = isGoldTier ? 10 : (gymInfo?.maxTrainers || null);
 
   const activeGymId = currentUser?.gymId || currentUser?.gym_id;
 
@@ -183,6 +189,19 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
 
+  // Quick Add Shift target: 'add' | 'edit' | null
+  const [quickAddShiftTarget, setQuickAddShiftTarget] = useState(null);
+
+  const handleShiftCreatedSuccess = (newShift, formattedLabel) => {
+    if (quickAddShiftTarget === 'add') {
+      setFormData((prev) => ({ ...prev, shifts: formattedLabel }));
+    } else if (quickAddShiftTarget === 'edit') {
+      setEditFormData((prev) => ({ ...prev, shifts: formattedLabel }));
+    }
+    setQuickAddShiftTarget(null);
+    fetchShifts?.();
+  };
+
   // Filter and Coach Roster view modals
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('all'); // 'all' | 'manager' | 'accounts' | 'trainer'
   const [selectedCoachRoster, setSelectedCoachRoster] = useState(null);
@@ -212,9 +231,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     specialty: 'Head Strength & Conditioning Coach',
     experience: '3+ Years',
     bio: '',
-    certifications: 'NASM-CPT, CSCS',
+    certifications: '',
     gender: 'Male',
-    blood_group: 'B+',
+    blood_group: '',
     address: ''
   });
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -240,10 +259,10 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     shifts: '',
     specialty: 'Head Strength & Conditioning Coach',
     experience: '3+ Years',
-    bio: 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
-    certifications: 'NASM-CPT, CSCS',
+    bio: '',
+    certifications: '',
     gender: 'Male',
-    blood_group: 'B+',
+    blood_group: '',
     address: ''
   });
 
@@ -501,10 +520,10 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         shifts: '',
         specialty: 'Head Strength & Conditioning Coach',
         experience: '3+ Years',
-        bio: 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
-        certifications: 'NASM-CPT, CSCS',
+        bio: '',
+        certifications: '',
         gender: 'Male',
-        blood_group: 'B+',
+        blood_group: '',
         address: ''
       });
 
@@ -537,9 +556,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       specialty: stf.specialty || 'Head Strength & Conditioning Coach',
       experience: stf.experience || '3+ Years',
       bio: stf.bio || '',
-      certifications: Array.isArray(stf.certifications) ? stf.certifications.join(', ') : (stf.certifications || 'NASM-CPT, CSCS'),
+      certifications: Array.isArray(stf.certifications) ? stf.certifications.join(', ') : (stf.certifications || ''),
       gender: stf.gender || 'Male',
-      blood_group: stf.blood_group || stf.bloodGroup || 'B+',
+      blood_group: stf.blood_group || stf.bloodGroup || '',
       address: stf.address || ''
     });
     setShowEditPassword(false);
@@ -708,9 +727,30 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             </button>
           )}
 
+          {maxStaffQuota !== null && (
+            <div className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
+              staffList.length >= maxStaffQuota
+                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                : 'bg-slate-50 text-slate-700 border-slate-200'
+            }`}>
+              <span>Staff Quota: {staffList.length}/{maxStaffQuota}</span>
+              {staffList.length >= maxStaffQuota && (
+                <span className="text-[10px] uppercase font-black tracking-wide text-amber-900 bg-amber-200/80 px-1 py-0.5 rounded">
+                  Max Reached
+                </span>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => {
+              if (maxStaffQuota !== null && staffList.length >= maxStaffQuota) {
+                addToast(`Staff account limit reached (${maxStaffQuota} staff max on your ${currentTier} plan). Please upgrade to Platinum for unlimited staff accounts.`, 'error');
+                return;
+              }
+              setIsCreateModalOpen(true);
+            }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <UserPlus className="w-4 h-4" />
@@ -1221,26 +1261,25 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block font-bold text-slate-700">Shifts Working</label>
-                {onNavigateTab && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateTab('shifts')}
-                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Create Shift</span>
-                  </button>
-                )}
-              </div>
+              <label className="block font-bold text-slate-700 mb-1">Shifts Working</label>
               <select
                 value={formData.shifts}
-                onChange={(e) => setFormData({ ...formData, shifts: e.target.value })}
+                onChange={(e) => {
+                  if (e.target.value === '__CREATE_NEW_SHIFT__') {
+                    setQuickAddShiftTarget('add');
+                  } else {
+                    setFormData({ ...formData, shifts: e.target.value });
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 {formattedShiftOptions.length === 0 ? (
-                  <option value="">-- No Shifts Created Yet (Click "+ Create Shift" above) --</option>
+                  <>
+                    <option value="">-- No Shifts Created Yet --</option>
+                    <option value="__CREATE_NEW_SHIFT__" className="font-bold text-emerald-600">
+                      + Create & Add New Shift...
+                    </option>
+                  </>
                 ) : (
                   <>
                     <option value="">-- Select Shift --</option>
@@ -1249,6 +1288,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                         {opt.label}
                       </option>
                     ))}
+                    <option value="__CREATE_NEW_SHIFT__" className="font-bold text-emerald-600">
+                      + Create & Add New Shift...
+                    </option>
                   </>
                 )}
                 {formData.shifts && !formattedShiftOptions.some((o) => o.value === formData.shifts) && (
@@ -1338,13 +1380,21 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                       Blood Group
                     </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. B+"
+                    <select
                       value={formData.blood_group}
                       onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                      className="w-full px-2 py-2 bg-white border border-purple-200 rounded-lg text-xs uppercase text-slate-800"
-                    />
+                      className="w-full px-2 py-2 bg-white border border-purple-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500 cursor-pointer"
+                    >
+                      <option value="">Select</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -1897,26 +1947,25 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-slate-700">Working Shifts</label>
-                  {onNavigateTab && (
-                    <button
-                      type="button"
-                      onClick={() => onNavigateTab('shifts')}
-                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Manage Shifts</span>
-                    </button>
-                  )}
-                </div>
+                <label className="block font-bold text-slate-700 mb-1">Working Shifts</label>
                 <select
                   value={editFormData.shifts}
-                  onChange={(e) => setEditFormData({ ...editFormData, shifts: e.target.value })}
+                  onChange={(e) => {
+                    if (e.target.value === '__CREATE_NEW_SHIFT__') {
+                      setQuickAddShiftTarget('edit');
+                    } else {
+                      setEditFormData({ ...editFormData, shifts: e.target.value });
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   {formattedShiftOptions.length === 0 ? (
-                    <option value="">-- No Shifts Created Yet (Click "+ Manage Shifts" above) --</option>
+                    <>
+                      <option value="">-- No Shifts Created Yet --</option>
+                      <option value="__CREATE_NEW_SHIFT__" className="font-bold text-emerald-600">
+                        + Create & Add New Shift...
+                      </option>
+                    </>
                   ) : (
                     <>
                       <option value="">-- Select Shift --</option>
@@ -1925,6 +1974,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                           {opt.label}
                         </option>
                       ))}
+                      <option value="__CREATE_NEW_SHIFT__" className="font-bold text-emerald-600">
+                        + Create & Add New Shift...
+                      </option>
                     </>
                   )}
                   {editFormData.shifts && !formattedShiftOptions.some((o) => o.value === editFormData.shifts) && (
@@ -2014,13 +2066,21 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                         Blood Group
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. B+"
+                      <select
                         value={editFormData.blood_group}
                         onChange={(e) => setEditFormData({ ...editFormData, blood_group: e.target.value })}
-                        className="w-full px-2 py-2 bg-white border border-purple-200 rounded-lg text-xs uppercase text-slate-800"
-                      />
+                        className="w-full px-2 py-2 bg-white border border-purple-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500 cursor-pointer"
+                      >
+                        <option value="">Select</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -2290,6 +2350,15 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
           </div>
         )}
       </Modal>
+
+      {/* REUSED SHIFT FORM MODAL FROM SHIFT MANAGEMENT */}
+      <ShiftFormModal
+        isOpen={Boolean(quickAddShiftTarget)}
+        onClose={() => setQuickAddShiftTarget(null)}
+        editingShift={null}
+        onSuccess={handleShiftCreatedSuccess}
+        zIndexOverride={10050}
+      />
     </div>
   );
 };

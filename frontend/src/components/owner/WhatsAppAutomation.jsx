@@ -137,29 +137,40 @@ export const WhatsAppAutomation = () => {
   const [selectedTemplateForBroadcast, setSelectedTemplateForBroadcast] = useState('');
   const [broadcastCustomNote, setBroadcastCustomNote] = useState('');
 
+  // Current SaaS subscription tier
+  const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || 'Gold';
+  const isPlatinum = (currentTier || '').toLowerCase().includes('platinum');
+
   // Ref for textarea cursor insertion
   const textareaRef = useRef(null);
 
   useEffect(() => {
     handleRefreshAll();
-  }, []);
+  }, [isPlatinum]);
 
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.allSettled([
+      const tasks = [
         fetchWhatsAppTemplates?.(),
         fetchWhatsAppTriggers?.(),
         fetchWhatsAppLogs?.(),
-        fetchWhatsAppStats?.(),
-        processWhatsAppAutoSend?.()
-      ]);
+        fetchWhatsAppStats?.()
+      ];
+      if (isPlatinum) {
+        tasks.push(processWhatsAppAutoSend?.());
+      }
+      await Promise.allSettled(tasks);
     } finally {
       setIsRefreshing(false);
     }
   };
 
   const handleRunAutoTriggers = async () => {
+    if (!isPlatinum) {
+      addToast('Automated background delivery is exclusive to the Platinum Plan. On your Gold Plan, templates are sent manually using 1-Click WhatsApp.', 'info');
+      return;
+    }
     setIsRunningAutoTriggers(true);
     try {
       const res = await processWhatsAppAutoSend?.();
@@ -564,11 +575,20 @@ export const WhatsAppAutomation = () => {
                 <MessageSquare className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>WhatsApp Automation & Templates</span>
+                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
+                  <span>WhatsApp & Templates</span>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                    isPlatinum
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}>
+                    {isPlatinum ? 'Platinum: 100% Automated WhatsApp' : 'Gold: Manual Template Sending Mode'}
+                  </span>
                 </h1>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Automate member & trainer birthday greetings, expiry renewal alerts, fee notices, and custom messages with 1-click dispatch.
+                  {isPlatinum
+                    ? '100% completely automated background dispatch for birthdays, dues, and expiry alerts, plus instant broadcast templates.'
+                    : 'Personalized member & trainer birthday greetings, expiry renewal alerts, and fee notices with 1-click manual template dispatch.'}
                 </p>
               </div>
             </div>
@@ -744,29 +764,50 @@ export const WhatsAppAutomation = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                      Automated Member Birthday & Daily Trigger Engine
+                      {isPlatinum
+                        ? 'Automated Member Birthday & Daily Trigger Engine (Platinum Plan)'
+                        : 'Manual WhatsApp Template Sending Mode (Gold Plan)'}
                     </h3>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                      ACTIVE & RUNNING
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isPlatinum
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                    }`}>
+                      {isPlatinum ? (
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                          100% AUTOMATED & RUNNING
+                        </>
+                      ) : (
+                        'MANUAL 1-CLICK MODE'
+                      )}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    When a member's birthday arrives, their personalized WhatsApp greeting is automatically dispatched and recorded in audit logs.
+                    {isPlatinum
+                      ? "When a member's birthday arrives, their personalized WhatsApp greeting is automatically dispatched in the background and recorded in audit logs."
+                      : "In the Gold Plan, template messages are dispatched manually via 1-Click WhatsApp buttons. Full background automation runs automatically on the Platinum Plan."}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-                <button
-                  onClick={handleRunAutoTriggers}
-                  disabled={isRunningAutoTriggers}
-                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
-                  title="Run auto-scan and greeting dispatch for today"
-                >
-                  <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin text-emerald-600' : 'text-emerald-700'}`} />
-                  <span>{isRunningAutoTriggers ? 'Executing Trigger...' : 'Run Auto-Trigger Check'}</span>
-                </button>
+                {isPlatinum ? (
+                  <button
+                    onClick={handleRunAutoTriggers}
+                    disabled={isRunningAutoTriggers}
+                    className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                    title="Run auto-scan and greeting dispatch for today"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin text-emerald-600' : 'text-emerald-700'}`} />
+                    <span>{isRunningAutoTriggers ? 'Executing Trigger...' : 'Run Auto-Trigger Check'}</span>
+                  </button>
+                ) : (
+                  <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Upgrade to Platinum for 100% Auto-Send</span>
+                  </div>
+                )}
               </div>
             </div>
 

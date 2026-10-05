@@ -241,6 +241,9 @@ Route::prefix('v1')->group(function () {
     // Gym Business Information
     Route::get('/gym-info', [GymSettingController::class, 'show']);
     Route::put('/gym-info', [GymSettingController::class, 'update']);
+    Route::get('/owner/branches', [GymSettingController::class, 'getBranches']);
+    Route::post('/owner/branches', [GymSettingController::class, 'createBranch']);
+    Route::post('/owner/switch-branch', [GymSettingController::class, 'switchBranch']);
 
     // Dashboard & Analytics
     Route::get('/dashboard/owner-stats', [DashboardController::class, 'getOwnerStats']);
@@ -416,6 +419,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/stats', [WhatsAppController::class, 'stats']);
     });
 
+    // Platform Pages & Plans (Readable by all app clients)
+    Route::prefix('platform')->group(function () {
+        Route::get('/pages', [SuperadminController::class, 'indexPages']);
+        Route::get('/pages/{slug}', [SuperadminController::class, 'showPage']);
+        Route::get('/plans', [SuperadminController::class, 'indexPlans']);
+    });
+
     // Superadmin Platform Control
     Route::prefix('superadmin')->group(function () {
         Route::get('/stats', [SuperadminController::class, 'stats']);
@@ -424,5 +434,15 @@ Route::prefix('v1')->group(function () {
         Route::put('/gyms/{id}', [SuperadminController::class, 'updateGym']);
         Route::delete('/gyms/{id}', [SuperadminController::class, 'deleteGym']);
         Route::post('/gyms/{id}/impersonate', [SuperadminController::class, 'impersonateGym']);
+
+        // SaaS Plans Management
+        Route::get('/plans', [SuperadminController::class, 'indexPlans']);
+        Route::post('/plans', [SuperadminController::class, 'storePlan']);
+        Route::put('/plans/{id}', [SuperadminController::class, 'updatePlan']);
+        Route::delete('/plans/{id}', [SuperadminController::class, 'deletePlan']);
+
+        // Platform About Pages (Privacy Policy, Terms, Help & Support)
+        Route::get('/pages', [SuperadminController::class, 'indexPages']);
+        Route::put('/pages/{slug}', [SuperadminController::class, 'updatePage']);
     });
 });

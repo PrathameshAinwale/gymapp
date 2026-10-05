@@ -81,8 +81,37 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid mobile number/email or password.'
-            ], 401);
+                'message' => 'Account not found. Please check your mobile number or email, and password.'
+            ], 404);
+        }
+
+        // Verify gym affiliation for non-superadmin accounts
+        if ($user->role !== 'superadmin') {
+            $gym = null;
+            if ($user->gym_id) {
+                $gym = \App\Models\Gym::find($user->gym_id);
+            }
+            if (!$gym && $user->role === 'owner') {
+                $gym = \App\Models\Gym::where('owner_id', $user->id)->first();
+                if ($gym) {
+                    $user->gym_id = $gym->id;
+                    $user->save();
+                }
+            }
+
+            if (!$gym) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Account not found. This gym account has been deleted.'
+                ], 404);
+            }
+
+            if (in_array(strtolower($gym->status ?? 'active'), ['suspended', 'expired', 'inactive'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Account suspended. This gym account is currently inactive. Please contact administration.'
+                ], 403);
+            }
         }
 
         // Load profile and gym relations

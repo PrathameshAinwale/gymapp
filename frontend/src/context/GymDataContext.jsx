@@ -494,142 +494,6 @@ const SEED_EXERCISES = [
   { id: 'ex-16', name: 'Hanging Knee Raises & Plank', category: 'Core', equipment: 'Bodyweight' }
 ];
 
-const SEED_DEFAULT_WORKOUT_PLAN = {
-  id: 'wp-1',
-  memberId: 'mem-4',
-  memberName: 'Pooja Hegde',
-  title: '6-Day Muscle Hypertrophy Split',
-  assignedBy: 'Coach Alex Rivers',
-  days: [
-    {
-      day: 'Monday',
-      label: 'Push (Chest & Triceps)',
-      exercises: [
-        { id: 1, name: 'Barbell Flat Bench Press', sets: 4, reps: '10-12', weight: '60 kg', rest: 90, done: false },
-        { id: 2, name: 'Incline Dumbbell Press', sets: 4, reps: '12', weight: '22 kg', rest: 60, done: false },
-        { id: 3, name: 'Dumbbell Lateral Raises', sets: 4, reps: '15', weight: '10 kg', rest: 45, done: false },
-        { id: 4, name: 'Tricep Rope Pushdowns', sets: 4, reps: '12', weight: '25 kg', rest: 60, done: false }
-      ]
-    },
-    {
-      day: 'Tuesday',
-      label: 'Pull (Back & Biceps)',
-      exercises: [
-        { id: 5, name: 'Lat Pulldowns', sets: 4, reps: '10-12', weight: '55 kg', rest: 90, done: false },
-        { id: 6, name: 'Seated Cable Rows', sets: 4, reps: '12', weight: '45 kg', rest: 60, done: false },
-        { id: 7, name: 'Barbell EZ-Bar Bicep Curls', sets: 4, reps: '12', weight: '25 kg', rest: 60, done: false },
-        { id: 8, name: 'Hammer Curls', sets: 3, reps: '15', weight: '12 kg', rest: 45, done: false }
-      ]
-    },
-    {
-      day: 'Wednesday',
-      label: 'Legs & Core Compound',
-      exercises: [
-        { id: 9, name: 'Barbell Back Squats', sets: 4, reps: '8-10', weight: '80 kg', rest: 120, done: false },
-        { id: 10, name: 'Leg Press Machine', sets: 4, reps: '12', weight: '140 kg', rest: 90, done: false },
-        { id: 11, name: 'Lying Hamstring Curls', sets: 4, reps: '12', weight: '35 kg', rest: 60, done: false },
-        { id: 12, name: 'Standing Calf Raises', sets: 4, reps: '20', weight: '50 kg', rest: 45, done: false }
-      ]
-    },
-    {
-      day: 'Thursday',
-      label: 'Upper Body Hypertrophy',
-      exercises: [
-        { id: 13, name: 'Standing Overhead Barbell Press', sets: 4, reps: '10', weight: '40 kg', rest: 90, done: false },
-        { id: 14, name: 'Cable Chest Flyes', sets: 4, reps: '15', weight: '15 kg', rest: 60, done: false },
-        { id: 15, name: 'Single-Arm Dumbbell Rows', sets: 4, reps: '12', weight: '24 kg', rest: 60, done: false },
-        { id: 16, name: 'Overhead Dumbbell Tricep Ext', sets: 3, reps: '12', weight: '16 kg', rest: 60, done: false }
-      ]
-    },
-    {
-      day: 'Friday',
-      label: 'Back Width & Arm Sculpt',
-      exercises: [
-        { id: 17, name: 'Wide-Grip Pull-ups / Assist', sets: 4, reps: '8-10', weight: 'Bodyweight', rest: 90, done: false },
-        { id: 18, name: 'Face Pulls with Rope', sets: 4, reps: '15', weight: '20 kg', rest: 45, done: false },
-        { id: 19, name: 'Incline Dumbbell Bicep Curls', sets: 4, reps: '12', weight: '10 kg', rest: 60, done: false },
-        { id: 20, name: 'Skull Crushers EZ Bar', sets: 3, reps: '12', weight: '20 kg', rest: 60, done: false }
-      ]
-    },
-    {
-      day: 'Saturday',
-      label: 'Legs & Core Volume',
-      exercises: [
-        { id: 21, name: 'Romanian Deadlifts (RDL)', sets: 4, reps: '10-12', weight: '60 kg', rest: 90, done: false },
-        { id: 22, name: 'Walking Dumbbell Lunges', sets: 3, reps: '12/leg', weight: '14 kg', rest: 60, done: false },
-        { id: 23, name: 'Leg Extensions', sets: 4, reps: '15', weight: '40 kg', rest: 45, done: false },
-        { id: 24, name: 'Hanging Knee Raises & Plank', sets: 4, reps: '15 reps / 60s', weight: 'Bodyweight', rest: 45, done: false }
-      ]
-    }
-  ]
-};
-
-const SEED_DEFAULT_DIET_PLAN = {
-  id: 'dp-1',
-  memberId: 'mem-4',
-  memberName: 'Pooja Hegde',
-  dailyCaloriesTarget: 2400,
-  proteinGramsTarget: 160,
-  carbsGramsTarget: 260,
-  fatsGramsTarget: 60,
-  waterGlassesTarget: 10,
-  assignedBy: 'Coach Alex Rivers',
-  days: [
-    {
-      day: 'Monday',
-      meals: [
-        { id: 1, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Oatmeal with whey protein, banana, almonds & chia seeds', calories: 520, protein: 35, carbs: 65, fats: 14, completed: false },
-        { id: 2, name: 'Mid-Morning Snack (11:00 AM)', time: '11:00 AM', items: 'Boiled egg whites / Paneer cubes & green tea', calories: 220, protein: 20, carbs: 10, fats: 8, completed: false },
-        { id: 3, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Brown rice, grilled chicken breast / tofu, dal & mixed veggies salad', calories: 680, protein: 48, carbs: 75, fats: 16, completed: false },
-        { id: 4, name: 'Pre-Workout Snack (5:00 PM)', time: '5:00 PM', items: '2 slices whole wheat toast with peanut butter & 1 banana', calories: 340, protein: 12, carbs: 48, fats: 12, completed: false },
-        { id: 5, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Quinoa bowl with paneer / fish curry, steamed broccoli & curd', calories: 640, protein: 45, carbs: 62, fats: 15, completed: false }
-      ]
-    },
-    {
-      day: 'Tuesday',
-      meals: [
-        { id: 6, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Moong dal chilla with paneer stuffing & tender coconut water', calories: 480, protein: 32, carbs: 55, fats: 12, completed: false },
-        { id: 7, name: 'Mid-Morning Snack (11:00 AM)', time: '11:00 AM', items: 'Handful of roasted chana & walnuts + black coffee', calories: 210, protein: 14, carbs: 18, fats: 9, completed: false },
-        { id: 8, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: '2 Multigrain rotis, soya chunks curry, rajma & cucumber salad', calories: 650, protein: 42, carbs: 80, fats: 14, completed: false },
-        { id: 9, name: 'Pre-Workout Snack (5:00 PM)', time: '5:00 PM', items: 'Whey protein shake with chilled almond milk & an apple', calories: 290, protein: 28, carbs: 32, fats: 4, completed: false },
-        { id: 10, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled chicken breast / grilled tofu, sautéed asparagus & sweet potato', calories: 620, protein: 46, carbs: 55, fats: 14, completed: false }
-      ]
-    },
-    {
-      day: 'Wednesday',
-      meals: [
-        { id: 11, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: '3-egg masala omelette with whole grain toast & black coffee', calories: 490, protein: 34, carbs: 45, fats: 15, completed: false },
-        { id: 12, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Jeera brown rice, chicken tikka / grilled paneer & green salad', calories: 670, protein: 46, carbs: 70, fats: 16, completed: false },
-        { id: 13, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Stir-fried vegetables with chicken / edamame & whole wheat wrap', calories: 610, protein: 42, carbs: 60, fats: 15, completed: false }
-      ]
-    },
-    {
-      day: 'Thursday',
-      meals: [
-        { id: 14, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Overnight protein oats with berries, walnuts & seeds', calories: 510, protein: 35, carbs: 60, fats: 14, completed: false },
-        { id: 15, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: '2 Rotis, chole masala, cucumber raita & grilled fish / soya curry', calories: 660, protein: 44, carbs: 76, fats: 15, completed: false },
-        { id: 16, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled chicken / tofu salad with olive oil dressing & sweet potato', calories: 590, protein: 45, carbs: 50, fats: 14, completed: false }
-      ]
-    },
-    {
-      day: 'Friday',
-      meals: [
-        { id: 17, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Besan & paneer chilla with mint chutney & green tea', calories: 470, protein: 30, carbs: 52, fats: 14, completed: false },
-        { id: 18, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Brown rice, dal tadka, chicken curry / paneer bhurji & curd', calories: 690, protein: 48, carbs: 78, fats: 17, completed: false },
-        { id: 19, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'High protein soup with grilled chicken breast / tofu steak', calories: 580, protein: 46, carbs: 45, fats: 13, completed: false }
-      ]
-    },
-    {
-      day: 'Saturday',
-      meals: [
-        { id: 20, name: 'Breakfast (8:00 AM)', time: '8:00 AM', items: 'Scrambled eggs / paneer bhurji with toasted multigrain bread', calories: 510, protein: 36, carbs: 46, fats: 16, completed: false },
-        { id: 21, name: 'Lunch (1:30 PM)', time: '1:30 PM', items: 'Quinoa biryani with raita and boiled eggs / soya chunks', calories: 680, protein: 44, carbs: 80, fats: 16, completed: false },
-        { id: 22, name: 'Dinner (8:30 PM)', time: '8:30 PM', items: 'Grilled fish / paneer with sautéed broccoli, bell peppers & lemon rice', calories: 620, protein: 45, carbs: 58, fats: 15, completed: false }
-      ]
-    }
-  ]
-};
-
 const mapPtSession = (s) => ({
   id: `pts-${s.id}`,
   numericId: s.id,
@@ -728,15 +592,39 @@ export const GymDataProvider = ({ children }) => {
     currency: '₹'
   });
 
+  const [branches, setBranches] = useState([]);
+  const [branchesData, setBranchesData] = useState({
+    is_platinum: false,
+    max_branches: 1,
+    can_add_branch: false,
+    active_gym_id: null
+  });
   const [members, setMembers] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [plans, setPlans] = useState([]);
   const [classes, setClasses] = useState([]);
   const [attendance, setAttendance] = useState([]);
-  const [workoutPlan, setWorkoutPlan] = useState(SEED_DEFAULT_WORKOUT_PLAN);
-  const [workoutPlans, setWorkoutPlans] = useState([SEED_DEFAULT_WORKOUT_PLAN]);
-  const [dietPlan, setDietPlan] = useState(SEED_DEFAULT_DIET_PLAN);
-  const [dietPlans, setDietPlans] = useState([SEED_DEFAULT_DIET_PLAN]);
+  const [workoutPlans, setWorkoutPlans] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('archfit_workout_plans');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [workoutPlan, setWorkoutPlan] = useState(null);
+
+  const [dietPlans, setDietPlans] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('archfit_diet_plans');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [dietPlan, setDietPlan] = useState(null);
   const [waterGlasses, setWaterGlasses] = useState(8);
   const [bodyMetrics, setBodyMetrics] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1144,11 +1032,19 @@ export const GymDataProvider = ({ children }) => {
             operatingHours: res.data.operatingHours || res.data.operating_hours || '',
             currency: res.data.currency || '₹',
             gstNumber: res.data.gstNumber || res.data.gst_number || '',
-            packageTier: res.data.packageTier || res.data.package || 'Basic',
-            package: res.data.packageTier || res.data.package || 'Basic',
+            packageTier: res.data.packageTier || res.data.package || 'Bronze',
+            package: res.data.packageTier || res.data.package || 'Bronze',
             features: Array.isArray(res.data.features) ? res.data.features : [],
-            subscriptionExpiresAt: res.data.subscriptionExpiresAt || '',
+            packageName: res.data.packageName || res.data.package_name || (res.data.packageTier ? `${res.data.packageTier} Plan` : 'Bronze Plan'),
+            billingCycle: res.data.billingCycle || res.data.billing_cycle || 'Annual',
+            packageAmount: res.data.packageAmount ?? res.data.package_amount ?? null,
+            subscriptionStartsAt: res.data.subscriptionStartsAt || res.data.subscription_starts_at || res.data.createdAt || res.data.created_at || '',
+            subscriptionExpiresAt: res.data.subscriptionExpiresAt || res.data.subscription_expires_at || '',
+            createdAt: res.data.createdAt || res.data.created_at || '',
             status: res.data.status || 'Active',
+            maxMembers: res.data.maxMembers ?? res.data.max_members ?? null,
+            maxTrainers: res.data.maxTrainers ?? res.data.max_trainers ?? null,
+            maxBranches: res.data.maxBranches ?? res.data.max_branches ?? 1,
           };
           setGymInfo(cleanInfo);
           return cleanInfo;
@@ -1156,6 +1052,59 @@ export const GymDataProvider = ({ children }) => {
       }
     } catch (e) { console.warn('Fetch gym info error:', e.message); }
   }, []);
+
+  const fetchBranches = useCallback(async () => {
+    try {
+      if (api.gymInfo?.getBranches) {
+        const res = await api.gymInfo.getBranches();
+        if (res?.success) {
+          setBranches(Array.isArray(res.branches) ? res.branches : []);
+          setBranchesData({
+            is_platinum: Boolean(res.is_platinum),
+            max_branches: res.max_branches || 1,
+            can_add_branch: Boolean(res.can_add_branch),
+            active_gym_id: res.active_gym_id || null
+          });
+          return res;
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch branches error:', e.message);
+    }
+  }, []);
+
+  const switchBranch = useCallback(async (gymId) => {
+    try {
+      if (api.gymInfo?.switchBranch) {
+        const res = await api.gymInfo.switchBranch(gymId);
+        if (res?.success) {
+          localStorage.setItem('pulsefit_gym_id', String(gymId));
+          await fetchBranches();
+          await fetchGymInfo();
+          window.location.reload();
+          return res;
+        }
+      }
+    } catch (e) {
+      console.error('Switch branch error:', e);
+      throw e;
+    }
+  }, [fetchBranches, fetchGymInfo]);
+
+  const createBranch = useCallback(async (branchPayload) => {
+    try {
+      if (api.gymInfo?.createBranch) {
+        const res = await api.gymInfo.createBranch(branchPayload);
+        if (res?.success) {
+          await fetchBranches();
+          return res;
+        }
+      }
+    } catch (e) {
+      console.error('Create branch error:', e);
+      throw e;
+    }
+  }, [fetchBranches]);
 
   const fetchLeaveRequests = useCallback(async (params = {}) => {
     try {
@@ -1529,6 +1478,7 @@ export const GymDataProvider = ({ children }) => {
         fetchAdvanceRequests(),
         fetchTrainerReviews(),
         fetchGymInfo(),
+        fetchBranches(),
         fetchLeaveRequests(),
         fetchLeaveBalances(),
         fetchLeaveSummary(),
@@ -2091,7 +2041,16 @@ export const GymDataProvider = ({ children }) => {
     } catch (e) {
       console.warn('Backend update trainer fallback:', e.message);
     }
-    setTrainers((prev) => prev.map((t) => (t.id === id ? { ...t, ...trainerData } : t)));
+    const cleanId = String(id).replace(/\D/g, '');
+    setTrainers((prev) =>
+      prev.map((t) => {
+        const cleanTId = String(t.userId || t.id).replace(/\D/g, '');
+        if (t.id === id || (cleanId && cleanTId === cleanId)) {
+          return { ...t, ...trainerData };
+        }
+        return t;
+      })
+    );
     addToast("Trainer information updated");
   };
 
@@ -2433,7 +2392,7 @@ export const GymDataProvider = ({ children }) => {
 
   const saveWorkoutPlan = async (planData) => {
     try {
-      if (planData.memberId) {
+      if (planData.memberId && api.workouts?.updateMemberRoutine) {
         await api.workouts.updateMemberRoutine(planData.memberId, {
           title: planData.title,
           days: planData.days
@@ -2444,23 +2403,31 @@ export const GymDataProvider = ({ children }) => {
     }
     setWorkoutPlans((prev) => {
       const exists = prev.some((p) => p.id === planData.id);
-      if (exists) {
-        return prev.map((p) => (p.id === planData.id ? planData : p));
+      const updated = exists ? prev.map((p) => (p.id === planData.id ? planData : p)) : [planData, ...prev];
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('archfit_workout_plans', JSON.stringify(updated)); } catch (e) {}
       }
-      return [planData, ...prev];
+      return updated;
     });
     setWorkoutPlan(planData);
     addToast(`Workout plan "${planData.title}" saved successfully!`);
   };
 
   const deleteWorkoutPlan = (planId) => {
-    setWorkoutPlans((prev) => prev.filter((p) => p.id !== planId));
+    setWorkoutPlans((prev) => {
+      const updated = prev.filter((p) => p.id !== planId);
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('archfit_workout_plans', JSON.stringify(updated)); } catch (e) {}
+      }
+      return updated;
+    });
+    setWorkoutPlan((prev) => (prev?.id === planId ? null : prev));
     addToast('Workout plan deleted', 'info');
   };
 
   const saveDietPlan = async (planData) => {
     try {
-      if (planData.memberId) {
+      if (planData.memberId && api.diets?.updateMemberDiet) {
         await api.diets.updateMemberDiet(planData.memberId, {
           daily_calories_target: planData.dailyCaloriesTarget,
           protein_grams_target: planData.proteinGramsTarget,
@@ -2475,17 +2442,25 @@ export const GymDataProvider = ({ children }) => {
     }
     setDietPlans((prev) => {
       const exists = prev.some((p) => p.id === planData.id);
-      if (exists) {
-        return prev.map((p) => (p.id === planData.id ? planData : p));
+      const updated = exists ? prev.map((p) => (p.id === planData.id ? planData : p)) : [planData, ...prev];
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('archfit_diet_plans', JSON.stringify(updated)); } catch (e) {}
       }
-      return [planData, ...prev];
+      return updated;
     });
     setDietPlan(planData);
     addToast(`Diet plan for "${planData.memberName}" saved successfully!`);
   };
 
   const deleteDietPlan = (planId) => {
-    setDietPlans((prev) => prev.filter((p) => p.id !== planId));
+    setDietPlans((prev) => {
+      const updated = prev.filter((p) => p.id !== planId);
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('archfit_diet_plans', JSON.stringify(updated)); } catch (e) {}
+      }
+      return updated;
+    });
+    setDietPlan((prev) => (prev?.id === planId ? null : prev));
     addToast('Diet plan deleted', 'info');
   };
 
@@ -3701,6 +3676,11 @@ export const GymDataProvider = ({ children }) => {
         fetchAdvanceRequests,
         fetchTrainerReviews,
         fetchGymInfo,
+        branches,
+        branchesData,
+        fetchBranches,
+        switchBranch,
+        createBranch,
         fetchDashboardStats,
         isLoadingBackend,
         isOwnerTabLoading,

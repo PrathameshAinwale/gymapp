@@ -232,9 +232,9 @@ export const ConsentFormsManager = () => {
 
       {/* Search & Filter Toolbar */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1">
+          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -245,7 +245,7 @@ export const ConsentFormsManager = () => {
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search member, agreement title, or emergency contact..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
             />
             {searchTerm && (
               <button
@@ -292,7 +292,7 @@ export const ConsentFormsManager = () => {
           </div>
 
           {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}

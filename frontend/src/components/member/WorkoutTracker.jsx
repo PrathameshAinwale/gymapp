@@ -40,7 +40,7 @@ export const WorkoutTracker = () => {
       <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Active Program</div>
-          <div className="text-sm font-bold text-slate-900 font-heading mt-0.5">{workoutPlan?.title || '6-Day PPL'}</div>
+          <div className="text-sm font-bold text-slate-900 font-heading mt-0.5">{workoutPlan?.title || 'No Workout Plan Assigned'}</div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-400">Training Days</div>
@@ -48,7 +48,18 @@ export const WorkoutTracker = () => {
         </div>
       </div>
 
-      {/* Day-by-Day Accordion */}
+      {/* Day-by-Day Accordion or Empty State */}
+      {days.length === 0 ? (
+        <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-sm text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto text-emerald-600">
+            <Dumbbell className="w-6 h-6" />
+          </div>
+          <h2 className="text-sm font-bold text-slate-800">No Workout Plan Assigned</h2>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            You don't have a workout plan assigned yet. Your coach will assign a customized workout routine for you!
+          </p>
+        </div>
+      ) : (
       <div className="space-y-2">
         {days.map((day) => {
           const isExpanded = expandedDay === day.day;
@@ -131,6 +142,7 @@ export const WorkoutTracker = () => {
           );
         })}
       </div>
+      )}
 
       {/* Sunday Rest Note */}
       <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 text-center shadow-sm">

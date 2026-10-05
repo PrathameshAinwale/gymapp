@@ -33,11 +33,22 @@ export const DietTracker = () => {
           Weekly Diet & Nutrition Plan
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Assigned by {dietPlan?.assignedBy || 'Coach Alex'} • Indian Macro Nutrition Chart
+          {dietPlan ? `Assigned by ${dietPlan.assignedBy || 'Coach'} • Nutrition Chart` : 'No active meal plan assigned'}
         </p>
       </div>
 
-      {/* Day-by-Day Meal Accordion */}
+      {/* Day-by-Day Meal Accordion or Empty State */}
+      {days.length === 0 ? (
+        <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-sm text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto text-emerald-600">
+            <Utensils className="w-6 h-6" />
+          </div>
+          <h2 className="text-sm font-bold text-slate-800">No Diet Plan Assigned</h2>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            You don't have a customized meal plan assigned yet. Your coach will assign your daily macro nutrition schedule!
+          </p>
+        </div>
+      ) : (
       <div className="space-y-2">
         {days.map((day) => {
           const isExpanded = expandedDay === day.day;
@@ -127,6 +138,7 @@ export const DietTracker = () => {
           );
         })}
       </div>
+      )}
 
       {/* Hydration Reminder */}
       <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center gap-2.5 sm:gap-3">

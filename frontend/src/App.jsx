@@ -10,6 +10,8 @@ import { Sidebar } from './components/common/Sidebar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { LogoutConfirmModal } from './components/common/LogoutConfirmModal';
 import { OwnerPageLoader } from './components/common/OwnerPageLoader';
+import { AboutPages } from './components/common/AboutPages';
+import { isTabAllowedForGym } from './components/superadmin/packagePlans';
 
 // Member Views
 import { MemberDashboard } from './components/member/MemberDashboard';
@@ -62,12 +64,21 @@ import { ShiftManager } from './components/owner/ShiftManager';
 import { MemberProfilePage } from './components/owner/MemberProfilePage';
 
 function MainApp() {
-  const { isAuthenticated, currentRole, canAccessFinancials } = useAuth();
+  const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
   const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Bronze';
+
+  // Strict Plan Protection: Redirect to dashboard if trying to view a tab not included in current plan
+  useEffect(() => {
+    if (activeTab && currentRole !== 'superadmin' && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, currentTier, gymInfo, currentRole]);
 
   // Initialize and synchronize history state
   useEffect(() => {
@@ -247,6 +258,19 @@ function MainApp() {
 
   // 3. Gym Superadmin / Accounts / Manager Operations Content Routing
   const renderOwnerContent = () => {
+    // Strict Plan Guard: If tab is not permitted in gym's plan, render dashboard
+    if (activeTab !== 'dashboard' && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
+      return (
+        <OwnerDashboard
+          setActiveTab={handleNavigateTab}
+          onOpenMemberProfile={(memberId) => {
+            setSelectedMemberProfileId(memberId);
+            handleNavigateTab('member-profile');
+          }}
+        />
+      );
+    }
+
     // Security Guard: Manager has no access to financial, revenue, payroll, or staff provisioning pages
     if (currentRole === 'manager' && !canAccessFinancials) {
       const restrictedTabs = ['financials', 'invoices', 'advance-pay', 'payroll', 'reports', 'staff-accounts'];
@@ -319,7 +343,7 @@ function MainApp() {
         return <ConsentFormsManager />;
       case 'staff-accounts':
       case 'trainers':
-        return <StaffAccountManager />;
+        return <StaffAccountManager onNavigateTab={handleNavigateTab} />;
       case 'shifts':
         return <ShiftManager onNavigateTab={handleNavigateTab} />;
       case 'leaves':
@@ -358,6 +382,9 @@ function MainApp() {
   };
 
   const renderContent = () => {
+    if (activeTab === 'privacy-policy' || activeTab === 'terms-conditions' || activeTab === 'help-support') {
+      return <AboutPages activeTab={activeTab} setActiveTab={handleNavigateTab} />;
+    }
     if (currentRole === 'member') return renderMemberContent();
     if (currentRole === 'trainer') return renderTrainerContent();
     return renderOwnerContent();

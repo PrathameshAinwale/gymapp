@@ -87,12 +87,12 @@ class StaffController extends Controller
                     $profile = TrainerProfile::firstOrCreate(
                         ['user_id' => $u->id],
                         [
-                            'specialty' => 'Strength & Conditioning',
-                            'experience' => '2+ Years',
+                            'specialty' => '',
+                            'experience' => '',
                             'rating' => 5.0,
-                            'monthly_salary' => $u->salary ?? 45000,
-                            'bio' => 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
-                            'certifications' => ['NASM-CPT', 'CSCS']
+                            'monthly_salary' => $u->salary ?? 0,
+                            'bio' => '',
+                            'certifications' => []
                         ]
                     );
                 }
@@ -224,6 +224,19 @@ class StaffController extends Controller
         })->first();
 
         if ($existingUser) {
+            // Guard: Never overwrite an owner or superadmin account when registering staff
+            if (in_array($existingUser->role, ['owner', 'superadmin'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The mobile number or email belongs to a gym owner or administrator account. Please use a unique phone and email for staff.'
+                ], 422);
+            }
+
+            // Do not wipe existing email if staff form didn't specify one
+            if (empty($validated['email']) && !empty($existingUser->email)) {
+                unset($userData['email']);
+            }
+
             $existingUser->update($userData);
             $user = $existingUser;
         } else {
@@ -240,16 +253,16 @@ class StaffController extends Controller
             if (is_string($certifications)) {
                 $certifications = array_values(array_filter(array_map('trim', explode(',', $certifications))));
             } elseif (!is_array($certifications)) {
-                $certifications = ['NASM-CPT', 'CSCS'];
+                $certifications = [];
             }
 
             $profile = TrainerProfile::create([
                 'user_id'        => $user->id,
-                'specialty'      => $request->specialty ?? 'Strength & Conditioning',
-                'experience'     => $request->experience ?? '2+ Years',
+                'specialty'      => $request->specialty ?? '',
+                'experience'     => $request->experience ?? '',
                 'rating'         => $request->rating ?? 5.0,
-                'monthly_salary' => $validated['salary'] ?? $request->monthly_salary ?? 45000,
-                'bio'            => $request->bio ?? 'Dedicated fitness mentor guiding members toward strength, conditioning, and sustainable health.',
+                'monthly_salary' => $validated['salary'] ?? $request->monthly_salary ?? $user->salary ?? 0,
+                'bio'            => $request->bio ?? '',
                 'certifications' => $certifications,
                 'age'            => $request->age ?? null,
                 'dob'            => $validated['dob'] ?? null,
@@ -362,7 +375,7 @@ class StaffController extends Controller
                 if (is_string($certs)) {
                     $certs = array_values(array_filter(array_map('trim', explode(',', $certs))));
                 } elseif (!is_array($certs)) {
-                    $certs = ['NASM-CPT', 'CSCS'];
+                    $certs = [];
                 }
                 $profile->certifications = $certs;
             }

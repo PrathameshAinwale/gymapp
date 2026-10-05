@@ -762,15 +762,15 @@ export const Financials = () => {
           </div>
 
           {/* INVOICES SEARCH & FILTER TOOLBAR */}
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center gap-2">
-            <div className="relative flex-1 w-full">
+          <div className="p-2.5 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search member name to view user invoices (e.g. Liam, Aarav)..."
                 value={memberSearchTerm}
                 onChange={(e) => setMemberSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 shadow-xs"
+                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 shadow-xs truncate"
               />
               {memberSearchTerm && (
                 <button
@@ -784,11 +784,11 @@ export const Financials = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowFilterModal(true)}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border w-full sm:w-auto ${
+                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 whitespace-nowrap ${
                   activeFiltersCount > 0
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                     : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'
@@ -810,10 +810,10 @@ export const Financials = () => {
                     handleResetInvoiceFilters();
                     setMemberSearchTerm('');
                   }}
-                  className="px-2.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer shrink-0 transition-colors"
+                  className="px-2.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer shrink-0 transition-colors whitespace-nowrap"
                   title="Reset all filters & search"
                 >
-                  Reset Filter
+                  Reset
                 </button>
               )}
             </div>

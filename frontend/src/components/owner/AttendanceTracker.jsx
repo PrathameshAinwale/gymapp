@@ -513,7 +513,7 @@ export const AttendanceTracker = () => {
 
       {/* Search & Filter Toolbar */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
           {/* Tabs */}
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0">
             <button
@@ -540,81 +540,83 @@ export const AttendanceTracker = () => {
             </button>
           </div>
 
-          {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
-            />
-            {searchTerm && (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Autocomplete Search Bar */}
+            <div ref={searchContainerRef} className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onFocus={() => setIsSearchDropdownOpen(true)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setIsSearchDropdownOpen(true);
+                }}
+                placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
+                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setIsSearchDropdownOpen(false);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Autocomplete Suggestions */}
+              {isSearchDropdownOpen && searchSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
+                  <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Suggestions
+                  </div>
+                  {searchSuggestions.map((item, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm(item.memberName || item.staffName || item.name || '');
+                        setIsSearchDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800">{item.memberName || item.staffName || item.name}</span>
+                        <span className="text-[10px] text-slate-400">({item.planName || item.role || 'Entry'})</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-medium">
+                        {item.checkInTime || 'Checked in'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons: Filter */}
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setIsSearchDropdownOpen(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                onClick={() => setShowFilterModal(true)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeFiltersCount > 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                <X className="w-3.5 h-3.5" />
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
-            )}
-
-            {/* Autocomplete Suggestions */}
-            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Suggestions
-                </div>
-                {searchSuggestions.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm(item.memberName || item.staffName || item.name || '');
-                      setIsSearchDropdownOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50/60 flex items-center justify-between transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">{item.memberName || item.staffName || item.name}</span>
-                      <span className="text-[10px] text-slate-400">({item.planName || item.role || 'Entry'})</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-medium">
-                      {item.checkInTime || 'Checked in'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowFilterModal(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeFiltersCount > 0
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Filters</span>
-              {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
+            </div>
           </div>
         </div>
 

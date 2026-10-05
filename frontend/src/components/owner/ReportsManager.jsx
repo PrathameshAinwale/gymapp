@@ -381,47 +381,67 @@ export const ReportsManager = ({ setActiveTab }) => {
 
       {/* Filter Toolbar */}
       <div className="bg-white border border-slate-200 p-3 sm:p-4 rounded-xl shadow-xs flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={`Search ${reportCategory} records...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-            />
-          </div>
-
-          {reportCategory === 'revenue' && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap hidden sm:inline">Payment:</span>
-              <select
-                value={paymentMethodFilter}
-                onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="ALL">All Payment Modes</option>
-                <option value="UPI">UPI</option>
-                <option value="GPay">GPay</option>
-                <option value="PhonePe">PhonePe</option>
-                <option value="Account Transfer">Account Transfer</option>
-                <option value="Cash">Cash at Reception</option>
-                <option value="Split">All Split Payments</option>
-                <option value="Split: GPay">Split: GPay</option>
-                <option value="Split: PhonePe">Split: PhonePe</option>
-                <option value="Split: Account">Split: Account / Bank</option>
-                <option value="Split: Other">Split: Other Online</option>
-              </select>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3 w-full">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder={`Search ${reportCategory} records...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
+              />
             </div>
-          )}
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Dedicated Filter Button */}
+            {/* Dedicated Filter Button on mobile */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${activeFiltersCount > 0
+              className={`flex sm:hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${activeFiltersCount > 0
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+            >
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0">
+            {reportCategory === 'revenue' && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap hidden sm:inline">Payment:</span>
+                <select
+                  value={paymentMethodFilter}
+                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                  className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="ALL">All Payment Modes</option>
+                  <option value="UPI">UPI</option>
+                  <option value="GPay">GPay</option>
+                  <option value="PhonePe">PhonePe</option>
+                  <option value="Account Transfer">Account Transfer</option>
+                  <option value="Cash">Cash at Reception</option>
+                  <option value="Split">All Split Payments</option>
+                  <option value="Split: GPay">Split: GPay</option>
+                  <option value="Split: PhonePe">Split: PhonePe</option>
+                  <option value="Split: Account">Split: Account / Bank</option>
+                  <option value="Split: Other">Split: Other Online</option>
+                </select>
+              </div>
+            )}
+
+            {/* Dedicated Filter Button on desktop */}
+            <button
+              type="button"
+              onClick={() => setShowFilterModal(true)}
+              className={`hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
@@ -435,7 +455,7 @@ export const ReportsManager = ({ setActiveTab }) => {
               )}
             </button>
 
-            <span className="text-xs text-slate-500 font-bold whitespace-nowrap px-2">
+            <span className="text-xs text-slate-500 font-bold whitespace-nowrap px-1 sm:px-2">
               Showing: <strong className="text-slate-900">{currentData.length}</strong> items
             </span>
           </div>
