@@ -327,6 +327,15 @@ jobs:
             echo "Remote extraction trigger finished. If domain DNS or SSL is pending, index.php auto-extracts vendor.zip on first incoming web request."
           fi
 
+      - name: Run Remote Database Migrations
+        env:
+          APP_URL: ${{ secrets.HOSTINGER_APP_URL || secrets.APP_URL || 'https://archfit.archenterprises.co.in' }}
+        run: |
+          echo "Triggering remote database migrations..."
+          MIGRATE_URL="${APP_URL%/}/api/setup-database?key=pulsefit_setup_2026&seed=false"
+          RESP=$(curl -s -k --max-time 45 "$MIGRATE_URL" || true)
+          echo "Migration execution response: $RESP"
+
   deploy-frontend:
     name: Deploy Frontend (React Vite SPA)
     runs-on: ubuntu-latest
