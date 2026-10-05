@@ -2563,14 +2563,7 @@ export const AddMemberModal = ({
             </div>
           )}
 
-          <div className="sticky bottom-0 -mx-4 -mb-4 px-4 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 sm:static sm:mx-0 sm:mb-0 sm:p-0 sm:bg-transparent sm:border-t sm:border-slate-100 sm:pt-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 z-20">
-            <button
-              type="button"
-              onClick={handleModalClose}
-              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 text-center"
-            >
-              Cancel
-            </button>
+          <div className="pt-4 border-t border-slate-200 flex justify-end">
             <button
               type="submit"
               disabled={isCreatingMember || (isUpgradeMode ? totalCalculatedAmount <= 0 : (!consentAgreed || (!otpVerified && !signedInPerson)))}
@@ -2582,20 +2575,12 @@ export const AddMemberModal = ({
               {isCreatingMember ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isUpgradeMode ? 'Generating Invoice & Inflow...' : 'Creating Account & Invoice...'}</span>
+                  <span>{isUpgradeMode ? 'Upgrading Member...' : 'Registering Member...'}</span>
                 </>
               ) : (
                 <>
                   {isUpgradeMode && <Zap className="w-3.5 h-3.5" />}
-                  <span>
-                    {isUpgradeMode
-                      ? (calculatedBalanceDue === 0
-                        ? `Confirm Top-up & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
-                        : `Confirm Top-up (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)
-                      : (calculatedBalanceDue === 0
-                        ? `Register Member & Issue Invoice (₹${totalCalculatedAmount.toLocaleString('en-IN')})`
-                        : `Register Member (₹${effectivePaidAmount.toLocaleString('en-IN')} Paid, ₹${calculatedBalanceDue.toLocaleString('en-IN')} Due)`)}
-                  </span>
+                  <span>{isUpgradeMode ? 'Confirm Top-up' : 'Register Member'}</span>
                 </>
               )}
             </button>

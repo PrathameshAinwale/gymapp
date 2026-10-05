@@ -29,5 +29,5 @@ export const SuperadminApp = () => {
     return <SuperadminLogin onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return <SuperadminDashboard superUser={superUser} onLogout={handleLogout} />;
+  return <SuperadminDashboard superUser={superUser} setSuperUser={setSuperUser} onLogout={handleLogout} />;
 };

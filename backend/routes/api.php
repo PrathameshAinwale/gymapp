@@ -215,7 +215,7 @@ Route::get('/setup-database', function (Request $request) {
     }
 });
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
 
     Route::get('/health', function () {
         return response()->json([
@@ -227,8 +227,8 @@ Route::prefix('v1')->group(function () {
 
     // ── Auth ──────────────────────────────────────
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:15,1');
-        Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+        Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
 
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
@@ -284,6 +284,8 @@ Route::prefix('v1')->group(function () {
     // Invoices & Billing
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
+    Route::patch('/invoices/{id}', [InvoiceController::class, 'update']);
 
     // Operating Expenses & Cash Flow
     Route::apiResource('expenses', ExpenseController::class);
@@ -295,6 +297,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/revenue-billing/summary', [RevenueBillingController::class, 'summary']);
     Route::post('/revenue-billing/inflow', [RevenueBillingController::class, 'storeInflow']);
     Route::post('/revenue-billing/outflow', [RevenueBillingController::class, 'storeOutflow']);
+    Route::put('/revenue-billing/{id}', [RevenueBillingController::class, 'update']);
+    Route::patch('/revenue-billing/{id}', [RevenueBillingController::class, 'update']);
     Route::delete('/revenue-billing/{id}', [RevenueBillingController::class, 'destroy']);
 
     // Enquiries & Leads CRM
@@ -434,6 +438,12 @@ Route::prefix('v1')->group(function () {
         Route::put('/gyms/{id}', [SuperadminController::class, 'updateGym']);
         Route::delete('/gyms/{id}', [SuperadminController::class, 'deleteGym']);
         Route::post('/gyms/{id}/impersonate', [SuperadminController::class, 'impersonateGym']);
+        Route::post('/gyms/{id}/stop-access', [SuperadminController::class, 'stopAccess']);
+        Route::post('/gyms/{id}/restore-access', [SuperadminController::class, 'restoreAccess']);
+
+        // Superadmin Credentials & Security Profile
+        Route::post('/profile/update-password', [SuperadminController::class, 'updatePassword']);
+        Route::post('/profile/update-email', [SuperadminController::class, 'updateEmail']);
 
         // SaaS Plans Management
         Route::get('/plans', [SuperadminController::class, 'indexPlans']);

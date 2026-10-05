@@ -109,7 +109,7 @@ class AuthController extends Controller
             if (in_array(strtolower($gym->status ?? 'active'), ['suspended', 'expired', 'inactive'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Account suspended. This gym account is currently inactive. Please contact administration.'
+                    'message' => 'Access Denied: This facility has been suspended by the platform administrator. Access for the owner and all accounts under this facility is stopped.'
                 ], 403);
             }
         }
@@ -235,6 +235,16 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
+        if ($user && $user->role !== 'superadmin') {
+            $gym = $user->gym_id ? \App\Models\Gym::find($user->gym_id) : ($user->role === 'owner' ? \App\Models\Gym::where('owner_id', $user->id)->first() : null);
+            if ($gym && in_array(strtolower($gym->status ?? 'active'), ['suspended', 'expired', 'inactive'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access Denied: This facility has been suspended by the platform administrator. Access for the owner and all accounts under this facility is stopped.'
+                ], 403);
+            }
+        }
+
         if ($user->role === 'member') {
             $user->load(['memberProfile.plan', 'memberProfile.trainer']);
         } elseif ($user->role === 'trainer') {
@@ -273,21 +283,33 @@ class AuthController extends Controller
         }
 
         $user = $request->user();
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $currentMatches = Hash::check($request->current_password, $user->password);
+        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
+            $currentMatches = ($user->plain_password === $request->current_password);
+        }
+
+        if (!$currentMatches) {
             return response()->json([
                 'success' => false,
-                'message' => 'Current password does not match'
+                'message' => 'Current password does not match.'
             ], 400);
         }
 
         $user->password = Hash::make($request->new_password);
+        if (Schema::hasColumn('users', 'plain_password')) {
+            $user->plain_password = $request->new_password;
+        }
         $user->must_change_password = false;
         $user->initial_password = null;
         $user->save();
 
         return response()->json([
             'success' => true,
-            'message' => 'Password updated successfully',
+            'message' => 'Password updated successfully.',
             'user' => $user,
         ]);
     }

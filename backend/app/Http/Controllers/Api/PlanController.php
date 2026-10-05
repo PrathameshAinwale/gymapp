@@ -6,46 +6,48 @@ use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 
 class PlanController extends Controller
 {
     public function index(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = Plan::query();
-        if ($gymId) {
-            $query->where('gym_id', $gymId);
-        } else {
-            $paramGymId = $request->input('gym_id') ?? $request->query('gym_id');
-            if ($paramGymId) {
-                $query->where('gym_id', (int) $paramGymId);
+        $paramGymId = $request->input('gym_id') ?? $request->query('gym_id');
+        $effectiveGymId = $gymId ?: ($paramGymId ? (int)$paramGymId : 0);
+
+        $cacheKey = "gym_plans_v1_{$effectiveGymId}";
+        $plans = Cache::remember($cacheKey, 600, function () use ($effectiveGymId) {
+            $query = Plan::query();
+            if ($effectiveGymId) {
+                $query->where('gym_id', $effectiveGymId);
             } else {
                 $query->whereRaw('1 = 0');
             }
-        }
 
-        $plans = $query->get()->map(function ($plan) {
-            return [
-                'id' => 'plan-' . $plan->id,
-                'numericId' => $plan->id,
-                'gymId' => $plan->gym_id,
-                'name' => $plan->name,
-                'price' => $plan->price,
-                'discount' => (float)($plan->discount ?? 0),
-                'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
-                'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
-                'offer' => $plan->offer,
-                'offerText' => $plan->offer,
-                'offerDays' => (int)($plan->offer_days ?? 0),
-                'offer_days' => (int)($plan->offer_days ?? 0),
-                'period' => $plan->period,
-                'durationMonths' => $plan->duration_months,
-                'popular' => (bool)$plan->popular,
-                'status' => $plan->status ?? 'Active',
-                'color' => $plan->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
-                'features' => $this->parseFeatures($plan->features),
-                'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
-            ];
+            return $query->get()->map(function ($plan) {
+                return [
+                    'id' => 'plan-' . $plan->id,
+                    'numericId' => $plan->id,
+                    'gymId' => $plan->gym_id,
+                    'name' => $plan->name,
+                    'price' => $plan->price,
+                    'discount' => (float)($plan->discount ?? 0),
+                    'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                    'max_discount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
+                    'offer' => $plan->offer,
+                    'offerText' => $plan->offer,
+                    'offerDays' => (int)($plan->offer_days ?? 0),
+                    'offer_days' => (int)($plan->offer_days ?? 0),
+                    'period' => $plan->period,
+                    'durationMonths' => $plan->duration_months,
+                    'popular' => (bool)$plan->popular,
+                    'status' => $plan->status ?? 'Active',
+                    'color' => $plan->color ?? 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
+                    'features' => $this->parseFeatures($plan->features),
+                    'activeSubscribers' => $plan->memberProfiles()->count() ?: $plan->active_subscribers,
+                ];
+            })->toArray();
         });
 
         return response()->json([
@@ -161,6 +163,8 @@ class PlanController extends Controller
             'active_subscribers' => 0,
         ]);
 
+        $this->clearPlanCache($plan->gym_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Plan created successfully',
@@ -224,6 +228,8 @@ class PlanController extends Controller
         if ($request->has('features')) $plan->features = $request->features;
         $plan->save();
 
+        $this->clearPlanCache($plan->gym_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Plan updated successfully',
@@ -265,11 +271,20 @@ class PlanController extends Controller
             ], 403);
         }
 
+        $planGymId = $plan->gym_id;
         $plan->delete();
+        $this->clearPlanCache($planGymId);
 
         return response()->json([
             'success' => true,
             'message' => 'Plan deleted successfully'
         ]);
+    }
+
+    private function clearPlanCache($gymId): void
+    {
+        $id = $gymId ? (int)$gymId : 0;
+        Cache::forget("gym_plans_v1_{$id}");
+        Cache::forget("gym_plans_v1_0");
     }
 }

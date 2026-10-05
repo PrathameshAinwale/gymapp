@@ -94,40 +94,6 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
     );
   };
 
-  const getTierBadge = () => {
-    const rawTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || '';
-    if (!rawTier) return null;
-    const norm = rawTier.toLowerCase();
-    if (norm.includes('bronze') || norm === 'basic') {
-      return (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap shadow-xs">
-          Bronze Plan
-        </span>
-      );
-    }
-    if (norm.includes('silver') || norm === 'growth') {
-      return (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-300 whitespace-nowrap shadow-xs">
-          Silver Plan
-        </span>
-      );
-    }
-    if (norm.includes('gold')) {
-      return (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-yellow-50 text-yellow-800 border border-yellow-300 whitespace-nowrap shadow-xs">
-          Gold Plan
-        </span>
-      );
-    }
-    if (norm.includes('platinum')) {
-      return (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-300 whitespace-nowrap shadow-xs">
-          Platinum Plan
-        </span>
-      );
-    }
-    return null;
-  };
 
   return (
     <header className="sticky top-0 z-40 w-full glass-header safe-top shrink-0">
@@ -184,7 +150,6 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
                 </span>
                 <div className="shrink-0 hidden xs:inline-flex items-center gap-1.5">
                   {getRoleBadge()}
-                  {getTierBadge()}
                 </div>
               </div>
 
@@ -199,7 +164,6 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
             {/* On ultra small screens (< xs), badge placed inline */}
             <div className="shrink-0 xs:hidden flex items-center gap-1">
               {getRoleBadge()}
-              {getTierBadge()}
             </div>
           </div>
         </div>

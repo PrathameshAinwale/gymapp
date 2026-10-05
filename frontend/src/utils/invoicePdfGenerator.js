@@ -192,7 +192,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(5, 150, 105); // emerald-600
-    doc.text('OFFICIAL RECEIPT', pillX + pillW / 2, curY + 4.5, { align: 'center' });
+    doc.text('PAYMENT RECEIPT', pillX + pillW / 2, curY + 4.5, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);

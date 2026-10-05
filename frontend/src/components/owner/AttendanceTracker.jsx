@@ -248,8 +248,8 @@ export const AttendanceTracker = () => {
 
   const staffOnDuty = isToday
     ? dayStaffAttendance.filter(
-        (s) => s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime)
-      ).length
+      (s) => s.status === 'On Premises (Active)' || (s.checkInTime && !s.checkOutTime)
+    ).length
     : dayStaffAttendance.length;
 
   const totalDayCheckins = dayMemberAttendance.length + dayStaffAttendance.length;
@@ -447,11 +447,10 @@ export const AttendanceTracker = () => {
               <button
                 type="button"
                 onClick={() => setSelectedDate(todayIso)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
-                  isToday
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isToday
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                }`}
+                  }`}
               >
                 Today
               </button>
@@ -459,11 +458,10 @@ export const AttendanceTracker = () => {
               <button
                 type="button"
                 onClick={() => setSelectedDate(yesterdayIso)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
-                  isYesterday
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isYesterday
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                }`}
+                  }`}
               >
                 Yesterday
               </button>
@@ -519,22 +517,20 @@ export const AttendanceTracker = () => {
             <button
               type="button"
               onClick={() => setActiveTab('members')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'members'
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'members'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               Members ({dayMemberAttendance.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('staff')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'staff'
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'staff'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               Trainer Shifts ({dayStaffAttendance.length})
             </button>
@@ -602,11 +598,10 @@ export const AttendanceTracker = () => {
               <button
                 type="button"
                 onClick={() => setShowFilterModal(true)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
-                  activeFiltersCount > 0
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${activeFiltersCount > 0
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 <Filter className="w-3.5 h-3.5" />
                 <span>Filters</span>
@@ -693,8 +688,8 @@ export const AttendanceTracker = () => {
                     searchTerm
                       ? `No member records match "${searchTerm}".`
                       : isToday
-                      ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
-                      : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
+                        ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
+                        : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
                   }
                   actionText={isToday ? "Check In Member" : undefined}
                   onAction={isToday ? () => setIsMemberCheckInModalOpen(true) : undefined}
@@ -758,8 +753,8 @@ export const AttendanceTracker = () => {
                     searchTerm
                       ? `No member records match "${searchTerm}".`
                       : isToday
-                      ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
-                      : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
+                        ? "Members who scan their QR code pass at turnstiles or front desk will automatically appear here."
+                        : `No check-ins were found on ${formatDateDisplay(selectedDate)}.`
                   }
                   actionText={isToday ? "Check In Member" : undefined}
                   onAction={isToday ? () => setIsMemberCheckInModalOpen(true) : undefined}
@@ -877,13 +872,12 @@ export const AttendanceTracker = () => {
                         <div className="text-[10px] text-slate-500 mt-0.5 truncate">{stf.role}</div>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${
-                          isOnDuty
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${isOnDuty
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : isPunchedOut
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}
                       >
                         {isOnDuty ? <Clock className="w-2.5 h-2.5" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
                         <span>{isOnDuty ? 'On Duty' : isPunchedOut ? 'Shift Completed' : 'Completed'}</span>
@@ -1253,22 +1247,20 @@ export const AttendanceTracker = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedDate(todayIso)}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                      selectedDate === todayIso
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${selectedDate === todayIso
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     Today
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedDate(yesterdayIso)}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                      selectedDate === yesterdayIso
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${selectedDate === yesterdayIso
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     Yesterday
                   </button>
@@ -1295,11 +1287,10 @@ export const AttendanceTracker = () => {
                       key={opt.val}
                       type="button"
                       onClick={() => setStatusFilter(opt.val)}
-                      className={`py-2 px-2 text-center rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                        statusFilter === opt.val
+                      className={`py-2 px-2 text-center rounded-xl text-xs font-semibold border transition-all cursor-pointer ${statusFilter === opt.val
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {opt.label}
                     </button>

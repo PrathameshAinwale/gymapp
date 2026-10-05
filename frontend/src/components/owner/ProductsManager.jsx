@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
+import { useAuth } from '../../context/AuthContext';
+import { downloadInvoicePdf, generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import {
   ShoppingBag,
   Search,
@@ -20,7 +22,16 @@ import {
   Layers,
   Loader2,
   RotateCw,
-  X
+  X,
+  User,
+  Phone,
+  UserCheck,
+  FileText,
+  Download,
+  MessageCircle,
+  Printer,
+  Receipt,
+  Check
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -60,16 +71,20 @@ export const ProductsManager = () => {
     updateProduct,
     deleteProduct,
     recordProductSale,
-    members,
+    members = [],
+    gymInfo,
     fetchProducts,
     fetchMembers,
+    fetchInvoices,
     addToast
   } = useGymData();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     fetchProducts?.();
     fetchMembers?.();
-  }, [fetchProducts, fetchMembers]);
+    fetchInvoices?.();
+  }, [fetchProducts, fetchMembers, fetchInvoices]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -78,11 +93,15 @@ export const ProductsManager = () => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
+  const memberDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setIsSearchDropdownOpen(false);
+      }
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(e.target)) {
+        setIsMemberDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -110,10 +129,97 @@ export const ProductsManager = () => {
     description: ''
   });
 
-  // Sell Form State
-  const [sellQuantity, setSellQuantity] = useState(1);
-  const [buyerName, setBuyerName] = useState(members[0]?.name || 'Walk-in Customer');
-  const [sellPaymentMethod, setSellPaymentMethod] = useState('UPI');
+  // Sell / POS Form State
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [saleCartItems, setSaleCartItems] = useState([
+    { id: 1, productId: '', quantity: 1 }
+  ]);
+  const [selectedMember, setSelectedMember] = useState(null); // null = Walk-in Customer
+  const [buyerName, setBuyerName] = useState('Walk-in Customer');
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+  const [sellPaymentMethod, setSellPaymentMethod] = useState('GPay');
+  const [sellDiscount, setSellDiscount] = useState('');
+  const [sellNotes, setSellNotes] = useState('');
+  const [completedSaleData, setCompletedSaleData] = useState(null);
+
+  // Handlers for dynamic multi-product cart
+  const handleOpenNewSale = () => {
+    const firstInStock = products.find((p) => Number(p.stock) > 0) || products[0];
+    setSaleCartItems([
+      { id: Date.now(), productId: firstInStock?.id || '', quantity: 1 }
+    ]);
+    setSelectedMember(null);
+    setBuyerName('Walk-in Customer');
+    setMemberSearchQuery('');
+    setSellDiscount('');
+    setSellNotes('');
+    setSellPaymentMethod('GPay');
+    setIsMemberDropdownOpen(false);
+    setIsSellModalOpen(true);
+  };
+
+  const handleOpenSaleForProduct = (p) => {
+    setSaleCartItems([
+      { id: Date.now(), productId: p.id, quantity: 1 }
+    ]);
+    setSelectedMember(null);
+    setBuyerName('Walk-in Customer');
+    setMemberSearchQuery('');
+    setSellDiscount('');
+    setSellNotes('');
+    setSellPaymentMethod('GPay');
+    setIsMemberDropdownOpen(false);
+    setIsSellModalOpen(true);
+  };
+
+  const handleAddProductRow = () => {
+    const firstInStock = products.find((p) => Number(p.stock) > 0) || products[0];
+    setSaleCartItems((prev) => [
+      ...prev,
+      { id: Date.now() + Math.random(), productId: firstInStock?.id || '', quantity: 1 }
+    ]);
+  };
+
+  const handleRemoveProductRow = (rowId) => {
+    setSaleCartItems((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((it) => it.id !== rowId);
+    });
+  };
+
+  const handleUpdateProductRow = (rowId, field, value) => {
+    setSaleCartItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== rowId) return it;
+        if (field === 'productId') {
+          return { ...it, productId: value, quantity: 1 };
+        }
+        if (field === 'quantity') {
+          const selectedProd = products.find((p) => p.id === value || p.id === it.productId || String(p.numericId) === String(it.productId));
+          const maxStock = selectedProd ? Number(selectedProd.stock) : 9999;
+          const numVal = sanitizeDigits(value, 4);
+          const safeVal = numVal ? Math.min(Math.max(1, Number(numVal)), maxStock) : '';
+          return { ...it, quantity: safeVal };
+        }
+        return { ...it, [field]: value };
+      })
+    );
+  };
+
+  // Filtered members list for typeable combobox
+  const filteredMembers = useMemo(() => {
+    if (!memberSearchQuery || !memberSearchQuery.trim()) {
+      return members.slice(0, 15);
+    }
+    const q = memberSearchQuery.toLowerCase().trim();
+    return members.filter((m) =>
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.phone || '').includes(q) ||
+      String(m.id || '').toLowerCase().includes(q) ||
+      (m.planName || '').toLowerCase().includes(q)
+    ).slice(0, 15);
+  }, [members, memberSearchQuery]);
 
   // KPI Calculations
   const totalProducts = products.length;
@@ -223,24 +329,97 @@ export const ProductsManager = () => {
 
   const handleSellSubmit = async (e) => {
     e.preventDefault();
-    if (hasSqlInjection(buyerName)) {
+    const effectiveBuyerName = selectedMember
+      ? selectedMember.name
+      : (buyerName?.trim() || memberSearchQuery?.trim() || 'Walk-in Customer');
+
+    if (hasSqlInjection(effectiveBuyerName) || hasSqlInjection(sellNotes)) {
       addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
       return;
     }
-    if (!sellingProduct) return;
+
+    if (!saleCartItems || saleCartItems.length === 0) {
+      addToast?.('Please add at least one product to the sale.', 'error');
+      return;
+    }
+
+    // Validate cart items
+    let subtotal = 0;
+    const resolvedItems = [];
+    for (const it of saleCartItems) {
+      const prod = products.find((p) => p.id === it.productId || String(p.numericId) === String(it.productId));
+      if (!prod) {
+        addToast?.('Please select a valid product for each row.', 'error');
+        return;
+      }
+      const qty = Math.max(1, Number(it.quantity) || 1);
+      if (Number(prod.stock) < qty) {
+        addToast?.(`Insufficient stock for ${prod.name}! Only ${prod.stock} available.`, 'error');
+        return;
+      }
+      const lineTotal = Number(prod.price) * qty;
+      subtotal += lineTotal;
+      resolvedItems.push({
+        productId: prod.id,
+        product: prod,
+        quantity: qty,
+        unitPrice: Number(prod.price),
+        lineTotal
+      });
+    }
+
+    const numDiscount = Math.min(subtotal, Math.max(0, Number(sellDiscount) || 0));
+    const totalPayable = Math.max(0, subtotal - numDiscount);
 
     try {
       setIsSubmittingSell(true);
-      const success = await recordProductSale({
-        productId: sellingProduct.id,
-        quantity: Number(sellQuantity),
-        buyerName: buyerName || 'Walk-in Customer',
-        paymentMethod: sellPaymentMethod
+      const result = await recordProductSale({
+        items: resolvedItems.map((it) => ({ productId: it.productId, quantity: it.quantity })),
+        buyerName: effectiveBuyerName,
+        memberId: selectedMember ? selectedMember.id : null,
+        member: selectedMember,
+        paymentMethod: sellPaymentMethod,
+        discount: numDiscount,
+        notes: sellNotes,
+        handledByName: currentUser?.name || 'Staff'
       });
 
-      if (success) {
+      if (result && (result.success || result.invoice)) {
+        const inv = result.invoice || {};
+        const invoiceNo = result.invoiceNumber || inv.invoiceNumber || inv.id || `INV-PROD-${Date.now().toString().slice(-6)}`;
+
+        setCompletedSaleData({
+          id: invoiceNo,
+          invoiceNumber: invoiceNo,
+          productName: resolvedItems.map((it) => `${it.product.name} (x${it.quantity})`).join(', '),
+          category: resolvedItems[0]?.product?.category || 'Store Item',
+          items: resolvedItems,
+          itemsBreakdown: resolvedItems.map((it) => `${it.product.name} (Qty: ${it.quantity}) @ ₹${it.unitPrice.toLocaleString('en-IN')}`),
+          quantity: resolvedItems.reduce((acc, it) => acc + it.quantity, 0),
+          subtotal,
+          discount: numDiscount,
+          amount: totalPayable,
+          totalAmount: subtotal,
+          paidAmount: totalPayable,
+          paymentMethod: sellPaymentMethod,
+          buyerName: effectiveBuyerName,
+          memberName: effectiveBuyerName,
+          phone: selectedMember?.phone || '',
+          email: selectedMember?.email || '',
+          member: selectedMember,
+          date: new Date().toISOString().split('T')[0],
+          notes: sellNotes,
+          createdByName: currentUser?.name || 'Staff'
+        });
+
+        setIsSellModalOpen(false);
         setSellingProduct(null);
-        setSellQuantity(1);
+        setSelectedMember(null);
+        setBuyerName('Walk-in Customer');
+        setMemberSearchQuery('');
+        setSellDiscount('');
+        setSellNotes('');
+        setIsMemberDropdownOpen(false);
       }
     } finally {
       setIsSubmittingSell(false);
@@ -279,6 +458,15 @@ export const ProductsManager = () => {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenNewSale}
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Sell Product</span>
+            <span className="inline sm:hidden">Sell</span>
+          </button>
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
@@ -564,11 +752,7 @@ export const ProductsManager = () => {
                   <div className="flex items-center gap-1 sm:gap-1.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSellingProduct(p);
-                        setSellQuantity(1);
-                        setBuyerName(members[0]?.name || 'Walk-in Customer');
-                      }}
+                      onClick={() => handleOpenSaleForProduct(p)}
                       disabled={isOutOfStock}
                       className="px-2.5 sm:px-3 py-1.5 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
                     >
@@ -752,84 +936,419 @@ export const ProductsManager = () => {
 
       {/* Quick Sell / POS Modal */}
       <Modal
-        isOpen={Boolean(sellingProduct)}
-        onClose={() => setSellingProduct(null)}
-        title={`Point of Sale: ${sellingProduct?.name || 'Sell Product'}`}
-        maxWidth="max-w-md"
+        isOpen={isSellModalOpen || Boolean(sellingProduct)}
+        onClose={() => {
+          setIsSellModalOpen(false);
+          setSellingProduct(null);
+          setIsMemberDropdownOpen(false);
+        }}
+        title="Point of Sale: Sell Products"
+        maxWidth="max-w-xl"
       >
-        {sellingProduct && (
+        {(isSellModalOpen || Boolean(sellingProduct)) && (
           <form onSubmit={handleSellSubmit} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+            {/* Products Selection List (Dynamic Multi-Product) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Products to Sell ({saleCartItems.length}) *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAddProductRow}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer border border-emerald-200/60"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Product</span>
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-0.5">
+                {saleCartItems.map((item, idx) => {
+                  const selectedProduct = products.find(
+                    (p) => p.id === item.productId || String(p.numericId) === String(item.productId)
+                  );
+                  const maxStock = selectedProduct ? Number(selectedProduct.stock) : 1;
+                  const unitPrice = selectedProduct ? Number(selectedProduct.price) : 0;
+                  const itemLineTotal = unitPrice * (Math.max(1, Number(item.quantity) || 1));
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition-all space-y-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        {/* Product Dropdown */}
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                            Product #{idx + 1}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={item.productId}
+                              onChange={(e) => handleUpdateProductRow(item.id, 'productId', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 cursor-pointer appearance-none pr-8 truncate"
+                              required
+                            >
+                              <option value="" disabled>-- Select a Product --</option>
+                              {products.map((p) => {
+                                const outOfStock = Number(p.stock) <= 0;
+                                return (
+                                  <option key={p.id} value={p.id} disabled={outOfStock}>
+                                    {p.name} — ₹{Number(p.price).toLocaleString('en-IN')} {outOfStock ? '(Out of Stock)' : `(${p.stock} in stock)`}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="w-24 sm:w-28 shrink-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-bold text-slate-500">
+                              Qty
+                            </label>
+                            {selectedProduct && (
+                              <span className={`text-[9px] font-bold ${
+                                Number(selectedProduct.stock) <= Number(selectedProduct.minStockAlert || 5)
+                                  ? 'text-amber-600'
+                                  : 'text-slate-400'
+                              }`}>
+                                Max: {maxStock}
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            max={maxStock}
+                            inputMode="numeric"
+                            value={item.quantity}
+                            onKeyDown={(e) => preventNonNumericKey(e, false)}
+                            onChange={(e) => handleUpdateProductRow(item.id, 'quantity', e.target.value)}
+                            placeholder="1"
+                            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-bold text-center focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        {/* Line Total & Remove button */}
+                        <div className="flex items-center gap-1.5 pt-5 shrink-0">
+                          <div className="text-right min-w-[65px]">
+                            <div className="text-xs font-black text-slate-900">
+                              ₹{itemLineTotal.toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          {saleCartItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProductRow(item.id)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add Another Product Button */}
+              <button
+                type="button"
+                onClick={handleAddProductRow}
+                className="w-full py-2 rounded-xl border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Product</span>
+              </button>
+            </div>
+
+            {/* Customer / Member Selection Dropdown (Typeable & Searchable) */}
+            <div ref={memberDropdownRef} className="relative">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Customer / Member Name *
+                </label>
+                {selectedMember ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMember(null);
+                      setBuyerName('Walk-in Customer');
+                      setMemberSearchQuery('');
+                      setIsMemberDropdownOpen(true);
+                    }}
+                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                  >
+                    Switch to Walk-in
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Select registered member or walk-in
+                  </span>
+                )}
+              </div>
+
+              {selectedMember ? (
+                /* Selected Member Badge View */
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                      {(selectedMember.name || 'M').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-900 truncate">{selectedMember.name}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                          {selectedMember.planName || selectedMember.membershipPlan || 'Member'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                        {selectedMember.id && <span className="font-mono text-slate-400">ID: {selectedMember.id}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMember(null);
+                      setBuyerName('');
+                      setMemberSearchQuery('');
+                      setIsMemberDropdownOpen(true);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white/80 transition-colors cursor-pointer shrink-0"
+                    title="Change Customer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                /* Typeable Member Combobox Input */
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={memberSearchQuery || (buyerName === 'Walk-in Customer' ? '' : buyerName)}
+                      onChange={(e) => {
+                        setMemberSearchQuery(e.target.value);
+                        setBuyerName(e.target.value);
+                        setIsMemberDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsMemberDropdownOpen(true)}
+                      placeholder="Search member name / phone, or type customer name..."
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsMemberDropdownOpen((prev) => !prev)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    >
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMemberDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Dropdown Menu */}
+                  {isMemberDropdownOpen && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100">
+                      {/* Top Option: Walk-in Customer */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMember(null);
+                          setBuyerName('Walk-in Customer');
+                          setMemberSearchQuery('');
+                          setIsMemberDropdownOpen(false);
+                        }}
+                        className={`w-full text-left p-2.5 flex items-center justify-between transition-colors cursor-pointer ${
+                          !selectedMember && buyerName === 'Walk-in Customer'
+                            ? 'bg-emerald-50/70 border-l-4 border-l-emerald-600'
+                            : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                              <span>Walk-in Customer</span>
+                            </div>
+                          </div>
+                        </div>
+                        {!selectedMember && buyerName === 'Walk-in Customer' && (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                      </button>
+
+                      {/* Header for registered members */}
+                      <div className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Registered Gym Members ({filteredMembers.length})
+                      </div>
+
+                      {/* Members list */}
+                      {filteredMembers.length > 0 ? (
+                        filteredMembers.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedMember(m);
+                              setBuyerName(m.name);
+                              setMemberSearchQuery('');
+                              setIsMemberDropdownOpen(false);
+                            }}
+                            className="w-full text-left p-2.5 flex items-center justify-between hover:bg-emerald-50/60 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                                {(m.name || 'M').slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-900 truncate">{m.name}</div>
+                                <div className="text-[10px] text-slate-500 truncate">
+                                  {m.phone || 'No phone'} {m.planName ? `• ${m.planName}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-semibold text-emerald-700 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 shrink-0">
+                              Member
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-3 text-center text-xs text-slate-400">
+                          No members matching "{memberSearchQuery}"
+                        </div>
+                      )}
+
+                      {/* Quick Custom Walk-in Name option if text is typed */}
+                      {memberSearchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMember(null);
+                            setBuyerName(memberSearchQuery.trim());
+                            setIsMemberDropdownOpen(false);
+                          }}
+                          className="w-full text-left p-2.5 bg-amber-50/50 hover:bg-amber-50 text-xs text-slate-700 flex items-center gap-2 cursor-pointer transition-colors border-t border-slate-100"
+                        >
+                          <span className="text-xs">✍️</span>
+                          <span className="truncate">
+                            Sell as Walk-in Customer: <strong className="text-slate-900 font-bold">"{memberSearchQuery.trim()}"</strong>
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Discount & Notes (Proper Billing Process) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Unit Price</span>
-                <div className="text-xl font-black text-slate-900">
-                  ₹{Number(sellingProduct.price).toLocaleString('en-IN')}
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Discount (₹) <span className="text-slate-400 font-normal">Optional</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={sellDiscount}
+                    onKeyDown={(e) => preventNonNumericKey(e, false)}
+                    onChange={(e) => setSellDiscount(sanitizeDigits(e.target.value, 6))}
+                    placeholder="0"
+                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded text-xs font-bold bg-white text-emerald-700 border border-emerald-200">
-                Available: {sellingProduct.stock}
-              </span>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Quantity to Sell *</label>
-              <input
-                type="number"
-                required
-                min="1"
-                max={sellingProduct.stock}
-                inputMode="numeric"
-                value={sellQuantity}
-                onKeyDown={(e) => preventNonNumericKey(e, false)}
-                onChange={(e) => setSellQuantity(sanitizeDigits(e.target.value, 4))}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Customer / Member Name</label>
-              <input
-                type="text"
-                value={buyerName}
-                onChange={(e) => setBuyerName(e.target.value)}
-                placeholder="Walk-in Customer or Member Name"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Method</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                {['UPI', 'GPay', 'PhonePe', 'Account Transfer', 'Cash', 'Card'].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setSellPaymentMethod(m)}
-                    className={`py-1.5 px-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer text-center truncate ${
-                      sellPaymentMethod === m
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                    title={m}
-                  >
-                    {m}
-                  </button>
-                ))}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Billing Notes <span className="text-slate-400 font-normal">Optional</span>
+                </label>
+                <input
+                  type="text"
+                  value={sellNotes}
+                  onChange={(e) => setSellNotes(e.target.value)}
+                  placeholder="e.g. Counter sale, flavor, ref..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
               </div>
             </div>
 
-            {/* Total Billing Preview */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">Total Collection:</span>
-              <span className="text-xl font-black text-emerald-600">
-                ₹{(Number(sellingProduct.price) * Number(sellQuantity)).toLocaleString('en-IN')}
-              </span>
+            {/* Payment Method Dropdown */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Method *</label>
+              <div className="relative">
+                <select
+                  value={sellPaymentMethod}
+                  onChange={(e) => setSellPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer appearance-none pr-9 transition-colors"
+                >
+                  <option value="GPay">GPay</option>
+                  <option value="PhonePe">PhonePe</option>
+                  <option value="Account Transfer">Account Transfer</option>
+                  <option value="Cash">Cash</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
 
+            {/* Total Billing Preview & Itemization */}
+            {(() => {
+              let subtotal = 0;
+              let totalUnits = 0;
+              saleCartItems.forEach((it) => {
+                const prod = products.find(
+                  (p) => p.id === it.productId || String(p.numericId) === String(it.productId)
+                );
+                if (prod) {
+                  const qty = Math.max(1, Number(it.quantity) || 1);
+                  subtotal += Number(prod.price) * qty;
+                  totalUnits += qty;
+                }
+              });
+              const discountVal = Math.min(subtotal, Math.max(0, Number(sellDiscount) || 0));
+              const totalPayable = Math.max(0, subtotal - discountVal);
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>Subtotal ({saleCartItems.length} product{saleCartItems.length > 1 ? 's' : ''}, {totalUnits} unit{totalUnits > 1 ? 's' : ''}):</span>
+                    <span className="font-semibold text-slate-800">₹{subtotal.toLocaleString('en-IN')}</span>
+                  </div>
+                  {discountVal > 0 && (
+                    <div className="flex items-center justify-between text-emerald-600 font-semibold">
+                      <span>Discount Applied:</span>
+                      <span>-₹{discountVal.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                    <span className="font-bold text-slate-700">Total Net Collection:</span>
+                    <span className="text-xl font-black text-emerald-600">
+                      ₹{totalPayable.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Actions */}
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setSellingProduct(null)}
+                onClick={() => {
+                  setIsSellModalOpen(false);
+                  setSellingProduct(null);
+                  setIsMemberDropdownOpen(false);
+                }}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
               >
                 Cancel
@@ -840,10 +1359,132 @@ export const ProductsManager = () => {
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
               >
                 {isSubmittingSell && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>{isSubmittingSell ? 'Recording Sale...' : 'Confirm Sale & Record Receipt'}</span>
+                <span>{isSubmittingSell ? 'Recording Sale...' : 'Confirm Sale & Generate Bill'}</span>
               </button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      {/* Official Tax Invoice & Receipt Modal (Generated upon Sale) */}
+      <Modal
+        isOpen={Boolean(completedSaleData)}
+        onClose={() => setCompletedSaleData(null)}
+        title="Official Tax Invoice & Payment Receipt"
+        maxWidth="max-w-md"
+      >
+        {completedSaleData && (
+          <div className="space-y-4">
+            {/* Success Banner */}
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-emerald-950">Sale Completed & Bill Recorded</div>
+                <div className="text-[11px] text-emerald-700 font-mono">Invoice #{completedSaleData.invoiceNumber}</div>
+              </div>
+            </div>
+
+            {/* Receipt Summary Card */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                <span>Date: <strong>{completedSaleData.date}</strong></span>
+                <span className="px-2 py-0.5 rounded-md font-bold bg-emerald-100 text-emerald-800">
+                  {completedSaleData.paymentMethod} • PAID
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Customer</span>
+                <div className="font-bold text-slate-900 text-sm mt-0.5">{completedSaleData.buyerName}</div>
+                {completedSaleData.phone && (
+                  <div className="text-[11px] text-slate-500">📞 {completedSaleData.phone}</div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-200">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Purchased Item</span>
+                <div className="flex justify-between items-center text-slate-800 font-medium">
+                  <span>{completedSaleData.productName} (x{completedSaleData.quantity})</span>
+                  <span>₹{Number(completedSaleData.subtotal).toLocaleString('en-IN')}</span>
+                </div>
+                {Number(completedSaleData.discount) > 0 && (
+                  <div className="flex justify-between items-center text-emerald-600 font-medium mt-1">
+                    <span>Discount</span>
+                    <span>-₹{Number(completedSaleData.discount).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-slate-900 font-bold text-sm pt-2 mt-2 border-t border-dashed border-slate-200">
+                  <span>Net Paid Amount:</span>
+                  <span className="text-emerald-600 text-base font-black">
+                    ₹{Number(completedSaleData.amount).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              {completedSaleData.createdByName && (
+                <div className="text-[10px] text-slate-400 pt-1">
+                  Billed By: {completedSaleData.createdByName}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons: PDF Download, WhatsApp Share */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    downloadInvoicePdf({
+                      invoice: completedSaleData,
+                      member: completedSaleData.member,
+                      gymInfo
+                    });
+                    addToast?.('Invoice PDF downloaded successfully!', 'success');
+                  } catch (pdfErr) {
+                    console.error('Invoice PDF download error:', pdfErr);
+                    addToast?.('Failed to download invoice PDF', 'error');
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    shareInvoicePdfToMobile({
+                      invoice: completedSaleData,
+                      member: completedSaleData.member,
+                      gymInfo,
+                      onToast: addToast
+                    });
+                  } catch (waErr) {
+                    console.error('WhatsApp share error:', waErr);
+                    addToast?.('Failed to share invoice via WhatsApp', 'error');
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Share WhatsApp</span>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setCompletedSaleData(null)}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer border border-slate-200"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         )}
       </Modal>
 

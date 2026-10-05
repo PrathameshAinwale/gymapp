@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\GymSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class GymSettingController extends Controller
 {
@@ -12,8 +13,10 @@ class GymSettingController extends Controller
     {
         $gymId = $this->resolveGymId($request);
         if ($gymId) {
-            $gym = \App\Models\Gym::find($gymId);
-            if ($gym) {
+            $data = Cache::remember("gym_setting_v1_{$gymId}", 300, function () use ($gymId) {
+                $gym = \App\Models\Gym::find($gymId);
+                if (!$gym) return null;
+
                 $packageTier = $gym->package_tier ?? $gym->package ?? 'Bronze';
                 $saasPlan = \App\Models\SaasPlan::where('tier', $packageTier)->first();
                 $packageName = $saasPlan ? $saasPlan->name : ($packageTier . ' Plan');
@@ -34,48 +37,49 @@ class GymSettingController extends Controller
                     }
                 }
 
-                return response()->json([
-                    'success' => true,
-                    'data' => [
-                        'id' => $gym->id,
-                        'name' => $gym->name ?? '',
-                        'tagline' => $gym->tagline ?? '',
-                        'logo' => $gym->logo ?? '',
-                        'address' => $gym->address ?? '',
-                        'city' => $gym->city ?? '',
-                        'state' => $gym->state ?? '',
-                        'pincode' => $gym->pincode ?? '',
-                        'phone' => $gym->phone ?? '',
-                        'email' => $gym->email ?? '',
-                        'website' => $gym->website ?? '',
-                        'operatingHours' => $gym->operating_hours ?? '',
-                        'currency' => $gym->currency ?? '₹',
-                        'gstNumber' => $gym->gst_number ?? '',
-                        'package' => $packageTier,
-                        'packageTier' => $packageTier,
-                        'package_tier' => $packageTier,
-                        'packageName' => $packageName,
-                        'package_name' => $packageName,
-                        'billingCycle' => $gym->billing_cycle ?? 'Annual',
-                        'billing_cycle' => $gym->billing_cycle ?? 'Annual',
-                        'packageAmount' => $gym->package_amount != null ? (float)$gym->package_amount : ($saasPlan?->annual_price ? (float)$saasPlan->annual_price : null),
-                        'package_amount' => $gym->package_amount != null ? (float)$gym->package_amount : ($saasPlan?->annual_price ? (float)$saasPlan->annual_price : null),
-                        'features' => !empty($gym->features) ? $gym->features : ($saasPlan?->features ?? []),
-                        'subscriptionStartsAt' => $startsAt,
-                        'subscription_starts_at' => $startsAt,
-                        'subscriptionExpiresAt' => $expiresAt,
-                        'subscription_expires_at' => $expiresAt,
-                        'createdAt' => $startsAt,
-                        'created_at' => $startsAt,
-                        'status' => $gym->status ?? 'Active',
-                        'maxMembers' => $gym->max_members ?? $saasPlan?->max_members,
-                        'max_members' => $gym->max_members ?? $saasPlan?->max_members,
-                        'maxTrainers' => $gym->max_trainers ?? $saasPlan?->max_trainers,
-                        'max_trainers' => $gym->max_trainers ?? $saasPlan?->max_trainers,
-                        'maxBranches' => $gym->max_branches ?? 1,
-                        'max_branches' => $gym->max_branches ?? 1,
-                    ]
-                ]);
+                return [
+                    'id' => $gym->id,
+                    'name' => $gym->name ?? '',
+                    'tagline' => $gym->tagline ?? '',
+                    'logo' => $gym->logo ?? '',
+                    'address' => $gym->address ?? '',
+                    'city' => $gym->city ?? '',
+                    'state' => $gym->state ?? '',
+                    'pincode' => $gym->pincode ?? '',
+                    'phone' => $gym->phone ?? '',
+                    'email' => $gym->email ?? '',
+                    'website' => $gym->website ?? '',
+                    'operatingHours' => $gym->operating_hours ?? '',
+                    'currency' => $gym->currency ?? '₹',
+                    'gstNumber' => $gym->gst_number ?? '',
+                    'package' => $packageTier,
+                    'packageTier' => $packageTier,
+                    'package_tier' => $packageTier,
+                    'packageName' => $packageName,
+                    'package_name' => $packageName,
+                    'billingCycle' => $gym->billing_cycle ?? 'Annual',
+                    'billing_cycle' => $gym->billing_cycle ?? 'Annual',
+                    'packageAmount' => $gym->package_amount != null ? (float)$gym->package_amount : ($saasPlan?->annual_price ? (float)$saasPlan->annual_price : null),
+                    'package_amount' => $gym->package_amount != null ? (float)$gym->package_amount : ($saasPlan?->annual_price ? (float)$saasPlan->annual_price : null),
+                    'features' => !empty($gym->features) ? $gym->features : ($saasPlan?->features ?? []),
+                    'subscriptionStartsAt' => $startsAt,
+                    'subscription_starts_at' => $startsAt,
+                    'subscriptionExpiresAt' => $expiresAt,
+                    'subscription_expires_at' => $expiresAt,
+                    'createdAt' => $startsAt,
+                    'created_at' => $startsAt,
+                    'status' => $gym->status ?? 'Active',
+                    'maxMembers' => $gym->max_members ?? $saasPlan?->max_members,
+                    'max_members' => $gym->max_members ?? $saasPlan?->max_members,
+                    'maxTrainers' => $gym->max_trainers ?? $saasPlan?->max_trainers,
+                    'max_trainers' => $gym->max_trainers ?? $saasPlan?->max_trainers,
+                    'maxBranches' => $gym->max_branches ?? 1,
+                    'max_branches' => $gym->max_branches ?? 1,
+                ];
+            });
+
+            if ($data) {
+                return response()->json(['success' => true, 'data' => $data]);
             }
         }
 
@@ -137,6 +141,7 @@ class GymSettingController extends Controller
             }
             if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: '₹';
             $gym->save();
+            Cache::forget("gym_setting_v1_{$gymId}");
         }
 
         // Also keep GymSetting updated if any exists or if no gym found

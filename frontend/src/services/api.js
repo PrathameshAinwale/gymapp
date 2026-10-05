@@ -15,21 +15,23 @@ const isRunningInCapacitor = () => {
 };
 
 const getDefaultHosts = () => {
-  if (typeof window === 'undefined') return [`http://${CURRENT_LAN_IP}:8000/api/v1`, 'http://127.0.0.1:8000/api/v1'];
+  if (typeof window === 'undefined') return ['http://127.0.0.1:8000/api/v1'];
 
   const inCapacitor = isRunningInCapacitor();
   const currentHost = window.location.hostname;
 
-  const hosts = [];
-
   if (inCapacitor) {
-    // Physical mobile device or emulator running inside Capacitor
-    hosts.push(`http://${CURRENT_LAN_IP}:8000/api/v1`);
-    hosts.push('http://10.0.2.2:8000/api/v1'); // Android Studio Emulator
-    hosts.push('http://192.168.1.48:8000/api/v1');
+    return [
+      `http://${CURRENT_LAN_IP}:8000/api/v1`,
+      'http://10.0.2.2:8000/api/v1',
+    ];
   }
 
-  // If running in browser with a specific IP or custom domain
+  const hosts = [
+    'http://127.0.0.1:8000/api/v1',
+    'http://localhost:8000/api/v1',
+  ];
+
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
     if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
       hosts.push(`http://${currentHost}:8000/api/v1`);
@@ -39,9 +41,6 @@ const getDefaultHosts = () => {
   }
 
   hosts.push(`http://${CURRENT_LAN_IP}:8000/api/v1`);
-  hosts.push('http://127.0.0.1:8000/api/v1');
-  hosts.push('http://localhost:8000/api/v1');
-  hosts.push('http://10.0.2.2:8000/api/v1');
 
   return Array.from(new Set(hosts));
 };
@@ -58,21 +57,10 @@ let activeBaseUrl = (function () {
       }
       return `http://${CURRENT_LAN_IP}:8000/api/v1`;
     }
-    const currentHost = window.location.hostname;
-    const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
-    if (isLocal) {
-      localStorage.removeItem('pulsefit_api_url');
-      localStorage.removeItem('archfit_api_url');
-      return 'http://127.0.0.1:8000/api/v1';
-    }
-    // If opened on mobile browser via LAN IP (e.g. http://192.168.1.40:5173), direct backend calls to same host
-    if (currentHost && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
-      return `http://${currentHost}:8000/api/v1`;
-    }
-    const custom = localStorage.getItem('archfit_api_url') || localStorage.getItem('pulsefit_api_url');
-    if (custom && !custom.includes('192.168.1.48')) return custom;
+    // In normal browser, always prioritize 127.0.0.1:8000 for instant local connectivity
+    return 'http://127.0.0.1:8000/api/v1';
   }
-  return import.meta.env.VITE_API_BASE_URL || CANDIDATE_API_HOSTS[0] || `http://${CURRENT_LAN_IP}:8000/api/v1`;
+  return 'http://127.0.0.1:8000/api/v1';
 })();
 
 export const getActiveApiUrl = () => activeBaseUrl;
@@ -84,10 +72,10 @@ export const setActiveApiUrl = (url) => {
   }
 };
 
-const API_BASE_URL = `http://${CURRENT_LAN_IP}:8000/api/v1`;
+const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-// Fast fetch helper with timeout to avoid browser hangs (10s allowance for queued requests in dev server)
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
+// Fast fetch helper with timeout to avoid browser hangs (3s allowance for failovers)
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 3500) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -101,17 +89,20 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
   }
 };
 
+// High-Performance In-Flight Deduplication & Memory Cache for GET requests
+const inflightGetRequests = new Map();
+const getResponseCache = new Map();
+const CACHE_TTL_MS = 6000; // 6s cache for duplicate GET queries
+
 // Universal smart fetch wrapper that auto-fails over if the endpoint host is unreachable
 const apiFetch = async (urlOrPath, options = {}) => {
   let relativePath = urlOrPath;
   const allKnownHosts = [
     activeBaseUrl,
-    `http://${CURRENT_LAN_IP}:8000/api/v1`,
-    ...CANDIDATE_API_HOSTS,
     'http://127.0.0.1:8000/api/v1',
     'http://localhost:8000/api/v1',
-    'http://192.168.1.48:8000/api/v1',
-    'http://10.0.2.2:8000/api/v1'
+    `http://${CURRENT_LAN_IP}:8000/api/v1`,
+    ...CANDIDATE_API_HOSTS
   ];
 
   for (const host of allKnownHosts) {
@@ -124,55 +115,86 @@ const apiFetch = async (urlOrPath, options = {}) => {
     relativePath = '/' + relativePath;
   }
 
-  // Deduplicate candidate hosts starting with activeBaseUrl
-  const inCapacitor = isRunningInCapacitor();
-  const currentHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
-  const isLocal = typeof window !== 'undefined' && !inCapacitor && (currentHost === 'localhost' || currentHost === '127.0.0.1');
+  const method = (options.method || 'GET').toUpperCase();
+  const cacheKey = `${method}:${relativePath}`;
 
-  const isLanHost = Boolean(currentHost && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost));
+  // On data mutations, invalidate all GET caches immediately so fresh data is loaded
+  if (method !== 'GET') {
+    getResponseCache.clear();
+  } else if (!options.skipCache) {
+    // 1. Check in-memory fresh cache
+    const cached = getResponseCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.response.clone();
+    }
 
-  const hostsToTry = inCapacitor
-    ? Array.from(new Set([
-      `http://${CURRENT_LAN_IP}:8000/api/v1`,
-      activeBaseUrl,
-      'http://10.0.2.2:8000/api/v1',
-      ...CANDIDATE_API_HOSTS
-    ])).filter((h) => Boolean(h) && !h.includes('127.0.0.1') && !h.includes('localhost') && !h.includes('192.168.1.48'))
-    : (isLocal
-      ? Array.from(new Set([
-        `http://${currentHost}:8000/api/v1`,
-        'http://127.0.0.1:8000/api/v1',
-        'http://localhost:8000/api/v1'
-      ]))
-      : Array.from(new Set([
-        isLanHost ? `http://${currentHost}:8000/api/v1` : activeBaseUrl,
-        `http://${CURRENT_LAN_IP}:8000/api/v1`,
-        activeBaseUrl,
-        ...CANDIDATE_API_HOSTS,
-        'http://127.0.0.1:8000/api/v1',
-        'http://localhost:8000/api/v1'
-      ])).filter((h) => Boolean(h) && !h.includes('192.168.1.48')));
-
-  let lastError = null;
-  const timeoutMs = isLocal ? 6000 : 4000;
-  for (const host of hostsToTry) {
-    try {
-      const fullUrl = `${host}${relativePath}`;
-      const res = await fetchWithTimeout(fullUrl, options, timeoutMs);
-      if (activeBaseUrl !== host) {
-        activeBaseUrl = host;
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('archfit_api_url', host);
-          localStorage.setItem('pulsefit_api_url', host);
-        }
+    // 2. Check if identical GET request is already in-flight
+    if (inflightGetRequests.has(cacheKey)) {
+      try {
+        const res = await inflightGetRequests.get(cacheKey);
+        return res.clone();
+      } catch (err) {
+        // Fallback to fetch if in-flight failed
       }
-      return res;
-    } catch (err) {
-      lastError = err;
     }
   }
 
-  throw lastError || new Error('Network error: Unable to connect to backend server');
+  const executeFetch = async () => {
+    const inCapacitor = isRunningInCapacitor();
+    const currentHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
+
+    const hostsToTry = inCapacitor
+      ? Array.from(new Set([
+        `http://${CURRENT_LAN_IP}:8000/api/v1`,
+        'http://10.0.2.2:8000/api/v1',
+        activeBaseUrl,
+        ...CANDIDATE_API_HOSTS
+      ])).filter((h) => Boolean(h) && !h.includes('127.0.0.1') && !h.includes('localhost'))
+      : Array.from(new Set([
+        activeBaseUrl,
+        'http://127.0.0.1:8000/api/v1',
+        'http://localhost:8000/api/v1',
+        `http://${currentHost}:8000/api/v1`,
+        `http://${CURRENT_LAN_IP}:8000/api/v1`,
+        ...CANDIDATE_API_HOSTS
+      ])).filter((h) => Boolean(h) && !h.includes('10.0.2.2'));
+
+    let lastError = null;
+    const timeoutMs = 3000;
+    for (const host of hostsToTry) {
+      try {
+        const fullUrl = `${host}${relativePath}`;
+        const res = await fetchWithTimeout(fullUrl, options, timeoutMs);
+        if (activeBaseUrl !== host) {
+          activeBaseUrl = host;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('archfit_api_url', host);
+            localStorage.setItem('pulsefit_api_url', host);
+          }
+        }
+        return res;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error('Network error: Unable to connect to backend server');
+  };
+
+  if (method === 'GET' && !options.skipCache) {
+    const promise = executeFetch();
+    inflightGetRequests.set(cacheKey, promise);
+    try {
+      const res = await promise;
+      // Store clone in cache for subsequent calls
+      getResponseCache.set(cacheKey, { timestamp: Date.now(), response: res.clone() });
+      return res;
+    } finally {
+      inflightGetRequests.delete(cacheKey);
+    }
+  }
+
+  return await executeFetch();
 };
 
 export const getActiveGymId = () => {
@@ -944,6 +966,17 @@ export const api = {
       });
       return handleResponse(res);
     },
+    sell: async (productId, quantity = 1, customerData = {}) => {
+      const payload = typeof customerData === 'string'
+        ? { productId, quantity, buyerName: customerData }
+        : { productId, quantity, ...customerData };
+      const res = await apiFetch(`${API_BASE_URL}/products/sell`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Trainer Commissions Endpoints
@@ -1129,6 +1162,38 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/impersonate`, {
         method: 'POST',
         headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    stopGymAccess: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/stop-access`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    restoreGymAccess: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/restore-access`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    // Superadmin Profile & Login Credentials
+    updatePassword: async (passwordData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/profile/update-password`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(passwordData),
+      });
+      return handleResponse(res);
+    },
+    updateEmail: async (emailData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/profile/update-email`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(emailData),
       });
       return handleResponse(res);
     },

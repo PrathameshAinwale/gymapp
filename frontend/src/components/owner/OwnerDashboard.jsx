@@ -147,10 +147,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
     addToast
   } = useGymData();
 
-  useEffect(() => {
-    fetchAllFromBackend?.();
-  }, [fetchAllFromBackend]);
-
   const { currentUser, currentRole, canAccessFinancials } = useAuth();
 
   // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, ID
@@ -208,7 +204,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
               return true;
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 7. Status match
@@ -393,9 +389,9 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
     memberPieData.length > 0
       ? memberPieData
       : [
-          { name: 'Active Passes', value: 1, color: '#10B981' },
-          { name: 'Inactive', value: 0, color: '#94A3B8' }
-        ];
+        { name: 'Active Passes', value: 1, color: '#10B981' },
+        { name: 'Inactive', value: 0, color: '#94A3B8' }
+      ];
 
   const activeRetentionPct = totalMembersCount > 0
     ? ((activeMembersCount / totalMembersCount) * 100).toFixed(0)
@@ -474,21 +470,21 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
   // Revenue chart data from backend database
   const revenueChartData = (revenueAnalytics && revenueAnalytics.length > 0)
     ? revenueAnalytics.map((item, idx, arr) => {
-        if (idx === arr.length - 1) {
-          return {
-            month: item.month,
-            revenue: totalRevenue || item.revenue || 0
-          };
-        }
+      if (idx === arr.length - 1) {
         return {
           month: item.month,
-          revenue: item.revenue || 0
+          revenue: totalRevenue || item.revenue || 0
         };
-      })
+      }
+      return {
+        month: item.month,
+        revenue: item.revenue || 0
+      };
+    })
     : [
-        { month: 'Past', revenue: 0 },
-        { month: 'Current', revenue: totalRevenue }
-      ];
+      { month: 'Past', revenue: 0 },
+      { month: 'Current', revenue: totalRevenue }
+    ];
 
   const gymExpensesSum = (expenses || [])
     .filter((exp) => {
@@ -559,7 +555,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
-      
+
       {/* 1. CLEAN & CALM HEADER */}
       <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
@@ -727,13 +723,12 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                               {m.name}
                             </span>
                             <span
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
-                                mStatus === 'Active'
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${mStatus === 'Active'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : mStatus === 'Expiring Soon'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-rose-50 text-rose-700 border-rose-200'
-                              }`}
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
                             >
                               {mStatus}
                             </span>
@@ -945,7 +940,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
       {/* 3. VISUAL ANALYTICS ROW: REVENUE TREND + ACTIVE VS ALL USER PIE CHART */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6">
-        
+
         {/* Revenue Growth Trend Area Chart (Left 7 Cols or Full if no revenue) */}
         {canAccessFinancials && (
           <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between">
@@ -1153,7 +1148,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
         {/* Compact, clean 1-click launcher grid showing essential counts only */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5">
-          
+
           {/* Module 1: Classes */}
           <div
             onClick={() => setActiveTab('classes')}
@@ -1380,7 +1375,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
       {/* 5. MAIN WORKSPACE: PRIORITY ACTION HUB & LIVE STATUS STREAM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6">
-        
+
         {/* Left 8 Cols: Clean Segmented Priority Action Hub */}
         <div className="lg:col-span-8 space-y-3 sm:space-y-6">
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
@@ -1395,22 +1390,20 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                 <button
                   type="button"
                   onClick={() => setActiveActionTab('leads')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeActionTab === 'leads'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeActionTab === 'leads'
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   Hot Leads ({hotLeads.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveActionTab('renewals')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeActionTab === 'renewals'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeActionTab === 'renewals'
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   Renewals Due ({expiringMembers.length})
                 </button>
@@ -1418,11 +1411,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                   <button
                     type="button"
                     onClick={() => setActiveActionTab('advances')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeActionTab === 'advances'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeActionTab === 'advances'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     <span>Advances</span>
                     {pendingAdvances.length > 0 && (
@@ -1436,11 +1428,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                   <button
                     type="button"
                     onClick={() => setActiveActionTab('invoices')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeActionTab === 'invoices'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeActionTab === 'invoices'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     <span>Recent Invoices</span>
                     <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
@@ -1549,11 +1540,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                             <div className="text-[11px] text-slate-500">{m.planName}</div>
                           </div>
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              m.status === 'Expired'
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${m.status === 'Expired'
                                 ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
+                              }`}
                           >
                             {m.status}
                           </span>
@@ -1680,11 +1670,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                             <span className="text-sm font-black text-slate-900 font-mono block">
                               ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                             </span>
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              (inv.status || '').toLowerCase() === 'paid'
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}>
+                              }`}>
                               {inv.status || 'Paid'}
                             </span>
                           </div>
@@ -1805,7 +1794,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
         {/* Right 4 Cols: Live Floor Status & Check-ins Stream */}
         <div className="lg:col-span-4 space-y-3 sm:space-y-6">
-          
+
           {/* Floor Capacity & Gym Status */}
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -1813,11 +1802,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                 <h3 className="text-sm font-bold text-slate-900">Live Gym Floor</h3>
                 <p className="text-xs text-slate-500">Real-time athlete presence</p>
               </div>
-              <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
-                liveOccupancyCount > 0
+              <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${liveOccupancyCount > 0
                   ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
                   : 'text-slate-500 bg-slate-100 border-slate-200'
-              }`}>
+                }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${liveOccupancyCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                 {liveOccupancyCount > 0 ? `${liveOccupancyCount} Inside Now` : 'Floor Empty'}
               </span>
@@ -1833,9 +1821,8 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
               </div>
               <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    liveOccupancyPct > 85 ? 'bg-rose-500' : liveOccupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
+                  className={`h-full rounded-full transition-all duration-500 ${liveOccupancyPct > 85 ? 'bg-rose-500' : liveOccupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
                   style={{ width: `${liveOccupancyPct}%` }}
                 ></div>
               </div>
@@ -1884,9 +1871,8 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                        log.isInside ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'
-                      }`}>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${log.isInside ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'
+                        }`}>
                         {log.isInside ? `In: ${log.time}` : `Out: ${log.checkOutTime || log.time}`}
                       </span>
                     </div>
@@ -1978,11 +1964,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                         ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          (inv.status || '').toLowerCase() === 'paid'
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
+                          }`}>
                           {inv.status || 'Paid'}
                         </span>
                       </td>

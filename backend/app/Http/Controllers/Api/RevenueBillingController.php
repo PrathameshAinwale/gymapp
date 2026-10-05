@@ -396,6 +396,82 @@ class RevenueBillingController extends Controller
     }
 
     /**
+     * Update an Inflow or Outflow record and synchronize matching Invoice/Expense
+     */
+    public function update(Request $request, $id)
+    {
+        $cleanId = (int)str_replace(['rev-in-', 'rev-out-', 'rev-', 'exp-', 'EXP-'], '', $id);
+        $record = RevenueBilling::find($cleanId);
+        if (!$record) {
+            $record = RevenueBilling::where('reference_no', $id)->first();
+        }
+
+        if (!$record) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Revenue / Billing record not found.',
+            ], 404);
+        }
+
+        $amount = $request->has('amount') ? (float)$request->amount : (float)$record->amount;
+        $updateData = [
+            'amount' => $amount,
+        ];
+
+        if ($request->has('payment_method') || $request->has('paymentMethod')) {
+            $updateData['payment_method'] = $request->payment_method ?? $request->paymentMethod;
+        }
+        if ($request->has('date')) {
+            $updateData['date'] = $request->date;
+        }
+        if ($request->has('status')) {
+            $updateData['status'] = $request->status;
+        }
+        if ($request->has('plan_name') || $request->has('planName')) {
+            $updateData['plan_name'] = $request->plan_name ?? $request->planName;
+        }
+        if ($request->has('member_name') || $request->has('memberName')) {
+            $updateData['member_name'] = $request->member_name ?? $request->memberName;
+        }
+        if ($request->has('notes')) {
+            $updateData['notes'] = $request->notes;
+        }
+        if ($request->has('title')) {
+            $updateData['title'] = $request->title;
+        }
+
+        $record->update($updateData);
+
+        // If this record corresponds to an invoice, sync the invoice
+        if ($record->reference_no) {
+            $inv = Invoice::where('invoice_number', $record->reference_no)->first();
+            if ($inv) {
+                $invUpdate = ['amount' => $amount];
+                if (isset($updateData['payment_method'])) {
+                    $invUpdate['payment_method'] = $updateData['payment_method'];
+                }
+                if (isset($updateData['date'])) {
+                    $invUpdate['date'] = $updateData['date'];
+                }
+                if (isset($updateData['status'])) {
+                    $invUpdate['status'] = $updateData['status'];
+                }
+                $inv->update($invUpdate);
+            }
+        }
+
+        try {
+            \Illuminate\Support\Facades\Cache::flush();
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Billing entry updated successfully.',
+            'data' => $record->type === 'inflow' ? $this->formatInflow($record) : $this->formatOutflow($record),
+        ]);
+    }
+
+    /**
      * Delete an entry
      */
     public function destroy($id)

@@ -45,8 +45,10 @@ export const ReportsManager = ({ setActiveTab }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchAllFromBackend?.();
-  }, [fetchAllFromBackend]);
+    if (!members || members.length === 0) {
+      fetchAllFromBackend?.();
+    }
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

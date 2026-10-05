@@ -234,4 +234,181 @@ class InvoiceController extends Controller
             ],
         ], 201);
     }
+
+    /**
+     * Update an existing invoice and synchronize matching RevenueBilling inflow/outflow records
+     */
+    public function update(Request $request, $id)
+    {
+        $invoice = Invoice::where('invoice_number', $id)->first();
+        if (!$invoice && is_numeric($id)) {
+            $invoice = Invoice::find($id);
+        }
+        if (!$invoice) {
+            $cleanId = (int)preg_replace('/[^0-9]/', '', (string)$id);
+            if ($cleanId > 0) {
+                $invoice = Invoice::find($cleanId);
+            }
+        }
+
+        if (!$invoice) {
+            return response()->json([
+                'success' => false,
+                'message' => "Invoice '{$id}' not found.",
+            ], 404);
+        }
+
+        $amount = $request->has('amount') ? (float)$request->amount : (float)$invoice->amount;
+        $duesAmount = $request->has('pending_amount') || $request->has('pendingAmount') || $request->has('dues_amount') || $request->has('duesAmount')
+            ? (float)($request->pending_amount ?? $request->pendingAmount ?? $request->dues_amount ?? $request->duesAmount ?? 0)
+            : (float)($invoice->pending_amount ?? 0);
+        $totalAmount = $request->has('total_amount') || $request->has('totalAmount')
+            ? (float)($request->total_amount ?? $request->totalAmount)
+            : ($amount + $duesAmount);
+
+        $invoiceUpdate = [
+            'amount' => $amount,
+            'total_amount' => $totalAmount,
+            'pending_amount' => $duesAmount,
+        ];
+
+        if ($request->has('date') || $request->has('payment_date') || $request->has('paymentDate')) {
+            $invoiceUpdate['date'] = $request->date ?? $request->payment_date ?? $request->paymentDate;
+        }
+        if ($request->has('due_date') || $request->has('dueDate')) {
+            $invoiceUpdate['due_date'] = $request->due_date ?? $request->dueDate;
+        }
+        if ($request->has('payment_method') || $request->has('paymentMethod')) {
+            $invoiceUpdate['payment_method'] = $request->payment_method ?? $request->paymentMethod;
+        }
+        if ($request->has('status')) {
+            $status = $request->status;
+            if ($duesAmount > 0 && strtolower($status) === 'paid') {
+                $status = 'Partial';
+            }
+            $invoiceUpdate['status'] = $status;
+        } else {
+            if ($duesAmount > 0) {
+                $invoiceUpdate['status'] = $amount > 0 ? 'Partial' : 'Pending';
+            } else {
+                $invoiceUpdate['status'] = 'Paid';
+            }
+        }
+
+        if ($request->filled('plan_id') || $request->filled('planId')) {
+            $numericPlan = (int)preg_replace('/[^0-9]/', '', (string)($request->plan_id ?? $request->planId));
+            if ($numericPlan > 0) {
+                $invoiceUpdate['plan_id'] = $numericPlan;
+            }
+        }
+
+        if ($request->filled('created_by_name') || $request->filled('createdByName')) {
+            $invoiceUpdate['created_by_name'] = $request->created_by_name ?? $request->createdByName;
+        }
+
+        $invoice->update($invoiceUpdate);
+
+        // ══════════════════════════════════════════════════════════════
+        // SYNCHRONIZE WITH REVENUE & BILLING (INFLOW & OUTFLOW)
+        // ══════════════════════════════════════════════════════════════
+        $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $invoice->invoice_number)->first();
+        $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
+        $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
+
+        $inflowData = [
+            'amount' => $amount,
+            'payment_method' => $invoiceUpdate['payment_method'] ?? $invoice->payment_method,
+            'date' => $invoiceUpdate['date'] ?? $invoice->date,
+            'status' => $invoiceUpdate['status'] ?? $invoice->status,
+            'plan_name' => $planName,
+            'member_name' => $memberName,
+            'title' => "{$memberName} - {$planName}",
+        ];
+        if ($request->filled('notes')) {
+            $inflowData['notes'] = $request->notes;
+        }
+
+        if ($matchingInflow) {
+            $matchingInflow->update($inflowData);
+        } else {
+            \App\Models\RevenueBilling::create(array_merge($inflowData, [
+                'gym_id' => $invoice->gym_id,
+                'type' => 'inflow',
+                'reference_no' => $invoice->invoice_number,
+                'user_id' => $invoice->user_id,
+                'category' => 'Membership Fee',
+                'created_by' => $invoice->created_by,
+                'created_by_name' => $invoice->created_by_name,
+            ]));
+        }
+
+        // Also check if any outflow record exists with this invoice reference
+        $matchingOutflow = \App\Models\RevenueBilling::outflow()->where('reference_no', $invoice->invoice_number)->first();
+        if ($matchingOutflow) {
+            $matchingOutflow->update([
+                'amount' => $amount,
+                'payment_method' => $invoiceUpdate['payment_method'] ?? $matchingOutflow->payment_method,
+                'date' => $invoiceUpdate['date'] ?? $matchingOutflow->date,
+            ]);
+        }
+
+        // Update member user name and member profile dues if applicable
+        if ($invoice->user) {
+            $user = $invoice->user;
+            if ($request->filled('member_name') || $request->filled('memberName')) {
+                $newName = trim((string)($request->member_name ?? $request->memberName));
+                if ($newName && $newName !== $user->name) {
+                    $user->update(['name' => $newName]);
+                }
+            }
+
+            if ($user->memberProfile) {
+                $profileUpdate = [];
+                if ($request->has('pending_amount') || $request->has('dues_amount') || $request->has('pendingAmount') || $request->has('duesAmount')) {
+                    $profileUpdate['dues_amount'] = $duesAmount;
+                    if ($duesAmount > 0 && ($invoice->due_date || isset($invoiceUpdate['due_date']))) {
+                        $profileUpdate['due_date'] = $invoiceUpdate['due_date'] ?? $invoice->due_date;
+                    } elseif ($duesAmount == 0) {
+                        $profileUpdate['due_date'] = null;
+                    }
+                }
+                if (!empty($profileUpdate)) {
+                    $user->memberProfile->update($profileUpdate);
+                }
+            }
+        }
+
+        // Invalidate backend caches to reflect updated numbers in Dashboard & Financial summaries
+        try {
+            \Illuminate\Support\Facades\Cache::flush();
+        } catch (\Throwable $e) {}
+
+        $invoice->load(['user.memberProfile', 'plan', 'creator']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Invoice and revenue billing updated successfully.',
+            'data' => [
+                'id' => $invoice->invoice_number,
+                'numericId' => $invoice->id,
+                'memberId' => $invoice->user_id ? ('mem-' . $invoice->user_id) : null,
+                'memberName' => $invoice->user?->name ?? $memberName,
+                'memberPhone' => $invoice->user?->phone,
+                'memberEmail' => $invoice->user?->email,
+                'planName' => $planName,
+                'amount' => (float)$invoice->amount,
+                'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
+                'pendingAmount' => $duesAmount,
+                'duesAmount' => $duesAmount,
+                'date' => $invoice->date instanceof \DateTimeInterface ? $invoice->date->format('Y-m-d') : (string)$invoice->date,
+                'dueDate' => $invoice->due_date instanceof \DateTimeInterface ? $invoice->due_date->format('Y-m-d') : ($invoice->due_date ? (string)$invoice->due_date : null),
+                'paymentMethod' => $invoice->payment_method,
+                'status' => $invoice->status,
+                'invoiceUrl' => $invoice->invoice_url ?? '#',
+                'createdBy' => $invoice->created_by,
+                'createdByName' => $invoice->created_by_name ?: ($invoice->creator?->name ?? 'Staff'),
+                'creatorRole' => $invoice->creator?->role ? ucfirst($invoice->creator->role) : 'Owner',
+            ],
+        ]);
+    }
 }

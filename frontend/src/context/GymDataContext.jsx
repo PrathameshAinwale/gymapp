@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
 import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate } from '../utils/dateUtils';
@@ -1437,10 +1437,22 @@ export const GymDataProvider = ({ children }) => {
     } catch (e) { console.warn('Fetch dashboard stats error:', e.message); }
   }, []);
 
+  // Guard refs to prevent rapid duplicate calls and infinite loops
+  const isFetchingAllRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
   // Live Async Fetch from Laravel + MySQL Backend with Progressive Hydration
   // NOTE: PHP built-in dev server is single-threaded, so we fetch in small
   // sequential batches of 2 to avoid request queuing and timeouts.
-  const fetchAllFromBackend = useCallback(async () => {
+  const fetchAllFromBackend = useCallback(async (force = false) => {
+    if (isFetchingAllRef.current) return;
+    const now = Date.now();
+    if (!force && (now - lastFetchTimeRef.current < 10000)) {
+      return;
+    }
+    isFetchingAllRef.current = true;
+    lastFetchTimeRef.current = now;
+
     try {
       setIsLoadingBackend(true);
 
@@ -1491,6 +1503,7 @@ export const GymDataProvider = ({ children }) => {
     } catch (err) {
       console.warn('Backend sync note:', err.message);
     } finally {
+      isFetchingAllRef.current = false;
       setIsLoadingBackend(false);
       setLoadingModules((prev) => {
         const cleared = {};
@@ -1624,7 +1637,7 @@ export const GymDataProvider = ({ children }) => {
     setRevenueAnalytics([]);
 
     fetchAllFromBackend();
-  }, [fetchAllFromBackend, currentUser?.gymId, currentUser?.userId]);
+  }, [currentUser?.gymId, currentUser?.gym_id, currentUser?.userId]);
 
   // MEMBER ACTIONS (Direct Backend Sync)
   const addMember = async (newMemberData) => {
@@ -2596,40 +2609,134 @@ export const GymDataProvider = ({ children }) => {
     addToast('Product removed from database', 'info');
   };
 
-  const recordProductSale = async ({ productId, quantity = 1, buyerName = 'Walk-in Customer', paymentMethod = 'UPI' }) => {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return false;
-    if (Number(product.stock) < Number(quantity)) {
-      addToast(`Insufficient stock for ${product.name}! Available: ${product.stock}`, 'error');
+  const recordProductSale = async ({
+    productId = null,
+    quantity = 1,
+    items = null,
+    buyerName = 'Walk-in Customer',
+    memberId = null,
+    member = null,
+    paymentMethod = 'GPay',
+    discount = 0,
+    notes = '',
+    handledByName = ''
+  }) => {
+    // Normalize items list (supports both cart array and single product)
+    let sellList = [];
+    if (Array.isArray(items) && items.length > 0) {
+      sellList = items.map((it) => {
+        const prod = products.find((p) => p.id === it.productId || String(p.numericId) === String(it.productId));
+        return {
+          productId: it.productId,
+          product: prod,
+          quantity: Math.max(1, Number(it.quantity) || 1)
+        };
+      });
+    } else if (productId) {
+      const prod = products.find((p) => p.id === productId || String(p.numericId) === String(productId));
+      sellList = [
+        {
+          productId,
+          product: prod,
+          quantity: Math.max(1, Number(quantity) || 1)
+        }
+      ];
+    }
+
+    if (sellList.length === 0) {
+      addToast('No products selected for sale', 'error');
       return false;
     }
 
-    const totalAmount = Number(product.price) * Number(quantity);
-    updateProduct(productId, { stock: Number(product.stock) - Number(quantity) });
+    // Validate stocks
+    for (const it of sellList) {
+      if (!it.product) {
+        addToast(`Selected product not found in inventory`, 'error');
+        return false;
+      }
+      if (Number(it.product.stock) < Number(it.quantity)) {
+        addToast(`Insufficient stock for ${it.product.name}! Available: ${it.product.stock}`, 'error');
+        return false;
+      }
+    }
 
-    const newInvoice = {
-      id: `INV-PROD-${Date.now()}`,
-      memberId: 'store-pos',
-      memberName: buyerName,
-      planName: `${product.name} (Qty: ${quantity})`,
-      amount: totalAmount,
-      date: new Date().toISOString().split('T')[0],
-      paymentMethod,
-      status: 'Paid',
-      invoiceUrl: '#'
-    };
-    setInvoices((prev) => [newInvoice, ...prev]);
+    let subtotal = 0;
+    const itemSummaries = [];
+    const invoiceItems = [];
+
+    sellList.forEach((it) => {
+      const lineAmt = Number(it.product.price) * Number(it.quantity);
+      subtotal += lineAmt;
+      itemSummaries.push(`${it.product.name} (Qty: ${it.quantity})`);
+      invoiceItems.push({
+        productId: it.productId,
+        name: it.product.name,
+        description: `${it.product.name} (Qty: ${it.quantity})`,
+        quantity: Number(it.quantity),
+        unitPrice: Number(it.product.price),
+        amount: lineAmt
+      });
+      // Deduct stock in local state immediately
+      updateProduct(it.productId, { stock: Math.max(0, Number(it.product.stock) - Number(it.quantity)) });
+    });
+
+    const summaryTitle = itemSummaries.join(' + ');
+    const numDiscount = Math.min(subtotal, Math.max(0, Number(discount) || 0));
+    const finalAmount = Math.max(0, subtotal - numDiscount);
+    const cleanUserId = memberId ? (typeof memberId === 'string' ? memberId.replace(/\D/g, '') : memberId) : null;
+
+    let invoiceNo = `INV-PROD-${Date.now().toString().slice(-6)}`;
 
     try {
-      await api.products.sell(productId, quantity, buyerName);
+      const res = await api.products.sell(productId, quantity, {
+        items: sellList.map((it) => ({
+          productId: it.productId,
+          quantity: it.quantity
+        })),
+        user_id: cleanUserId,
+        userId: cleanUserId,
+        member_id: memberId,
+        buyer_name: buyerName,
+        buyerName,
+        payment_method: paymentMethod,
+        paymentMethod,
+        discount: numDiscount,
+        notes: notes || `POS Sale: ${summaryTitle}`,
+        created_by_name: handledByName || currentUser?.name || 'Staff'
+      });
+      if (res?.data?.invoiceNo || res?.invoiceNo) {
+        invoiceNo = res?.data?.invoiceNo || res?.invoiceNo;
+      }
     } catch (err) {
       console.warn('Product sell sync error:', err.message);
     }
 
+    const newInvoice = {
+      id: invoiceNo,
+      invoiceNumber: invoiceNo,
+      memberId: memberId || 'walk-in',
+      memberName: buyerName,
+      phone: member?.phone || '',
+      email: member?.email || '',
+      planName: summaryTitle,
+      amount: finalAmount,
+      totalAmount: subtotal,
+      discount: numDiscount,
+      date: new Date().toISOString().split('T')[0],
+      paymentMethod,
+      status: 'Paid',
+      invoiceUrl: '#',
+      createdByName: handledByName || currentUser?.name || 'Staff',
+      items: invoiceItems,
+      itemsBreakdown: itemSummaries
+    };
+
+    setInvoices((prev) => [newInvoice, ...prev]);
+
     setOwnerStats((prev) => {
       const currentRev = Number(prev?.monthlyRevenue) || 0;
       const currentExp = Number(prev?.monthlyExpenses) || 0;
-      const newRev = currentRev + totalAmount;
+      const newRev = currentRev + finalAmount;
       return {
         ...prev,
         monthlyRevenue: newRev,
@@ -2637,8 +2744,53 @@ export const GymDataProvider = ({ children }) => {
       };
     });
 
-    addToast(`Sold ${quantity}x ${product.name} for ₹${totalAmount.toLocaleString('en-IN')}!`);
-    return true;
+    fetchInvoices?.();
+
+    addToast(`Sold ${summaryTitle} for ₹${finalAmount.toLocaleString('en-IN')}!`, 'success');
+    return {
+      success: true,
+      invoice: newInvoice,
+      invoiceNumber: invoiceNo,
+      finalAmount,
+      subtotal,
+      discount: numDiscount,
+      buyerName,
+      member,
+      items: invoiceItems,
+      paymentMethod
+    };
+  };
+
+  // Invoices Update Handler (Synchronizes Invoice & Revenue/Billing Inflows & Outflows)
+  const updateInvoice = async (invoiceId, updatedFields) => {
+    try {
+      const cleanId = invoiceId || updatedFields.id || updatedFields.invoiceNumber;
+      const res = await api.invoices.update(cleanId, updatedFields);
+      const savedInvoice = res?.data || updatedFields;
+
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          (inv.id === cleanId || inv.numericId === cleanId || inv.invoiceNumber === cleanId || (savedInvoice.id && inv.id === savedInvoice.id))
+            ? { ...inv, ...savedInvoice, ...updatedFields }
+            : inv
+        )
+      );
+
+      // Auto-refresh financial, invoice, and dashboard stats
+      await Promise.allSettled([
+        fetchInvoices?.(),
+        fetchExpenses?.(),
+        fetchDashboardStats?.(),
+        fetchMembers?.()
+      ]);
+
+      addToast('Invoice and revenue billing updated successfully!', 'success');
+      return savedInvoice;
+    } catch (err) {
+      console.error('Invoice update error:', err);
+      addToast(`Failed to update invoice: ${err.message}`, 'error');
+      throw err;
+    }
   };
 
   // Expenses Handlers (Cash Outflow)
@@ -3666,6 +3818,7 @@ export const GymDataProvider = ({ children }) => {
         simulateBiometricPunch,
         fetchEquipment,
         fetchInvoices,
+        updateInvoice,
         fetchExpenses,
         fetchProducts,
         fetchCommissions,

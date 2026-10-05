@@ -599,11 +599,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
           </button>
 
           {maxMembersQuota !== null && (
-            <div className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
-              isMemberQuotaReached
+            <div className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${isMemberQuotaReached
                 ? 'bg-amber-50 text-amber-900 border-amber-300'
                 : 'bg-slate-50 text-slate-700 border-slate-200'
-            }`}>
+              }`}>
               <span>Quota: {members.length}/{maxMembersQuota}</span>
               {isMemberQuotaReached && (
                 <span className="text-[10px] uppercase font-black tracking-wide text-amber-900 bg-amber-200/80 px-1 py-0.5 rounded">
@@ -633,7 +632,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
       {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Invoices & Reports pages) */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
-          
+
           {/* Search Input with Autocomplete */}
           <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -706,11 +705,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                activeFiltersCount > 0
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-              }`}
+                }`}
             >
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
@@ -1587,11 +1585,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 <button
                   type="button"
                   onClick={() => setInvoiceViewMode('sheet')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'sheet'
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'sheet'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   <Receipt className="w-3.5 h-3.5" />
                   <span>Tax Sheet View</span>
@@ -1599,11 +1596,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 <button
                   type="button"
                   onClick={() => setInvoiceViewMode('pdf')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'pdf'
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'pdf'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>PDF Document View</span>
@@ -2061,11 +2057,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       const cleanVal = sanitizeDigits(e.target.value, 3);
                       setEditingMember(prev => ({ ...prev, age: cleanVal }));
                     }}
-                    className={`w-full px-3 py-2 border rounded-lg text-xs transition-colors ${
-                      editingMember.dob
+                    className={`w-full px-3 py-2 border rounded-lg text-xs transition-colors ${editingMember.dob
                         ? 'bg-slate-100 text-slate-700 border-slate-200 font-semibold cursor-not-allowed'
                         : 'bg-white border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500'
-                    }`}
+                      }`}
                   />
                 </div>
               </div>
@@ -2440,11 +2435,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <button
                     type="button"
                     onClick={() => setDateFilterType('expiryDate')}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      dateFilterType === 'expiryDate'
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${dateFilterType === 'expiryDate'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <Clock className="w-3.5 h-3.5" />
                     <span>Plan Expiry Date</span>
@@ -2452,11 +2446,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                   <button
                     type="button"
                     onClick={() => setDateFilterType('joinDate')}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      dateFilterType === 'joinDate'
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${dateFilterType === 'joinDate'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Joining Date</span>
@@ -2500,11 +2493,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
-                        selectedMonth === mPreset.value
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {mPreset.label}
                     </button>
@@ -2556,11 +2548,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                       key={st.id}
                       type="button"
                       onClick={() => setStatusFilter(st.id)}
-                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
-                        statusFilter === st.id
+                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${statusFilter === st.id
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {st.label}
                     </button>
@@ -2638,11 +2629,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         key={b.id}
                         type="button"
                         onClick={() => setBalanceFilter(b.id)}
-                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${
-                          balanceFilter === b.id
+                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${balanceFilter === b.id
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
+                          }`}
                       >
                         {b.label}
                       </button>
@@ -2664,11 +2654,10 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         key={g.id}
                         type="button"
                         onClick={() => setGenderFilter(g.id)}
-                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${
-                          genderFilter === g.id
+                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${genderFilter === g.id
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
+                          }`}
                       >
                         {g.label}
                       </button>
@@ -2699,6 +2688,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         </div>,
         document.body
       )}
-      </div>
+    </div>
   );
 };

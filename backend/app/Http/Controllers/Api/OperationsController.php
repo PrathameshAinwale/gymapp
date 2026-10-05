@@ -22,6 +22,7 @@ use App\Models\RevenueBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class OperationsController extends Controller
 {
@@ -30,25 +31,25 @@ class OperationsController extends Controller
     // ==========================================
     public function getProducts(Request $request)
     {
-        $gymId = $this->resolveGymId($request);
-        $query = Product::query();
-        if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-            });
-        }
-        $products = $query->get()->map(function ($p) {
-            return [
-                'id' => 'prod-' . $p->id,
-                'numericId' => $p->id,
-                'name' => $p->name,
-                'category' => $p->category,
-                'price' => (float)$p->price,
-                'stock' => (int)$p->stock,
-                'minStockAlert' => (int)$p->min_stock_alert,
-                'status' => $p->stock <= 0 ? 'Out of Stock' : ($p->stock <= $p->min_stock_alert ? 'Low Stock' : 'In Stock'),
-                'image' => $p->image,
-            ];
+        $gymId = $this->resolveGymId($request) ?: 0;
+        $products = Cache::remember("gym_products_v1_{$gymId}", 300, function () use ($gymId) {
+            $query = Product::query();
+            if ($gymId) {
+                $query->where('gym_id', $gymId);
+            }
+            return $query->get()->map(function ($p) {
+                return [
+                    'id' => 'prod-' . $p->id,
+                    'numericId' => $p->id,
+                    'name' => $p->name,
+                    'category' => $p->category,
+                    'price' => (float)$p->price,
+                    'stock' => (int)$p->stock,
+                    'minStockAlert' => (int)$p->min_stock_alert,
+                    'status' => $p->stock <= 0 ? 'Out of Stock' : ($p->stock <= $p->min_stock_alert ? 'Low Stock' : 'In Stock'),
+                    'image' => $p->image,
+                ];
+            })->toArray();
         });
 
         return response()->json(['success' => true, 'data' => $products]);
@@ -82,6 +83,8 @@ class OperationsController extends Controller
             'status' => $status,
             'image' => $request->image ?? null,
         ]);
+
+        $this->clearProductCache($product->gym_id);
 
         return response()->json([
             'success' => true,
@@ -119,6 +122,8 @@ class OperationsController extends Controller
             'image' => $request->input('image', $product->image),
         ]);
 
+        $this->clearProductCache($product->gym_id);
+
         return response()->json([
             'success' => true,
             'message' => 'Product updated in database',
@@ -139,25 +144,60 @@ class OperationsController extends Controller
     public function deleteProduct($id)
     {
         $numericId = (int)str_replace('prod-', '', $id);
-        Product::findOrFail($numericId)->delete();
+        $product = Product::findOrFail($numericId);
+        $gymId = $product->gym_id;
+        $product->delete();
+        $this->clearProductCache($gymId);
         return response()->json(['success' => true, 'message' => 'Product deleted from database']);
     }
 
     public function sellProduct(Request $request)
     {
-        $numericId = (int)str_replace('prod-', '', $request->productId);
-        $product = Product::findOrFail($numericId);
-        $qty = (int)($request->quantity ?? 1);
+        $activeGymId = $this->resolveGymId($request);
+        $rawItems = $request->input('items');
 
-        if ($qty <= 0) {
-            return response()->json(['success' => false, 'message' => 'Quantity must be at least 1'], 422);
+        // Normalize items array (support both batch cart items and single item)
+        if (!is_array($rawItems) || empty($rawItems)) {
+            $rawId = $request->input('productId', $request->input('product_id', $request->input('id')));
+            $rawItems = [
+                [
+                    'productId' => $rawId,
+                    'quantity' => (int)($request->input('quantity', 1)),
+                ]
+            ];
         }
 
-        if ($product->stock < $qty) {
-            return response()->json(['success' => false, 'message' => 'Insufficient stock'], 400);
+        // Validate products and stock
+        $sellItems = [];
+        $subtotal = 0;
+        foreach ($rawItems as $item) {
+            $rawId = $item['productId'] ?? $item['product_id'] ?? $item['id'] ?? null;
+            $numericId = (int)str_replace('prod-', '', (string)$rawId);
+            $qty = max(1, (int)($item['quantity'] ?? 1));
+
+            $product = Product::find($numericId);
+            if (!$product) {
+                return response()->json(['success' => false, 'message' => "Product not found (#{$numericId})"], 404);
+            }
+            if ($product->stock < $qty) {
+                return response()->json(['success' => false, 'message' => "Insufficient stock for {$product->name} (Available: {$product->stock})"], 400);
+            }
+
+            if (!$activeGymId) {
+                $activeGymId = $product->gym_id;
+            }
+
+            $lineSubtotal = (float)$product->price * $qty;
+            $subtotal += $lineSubtotal;
+
+            $sellItems[] = [
+                'product' => $product,
+                'quantity' => $qty,
+                'unitPrice' => (float)$product->price,
+                'lineTotal' => $lineSubtotal,
+            ];
         }
 
-        $activeGymId = $product->gym_id ?? $this->resolveGymId($request);
         $targetUserId = $request->input('user_id', $request->input('userId', $request->input('member_id', $request->input('memberId'))));
         $resolvedUserId = $targetUserId ? (int)str_replace('mem-', '', $targetUserId) : null;
         if (!$resolvedUserId || !User::where('id', $resolvedUserId)->exists()) {
@@ -166,39 +206,117 @@ class OperationsController extends Controller
                 ?? 1;
         }
 
-        $totalAmount = (float)$product->price * $qty;
+        $discount = max(0, (float)($request->input('discount', $request->input('discountAmount', 0))));
+        $totalAmount = max(0, $subtotal - $discount);
+
+        $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'GPay'));
+        $buyerName = trim($request->input('buyer_name', $request->input('buyerName', 'Walk-in Customer')));
+
+        // Build item titles summary
+        $itemTitles = array_map(function ($it) {
+            return "{$it['product']->name} (Qty: {$it['quantity']})";
+        }, $sellItems);
+        $summaryTitle = implode(' + ', $itemTitles);
+        $notes = $request->input('notes', "Pro Shop POS Sale: {$summaryTitle}");
+
         $authCreator = $request->user() ?: auth('sanctum')->user();
         $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
         $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name ?: 'Staff / Store'));
 
-        $result = DB::transaction(function () use ($product, $qty, $totalAmount, $activeGymId, $resolvedUserId, $creatorId, $creatorName) {
-            $newStock = $product->stock - $qty;
-            $status = $newStock <= 0 ? 'Out of Stock' : ($newStock <= $product->min_stock_alert ? 'Low Stock' : 'In Stock');
-            $product->update(['stock' => $newStock, 'status' => $status]);
+        $result = DB::transaction(function () use ($sellItems, $subtotal, $discount, $totalAmount, $activeGymId, $resolvedUserId, $creatorId, $creatorName, $paymentMethod, $buyerName, $summaryTitle, $notes) {
+            $updatedProducts = [];
+            foreach ($sellItems as $it) {
+                $p = $it['product'];
+                $newStock = $p->stock - $it['quantity'];
+                $status = $newStock <= 0 ? 'Out of Stock' : ($newStock <= $p->min_stock_alert ? 'Low Stock' : 'In Stock');
+                $p->update(['stock' => $newStock, 'status' => $status]);
+                $updatedProducts[] = [
+                    'id' => 'prod-' . $p->id,
+                    'name' => $p->name,
+                    'stock' => $newStock,
+                ];
+            }
+
+            $invoiceNo = 'INV-PROD-' . strtoupper(substr(uniqid(), -6));
 
             $inv = Invoice::create([
                 'gym_id' => $activeGymId,
-                'invoice_number' => 'INV-PROD-' . strtoupper(substr(uniqid(), -6)),
+                'invoice_number' => $invoiceNo,
                 'user_id' => $resolvedUserId,
                 'amount' => $totalAmount,
+                'total_amount' => $subtotal,
+                'pending_amount' => 0,
                 'date' => now()->toDateString(),
                 'issue_date' => now()->toDateString(),
                 'due_date' => now()->toDateString(),
+                'payment_method' => $paymentMethod,
                 'status' => 'Paid',
                 'created_by' => $creatorId,
                 'created_by_name' => $creatorName,
-                'items' => [['description' => "{$product->name} (Qty: {$qty})", 'amount' => $totalAmount]],
             ]);
 
-            return ['newStock' => $newStock, 'invoice' => $inv];
+            RevenueBilling::create([
+                'gym_id' => $activeGymId,
+                'type' => 'inflow',
+                'reference_no' => $invoiceNo,
+                'user_id' => $resolvedUserId,
+                'member_name' => $buyerName,
+                'plan_name' => $summaryTitle,
+                'title' => "{$buyerName} - {$summaryTitle}",
+                'category' => 'Pro Shop / Inventory',
+                'amount' => $totalAmount,
+                'date' => now()->toDateString(),
+                'payment_method' => $paymentMethod,
+                'status' => 'Paid',
+                'notes' => $notes,
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
+            ]);
+
+            return [
+                'invoice' => $inv,
+                'invoiceNo' => $invoiceNo,
+                'updatedProducts' => $updatedProducts,
+            ];
         });
+
+        $this->clearProductCache($activeGymId);
 
         return response()->json([
             'success' => true,
-            'message' => "Sold {$qty}x {$product->name}!",
-            'newStock' => $result['newStock'],
+            'message' => "Sold {$summaryTitle}!",
             'invoice' => $result['invoice'],
+            'invoiceNo' => $result['invoiceNo'],
+            'updatedProducts' => $result['updatedProducts'],
+            'buyerName' => $buyerName,
+            'amount' => $totalAmount,
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'paymentMethod' => $paymentMethod,
+            'items' => array_map(function ($it) {
+                return [
+                    'productId' => 'prod-' . $it['product']->id,
+                    'name' => $it['product']->name,
+                    'unitPrice' => $it['unitPrice'],
+                    'quantity' => $it['quantity'],
+                    'lineTotal' => $it['lineTotal'],
+                ];
+            }, $sellItems),
         ]);
+    }
+
+    private function clearProductCache($gymId): void
+    {
+        $id = $gymId ? (int)$gymId : 0;
+        Cache::forget("gym_products_v1_{$id}");
+        Cache::forget("gym_products_v1_0");
+    }
+
+    private function clearCommissionCache($gymId): void
+    {
+        $id = $gymId ? (int)$gymId : 0;
+        Cache::forget("gym_commissions_v1_{$id}");
+        Cache::forget("gym_commissions_v1_0");
     }
 
     // ==========================================
@@ -206,43 +324,43 @@ class OperationsController extends Controller
     // ==========================================
     public function getCommissions(Request $request)
     {
-        $gymId = $this->resolveGymId($request);
-        $query = Commission::query();
-        if ($gymId) {
-            $query->where(function ($q) use ($gymId) {
-                $q->where('gym_id', $gymId);
-            });
-        }
-        $records = $query->orderBy('date', 'desc')->get()->map(function ($c) {
-            $rate = (float)($c->rate_percent ?? 0);
+        $gymId = $this->resolveGymId($request) ?: 0;
+        $records = Cache::remember("gym_commissions_v1_{$gymId}", 60, function () use ($gymId) {
+            $query = Commission::query();
+            if ($gymId) {
+                $query->where('gym_id', $gymId);
+            }
+            return $query->orderBy('date', 'desc')->get()->map(function ($c) {
+                $rate = (float)($c->rate_percent ?? 0);
 
-            // Package amount is the PT plan / service price
-            $packageAmt = $c->package_amount !== null
-                ? (float)$c->package_amount
-                : (float)$c->amount;
+                // Package amount is the PT plan / service price
+                $packageAmt = $c->package_amount !== null
+                    ? (float)$c->package_amount
+                    : (float)$c->amount;
 
-            // Commission earned is the trainer incentive: (packageAmount * rate) / 100
-            $commissionEarned = $c->commission_earned !== null
-                ? (float)$c->commission_earned
-                : round(($packageAmt * $rate) / 100, 2);
+                // Commission earned is the trainer incentive: (packageAmount * rate) / 100
+                $commissionEarned = $c->commission_earned !== null
+                    ? (float)$c->commission_earned
+                    : round(($packageAmt * $rate) / 100, 2);
 
-            return [
-                'id' => 'com-' . $c->id,
-                'numericId' => $c->id,
-                'trainerId' => 'tr-' . $c->trainer_id,
-                'trainerName' => $c->trainer_name,
-                'memberName' => $c->member_name,
-                'planName' => $c->plan_name,
-                'sessionType' => $c->session_type,
-                'serviceType' => $c->session_type ?? $c->plan_name,
-                'ratePercent' => $rate,
-                'commissionPct' => $rate,
-                'amount' => $packageAmt,
-                'packageAmount' => $packageAmt,
-                'commissionEarned' => $commissionEarned,
-                'date' => $c->date?->format('Y-m-d') ?? (string)$c->date,
-                'status' => $c->status,
-            ];
+                return [
+                    'id' => 'com-' . $c->id,
+                    'numericId' => $c->id,
+                    'trainerId' => 'tr-' . $c->trainer_id,
+                    'trainerName' => $c->trainer_name,
+                    'memberName' => $c->member_name,
+                    'planName' => $c->plan_name,
+                    'sessionType' => $c->session_type,
+                    'serviceType' => $c->session_type ?? $c->plan_name,
+                    'ratePercent' => $rate,
+                    'commissionPct' => $rate,
+                    'amount' => $packageAmt,
+                    'packageAmount' => $packageAmt,
+                    'commissionEarned' => $commissionEarned,
+                    'date' => $c->date?->format('Y-m-d') ?? (string)$c->date,
+                    'status' => $c->status,
+                ];
+            })->toArray();
         });
 
         return response()->json(['success' => true, 'data' => $records]);
@@ -260,8 +378,9 @@ class OperationsController extends Controller
             ? (float)$request->commissionEarned
             : round(($packageAmount * $ratePercent) / 100, 2);
 
+        $gymId = $this->resolveGymId($request);
         $c = Commission::create([
-            'gym_id' => $this->resolveGymId($request),
+            'gym_id' => $gymId,
             'trainer_id' => $trainerId,
             'trainer_name' => $request->trainerName ?? $request->trainer_name ?? 'Trainer',
             'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
@@ -274,6 +393,8 @@ class OperationsController extends Controller
             'date' => $request->date ?? now()->toDateString(),
             'status' => $request->status ?? 'Pending',
         ]);
+
+        $this->clearCommissionCache($gymId);
 
         return response()->json([
             'success' => true,
@@ -302,6 +423,7 @@ class OperationsController extends Controller
         $numericId = (int)str_replace('com-', '', $id);
         $c = Commission::findOrFail($numericId);
         $c->update(['status' => $request->status ?? 'Paid']);
+        $this->clearCommissionCache($c->gym_id);
         return response()->json(['success' => true, 'message' => 'Commission updated in database']);
     }
 

@@ -338,7 +338,28 @@ class SuperadminController extends Controller
         if ($request->has('max_branches') && Schema::hasColumn('gyms', 'max_branches')) {
             $gym->max_branches = ($request->max_branches !== '' && $request->max_branches !== null) ? (int)$request->max_branches : null;
         }
-        if ($request->has('status')) $gym->status = $request->status;
+        if ($request->has('status')) {
+            $oldStatus = $gym->status;
+            $gym->status = $request->status;
+
+            // If changing to Suspended, revoke all active sessions for this facility's accounts
+            if ($request->status === 'Suspended' && $oldStatus !== 'Suspended') {
+                $usersQuery = User::where('role', '!=', 'superadmin')
+                    ->where(function ($q) use ($gym) {
+                        $q->where('gym_id', $gym->id);
+                        if ($gym->owner_id) {
+                            $q->orWhere('id', $gym->owner_id);
+                        }
+                    });
+                $userIds = $usersQuery->pluck('id')->unique()->filter()->values()->toArray();
+                if (!empty($userIds)) {
+                    DB::table('personal_access_tokens')
+                        ->where('tokenable_type', User::class)
+                        ->whereIn('tokenable_id', $userIds)
+                        ->delete();
+                }
+            }
+        }
         if ($request->has('notes') && Schema::hasColumn('gyms', 'notes')) $gym->notes = $request->notes;
         if ($request->has('features') && Schema::hasColumn('gyms', 'features')) $gym->features = $request->features;
 
@@ -433,6 +454,251 @@ class SuperadminController extends Controller
             ],
             'gym' => $gym,
             'token' => $token,
+        ]);
+    }
+
+    /**
+     * Stop all access for a Gym Owner and all accounts (members, trainers, staff) created under that gym.
+     * Revokes all active Sanctum tokens immediately and sets gym status to Suspended.
+     */
+    public function stopAccess(Request $request, $id)
+    {
+        $gym = Gym::with('owner')->find($id);
+
+        if (!$gym) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gym not found'
+            ], 404);
+        }
+
+        // 1. Gather all user IDs strictly associated with this gym (owner, trainers, members, staff)
+        $usersQuery = User::where('role', '!=', 'superadmin')
+            ->where(function ($q) use ($gym) {
+                $q->where('gym_id', $gym->id);
+                if ($gym->owner_id) {
+                    $q->orWhere('id', $gym->owner_id);
+                }
+            });
+
+        $userIds = $usersQuery->pluck('id')->unique()->filter()->values()->toArray();
+
+        // 2. Revoke all active Sanctum tokens immediately so sessions terminate instantly
+        if (!empty($userIds)) {
+            DB::table('personal_access_tokens')
+                ->where('tokenable_type', User::class)
+                ->whereIn('tokenable_id', $userIds)
+                ->delete();
+        }
+
+        // 3. Mark Gym status as Suspended
+        $gym->status = 'Suspended';
+        $gym->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Access stopped for {$gym->name}. All active sessions terminated and login blocked for owner and all " . count($userIds) . " associated accounts.",
+            'gym' => $gym->fresh('owner'),
+            'affected_accounts' => count($userIds)
+        ]);
+    }
+
+    /**
+     * Restore access for a Gym Owner and all accounts created under that gym.
+     */
+    public function restoreAccess(Request $request, $id)
+    {
+        $gym = Gym::with('owner')->find($id);
+
+        if (!$gym) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gym not found'
+            ], 404);
+        }
+
+        // Mark Gym status as Active
+        $gym->status = 'Active';
+        $gym->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Access restored successfully for {$gym->name}. Owner and all accounts can now log in.",
+            'gym' => $gym->fresh('owner')
+        ]);
+    }
+
+    /**
+     * Update Superadmin Login Password.
+     * Requires current password and two new password fields (new password and confirm new password).
+     */
+    public function updatePassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6|confirmed',
+        ], [
+            'current_password.required' => 'Please enter your current Superadmin password.',
+            'new_password.required' => 'Please enter a new password.',
+            'new_password.min' => 'New password must be at least 6 characters.',
+            'new_password.confirmed' => 'New password and confirmation password do not match.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Resolve Superadmin user
+        $user = $request->user() ?: auth('sanctum')->user();
+        if (!$user && $request->filled('superadmin_id')) {
+            $user = User::where('id', $request->superadmin_id)->where('role', 'superadmin')->first();
+        }
+        if (!$user && $request->filled('current_email')) {
+            $user = User::where('email', $request->current_email)->where('role', 'superadmin')->first();
+        }
+        if (!$user) {
+            $user = User::where('role', 'superadmin')->first();
+        }
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Superadmin account not found.'
+            ], 404);
+        }
+
+        // Verify current password against hash (or plain/initial fallbacks)
+        $currentMatches = Hash::check($request->current_password, $user->password);
+        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
+            $currentMatches = ($user->plain_password === $request->current_password);
+        }
+        if (!$currentMatches && !empty($user->initial_password)) {
+            $currentMatches = (Hash::check($request->current_password, $user->initial_password) || $user->initial_password === $request->current_password);
+        }
+
+        if (!$currentMatches) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Current password is incorrect. Please verify your existing password.',
+                'errors' => [
+                    'current_password' => ['Current password does not match.']
+                ]
+            ], 400);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        if (Schema::hasColumn('users', 'plain_password')) {
+            $user->plain_password = $request->new_password;
+        }
+        $user->initial_password = null;
+        $user->must_change_password = false;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Superadmin password updated successfully! Please use this new password for /superadmin login.',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ]
+        ]);
+    }
+
+    /**
+     * Update Superadmin Login Email.
+     * Requires current password verification and two email fields (new email and confirm email).
+     */
+    public function updateEmail(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required|string',
+            'new_email' => 'required|email|max:255|confirmed',
+        ], [
+            'current_password.required' => 'Please enter your current Superadmin password to authorize email change.',
+            'new_email.required' => 'Please enter a new email address.',
+            'new_email.email' => 'Please enter a valid email address.',
+            'new_email.confirmed' => 'New email and confirmation email do not match.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Resolve Superadmin user
+        $user = $request->user() ?: auth('sanctum')->user();
+        if (!$user && $request->filled('superadmin_id')) {
+            $user = User::where('id', $request->superadmin_id)->where('role', 'superadmin')->first();
+        }
+        if (!$user && $request->filled('current_email')) {
+            $user = User::where('email', $request->current_email)->where('role', 'superadmin')->first();
+        }
+        if (!$user) {
+            $user = User::where('role', 'superadmin')->first();
+        }
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Superadmin account not found.'
+            ], 404);
+        }
+
+        // Verify current password against hash
+        $currentMatches = Hash::check($request->current_password, $user->password);
+        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
+            $currentMatches = ($user->plain_password === $request->current_password);
+        }
+        if (!$currentMatches && !empty($user->initial_password)) {
+            $currentMatches = (Hash::check($request->current_password, $user->initial_password) || $user->initial_password === $request->current_password);
+        }
+
+        if (!$currentMatches) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Current password is incorrect. Identity verification failed.',
+                'errors' => [
+                    'current_password' => ['Current password does not match.']
+                ]
+            ], 400);
+        }
+
+        // Check if new email is already taken by another user
+        $emailExists = User::where('email', $request->new_email)
+            ->where('id', '!=', $user->id)
+            ->exists();
+
+        if ($emailExists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This email address is already assigned to another user account.',
+                'errors' => [
+                    'new_email' => ['This email address is already in use.']
+                ]
+            ], 422);
+        }
+
+        $user->email = $request->new_email;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Superadmin email updated successfully! Please use this new email for /superadmin login.',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ]
         ]);
     }
 
