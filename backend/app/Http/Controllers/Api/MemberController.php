@@ -486,11 +486,11 @@ class MemberController extends Controller
             if (!$creatorName && $creatorId) {
                 $creatorName = User::find($creatorId)?->name;
             }
-            if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
-                $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: ($authCreator?->name ?: 'prathamesh');
+            if (!$creatorName) {
+                $creatorName = $authCreator?->name ?: (User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff');
             }
             $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-            $creatorName = trim($cleanName) ?: 'prathamesh';
+            $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
 
             $invPayload = [
                 'gym_id' => $gymId,

@@ -54,9 +54,7 @@ export const PayDueModal = ({
 
   const totalDue = getInitialDueAmount(member);
 
-  const defaultCollectorName = (currentUser?.name && !currentUser.name.toLowerCase().includes('sohan'))
-    ? currentUser.name
-    : 'prathamesh';
+  const defaultCollectorName = currentUser?.name || '';
 
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [cashAmount, setCashAmount] = useState('');

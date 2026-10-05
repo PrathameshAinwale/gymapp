@@ -207,9 +207,8 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   doc.setTextColor(100, 116, 139);
   doc.text(`${gymAddress}  •  Phone: ${gymPhone}  •  GSTIN: ${gymGstin}`, margin, curY);
 
-  let rawCreator = invoice.createdByName || invoice.created_by_name || invoice.executive || invoice.creatorName || invoice.creator?.name || 'prathamesh';
-  if (rawCreator.toLowerCase().includes('sohan')) rawCreator = 'prathamesh';
-  const createdByName = rawCreator.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim() || 'prathamesh';
+  let rawCreator = invoice.createdByName || invoice.created_by_name || invoice.executive || invoice.creatorName || invoice.creator?.name || 'Staff';
+  const createdByName = rawCreator.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim() || 'Staff';
 
   // Soft Divider
   curY += 5;

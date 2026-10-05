@@ -33,9 +33,9 @@ class InvoiceController extends Controller
             ->keyBy('reference_no');
 
         $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
-        $defaultOwnerName = $owner ? $owner->name : 'prathamesh';
+        $defaultOwnerName = $owner ? $owner->name : 'Staff';
 
-        $invoices = $invoicesList->map(function ($inv) use ($inflowMap, $defaultOwnerName) {
+        $invoices = $invoicesList->map(function ($inv) use ($inflowMap, $owner, $defaultOwnerName) {
             $matchingInflow = $inflowMap->get($inv->invoice_number);
             $userProfile = $inv->user?->memberProfile;
             $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
@@ -46,15 +46,24 @@ class InvoiceController extends Controller
                 $status = 'Paid';
             }
 
-            $rawCreator = $inv->created_by_name ?: ($inv->creator?->name ?: ($matchingInflow?->created_by_name ?: ($matchingInflow?->creator?->name ?: null)));
-            $creatorRole = $inv->creator?->role ?: ($matchingInflow?->creator?->role ?: null);
-            if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
-                $rawCreator = $defaultOwnerName;
-                $creatorRole = 'Owner';
+            $creatorUser = $inv->creator ?: $matchingInflow?->creator;
+            $rawCreator = $inv->created_by_name;
+            // If created_by_name was corrupted/hardcoded to 'prathamesh' but actual creator user is different, use the actual creator's name
+            if ($creatorUser && strtolower((string)$rawCreator) === 'prathamesh' && strtolower((string)$creatorUser->name) !== 'prathamesh') {
+                $rawCreator = $creatorUser->name;
             }
+            if (!$rawCreator) {
+                $rawCreator = $creatorUser?->name ?: ($matchingInflow?->created_by_name ?: $defaultOwnerName);
+            }
+
+            $creatorRole = $creatorUser?->role ?: ($matchingInflow?->creator?->role ?: null);
+            if (!$creatorRole) {
+                $creatorRole = ($owner && strcasecmp($rawCreator, $owner->name) === 0) ? 'Owner' : 'Staff';
+            }
+
             $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
             $createdByName = trim($cleanName) ?: $defaultOwnerName;
-            $creatorRole = ucfirst($creatorRole ?: 'Owner');
+            $creatorRole = ucfirst(strtolower($creatorRole));
 
             return [
                 'id' => $inv->invoice_number,
@@ -235,7 +244,7 @@ class InvoiceController extends Controller
                 'invoiceUrl' => '#',
                 'createdBy' => $invoice->created_by,
                 'createdByName' => $invoice->created_by_name ?: $creatorName,
-                'creatorRole' => $authCreator?->role ?? 'staff',
+                'creatorRole' => ucfirst(strtolower($authCreator?->role ?? 'Staff')),
             ],
         ], 201);
     }

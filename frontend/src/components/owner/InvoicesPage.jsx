@@ -54,12 +54,22 @@ export const InvoicesPage = () => {
   } = useGymData();
   const { currentUser } = useAuth();
 
-  const resolveCreatorName = (name) => {
-    if (!name) return currentUser?.name || 'prathamesh';
-    const str = String(name).trim();
-    if (str.toLowerCase().includes('sohan')) return currentUser?.name || 'prathamesh';
+  const resolveCreatorName = (name, inv = null) => {
+    const raw = name || inv?.createdByName || inv?.created_by_name || inv?.executive || inv?.creator?.name;
+    if (!raw) return currentUser?.name || 'Staff';
+    const str = String(raw).trim();
     const cleaned = str.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim();
-    return cleaned || currentUser?.name || 'prathamesh';
+    return cleaned || currentUser?.name || 'Staff';
+  };
+
+  const resolveCreatorRole = (inv = null) => {
+    const role = inv?.creatorRole || inv?.creator_role || inv?.creator?.role;
+    if (role) return role;
+    const name = resolveCreatorName(inv?.createdByName || inv?.created_by_name, inv);
+    if (currentUser?.name && name.toLowerCase() === currentUser.name.toLowerCase()) {
+      return currentUser.role || 'Staff';
+    }
+    return 'Staff';
   };
 
   useEffect(() => {
@@ -1430,10 +1440,10 @@ export const InvoicesPage = () => {
                                       </div>
                                       <div className="min-w-0">
                                         <span className="font-semibold text-slate-800 text-xs block truncate max-w-[130px]">
-                                          {resolveCreatorName(inv.createdByName || inv.created_by_name)}
+                                          {resolveCreatorName(inv.createdByName || inv.created_by_name, inv)}
                                         </span>
                                         <span className="text-[9px] text-slate-400 capitalize block leading-none">
-                                          {inv.creatorRole || 'Owner'}
+                                          {resolveCreatorRole(inv)}
                                         </span>
                                       </div>
                                     </div>
@@ -1771,7 +1781,7 @@ export const InvoicesPage = () => {
                       <span className="text-slate-500">Created / Billed By:</span>
                       <strong className="text-slate-800 flex items-center gap-1 font-semibold text-xs">
                         <User className="w-3 h-3 text-slate-400" />
-                        <span>{resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name)}</span>
+                        <span>{resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}</span>
                       </strong>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-slate-200/60">
@@ -1917,7 +1927,7 @@ export const InvoicesPage = () => {
                       <span>Digitally Verified</span>
                     </div>
                     <div className="font-bold text-slate-800 text-xs mt-0.5">
-                      {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name)}
+                      {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}
                     </div>
                     <div className="text-[10px] text-slate-400">ArchFit Athletic Club</div>
                   </div>

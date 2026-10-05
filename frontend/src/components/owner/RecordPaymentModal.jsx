@@ -62,9 +62,7 @@ export const RecordPaymentModal = ({
   } = useGymData();
   const { currentUser } = useAuth();
 
-  const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('sohan'))
-    ? currentUser.name
-    : 'prathamesh';
+  const defaultHandledBy = currentUser?.name || '';
 
   // Selected Member
   const [selectedMemberId, setSelectedMemberId] = useState('');
@@ -1285,9 +1283,6 @@ export const RecordPaymentModal = ({
               {/* 1. Cash */}
               <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
                 <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
-                    💵
-                  </div>
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">Cash</span>
                     <span className="text-[10px] text-slate-500 block">Cash at Reception</span>
@@ -1324,9 +1319,6 @@ export const RecordPaymentModal = ({
               {/* 2. UPI */}
               <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
                 <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-100">
-                    📱
-                  </div>
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">UPI</span>
                     <span className="text-[10px] text-slate-500 block">GPay, PhonePe, Paytm</span>
@@ -1363,9 +1355,6 @@ export const RecordPaymentModal = ({
               {/* 3. Account Transfer */}
               <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
                 <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-                  <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0 border border-sky-100">
-                    🏦
-                  </div>
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
                     <span className="text-[10px] text-slate-500 block">NEFT / IMPS / Netbanking</span>

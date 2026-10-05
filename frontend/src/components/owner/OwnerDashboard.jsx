@@ -496,12 +496,22 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
   const netCashBalance = (totalRevenue || gymInflowSum) - gymExpensesSum;
 
-  const resolveCreatorName = (name) => {
-    if (!name) return currentUser?.name || 'prathamesh';
-    const str = String(name).trim();
-    if (str.toLowerCase().includes('sohan')) return currentUser?.name || 'prathamesh';
+  const resolveCreatorName = (name, inv = null) => {
+    const raw = name || inv?.createdByName || inv?.created_by_name || inv?.executive || inv?.creator?.name;
+    if (!raw) return currentUser?.name || 'Staff';
+    const str = String(raw).trim();
     const cleaned = str.replace(/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i, '').trim();
-    return cleaned || currentUser?.name || 'prathamesh';
+    return cleaned || currentUser?.name || 'Staff';
+  };
+
+  const resolveCreatorRole = (inv = null) => {
+    const role = inv?.creatorRole || inv?.creator_role || inv?.creator?.role;
+    if (role) return role;
+    const name = resolveCreatorName(inv?.createdByName || inv?.created_by_name, inv);
+    if (currentUser?.name && name.toLowerCase() === currentUser.name.toLowerCase()) {
+      return currentUser.role || 'Staff';
+    }
+    return 'Staff';
   };
 
   // Recent invoices audit log with creator details
@@ -509,8 +519,8 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
     if (ownerStats?.recentInvoices && ownerStats.recentInvoices.length > 0) {
       return ownerStats.recentInvoices.map((inv) => ({
         ...inv,
-        createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name),
-        creatorRole: inv.creatorRole || 'Owner'
+        createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name, inv),
+        creatorRole: resolveCreatorRole(inv)
       }));
     }
     return (invoices || []).slice(0, 6).map((inv) => ({
@@ -522,10 +532,10 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
       amount: Number(inv.amount || inv.total_amount || 0),
       status: inv.status || 'Paid',
       date: inv.date || inv.created_at || new Date().toISOString().split('T')[0],
-      createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name),
-      creatorRole: inv.creatorRole || 'Owner'
+      createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name, inv),
+      creatorRole: resolveCreatorRole(inv)
     }));
-  }, [ownerStats, invoices, currentUser?.name]);
+  }, [ownerStats, invoices, currentUser?.name, currentUser?.role]);
 
   // Dynamic values lookup map for all available stat cards
   const cardValuesMap = {

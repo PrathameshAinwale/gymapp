@@ -505,12 +505,16 @@ class OperationsController extends Controller
         $authCreator = $request->user() ?: auth('sanctum')->user();
         $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
         $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name));
-        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+        if (!$creatorName && $creatorId) {
+            $creatorUser = User::find($creatorId);
+            $creatorName = $creatorUser?->name;
+        }
+        if (!$creatorName) {
             $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
-            $creatorName = $owner ? $owner->name : 'prathamesh';
+            $creatorName = $owner ? $owner->name : ($authCreator?->name ?: 'Staff');
         }
         $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-        $creatorName = trim($cleanName) ?: 'prathamesh';
+        $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
 
         $invPrefix = $type === 'extension' ? 'INV-EXT-' : 'INV-FRZ-';
         $invNum = $invPrefix . strtoupper(substr(uniqid(), -6));
@@ -702,12 +706,16 @@ class OperationsController extends Controller
         $authCreator = $request->user() ?: auth('sanctum')->user();
         $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
         $creatorName = $request->input('created_by_name', $request->input('createdByName', $authCreator?->name));
-        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
+        if (!$creatorName && $creatorId) {
+            $creatorUser = User::find($creatorId);
+            $creatorName = $creatorUser?->name;
+        }
+        if (!$creatorName) {
             $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
-            $creatorName = $owner ? $owner->name : 'prathamesh';
+            $creatorName = $owner ? $owner->name : ($authCreator?->name ?: 'Staff');
         }
         $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-        $creatorName = trim($cleanName) ?: 'prathamesh';
+        $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
 
         $invNum = 'INV-TRF-' . strtoupper(substr(uniqid(), -6));
         $billedUserId = $toMemberId ?: ($fromMemberId ?: 1);

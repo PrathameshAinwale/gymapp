@@ -138,15 +138,18 @@ class DashboardController extends Controller
             ->take(6)
             ->get()
             ->map(function ($inv) use ($gymOwner) {
-                $rawCreator = $inv->created_by_name ?: ($inv->creator?->name ?: null);
-                $creatorRole = $inv->creator?->role;
-                if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
-                    $rawCreator = $gymOwner ? $gymOwner->name : 'prathamesh';
-                    $creatorRole = 'Owner';
+                $creatorUser = $inv->creator;
+                $rawCreator = $inv->created_by_name;
+                if ($creatorUser && strtolower((string)$rawCreator) === 'prathamesh' && strtolower((string)$creatorUser->name) !== 'prathamesh') {
+                    $rawCreator = $creatorUser->name;
                 }
+                if (!$rawCreator) {
+                    $rawCreator = $creatorUser?->name ?: ($gymOwner ? $gymOwner->name : 'Staff');
+                }
+                $creatorRole = $creatorUser?->role ?: (($gymOwner && strcasecmp($rawCreator, $gymOwner->name) === 0) ? 'Owner' : 'Staff');
                 $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
-                $createdByName = trim($cleanName) ?: 'prathamesh';
-                $creatorRole = ucfirst($creatorRole ?: 'Owner');
+                $createdByName = trim($cleanName) ?: ($gymOwner ? $gymOwner->name : 'Staff');
+                $creatorRole = ucfirst(strtolower($creatorRole ?: 'Staff'));
                 return [
                     'id' => $inv->invoice_number,
                     'numericId' => $inv->id,

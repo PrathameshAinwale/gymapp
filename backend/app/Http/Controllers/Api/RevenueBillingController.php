@@ -245,11 +245,11 @@ class RevenueBillingController extends Controller
             $creatorUser = User::find($creatorId);
             $creatorName = $creatorUser?->name;
         }
-        if (!$creatorName || str_contains(strtolower($creatorName), 'sohan')) {
-            $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: ($authCreator?->name ?: 'prathamesh');
+        if (!$creatorName) {
+            $creatorName = $authCreator?->name ?: (User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff');
         }
         $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-        $creatorName = trim($cleanName) ?: 'prathamesh';
+        $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
 
         $record = RevenueBilling::create([
             'gym_id' => $gymId,
@@ -508,16 +508,25 @@ class RevenueBillingController extends Controller
             $status = 'Paid';
         }
 
-        $rawCreator = $item->created_by_name ?: ($matchingInvoice?->created_by_name ?: ($item->creator?->name ?: ($matchingInvoice?->creator?->name ?: null)));
-        $creatorRole = $item->creator?->role ?: ($matchingInvoice?->creator?->role ?: null);
-        if (!$rawCreator || str_contains(strtolower($rawCreator), 'sohan')) {
-            $owner = User::where('gym_id', $item->gym_id)->where('role', 'owner')->first();
-            $rawCreator = $owner ? $owner->name : 'prathamesh';
-            $creatorRole = 'Owner';
+        $creatorUser = $item->creator ?: $matchingInvoice?->creator;
+        $rawCreator = $item->created_by_name;
+        if ($creatorUser && strtolower((string)$rawCreator) === 'prathamesh' && strtolower((string)$creatorUser->name) !== 'prathamesh') {
+            $rawCreator = $creatorUser->name;
+        }
+        if (!$rawCreator) {
+            $rawCreator = $creatorUser?->name ?: ($matchingInvoice?->created_by_name ?: null);
+        }
+        $creatorRole = $creatorUser?->role ?: ($matchingInvoice?->creator?->role ?: null);
+        $owner = User::where('gym_id', $item->gym_id)->where('role', 'owner')->first();
+        if (!$rawCreator) {
+            $rawCreator = $owner ? $owner->name : 'Staff';
+        }
+        if (!$creatorRole) {
+            $creatorRole = ($owner && strcasecmp($rawCreator, $owner->name) === 0) ? 'Owner' : 'Staff';
         }
         $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
-        $createdByName = trim($cleanName) ?: 'prathamesh';
-        $creatorRole = ucfirst($creatorRole ?: 'Owner');
+        $createdByName = trim($cleanName) ?: ($owner ? $owner->name : 'Staff');
+        $creatorRole = ucfirst(strtolower($creatorRole ?: 'Staff'));
 
         return [
             'id' => $item->reference_no,
