@@ -5,6 +5,7 @@ import { Modal } from '../common/Modal';
 import MemberSearchSelect from '../common/MemberSearchSelect';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
+import { calculatePlanExpiryDate } from '../../utils/dateUtils';
 import {
   hasSqlInjection,
   sanitizeDecimal,
@@ -162,29 +163,11 @@ export const RecordPaymentModal = ({
       }
     }
 
-    try {
-      const base = parseLocalDate(effectiveBaseStr);
-      if (isNaN(base.getTime())) return '';
-      let end = new Date(base.getTime());
+    const durationMonths = Number(plan.durationMonths || plan.duration_months) || 1;
+    const periodStr = plan.period || '';
+    const bonusDays = Number(plan.offerDays || plan.offer_days) || 0;
 
-      const periodStr = plan.period || '';
-      const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-      if (matchDays) {
-        end.setDate(end.getDate() + parseInt(matchDays[1], 10));
-      } else {
-        const months = Number(plan.durationMonths) || 1;
-        end = addMonthsPreservingDay(end, months);
-      }
-
-      const bonusDays = Number(plan.offerDays || plan.offer_days) || 0;
-      if (bonusDays > 0) {
-        end.setDate(end.getDate() + bonusDays);
-      }
-      return formatDate(end);
-    } catch (e) {
-      console.warn('Date calculation error:', e);
-      return '';
-    }
+    return calculatePlanExpiryDate(effectiveBaseStr, durationMonths, periodStr, bonusDays);
   };
 
   // Auto-fetch data on open

@@ -5,6 +5,7 @@ import { Modal } from '../common/Modal';
 import { MembershipPlanModal } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
+import { calculatePlanExpiryDate } from '../../utils/dateUtils';
 import {
   isValidEmail,
   isValidPhone,
@@ -516,30 +517,11 @@ export const AddMemberModal = ({
       }
     }
 
-    try {
-      const start = parseLocalDate(baseDateStr);
-      if (isNaN(start.getTime())) return '';
-      let end = new Date(start.getTime());
-      const periodStr = plan.period || '';
-      const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-      if (matchDays) {
-        end.setDate(end.getDate() + parseInt(matchDays[1], 10));
-      } else {
-        const months = Number(plan.durationMonths) || 1;
-        end = addMonthsPreservingDay(end, months);
-      }
-      const bonusDays = Number(plan.offerDays || plan.offer_days) || 0;
-      if (bonusDays > 0) {
-        end.setDate(end.getDate() + bonusDays);
-      }
-      const year = end.getFullYear();
-      const month = String(end.getMonth() + 1).padStart(2, '0');
-      const day = String(end.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    } catch (e) {
-      console.warn('Date computation error:', e);
-      return '';
-    }
+    const durationMonths = Number(plan.durationMonths || plan.duration_months) || 1;
+    const periodStr = plan.period || '';
+    const bonusDays = Number(plan.offerDays || plan.offer_days) || 0;
+
+    return calculatePlanExpiryDate(baseDateStr, durationMonths, periodStr, bonusDays);
   };
 
   // Auto-calculate Membership End Date whenever plan or start date changes (if not manually overridden)

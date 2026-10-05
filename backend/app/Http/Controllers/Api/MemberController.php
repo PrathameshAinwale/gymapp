@@ -381,13 +381,21 @@ class MemberController extends Controller
                 }
             }
         } else {
-            $expiryDate = now()->addMonths(1)->toDateString();
+            $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
+            $expiryDate = $startCarbon->day === 1 
+                ? $startCarbon->copy()->endOfMonth()->toDateString() 
+                : $startCarbon->copy()->addDays(30)->toDateString();
+
             if ($planId) {
                 $plan = Plan::find($planId);
                 if ($plan) {
                     $durationMonths = (int)($plan->duration_months ?? 1);
                     $offerDays = (int)($plan->offer_days ?? 0);
-                    $expiry = now()->addMonths($durationMonths);
+                    if ($startCarbon->day === 1) {
+                        $expiry = $startCarbon->copy()->addMonths($durationMonths - 1)->endOfMonth();
+                    } else {
+                        $expiry = $startCarbon->copy()->addDays($durationMonths * 30);
+                    }
                     if ($offerDays > 0) {
                         $expiry = $expiry->addDays($offerDays);
                     }

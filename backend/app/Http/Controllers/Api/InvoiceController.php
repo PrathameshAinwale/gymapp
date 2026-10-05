@@ -199,9 +199,14 @@ class InvoiceController extends Controller
             if ($request->expiry_date || $request->expiryDate) {
                 $updateData['expiry_date'] = $request->expiry_date ?? $request->expiryDate;
             } elseif ($plan) {
-                $months = $plan->duration_months ?? 1;
+                $months = (int)($plan->duration_months ?? 1);
                 $offerDays = (int)($plan->offer_days ?? 0);
-                $expiry = now()->addMonths($months);
+                $startCarbon = now();
+                if ($startCarbon->day === 1) {
+                    $expiry = $startCarbon->copy()->addMonths($months - 1)->endOfMonth();
+                } else {
+                    $expiry = $startCarbon->copy()->addDays($months * 30);
+                }
                 if ($offerDays > 0) {
                     $expiry = $expiry->addDays($offerDays);
                 }

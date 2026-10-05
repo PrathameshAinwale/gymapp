@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
-import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate } from '../utils/dateUtils';
+import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate, calculatePlanExpiryDate } from '../utils/dateUtils';
 
 const GymDataContext = createContext(null);
 
@@ -1720,27 +1720,10 @@ export const GymDataProvider = ({ children }) => {
       }
     }
 
-    let expiry = new Date(baseDate.getTime());
+    const durationMonths = Number(selectedPlan?.durationMonths || selectedPlan?.duration_months) || 1;
     const periodStr = selectedPlan?.period || '';
-    const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-    if (matchDays) {
-      expiry.setDate(expiry.getDate() + parseInt(matchDays[1], 10));
-    } else {
-      const months = Number(selectedPlan?.durationMonths) || 1;
-      const originalDay = expiry.getDate();
-      expiry.setDate(1);
-      expiry.setMonth(expiry.getMonth() + months);
-      const daysInTargetMonth = new Date(expiry.getFullYear(), expiry.getMonth() + 1, 0).getDate();
-      expiry.setDate(Math.min(originalDay, daysInTargetMonth));
-    }
     const bonusDays = Number(selectedPlan?.offerDays || selectedPlan?.offer_days) || 0;
-    if (bonusDays > 0) {
-      expiry.setDate(expiry.getDate() + bonusDays);
-    }
-    const year = expiry.getFullYear();
-    const month = String(expiry.getMonth() + 1).padStart(2, '0');
-    const day = String(expiry.getDate()).padStart(2, '0');
-    const expiryStr = `${year}-${month}-${day}`;
+    const expiryStr = calculatePlanExpiryDate(baseDate, durationMonths, periodStr, bonusDays);
     const newStatus = calculateMemberStatus(expiryStr, 'Active');
 
     try {
@@ -1853,27 +1836,10 @@ export const GymDataProvider = ({ children }) => {
           }
         }
       }
-      let target = new Date(baseDate.getTime());
+      const durationMonths = Number(selectedPlan?.durationMonths || selectedPlan?.duration_months) || 1;
       const periodStr = selectedPlan?.period || '';
-      const matchDays = periodStr.match(/(\d+)\s*Days?/i);
-      if (matchDays) {
-        target.setDate(target.getDate() + parseInt(matchDays[1], 10));
-      } else {
-        const months = Number(selectedPlan?.durationMonths) || 1;
-        const originalDay = target.getDate();
-        target.setDate(1);
-        target.setMonth(target.getMonth() + months);
-        const daysInTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-        target.setDate(Math.min(originalDay, daysInTargetMonth));
-      }
       const bonusDays = Number(selectedPlan?.offerDays || selectedPlan?.offer_days) || 0;
-      if (bonusDays > 0) {
-        target.setDate(target.getDate() + bonusDays);
-      }
-      const year = target.getFullYear();
-      const month = String(target.getMonth() + 1).padStart(2, '0');
-      const day = String(target.getDate()).padStart(2, '0');
-      calculatedExpiry = `${year}-${month}-${day}`;
+      calculatedExpiry = calculatePlanExpiryDate(baseDate, durationMonths, periodStr, bonusDays);
     }
 
     const resolvedMemberName = memberName || members.find((m) => m.id === memberId)?.name || 'Member';

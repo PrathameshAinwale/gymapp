@@ -121,3 +121,58 @@ export const recordMatchesDate = (recordDateOrObj, targetIso) => {
 
   return false;
 };
+
+/**
+ * Calculate Plan Expiry Date based on gym business rules:
+ * - If starting on the 1st of the month:
+ *   Plan ends on the last day of the target month (e.g. 1-10-26 ends on 31-10-26 for 31-day month,
+ *   or 30-11-26 for 30-day month).
+ * - Otherwise (if starting on any different date):
+ *   Membership expires after 30 days (or durationMonths * 30 days).
+ * - Plus any bonus offer days if applicable.
+ */
+export const calculatePlanExpiryDate = (startDateStr, durationMonths = 1, periodStr = '', offerDays = 0) => {
+  if (!startDateStr) return '';
+  try {
+    const cleanStr = String(startDateStr).split('T')[0];
+    const parts = cleanStr.split('-');
+    let start;
+    if (parts.length === 3) {
+      start = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    } else {
+      start = new Date(cleanStr);
+    }
+    if (isNaN(start.getTime())) return '';
+
+    let end;
+    const matchDays = (periodStr || '').match(/(\d+)\s*Days?/i);
+    if (matchDays) {
+      end = new Date(start.getTime());
+      end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+    } else {
+      const months = Number(durationMonths) || 1;
+      if (start.getDate() === 1) {
+        // Starts on 1st of month: ends on the last day of the (months) month
+        // Day 0 of start.getMonth() + months gives the exact last day of the target month
+        end = new Date(start.getFullYear(), start.getMonth() + months, 0);
+      } else {
+        // Any other date: expires after 30 days per month
+        end = new Date(start.getTime());
+        end.setDate(end.getDate() + (months * 30));
+      }
+    }
+
+    const bonus = Number(offerDays) || 0;
+    if (bonus > 0) {
+      end.setDate(end.getDate() + bonus);
+    }
+
+    const year = end.getFullYear();
+    const month = String(end.getMonth() + 1).padStart(2, '0');
+    const day = String(end.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.warn('calculatePlanExpiryDate error:', e);
+    return '';
+  }
+};
