@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, DollarSign, Calendar, Tag, Gift, Award, CheckCircle2, ShieldCheck, X } from 'lucide-react';
+import { Sparkles, Calendar, Tag, Gift, Award, CheckCircle2, ShieldCheck, Dumbbell, Layers, X } from 'lucide-react';
 import Modal from './Modal';
 import { useGymData } from '../../context/GymDataContext';
 import { hasSqlInjection, preventNonNumericKey, sanitizeDecimal } from '../../utils/validation';
 
-const DURATION_PRESETS = [
-  { label: '1 Mo', months: 1, period: 'Monthly (1 Month)' },
+export const PACKAGE_TYPES = [
+  'Gym-Cardio',
+  'Gym-Cardio-Crossfit',
+  'Crossfit',
+  'Locker',
+  'Personal Training',
+  'Massage',
+  'Activities',
+  'Functional Training',
+  'Kids Training',
+  'Club Membership',
+  'Zumba',
+  'General Fitness'
+];
+
+export const DURATION_PRESETS = [
+  { label: '1 Mo', months: 1, period: '1 Month' },
   { label: '2 Mo', months: 2, period: '2 Months' },
-  { label: '3 Mo', months: 3, period: 'Quarterly (3 Months)' },
-  { label: '6 Mo', months: 6, period: 'Half-Yearly (6 Months)' },
+  { label: '3 Mo', months: 3, period: '3 Months' },
+  { label: '6 Mo', months: 6, period: '6 Months' },
   { label: '9 Mo', months: 9, period: '9 Months' },
-  { label: '12 Mo / 1 Yr', months: 12, period: 'Annual (12 Months)' }
+  { label: '12 Mo (1 Yr)', months: 12, period: '12 Months' }
 ];
 
 const DEFAULT_FEATURES = [
@@ -24,6 +39,7 @@ export function MembershipPlanModal({
   isOpen,
   onClose,
   plan = null,
+  defaultPackageType = 'Gym-Cardio',
   onSuccess,
   isNested = false
 }) {
@@ -31,18 +47,21 @@ export function MembershipPlanModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditing = Boolean(plan && plan.id);
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
 
   const [formData, setFormData] = useState({
+    packageType: defaultPackageType || 'Gym-Cardio',
     name: '',
-    price: 1999,
-    period: 'Monthly (1 Month)',
+    period: '1 Month',
     durationMonths: 1,
-    popular: false,
+    sessions: '',
+    price: 1999,
     discount: 0,
     maxDiscount: 0,
     offer: '',
     offerDays: 0,
-    status: 'active',
+    status: 'Active',
+    popular: false,
     featuresText: DEFAULT_FEATURES.join('\n')
   });
 
@@ -56,38 +75,49 @@ export function MembershipPlanModal({
             ? plan.features.split('\n')
             : DEFAULT_FEATURES;
 
+        const hasPreset = DURATION_PRESETS.some(
+          (p) => p.period === plan.period || p.months === Number(plan.durationMonths ?? plan.duration_months)
+        );
+        setIsCustomDuration(!hasPreset && Boolean(plan.period));
+
         setFormData({
+          packageType: plan.packageType || plan.package_type || plan.category || defaultPackageType || 'Gym-Cardio',
           name: plan.name || '',
-          price: plan.price ?? 1999,
-          period: plan.period || 'Monthly (1 Month)',
+          period: plan.period || '1 Month',
           durationMonths: plan.durationMonths ?? plan.duration_months ?? 1,
-          popular: Boolean(plan.popular ?? plan.is_popular),
+          sessions: plan.sessions || '',
+          price: plan.price ?? 1999,
           discount: plan.discount ?? 0,
           maxDiscount: plan.maxDiscount ?? plan.max_discount ?? 0,
           offer: plan.offer || plan.offerText || '',
           offerDays: Number(plan.offerDays ?? plan.offer_days ?? 0),
-          status: plan.status || 'active',
+          status: plan.status ? (plan.status.toLowerCase() === 'active' ? 'Active' : 'Inactive') : 'Active',
+          popular: Boolean(plan.popular ?? plan.is_popular),
           featuresText: features.filter(Boolean).join('\n')
         });
       } else {
+        setIsCustomDuration(false);
         setFormData({
+          packageType: defaultPackageType || 'Gym-Cardio',
           name: '',
-          price: 1999,
-          period: 'Monthly (1 Month)',
+          period: '1 Month',
           durationMonths: 1,
-          popular: false,
+          sessions: '',
+          price: 1999,
           discount: 0,
           maxDiscount: 0,
           offer: '',
           offerDays: 0,
-          status: 'active',
+          status: 'Active',
+          popular: false,
           featuresText: DEFAULT_FEATURES.join('\n')
         });
       }
     }
-  }, [isOpen, plan]);
+  }, [isOpen, plan, defaultPackageType]);
 
-  const handleDurationSelect = (preset) => {
+  // Handle duration preset selection
+  const handleDurationPresetSelect = (preset) => {
     setFormData((prev) => ({
       ...prev,
       durationMonths: preset.months,
@@ -95,18 +125,25 @@ export function MembershipPlanModal({
     }));
   };
 
-  const handleCustomDurationChange = (val) => {
-    const cleanVal = sanitizeDecimal(val);
-    const months = parseFloat(cleanVal) || 1;
-    let periodLabel = `${months} Months`;
-    const matchedPreset = DURATION_PRESETS.find((p) => p.months === months);
-    if (matchedPreset) {
-      periodLabel = matchedPreset.period;
+  // Handle typing inside duration text input
+  const handlePeriodTextChange = (text) => {
+    let parsedMonths = 1;
+    const match = text.match(/(\d+(\.\d+)?)/);
+    if (match) {
+      const num = parseFloat(match[1]);
+      if (text.toLowerCase().includes('day')) {
+        parsedMonths = Math.max(0.2, Math.round((num / 30) * 10) / 10);
+      } else if (text.toLowerCase().includes('year') || text.toLowerCase().includes('yr')) {
+        parsedMonths = num * 12;
+      } else {
+        parsedMonths = num;
+      }
     }
+
     setFormData((prev) => ({
       ...prev,
-      durationMonths: cleanVal,
-      period: periodLabel
+      period: text,
+      durationMonths: parsedMonths || 1
     }));
   };
 
@@ -125,7 +162,7 @@ export function MembershipPlanModal({
     }
 
     if (!formData.name.trim()) {
-      addToast('Please enter a plan name.', 'warning');
+      addToast('Please enter a package title.', 'warning');
       return;
     }
 
@@ -138,19 +175,23 @@ export function MembershipPlanModal({
 
       const payload = {
         name: formData.name.trim(),
-        price: Number(formData.price) || 0,
-        period: formData.period,
-        durationMonths: Number(formData.durationMonths) || 1,
+        package_type: formData.packageType,
+        packageType: formData.packageType,
+        category: formData.packageType,
+        period: formData.period || '1 Month',
         duration_months: Number(formData.durationMonths) || 1,
-        popular: Boolean(formData.popular),
-        is_popular: Boolean(formData.popular),
+        durationMonths: Number(formData.durationMonths) || 1,
+        sessions: formData.sessions.trim() || null,
+        price: Number(formData.price) || 0,
         discount: Number(formData.discount) || 0,
         max_discount: Number(formData.maxDiscount) || 0,
         maxDiscount: Number(formData.maxDiscount) || 0,
         offer: formData.offer.trim() || null,
-        offerDays: Number(formData.offerDays) || 0,
         offer_days: Number(formData.offerDays) || 0,
-        status: formData.status || 'active',
+        offerDays: Number(formData.offerDays) || 0,
+        status: formData.status || 'Active',
+        popular: Boolean(formData.popular),
+        is_popular: Boolean(formData.popular),
         features
       };
 
@@ -178,30 +219,127 @@ export function MembershipPlanModal({
       isOpen={isOpen}
       onClose={onClose}
       isNested={isNested}
-      title={isEditing ? `Edit Plan Package: ${formData.name || 'Plan'}` : 'Create New Membership Package (₹ INR)'}
+      title={isEditing ? `Edit Plan: ${formData.name || 'Plan'}` : 'Create New Membership Plan'}
       maxWidth="max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-left">
-        {/* Plan Name */}
+        {/* 1. Package Type Selector */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Package Type <span className="text-rose-500">*</span></span>
+          </label>
+          <select
+            value={formData.packageType}
+            onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
+          >
+            {PACKAGE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 2. Package Title Field */}
         <div>
           <label className="block text-xs font-bold text-slate-700 mb-1">
-            Plan Package Name <span className="text-rose-500">*</span>
+            Package Title / Plan Name <span className="text-rose-500">*</span>
           </label>
           <input
             type="text"
             required
-            placeholder="e.g. Standard 3 Months / Annual VIP Elite"
+            placeholder="e.g. Standard Cardio Monthly / Elite Crossfit 3 Mo"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
           />
         </div>
 
-        {/* Price & Duration */}
+        {/* 3. Duration Field (Dropdown Selector Only) */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-emerald-600" />
+              <span>Duration <span className="text-rose-500">*</span></span>
+            </label>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              {formData.durationMonths || 1} Month(s) Validity
+            </span>
+          </div>
+
+          <select
+            value={
+              isCustomDuration
+                ? '__custom__'
+                : DURATION_PRESETS.find((p) => p.period === formData.period)?.period ||
+                  DURATION_PRESETS.find((p) => p.months === Number(formData.durationMonths))?.period ||
+                  '1 Month'
+            }
+            onChange={(e) => {
+              if (e.target.value === '__custom__') {
+                setIsCustomDuration(true);
+              } else {
+                setIsCustomDuration(false);
+                const preset = DURATION_PRESETS.find((p) => p.period === e.target.value);
+                if (preset) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    period: preset.period,
+                    durationMonths: preset.months
+                  }));
+                }
+              }
+            }}
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
+          >
+            {DURATION_PRESETS.map((p) => (
+              <option key={p.period} value={p.period}>
+                {p.period}
+              </option>
+            ))}
+            <option value="__custom__">Custom Duration (Type Manually)...</option>
+          </select>
+
+          {/* Typeable input shown only if custom duration is selected */}
+          {isCustomDuration && (
+            <div className="mt-2">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type custom duration (e.g. 45 Days, 18 Months)"
+                value={formData.period}
+                onChange={(e) => handlePeriodTextChange(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-2xs"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 4. Sessions Field */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+              <Dumbbell className="w-3 h-3 text-emerald-600" />
+              <span>Sessions</span>
+            </label>
+            <span className="text-[10px] text-slate-400">e.g. 12 Sessions, or Unlimited</span>
+          </div>
+          <input
+            type="text"
+            placeholder="e.g. Unlimited, 12 Sessions, or 1"
+            value={formData.sessions}
+            onChange={(e) => setFormData({ ...formData, sessions: e.target.value })}
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+          />
+        </div>
+
+        {/* 5. Amount & Max Discount */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Price (₹ INR) <span className="text-rose-500">*</span>
+              Amount (₹ INR) <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
@@ -220,77 +358,9 @@ export function MembershipPlanModal({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700">
-                Duration (Months) <span className="text-rose-500">*</span>
-              </label>
-              <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                {formData.durationMonths} Mo Validity
-              </span>
-            </div>
-            <input
-              type="number"
-              min="0.5"
-              step="any"
-              required
-              inputMode="decimal"
-              placeholder="e.g. 1, 2, 3, 6, 12"
-              value={formData.durationMonths}
-              onKeyDown={(e) => preventNonNumericKey(e, true)}
-              onChange={(e) => handleCustomDurationChange(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-bold"
-            />
-          </div>
-        </div>
-
-        {/* Quick Duration Preset Chips */}
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
-            Quick Duration Presets:
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {DURATION_PRESETS.map((preset) => {
-              const isSelected = Number(formData.durationMonths) === preset.months;
-              return (
-                <button
-                  key={preset.months}
-                  type="button"
-                  onClick={() => handleDurationSelect(preset)}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all border ${
-                    isSelected
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Discount & Max Discount Ceiling */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Default Discount (₹ INR)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
-              <input
-                type="number"
-                min="0"
-                inputMode="decimal"
-                placeholder="0"
-                value={formData.discount}
-                onKeyDown={(e) => preventNonNumericKey(e, true)}
-                onChange={(e) => setFormData({ ...formData, discount: sanitizeDecimal(e.target.value) })}
-                className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
-              />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">Standard flat discount applied on plan price</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Max Allowed Discount (₹)</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Max Discount (₹)
+            </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
               <input
@@ -301,34 +371,44 @@ export function MembershipPlanModal({
                 value={formData.maxDiscount || ''}
                 onKeyDown={(e) => preventNonNumericKey(e, true)}
                 onChange={(e) => setFormData({ ...formData, maxDiscount: sanitizeDecimal(e.target.value) })}
-                className="w-full pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+                className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
               />
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">Maximum concession staff can offer at checkout</p>
           </div>
         </div>
 
-        {/* Promotional Offer & Bonus Days */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-            <Gift className="w-3.5 h-3.5 text-amber-500" />
-            <span>Promotional Tag & Bonus Validity</span>
+        {/* 6. Bonus / Offer Field (to add extra days to plan if offer is going on) */}
+        <div className="p-3 bg-emerald-50/50 border border-emerald-200/80 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5 text-amber-500" />
+              <span>Bonus / Offer Extra Days</span>
+            </span>
+            {Number(formData.offerDays) > 0 && (
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                +{formData.offerDays} Days Extra Validity
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Offer Tag / Banner</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Offer Title / Banner (Optional)
+              </label>
               <input
                 type="text"
-                placeholder="e.g. SUMMER 10% OFF / NEW YEAR"
+                placeholder="e.g. FESTIVE 10% OFF / NEW YEAR"
                 value={formData.offer}
                 onChange={(e) => setFormData({ ...formData, offer: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Bonus Extra Days</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Bonus Extra Days Added
+              </label>
               <input
                 type="number"
                 min="0"
@@ -337,41 +417,59 @@ export function MembershipPlanModal({
                 value={formData.offerDays || ''}
                 onKeyDown={(e) => preventNonNumericKey(e, false)}
                 onChange={(e) => setFormData({ ...formData, offerDays: sanitizeDecimal(e.target.value) })}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono font-bold"
               />
             </div>
           </div>
         </div>
 
-        {/* Status and Popular Toggle */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {/* 7. Plan Status (Active / Inactive) & Popular toggle */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Plan Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="active">Active (Available for Enrollment)</option>
-              <option value="inactive">Inactive (Hidden from Registration)</option>
-            </select>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Plan Status <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, status: 'Active' })}
+                className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formData.status?.toLowerCase() === 'active'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, status: 'Inactive' })}
+                className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formData.status?.toLowerCase() === 'inactive'
+                    ? 'bg-slate-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Inactive
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 mt-5 sm:mt-0">
             <input
               type="checkbox"
               id="popular-plan-toggle"
               checked={formData.popular}
               onChange={(e) => setFormData({ ...formData, popular: e.target.checked })}
-              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
             />
             <label htmlFor="popular-plan-toggle" className="text-xs font-bold text-slate-700 cursor-pointer">
-              Mark as "Most Popular" / Best Value badge
+              Highlight as "Most Popular" / Best Value badge
             </label>
           </div>
         </div>
 
-        {/* Plan Features */}
+        {/* 8. Included Plan Amenities / Features (One per line) */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-bold text-slate-700">
@@ -383,7 +481,7 @@ export function MembershipPlanModal({
             rows={4}
             value={formData.featuresText}
             onChange={(e) => setFormData({ ...formData, featuresText: e.target.value })}
-            placeholder="Access to gym floor & cardio machines&#10;Locker & shower facilities&#10;ArchFit Mobile App Access"
+            placeholder="Access to gym floor & cardio machines&#10;Locker & shower access&#10;Free monthly fitness assessment"
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
           />
         </div>
@@ -394,14 +492,14 @@ export function MembershipPlanModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+            className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
           >
             {isSubmitting ? (
               <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />

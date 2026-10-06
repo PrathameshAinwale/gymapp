@@ -31,6 +31,9 @@ class PlanController extends Controller
                     'numericId' => $plan->id,
                     'gymId' => $plan->gym_id,
                     'name' => $plan->name,
+                    'packageType' => $plan->package_type ?? 'Gym-Cardio',
+                    'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                    'sessions' => $plan->sessions ?? '',
                     'price' => $plan->price,
                     'discount' => (float)($plan->discount ?? 0),
                     'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
@@ -95,6 +98,9 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
+                'packageType' => $plan->package_type ?? 'Gym-Cardio',
+                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
@@ -118,6 +124,9 @@ class PlanController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'package_type' => 'nullable|string',
+            'packageType' => 'nullable|string',
+            'sessions' => 'nullable|string',
             'price' => 'required|numeric',
             'discount' => 'nullable|numeric',
             'max_discount' => 'nullable|numeric',
@@ -149,6 +158,8 @@ class PlanController extends Controller
         $plan = Plan::create([
             'gym_id' => $gymId,
             'name' => $request->name,
+            'package_type' => $request->package_type ?? $request->packageType ?? 'Gym-Cardio',
+            'sessions' => $request->sessions ?? null,
             'price' => $request->price,
             'discount' => $request->discount ?? 0,
             'max_discount' => $request->max_discount ?? $request->maxDiscount ?? 0,
@@ -173,6 +184,9 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
+                'packageType' => $plan->package_type ?? 'Gym-Cardio',
+                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,
@@ -207,6 +221,10 @@ class PlanController extends Controller
         }
 
         if ($request->has('name')) $plan->name = $request->name;
+        if ($request->has('package_type') || $request->has('packageType')) {
+            $plan->package_type = $request->package_type ?? $request->packageType;
+        }
+        if ($request->has('sessions')) $plan->sessions = $request->sessions;
         if ($request->has('price')) $plan->price = $request->price;
         if ($request->has('discount')) $plan->discount = $request->discount;
         if ($request->has('max_discount') || $request->has('maxDiscount')) {
@@ -238,6 +256,9 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
+                'packageType' => $plan->package_type ?? 'Gym-Cardio',
+                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),
                 'maxDiscount' => $plan->max_discount !== null ? (float)$plan->max_discount : 0,

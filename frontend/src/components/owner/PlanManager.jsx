@@ -1,40 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import {
   CreditCard,
   Check,
   Plus,
-  Users,
   Sparkles,
   Edit2,
   Trash2,
-  ShieldCheck,
-  IndianRupee,
   Calendar,
   Layers,
-  Save,
-  CheckCircle2,
-  Dumbbell,
-  Flame,
-  HeartPulse,
-  Activity,
-  Award,
-  Loader2,
   Tag,
-  Percent,
-  Copy,
-  X
+  Search,
+  Filter,
+  Dumbbell,
+  Clock,
+  Gift,
+  CheckCircle2,
+  XCircle,
+  Activity,
+  Award
 } from 'lucide-react';
-import { api } from '../../services/api';
-import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
-import { MembershipPlanModal } from '../common/MembershipPlanModal';
-import {
-  hasSqlInjection,
-  sanitizeDigits,
-  sanitizeDecimal,
-  preventNonNumericKey
-} from '../../utils/validation';
+import { MembershipPlanModal, PACKAGE_TYPES } from '../common/MembershipPlanModal';
 
 const safeFeatures = (features) => {
   if (Array.isArray(features)) return features;
@@ -48,819 +35,388 @@ const safeFeatures = (features) => {
   return [];
 };
 
+export const getPackageTypeBadgeStyle = (type) => {
+  switch (type) {
+    case 'Gym-Cardio':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'Gym-Cardio-Crossfit':
+      return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    case 'Crossfit':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'Locker':
+      return 'bg-slate-100 text-slate-700 border-slate-300';
+    case 'Personal Training':
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    case 'Massage':
+      return 'bg-teal-50 text-teal-700 border-teal-200';
+    case 'Activities':
+      return 'bg-sky-50 text-sky-700 border-sky-200';
+    case 'Functional Training':
+      return 'bg-orange-50 text-orange-700 border-orange-200';
+    case 'Kids Training':
+      return 'bg-violet-50 text-violet-700 border-violet-200';
+    case 'Club Membership':
+      return 'bg-purple-50 text-purple-700 border-purple-200';
+    case 'Zumba':
+      return 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200';
+    case 'General Fitness':
+    default:
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+  }
+};
+
 export const PlanManager = () => {
   const {
-    plans,
-    classes,
+    plans = [],
     fetchPlans,
-    fetchClasses,
-    addPlan,
-    updatePlan,
     deletePlan,
-    ptPlans,
-    addPTPlan,
-    deletePTPlan,
-    fetchPtPlans,
-    recoveryPlans,
-    addRecoveryPlan,
-    deleteRecoveryPlan,
-    fetchRecoveryPlans,
     addToast
   } = useGymData();
 
   useEffect(() => {
     fetchPlans?.();
-    fetchClasses?.();
-    fetchRecoveryPlans?.();
-    fetchPtPlans?.();
-  }, [fetchPlans, fetchClasses, fetchRecoveryPlans, fetchPtPlans]);
+  }, [fetchPlans]);
 
-  const [activeTab, setActiveTab] = useState('memberships'); // memberships | pt | classes | recovery | offers
+  // Filtering & Modal State
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [preselectedType, setPreselectedType] = useState('Gym-Cardio');
 
-  // Service form state (PT, Classes, Recovery tabs)
-  const [serviceFormData, setServiceFormData] = useState({
-    name: '',
-    price: 4999,
-    sessions: '12 Sessions',
-    validityDays: 30,
-    instructorOrType: 'Head Coach',
-    offer: '',
-    offerDays: 0,
-    description: 'Personalized training with dedicated 1-on-1 technique assessment, workout programming, and diet coaching.'
-  });
+  // Count plans per package type
+  const typeCounts = useMemo(() => {
+    const counts = { all: (plans || []).length };
+    PACKAGE_TYPES.forEach((t) => {
+      counts[t] = 0;
+    });
+    (plans || []).forEach((p) => {
+      const pType = p.packageType || p.package_type || p.category || 'General Fitness';
+      if (counts[pType] !== undefined) {
+        counts[pType]++;
+      } else {
+        counts[pType] = 1;
+      }
+    });
+    return counts;
+  }, [plans]);
 
+  // Filtered plans list
+  const filteredPlans = useMemo(() => {
+    return (plans || []).filter((plan) => {
+      const planType = plan.packageType || plan.package_type || plan.category || 'General Fitness';
+      if (selectedTypeFilter !== 'all' && planType !== selectedTypeFilter) {
+        return false;
+      }
+      const status = (plan.status || 'Active').toLowerCase();
+      if (statusFilter !== 'all' && status !== statusFilter.toLowerCase()) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const nameMatch = (plan.name || '').toLowerCase().includes(q);
+        const typeMatch = planType.toLowerCase().includes(q);
+        const periodMatch = (plan.period || '').toLowerCase().includes(q);
+        if (!nameMatch && !typeMatch && !periodMatch) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [plans, selectedTypeFilter, statusFilter, searchQuery]);
 
-  // Group Classes state populated from backend database
-  const [classPlans, setClassPlans] = useState([]);
-
-  useEffect(() => {
-    if (classes && classes.length > 0) {
-      setClassPlans(
-        classes.map((cls) => ({
-          id: `cls-p-${cls.id}`,
-          name: cls.name || cls.title || 'Studio Class',
-          sessions: `${cls.capacity || 20} Capacity Pass`,
-          price: cls.price || 1999,
-          instructor: cls.trainerName || cls.instructor || 'Lead Trainer',
-          schedule: `${Array.isArray(cls.days) ? cls.days.join(', ') : cls.days || 'Mon, Wed, Fri'} • ${cls.time || '07:00 AM'}`,
-          popular: !!cls.popular,
-          features: [
-            `${cls.category || 'Group Fitness'} sessions`,
-            `${cls.room || 'Main Studio'} access`,
-            'Online seat booking via Member App',
-            'Locker & shower facilities'
-          ]
-        }))
-      );
-    } else {
-      setClassPlans([]);
-    }
-  }, [classes]);
-
-  // Open Edit Modal for a membership plan
-  const handleOpenEdit = (plan) => {
-    setEditingPlan(plan);
+  const handleOpenCreate = (type = null) => {
+    setEditingPlan(null);
+    setPreselectedType(type || (selectedTypeFilter !== 'all' ? selectedTypeFilter : 'Gym-Cardio'));
+    setIsAddOpen(true);
   };
 
-  // Handle Create PT / Class / Recovery Service
-  const handleCreateServiceSubmit = async (e) => {
-    e.preventDefault();
-    if (
-      hasSqlInjection(serviceFormData.name) ||
-      hasSqlInjection(serviceFormData.instructorOrType) ||
-      hasSqlInjection(serviceFormData.description) ||
-      hasSqlInjection(serviceFormData.offer)
-    ) {
-      addToast('Disallowed characters or SQL injection syntax detected.', 'error');
-      return;
-    }
-    if (!serviceFormData.name) return;
+  const handleOpenEdit = (plan) => {
+    setEditingPlan(plan);
+    setPreselectedType(plan.packageType || plan.package_type || plan.category || 'Gym-Cardio');
+    setIsAddOpen(true);
+  };
 
-    setIsSubmitting(true);
-    try {
-      if (activeTab === 'pt') {
-        await addPTPlan({
-          name: serviceFormData.name,
-          sessions: Number(serviceFormData.sessions) || 12,
-          validityDays: Number(serviceFormData.validityDays) || 30,
-          price: Number(serviceFormData.price),
-          trainerLevel: serviceFormData.instructorOrType || 'Master Coach',
-          offer: serviceFormData.offer || null,
-          offerDays: Number(serviceFormData.offerDays || 0),
-          offer_days: Number(serviceFormData.offerDays || 0),
-          description: serviceFormData.description
-        });
-        addToast('Personal Training package added!', 'success');
-      } else if (activeTab === 'classes') {
-        const newClass = {
-          id: `cls-p-${Date.now()}`,
-          name: serviceFormData.name,
-          sessions: `${serviceFormData.sessions} Classes / Month`,
-          price: Number(serviceFormData.price),
-          instructor: serviceFormData.instructorOrType || 'Master Coach',
-          schedule: 'Flexible Timings',
-          popular: false,
-          offer: serviceFormData.offer || null,
-          offerDays: Number(serviceFormData.offerDays || 0),
-          offer_days: Number(serviceFormData.offerDays || 0),
-          features: serviceFormData.description.split('. ').filter(Boolean)
-        };
-        setClassPlans((prev) => [...prev, newClass]);
-        addToast('Group Class package added!', 'success');
-      } else if (activeTab === 'recovery') {
-        await addRecoveryPlan({
-          name: serviceFormData.name,
-          duration: `${serviceFormData.sessions} Mins`,
-          sessions: 1,
-          price: Number(serviceFormData.price),
-          type: serviceFormData.instructorOrType || 'Therapy',
-          offer: serviceFormData.offer || null,
-          offerDays: Number(serviceFormData.offerDays || 0),
-          offer_days: Number(serviceFormData.offerDays || 0),
-          description: serviceFormData.description
-        });
-        addToast('Recovery & Therapy package added!', 'success');
+  const handleDeletePlan = async (plan) => {
+    if (confirm(`Are you sure you want to delete the plan "${plan.name}"? This action cannot be undone.`)) {
+      try {
+        await deletePlan(plan.id);
+      } catch (err) {
+        console.error('Delete plan error:', err);
       }
-
-      setIsAddOpen(false);
-      setServiceFormData({
-        name: '',
-        price: 4999,
-        sessions: '12 Sessions',
-        validityDays: 30,
-        instructorOrType: 'Head Coach',
-        offer: '',
-        offerDays: 0,
-        description: 'Personalized training with dedicated 1-on-1 technique assessment, workout programming, and diet coaching.'
-      });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <CreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
-              Plans & Pricing
-            </h1>
+            <div>
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
+                Membership Plans & Packages
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Create and manage all your gym packages, training sessions, and subscriptions in one place.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Configure gym memberships, 1-on-1 PT packages, promotional offers & discounts, and classes.
-          </p>
         </div>
 
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">
-            {activeTab === 'memberships'
-              ? 'Add Gym Plan'
-              : activeTab === 'pt'
-              ? 'Add PT Package'
-              : activeTab === 'classes'
-              ? 'Add Group Class'
-              : 'Add Recovery Therapy'}
-          </span>
-          <span className="inline sm:hidden">Add Plan</span>
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => handleOpenCreate()}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Plan</span>
+          </button>
+        </div>
       </div>
 
-      {/* Category Navigation Tabs */}
-      <div className="flex items-center gap-1.5 p-1 sm:p-1.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-sm overflow-x-auto no-scrollbar flex-nowrap">
-        <button
-          type="button"
-          onClick={() => setActiveTab('memberships')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTab === 'memberships'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          <span>Memberships ({plans.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('pt')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTab === 'pt'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Dumbbell className="w-3.5 h-3.5" />
-          <span>PT Packages ({ptPlans?.length || 0})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('classes')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTab === 'classes'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Flame className="w-3.5 h-3.5" />
-          <span>Classes ({classPlans.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('recovery')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTab === 'recovery'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <HeartPulse className="w-3.5 h-3.5" />
-          <span>Recovery ({recoveryPlans?.length || 0})</span>
-        </button>
-      </div>
-
-      {/* TAB 1: GYM MEMBERSHIPS */}
-      {activeTab === 'memberships' && (
-        plans.length === 0 ? (
-          <EmptyState
-            icon={CreditCard}
-            title="No Membership Plans Created"
-            description="There are currently no gym membership tiers configured. Click below to add monthly, quarterly, or annual plans to enroll members."
-            actionText="Add Membership Plan"
-            onAction={() => setIsAddOpen(true)}
-            accentColor="emerald"
+      {/* Search & Dropdown Filters Bar */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs">
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search plans by title or keyword..."
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
           />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
-            {plans.map((plan) => (
+        </div>
+
+        {/* Filter Controls (Package Type Dropdown & Status Filter) */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+          {/* Package Type Dropdown */}
+          <div className="relative flex-1 sm:flex-initial min-w-[220px]">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
+              <Layers className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <select
+                value={selectedTypeFilter}
+                onChange={(e) => setSelectedTypeFilter(e.target.value)}
+                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                <option value="all">
+                  All Package Types ({typeCounts.all || 0})
+                </option>
+                {PACKAGE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type} ({typeCounts[type] || 0})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Status Dropdown / Selector */}
+          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active Only</option>
+                <option value="inactive">Inactive Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Reset Filters button if any filter is active */}
+          {(selectedTypeFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTypeFilter('all');
+                setStatusFilter('all');
+                setSearchQuery('');
+              }}
+              className="px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0 border border-rose-200 shadow-2xs"
+              title="Reset all filters"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Plans Display Grid */}
+      {filteredPlans.length === 0 ? (
+        <EmptyState
+          icon={CreditCard}
+          title={selectedTypeFilter === 'all' ? 'No Plans Created Yet' : `No "${selectedTypeFilter}" Plans Found`}
+          description={
+            selectedTypeFilter === 'all'
+              ? 'Click below to create your first membership or service package.'
+              : `There are currently no plans under "${selectedTypeFilter}". You can create one right now.`
+          }
+          actionText={`+ Create ${selectedTypeFilter === 'all' ? 'Plan' : selectedTypeFilter} Plan`}
+          onAction={() => handleOpenCreate(selectedTypeFilter !== 'all' ? selectedTypeFilter : 'Gym-Cardio')}
+          accentColor="emerald"
+        />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+          {filteredPlans.map((plan) => {
+            const planType = plan.packageType || plan.package_type || plan.category || 'Gym-Cardio';
+            const isActive = (plan.status || 'Active').toLowerCase() === 'active';
+            const features = safeFeatures(plan.features);
+
+            return (
               <div
                 key={plan.id}
-                className={`relative rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border flex flex-col justify-between transition-all duration-300 hover:shadow-md ${
+                className={`relative rounded-2xl p-4 bg-white border flex flex-col justify-between transition-all duration-200 hover:shadow-md ${
                   plan.popular
-                    ? 'border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
-                    : 'border-slate-200'
+                    ? 'border-emerald-500 shadow-xs ring-1 ring-emerald-500/20'
+                    : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
+                {/* Most Popular Badge */}
                 {plan.popular && (
-                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm whitespace-nowrap">
-                    <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Most Popular Tier
+                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-xs whitespace-nowrap">
+                    <Sparkles className="w-2.5 h-2.5" /> Most Popular
                   </div>
                 )}
 
                 <div>
-                  {/* Title & Subscribers */}
-                  <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{plan.name}</h3>
-                      <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{plan.period}</div>
+                  {/* Top Badges: Package Type & Status */}
+                  <div className="flex items-center justify-between gap-1.5 mb-2.5 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${getPackageTypeBadgeStyle(planType)}`}>
+                      {planType}
+                    </span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                      isActive
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-500 border-slate-300'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      <span>{isActive ? 'Active' : 'Inactive'}</span>
+                    </span>
+                  </div>
+
+                  {/* Title & Duration */}
+                  <div className="mb-3">
+                    <h3 className="font-black text-sm sm:text-base text-slate-900 leading-snug line-clamp-2">
+                      {plan.name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 flex-wrap">
+                      <span className="flex items-center gap-1 font-semibold text-slate-700">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        <span>{plan.period || `${plan.durationMonths || 1} Month(s)`}</span>
+                      </span>
+                      {plan.sessions && (
+                        <span className="flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                          <Dumbbell className="w-2.5 h-2.5" />
+                          <span>{plan.sessions}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Price in INR */}
-                  <div className="my-2 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">Package Fee</div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-xl sm:text-3xl font-black text-emerald-600">
-                        ₹{plan.price.toLocaleString('en-IN')}
-                      </span>
-                      <span className="text-[10px] sm:text-xs text-slate-500 font-medium">/{plan.durationMonths || 1}mo</span>
+                  {/* Price Box */}
+                  <div className="my-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Fee</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl sm:text-2xl font-black text-emerald-600 font-mono">
+                          ₹{Number(plan.price || 0).toLocaleString('en-IN')}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          /{plan.period || `${plan.durationMonths || 1} Mo`}
+                        </span>
+                      </div>
                     </div>
+
                     {/* Max Discount Indicator */}
-                    <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 font-semibold">Max Discount:</span>
-                      <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                        ₹{Number(plan.maxDiscount ?? plan.max_discount ?? 0).toLocaleString('en-IN')}
-                      </span>
-                    </div>
+                    {Number(plan.maxDiscount ?? plan.max_discount ?? 0) > 0 && (
+                      <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500 font-semibold">Max Discount:</span>
+                        <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono">
+                          ₹{Number(plan.maxDiscount ?? plan.max_discount ?? 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Active Promotional Offer & Bonus Days */}
                     {(plan.offer || plan.offerText || Number(plan.offerDays || plan.offer_days) > 0) && (
-                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
-                        <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <div className="mt-1 flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold">
+                        <Gift className="w-3 h-3 text-emerald-600 shrink-0" />
                         <span className="truncate">
                           {plan.offer || plan.offerText || 'Special Offer'}
-                          {Number(plan.offerDays || plan.offer_days) > 0 ? ` (+${plan.offerDays || plan.offer_days} Days Extra)` : ''}
+                          {Number(plan.offerDays || plan.offer_days) > 0 ? ` (+${plan.offerDays || plan.offer_days}d bonus)` : ''}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Features */}
-                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs mb-3 sm:mb-6">
-                    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">Plan Inclusions</div>
-                    {safeFeatures(plan.features).map((feat, idx) => (
-                      <div key={idx} className="flex items-start gap-1.5 sm:gap-2 text-slate-700">
-                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                        <span className="leading-tight text-[11px] sm:text-xs">{feat}</span>
+                  {/* Plan Features / Amenities */}
+                  {features.length > 0 && (
+                    <div className="space-y-1.5 text-xs mb-4">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amenities</div>
+                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                        {features.map((feat, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 text-slate-700">
+                            <Check className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
+                            <span className="leading-tight text-[11px]">{feat}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Actions */}
-                <div className="pt-2.5 sm:pt-4 border-t border-slate-100 flex items-center gap-1.5 sm:gap-2">
+                {/* Card Actions: Edit & Delete */}
+                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(plan)}
-                    className="flex-1 py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Edit</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
-                        deletePlan(plan.id);
-                      }
-                    }}
+                    onClick={() => handleDeletePlan(plan)}
                     title="Delete Plan"
-                    className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer active:scale-95"
+                    className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 active:scale-95 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )
+            );
+          })}
+        </div>
       )}
 
-      {/* TAB 2: PERSONAL TRAINING (PT) PACKAGES */}
-      {activeTab === 'pt' && (
-        (!ptPlans || ptPlans.length === 0) ? (
-          <EmptyState
-            icon={Dumbbell}
-            title="No Personal Training Packages Created"
-            description="You have not added any 1-on-1 personal training packages yet. Create packages with session allotments and trainer tier levels."
-            actionText="Add PT Package"
-            onAction={() => setIsAddOpen(true)}
-            accentColor="purple"
-          />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
-            {ptPlans.map((pt) => (
-              <div
-                key={pt.id}
-                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                      {pt.trainerLevel}
-                    </span>
-                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
-                      Validity: {pt.validityDays} Days
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{pt.name}</h3>
-                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{pt.description}</p>
-
-                  <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Package Price ({pt.sessions} Sessions)
-                    </div>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-xl sm:text-3xl font-black text-purple-700">
-                        ₹{pt.price.toLocaleString('en-IN')}
-                      </span>
-                      <span className="text-[10px] sm:text-xs text-slate-500 font-medium">
-                        (~₹{Math.round(pt.price / pt.sessions)}/session)
-                      </span>
-                    </div>
-
-                    {/* Active Promotional Offer & Bonus Days */}
-                    {(pt.offer || pt.offerText || Number(pt.offerDays || pt.offer_days) > 0) && (
-                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
-                        <Tag className="w-3 h-3 text-purple-600 shrink-0" />
-                        <span className="truncate">
-                          {pt.offer || pt.offerText || 'Special Offer'}
-                          {Number(pt.offerDays || pt.offer_days) > 0 ? ` (+${pt.offerDays || pt.offer_days} Days Extra)` : ''}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                      <span>Dedicated 1-on-1 coach attention</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                      <span>Body fat & weekly logs</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 shrink-0" />
-                      <span>Customized nutrition plan</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to delete "${pt.name}"?`)) {
-                          deletePTPlan(pt.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                      title="Delete PT Package"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <span className="text-[10px] sm:text-[11px] text-emerald-600 font-bold">Commission: 40%</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => addToast(`PT Package "${pt.name}" ready for member enrollment!`, 'info')}
-                    className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
-                  >
-                    Enroll Member
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
+      {/* Unified Membership & Service Plan Creation/Edit Modal */}
+      {isAddOpen && (
+        <MembershipPlanModal
+          isOpen={isAddOpen}
+          onClose={() => {
+            setIsAddOpen(false);
+            setEditingPlan(null);
+          }}
+          plan={editingPlan}
+          defaultPackageType={preselectedType}
+          onSuccess={() => {
+            fetchPlans?.();
+          }}
+        />
       )}
-
-      {/* TAB 3: ZUMBA & YOGA CLASSES */}
-      {activeTab === 'classes' && (
-        classPlans.length === 0 ? (
-          <EmptyState
-            icon={Flame}
-            title="No Group Class Packages Configured"
-            description="There are currently no studio class passes or fitness batches configured. Click below to add Zumba, Yoga, or HIIT class tiers."
-            actionText="Add Class Package"
-            onAction={() => setIsAddOpen(true)}
-            accentColor="amber"
-          />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
-            {classPlans.map((cls) => (
-              <div
-                key={cls.id}
-                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                      Group Studio
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400">Coach: {cls.instructor}</span>
-                  </div>
-
-                  <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1.5 sm:mt-2">{cls.name}</h3>
-                  <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">{cls.schedule}</div>
-
-                  <div className="my-2.5 sm:my-4 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      {cls.sessions}
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">
-                      ₹{cls.price.toLocaleString('en-IN')}
-                    </div>
-
-                    {/* Active Promotional Offer & Bonus Days */}
-                    {(cls.offer || cls.offerText || Number(cls.offerDays || cls.offer_days) > 0) && (
-                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
-                        <Tag className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span className="truncate">
-                          {cls.offer || cls.offerText || 'Special Offer'}
-                          {Number(cls.offerDays || cls.offer_days) > 0 ? ` (+${cls.offerDays || cls.offer_days} Days Extra)` : ''}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1 sm:space-y-1.5 text-[11px] sm:text-xs">
-                    {safeFeatures(cls.features).map((f, i) => (
-                      <div key={i} className="flex items-start gap-1.5 text-slate-700">
-                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                        <span className="leading-tight">{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-2.5 sm:pt-4 mt-2.5 sm:mt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => addToast(`Class pass for "${cls.name}" activated!`, 'success')}
-                    className="w-full py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border border-slate-200 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer active:scale-95"
-                  >
-                    Book Class Pass
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
-      {/* TAB 4: MASSAGE & RECOVERY THERAPIES */}
-      {activeTab === 'recovery' && (
-        (!recoveryPlans || recoveryPlans.length === 0) ? (
-          <EmptyState
-            icon={HeartPulse}
-            title="No Recovery Therapies Configured"
-            description="There are currently no recovery or therapy packages created. Click below to add ice bath, sauna, or physio therapy services."
-            actionText="Add Recovery Service"
-            onAction={() => setIsAddOpen(true)}
-            accentColor="cyan"
-          />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
-            {recoveryPlans.map((rec) => (
-              <div
-                key={rec.id}
-                className="rounded-xl sm:rounded-2xl p-3.5 sm:p-6 bg-white border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                      {rec.type || 'Therapy'}
-                    </span>
-                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
-                      Session: {rec.duration || '45 Mins'}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-sm sm:text-lg text-slate-900 mt-2 sm:mt-3">{rec.name}</h3>
-                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                    {rec.description || (Array.isArray(rec.features) ? rec.features.join('. ') : '') || 'Full recovery & therapy session.'}
-                  </p>
-
-                  <div className="my-2.5 sm:my-5 p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Therapy Fee / Session
-                    </div>
-                    <div className="text-xl sm:text-3xl font-black text-cyan-700 mt-0.5">
-                      ₹{Number(rec.price).toLocaleString('en-IN')}
-                    </div>
-
-                    {/* Active Promotional Offer & Bonus Days */}
-                    {(rec.offer || rec.offerText || Number(rec.offerDays || rec.offer_days) > 0) && (
-                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded-lg text-[10px] sm:text-[11px] font-bold">
-                        <Tag className="w-3 h-3 text-cyan-600 shrink-0" />
-                        <span className="truncate">
-                          {rec.offer || rec.offerText || 'Special Offer'}
-                          {Number(rec.offerDays || rec.offer_days) > 0 ? ` (+${rec.offerDays || rec.offer_days} Days Extra)` : ''}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
-                    {Array.isArray(rec.features) && rec.features.length > 0 ? (
-                      rec.features.slice(0, 3).map((feat, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 text-slate-700">
-                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-1.5 text-slate-700">
-                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
-                          <span>Reduces DOMS & accelerates repair</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-700">
-                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-600 shrink-0" />
-                          <span>Locker, dry towels & robe included</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-2.5 sm:pt-4 mt-3 sm:mt-6 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => deleteRecoveryPlan(rec.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                    title="Delete Package"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => addToast(`Therapy session booked for "${rec.name}"!`, 'success')}
-                    className="px-2.5 sm:px-3.5 py-1.5 rounded-lg sm:rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-[10px] sm:text-xs font-bold cursor-pointer transition-colors active:scale-95"
-                  >
-                    Schedule Session
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
-
-
-      {/* SHARED REUSABLE MEMBERSHIP PLAN MODAL (EDIT MODE) */}
-      <MembershipPlanModal
-        isOpen={Boolean(editingPlan)}
-        onClose={() => setEditingPlan(null)}
-        plan={editingPlan}
-      />
-
-      {/* SHARED REUSABLE MEMBERSHIP PLAN MODAL (CREATE MODE) */}
-      <MembershipPlanModal
-        isOpen={isAddOpen && activeTab === 'memberships'}
-        onClose={() => setIsAddOpen(false)}
-      />
-
-      {/* CREATE SERVICE (PT / CLASS / RECOVERY) MODAL */}
-      <Modal
-        isOpen={isAddOpen && activeTab !== 'memberships'}
-        onClose={() => setIsAddOpen(false)}
-        title={
-          activeTab === 'pt'
-            ? 'Create Personal Training (PT) Package'
-            : activeTab === 'classes'
-            ? 'Create Group Class Pass'
-            : 'Create Massage & Recovery Therapy'
-        }
-      >
-        <form onSubmit={handleCreateServiceSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                {activeTab === 'pt'
-                  ? 'PT Package Title'
-                  : activeTab === 'classes'
-                  ? 'Group Class Pass Title'
-                  : 'Massage / Therapy Name'} *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. 12-Session Transformation Tier"
-                value={serviceFormData.name}
-                onChange={(e) => setServiceFormData({ ...serviceFormData, name: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  inputMode="decimal"
-                  value={serviceFormData.price}
-                  onKeyDown={(e) => preventNonNumericKey(e, true)}
-                  onChange={(e) => setServiceFormData({ ...serviceFormData, price: sanitizeDecimal(e.target.value) })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {activeTab === 'recovery' ? 'Duration (Mins)' : 'Sessions Count'}
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 12 / 60 Mins"
-                  value={serviceFormData.sessions}
-                  onChange={(e) => setServiceFormData({ ...serviceFormData, sessions: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {activeTab === 'pt'
-                    ? 'Trainer Level'
-                    : activeTab === 'classes'
-                    ? 'Lead Instructor'
-                    : 'Therapy Category'}
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Master Trainer / Elena Rostova"
-                  value={serviceFormData.instructorOrType}
-                  onChange={(e) => setServiceFormData({ ...serviceFormData, instructorOrType: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Validity Period</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 30 Days / 60 Days"
-                  value={serviceFormData.validityDays}
-                  onChange={(e) => setServiceFormData({ ...serviceFormData, validityDays: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
-              <label className="block text-xs font-bold text-emerald-900 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                  Promotional Offer & Additional Days
-                </span>
-                <span className="text-[10px] text-emerald-700 font-normal">Active deal & bonus validity</span>
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Offer / Deal Title</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 10% Early Bird, 2 Free Trial Sessions"
-                    value={serviceFormData.offer}
-                    onChange={(e) => setServiceFormData({ ...serviceFormData, offer: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">Additional Days (+)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={serviceFormData.offerDays || ''}
-                      onChange={(e) => setServiceFormData({ ...serviceFormData, offerDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                      className="w-full pl-3 pr-10 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">Days</span>
-                  </div>
-                </div>
-              </div>
-
-              {Number(serviceFormData.offerDays) > 0 ? (
-                <p className="text-[10px] text-emerald-800 font-semibold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
-                  Service validity will automatically be extended by +{serviceFormData.offerDays} days!
-                </p>
-              ) : (
-                <p className="text-[10px] text-emerald-700">Add bonus days to extend package validity.</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Description & Perks</label>
-              <textarea
-                rows={3}
-                placeholder="Details of the package, benefits, and instructions..."
-                value={serviceFormData.description}
-                onChange={(e) => setServiceFormData({ ...serviceFormData, description: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <span>Save Package</span>
-                )}
-              </button>
-            </div>
-          </form>
-      </Modal>
-
     </div>
   );
 };
+
+export default PlanManager;

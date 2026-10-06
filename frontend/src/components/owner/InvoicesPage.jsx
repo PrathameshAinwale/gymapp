@@ -28,6 +28,8 @@ import {
   Copy,
   Check,
   Building2,
+  Banknote,
+  Smartphone,
   X,
   Receipt,
   Users,
@@ -122,8 +124,22 @@ export const InvoicesPage = () => {
 
   // Helper to test if a record date matches selected date range or month (Same as ReportsManager)
   const matchesDateCriteria = (dateStr) => {
-    if (!dateStr) return true;
-    const cleanDate = String(dateStr).split('T')[0];
+    if (!startDate && !endDate && !selectedMonth) return true;
+    if (!dateStr) return false;
+
+    let cleanDate = String(dateStr).split('T')[0].trim();
+    if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(cleanDate)) {
+      const parts = cleanDate.split(/[-/]/);
+      cleanDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    } else {
+      const parsed = new Date(cleanDate);
+      if (!isNaN(parsed.getTime())) {
+        const yr = parsed.getFullYear();
+        const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        cleanDate = `${yr}-${mo}-${day}`;
+      }
+    }
 
     if (selectedMonth) {
       if (!cleanDate.startsWith(selectedMonth)) return false;
@@ -133,25 +149,101 @@ export const InvoicesPage = () => {
     return true;
   };
 
+  // Helper to parse individual invoice payment breakdown
+  const parseInvoicePaymentBreakdown = (inv) => {
+    const totalAmount = Number(inv.amount) || 0;
+    const pm = String(inv.paymentMethod || inv.payment_method || '').trim();
+    const pmLower = pm.toLowerCase();
+
+    let cash = 0;
+    let upi = 0;
+    let accountTransfer = 0;
+
+    if (pmLower.includes('split')) {
+      const cashMatch = pm.match(/cash[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+      const upiMatch = pm.match(/(?:upi|gpay|google\s*pay|phonepe|phone\s*pay|online(?:\[.*?\])?)[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+      const accountMatch = pm.match(/(?:account(?:\s*transfer)?|bank(?:\s*transfer)?|neft|imps|cheque|card)[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+
+      if (cashMatch) cash = parseFloat(cashMatch[1].replace(/,/g, '')) || 0;
+      if (upiMatch) upi = parseFloat(upiMatch[1].replace(/,/g, '')) || 0;
+      if (accountMatch) accountTransfer = parseFloat(accountMatch[1].replace(/,/g, '')) || 0;
+
+      if (!cash && (inv.splitCash || inv.split_cash)) cash = Number(inv.splitCash || inv.split_cash) || 0;
+      if (!upi && (inv.splitOnline || inv.split_online || inv.splitUpi || inv.split_upi)) {
+        upi = Number(inv.splitOnline || inv.split_online || inv.splitUpi || inv.split_upi) || 0;
+      }
+      if (!accountTransfer && (inv.splitAccount || inv.split_account || inv.splitBank || inv.split_bank)) {
+        accountTransfer = Number(inv.splitAccount || inv.split_account || inv.splitBank || inv.split_bank) || 0;
+      }
+
+      const sumParsed = cash + upi + accountTransfer;
+      if (sumParsed === 0) {
+        if (pmLower.includes('cash') && (pmLower.includes('online') || pmLower.includes('upi') || pmLower.includes('gpay') || pmLower.includes('phonepe'))) {
+          cash = Math.round(totalAmount / 2);
+          upi = totalAmount - cash;
+        } else if (pmLower.includes('cash')) {
+          cash = totalAmount;
+        } else if (pmLower.includes('account') || pmLower.includes('bank')) {
+          accountTransfer = totalAmount;
+        } else {
+          upi = totalAmount;
+        }
+      }
+    } else if (pmLower.includes('cash')) {
+      cash = totalAmount;
+    } else if (
+      pmLower === 'upi' ||
+      pmLower.includes('upi') ||
+      pmLower.includes('gpay') ||
+      pmLower.includes('google pay') ||
+      pmLower.includes('phonepe') ||
+      pmLower.includes('phone pay') ||
+      pmLower.includes('phone_pe') ||
+      pmLower.includes('paytm') ||
+      pmLower.includes('qr') ||
+      pmLower.includes('digital')
+    ) {
+      upi = totalAmount;
+    } else if (
+      pmLower.includes('account') ||
+      pmLower.includes('transfer') ||
+      pmLower.includes('bank') ||
+      pmLower.includes('neft') ||
+      pmLower.includes('imps') ||
+      pmLower.includes('rtgs') ||
+      pmLower.includes('cheque') ||
+      pmLower.includes('card')
+    ) {
+      accountTransfer = totalAmount;
+    } else {
+      upi = totalAmount;
+    }
+
+    return { totalAmount, cash, upi, accountTransfer };
+  };
+
   // Helper to test if payment method matches filter (Same as ReportsManager)
   const matchesPaymentFilter = (inv, filter) => {
     if (!filter || filter === 'ALL') return true;
     const pm = (inv.paymentMethod || inv.payment_method || '').toLowerCase();
 
     if (filter === 'Cash') {
-      return pm.includes('cash') && !pm.includes('split');
+      const b = parseInvoicePaymentBreakdown(inv);
+      return b.cash > 0 || (pm.includes('cash') && !pm.includes('split'));
     }
     if (filter === 'UPI') {
-      return (pm === 'upi' || (pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('split')));
+      const b = parseInvoicePaymentBreakdown(inv);
+      return b.upi > 0 || pm === 'upi' || pm.includes('upi') || pm.includes('gpay') || pm.includes('phonepe');
     }
     if (filter === 'GPay') {
-      return (pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay')) && !pm.includes('split');
+      return (pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay'));
     }
     if (filter === 'PhonePe') {
-      return (pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe')) && !pm.includes('split');
+      return (pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe'));
     }
     if (filter === 'Account Transfer' || filter === 'Account') {
-      return (pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps')) && !pm.includes('split');
+      const b = parseInvoicePaymentBreakdown(inv);
+      return b.accountTransfer > 0 || pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps');
     }
     if (filter === 'Split') {
       return pm.includes('split');
@@ -402,13 +494,14 @@ export const InvoicesPage = () => {
         const matchingInvoices = m.invoices.filter((inv) => {
           // Status filter
           if (statusFilter !== 'ALL') {
-            const s = (inv.status || '').toLowerCase();
-            if (statusFilter === 'paid' && s !== 'paid') return false;
-            if (statusFilter === 'pending' && s === 'paid') return false;
+            const s = String(inv.status || '').toLowerCase();
+            const isPaid = s === 'paid' && Number(inv.pendingAmount || inv.duesAmount || 0) === 0;
+            if (statusFilter.toLowerCase() === 'paid' && !isPaid) return false;
+            if (statusFilter.toLowerCase() === 'pending' && isPaid) return false;
           }
 
-          // Date criteria
-          const invDate = inv.date || inv.invoiceDate || inv.createdAt || inv.created_at;
+          // Date criteria (Month, Start Date, End Date)
+          const invDate = inv.date || inv.invoiceDate || inv.invoice_date || inv.issueDate || inv.issue_date || inv.createdAt || inv.created_at;
           if (!matchesDateCriteria(invDate)) return false;
 
           // Quick preset filter
@@ -416,7 +509,7 @@ export const InvoicesPage = () => {
             if (!matchesFilter(inv, activeFilter)) return false;
           }
 
-          // Payment mode filter
+          // Payment mode filter (covers All Modes, UPI, GPay, PhonePe, Account, Cash, and Split variants)
           if (paymentMethodFilter !== 'ALL') {
             if (!matchesPaymentFilter(inv, paymentMethodFilter)) return false;
           }
@@ -485,6 +578,46 @@ export const InvoicesPage = () => {
     if (currentDisplayedInvoices.length === 0) return 0;
     return Math.round(displayedRevenue / currentDisplayedInvoices.length);
   }, [displayedRevenue, currentDisplayedInvoices.length]);
+
+  // Live breakdown across all payment methods calculated directly from currentDisplayedInvoices
+  // Dynamically recalculates whenever any filter (Month, Date Range, Status, Payment Mode, Preset, Search) changes
+  const paymentBreakdown = useMemo(() => {
+    let totalAllPayments = 0;
+    let cashTotal = 0;
+    let cashCount = 0;
+    let upiTotal = 0;
+    let upiCount = 0;
+    let accountTransferTotal = 0;
+    let accountTransferCount = 0;
+
+    currentDisplayedInvoices.forEach((inv) => {
+      const b = parseInvoicePaymentBreakdown(inv);
+      totalAllPayments += b.totalAmount;
+      if (b.cash > 0) {
+        cashTotal += b.cash;
+        cashCount++;
+      }
+      if (b.upi > 0) {
+        upiTotal += b.upi;
+        upiCount++;
+      }
+      if (b.accountTransfer > 0) {
+        accountTransferTotal += b.accountTransfer;
+        accountTransferCount++;
+      }
+    });
+
+    return {
+      totalAllPayments,
+      totalCount: currentDisplayedInvoices.length,
+      cashTotal,
+      cashCount,
+      upiTotal,
+      upiCount,
+      accountTransferTotal,
+      accountTransferCount,
+    };
+  }, [currentDisplayedInvoices]);
 
   const filterSummaryTitle = useMemo(() => {
     const parts = [];
@@ -650,7 +783,7 @@ export const InvoicesPage = () => {
       </div>
 
       {/* 2. THE 4 COMPACT STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
 
         {/* Total Invoiced */}
         <div
@@ -658,25 +791,26 @@ export const InvoicesPage = () => {
             setStatusFilter('ALL');
             setActiveFilter('ALL');
           }}
-          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${activeFilter === 'ALL' && statusFilter === 'ALL'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
+            activeFilter === 'ALL' && statusFilter === 'ALL'
               ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
               : 'border-slate-200 hover:border-slate-300'
-            }`}
+          }`}
         >
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+          <div className="flex items-center justify-between gap-1 mb-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Total Invoiced
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <IndianRupee className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+              <IndianRupee className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
             ₹{(displayedRevenue / 100000).toFixed(2)}L
           </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 font-medium pt-1 mt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>₹{displayedRevenue.toLocaleString('en-IN')} Total</span>
-            <span className="text-[10px] text-emerald-600 font-bold">
+            <span className="text-[9px] sm:text-[10px] text-emerald-600 font-bold">
               {activeFilter === 'ALL' && statusFilter === 'ALL' ? '● Active' : 'View All'}
             </span>
           </div>
@@ -688,46 +822,47 @@ export const InvoicesPage = () => {
             setStatusFilter('paid');
             setActiveFilter('PAID');
           }}
-          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${statusFilter === 'paid' || activeFilter === 'PAID'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
+            statusFilter === 'paid' || activeFilter === 'PAID'
               ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
               : 'border-slate-200 hover:border-slate-300'
-            }`}
+          }`}
         >
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+          <div className="flex items-center justify-between gap-1 mb-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Paid Invoices
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+              <CheckCircle className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
             {displayedPaidCount}
           </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-blue-700 font-medium pt-1 mt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-blue-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>Verified Settled</span>
-            <span className="text-[10px] text-blue-600 font-bold">
+            <span className="text-[9px] sm:text-[10px] text-blue-600 font-bold">
               {statusFilter === 'paid' || activeFilter === 'PAID' ? '● Active' : 'Filter'}
             </span>
           </div>
         </div>
 
         {/* Billed Members */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3 shadow-xs">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+        <div className="bg-white border border-slate-200 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1 mb-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Billed Members
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
-              <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+              <Users className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
             {filteredMembers.length}
           </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-purple-700 font-medium pt-1 mt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-purple-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>Active Accounts</span>
-            <span className="text-[10px] text-slate-400">of {memberInvoicesMap.length} Total</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400">of {memberInvoicesMap.length} Total</span>
           </div>
         </div>
 
@@ -737,25 +872,26 @@ export const InvoicesPage = () => {
             setStatusFilter('pending');
             setActiveFilter('PENDING');
           }}
-          className={`bg-white border rounded-xl p-2.5 sm:p-3 shadow-xs cursor-pointer transition-all active:scale-[0.98] ${statusFilter === 'pending' || activeFilter === 'PENDING'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
+            statusFilter === 'pending' || activeFilter === 'PENDING'
               ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20'
               : 'border-slate-200 hover:border-slate-300'
-            }`}
+          }`}
         >
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+          <div className="flex items-center justify-between gap-1 mb-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
               Pending Invoices
             </span>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <div className="w-5 h-5 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <Clock className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-xl font-black text-amber-600 tracking-tight">
+          <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight my-0.5">
             {displayedPendingCount}
           </div>
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-amber-700 font-medium pt-1 mt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-amber-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>₹{displayedPendingAmount.toLocaleString('en-IN')} Due</span>
-            <span className="text-[10px] text-amber-600 font-bold">
+            <span className="text-[9px] sm:text-[10px] text-amber-600 font-bold">
               {statusFilter === 'pending' || activeFilter === 'PENDING' ? '● Active' : 'Filter'}
             </span>
           </div>
@@ -918,66 +1054,94 @@ export const InvoicesPage = () => {
         )}
       </div>
 
-      {/* TOTAL TAB: Live Filtered Inflow, Total Number of Fields, and Metrics for the Selected Filter */}
-      <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-white border border-emerald-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-              <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
+      {/* 4 LIVE PAYMENT BREAKDOWN CARDS (FULL WIDTH, CENTERED & COMPACT) */}
+      <div className="bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-emerald-50/70 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 shadow-2xs w-full">
+        <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
+          {/* 1. Cash Total */}
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                Cash Total
+              </span>
+              <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
+                <Banknote className="w-3 h-3" />
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                  {filterSummaryTitle} Total Tab
-                </span>
-                {activeFiltersCount > 0 ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-2xs">
-                    {paymentMethodFilter !== 'ALL' ? `${paymentMethodFilter} Filter Active` : `${activeFiltersCount} Filters Active`}
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                    All Invoices
-                  </span>
-                )}
-              </div>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  ₹{displayedRevenue.toLocaleString('en-IN')}
-                </span>
-                <span className="text-xs text-slate-500 font-semibold">
-                  Total Collections ({((totalBilledRevenue > 0 ? (displayedRevenue / totalBilledRevenue) * 100 : 100)).toFixed(1)}% of Billed)
-                </span>
-              </div>
+            <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight my-0.5">
+              ₹{paymentBreakdown.cashTotal.toLocaleString('en-IN')}
+            </div>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+              <span>{paymentBreakdown.cashCount} {paymentBreakdown.cashCount === 1 ? 'Invoice' : 'Invoices'}</span>
+              <span className="text-slate-400 font-semibold">
+                {paymentBreakdown.totalAllPayments > 0
+                  ? `${((paymentBreakdown.cashTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                  : '0%'}
+              </span>
             </div>
           </div>
 
-          {/* 3 Metric Summary Boxes */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 shrink-0">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                Total Fields / Records
+          {/* 2. UPI Total */}
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                UPI Total
               </span>
-              <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
-                {currentDisplayedInvoices.length} <span className="text-[10px] font-medium text-slate-500">Invoices</span>
+              <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0">
+                <Smartphone className="w-3 h-3" />
               </div>
             </div>
-
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                Average Payment
+            <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight my-0.5">
+              ₹{paymentBreakdown.upiTotal.toLocaleString('en-IN')}
+            </div>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+              <span>{paymentBreakdown.upiCount} {paymentBreakdown.upiCount === 1 ? 'Invoice' : 'Invoices'}</span>
+              <span className="text-slate-400 font-semibold">
+                {paymentBreakdown.totalAllPayments > 0
+                  ? `${((paymentBreakdown.upiTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                  : '0%'}
               </span>
-              <div className="text-sm sm:text-base font-black text-emerald-700 mt-0.5">
-                ₹{displayedAvgAmount.toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          {/* 3. Account Transfer Total */}
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                Account Transfer
+              </span>
+              <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 flex items-center justify-center shrink-0">
+                <Building2 className="w-3 h-3" />
               </div>
             </div>
-
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                Billed Members
+            <div className="text-base sm:text-lg font-black text-purple-700 tracking-tight my-0.5">
+              ₹{paymentBreakdown.accountTransferTotal.toLocaleString('en-IN')}
+            </div>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+              <span>{paymentBreakdown.accountTransferCount} {paymentBreakdown.accountTransferCount === 1 ? 'Invoice' : 'Invoices'}</span>
+              <span className="text-slate-400 font-semibold">
+                {paymentBreakdown.totalAllPayments > 0
+                  ? `${((paymentBreakdown.accountTransferTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                  : '0%'}
               </span>
-              <div className="text-sm sm:text-base font-black text-slate-800 mt-0.5">
-                {filteredMembers.length} <span className="text-[10px] font-medium text-slate-500">Members</span>
+            </div>
+          </div>
+
+          {/* 4. Total of All Payment Options */}
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-emerald-300/80 bg-white shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-800 tracking-wider truncate">
+                Total of All
+              </span>
+              <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
+                <IndianRupee className="w-3 h-3" />
               </div>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+              ₹{paymentBreakdown.totalAllPayments.toLocaleString('en-IN')}
+            </div>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+              <span>{paymentBreakdown.totalCount} {paymentBreakdown.totalCount === 1 ? 'Invoice' : 'Invoices'}</span>
+              <span className="text-emerald-600 font-bold">All Modes</span>
             </div>
           </div>
         </div>
@@ -1027,12 +1191,16 @@ export const InvoicesPage = () => {
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => {
-                      setSelectedMonth(e.target.value);
-                      if (e.target.value) {
-                        setStartDate(`${e.target.value}-01`);
-                        const [yr, mo] = e.target.value.split('-').map(Number);
+                      const val = e.target.value;
+                      setSelectedMonth(val);
+                      if (val) {
+                        setStartDate(`${val}-01`);
+                        const [yr, mo] = val.split('-').map(Number);
                         const lastDay = new Date(yr, mo, 0).getDate();
-                        setEndDate(`${e.target.value}-${String(lastDay).padStart(2, '0')}`);
+                        setEndDate(`${val}-${String(lastDay).padStart(2, '0')}`);
+                      } else {
+                        setStartDate('');
+                        setEndDate('');
                       }
                     }}
                     className="col-span-2 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
@@ -1063,6 +1231,19 @@ export const InvoicesPage = () => {
                       {mPreset.label}
                     </button>
                   ))}
+                  {selectedMonth && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMonth('');
+                        setStartDate('');
+                        setEndDate('');
+                      }}
+                      className="text-[11px] px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
+                    >
+                      Clear Month
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1077,7 +1258,10 @@ export const InvoicesPage = () => {
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setSelectedMonth('');
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
@@ -1086,7 +1270,10 @@ export const InvoicesPage = () => {
                     <input
                       type="date"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setSelectedMonth('');
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
                     />
                   </div>

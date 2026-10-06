@@ -14,6 +14,8 @@ import {
   TrendingUp,
   Printer,
   Building2,
+  Banknote,
+  Smartphone,
   Zap,
   Users,
   Wrench,
@@ -122,8 +124,22 @@ export const Financials = () => {
 
   // Helper to test if a record date matches selected date range or month
   const matchesDateCriteria = (dateStr) => {
-    if (!dateStr) return true;
-    const cleanDate = String(dateStr).split('T')[0];
+    if (!startDate && !endDate && !selectedMonth) return true;
+    if (!dateStr) return false;
+
+    let cleanDate = String(dateStr).split('T')[0].trim();
+    if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(cleanDate)) {
+      const parts = cleanDate.split(/[-/]/);
+      cleanDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    } else {
+      const parsed = new Date(cleanDate);
+      if (!isNaN(parsed.getTime())) {
+        const yr = parsed.getFullYear();
+        const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        cleanDate = `${yr}-${mo}-${day}`;
+      }
+    }
 
     if (selectedMonth) {
       if (!cleanDate.startsWith(selectedMonth)) return false;
@@ -133,28 +149,117 @@ export const Financials = () => {
     return true;
   };
 
+  // Helper to parse individual invoice payment breakdown
+  const parseInvoicePaymentBreakdown = (inv) => {
+    const totalAmount = Number(inv.amount) || 0;
+    const pm = String(inv.paymentMethod || inv.payment_method || '').trim();
+    const pmLower = pm.toLowerCase();
+
+    let cash = 0;
+    let upi = 0;
+    let accountTransfer = 0;
+
+    if (pmLower.includes('split')) {
+      const cashMatch = pm.match(/cash[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+      const upiMatch = pm.match(/(?:upi|gpay|google\s*pay|phonepe|phone\s*pay|online(?:\[.*?\])?)[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+      const accountMatch = pm.match(/(?:account(?:\s*transfer)?|bank(?:\s*transfer)?|neft|imps|cheque|card)[:\s]+₹?\s*([\d,]+(?:\.\d+)?)/i);
+
+      if (cashMatch) cash = parseFloat(cashMatch[1].replace(/,/g, '')) || 0;
+      if (upiMatch) upi = parseFloat(upiMatch[1].replace(/,/g, '')) || 0;
+      if (accountMatch) accountTransfer = parseFloat(accountMatch[1].replace(/,/g, '')) || 0;
+
+      if (!cash && (inv.splitCash || inv.split_cash)) cash = Number(inv.splitCash || inv.split_cash) || 0;
+      if (!upi && (inv.splitOnline || inv.split_online || inv.splitUpi || inv.split_upi)) {
+        upi = Number(inv.splitOnline || inv.split_online || inv.splitUpi || inv.split_upi) || 0;
+      }
+      if (!accountTransfer && (inv.splitAccount || inv.split_account || inv.splitBank || inv.split_bank)) {
+        accountTransfer = Number(inv.splitAccount || inv.split_account || inv.splitBank || inv.split_bank) || 0;
+      }
+
+      const sumParsed = cash + upi + accountTransfer;
+      if (sumParsed === 0) {
+        if (pmLower.includes('cash') && (pmLower.includes('online') || pmLower.includes('upi') || pmLower.includes('gpay') || pmLower.includes('phonepe'))) {
+          cash = Math.round(totalAmount / 2);
+          upi = totalAmount - cash;
+        } else if (pmLower.includes('cash')) {
+          cash = totalAmount;
+        } else if (pmLower.includes('account') || pmLower.includes('bank')) {
+          accountTransfer = totalAmount;
+        } else {
+          upi = totalAmount;
+        }
+      }
+    } else if (pmLower.includes('cash')) {
+      cash = totalAmount;
+    } else if (
+      pmLower === 'upi' ||
+      pmLower.includes('upi') ||
+      pmLower.includes('gpay') ||
+      pmLower.includes('google pay') ||
+      pmLower.includes('phonepe') ||
+      pmLower.includes('phone pay') ||
+      pmLower.includes('phone_pe') ||
+      pmLower.includes('paytm') ||
+      pmLower.includes('qr') ||
+      pmLower.includes('digital')
+    ) {
+      upi = totalAmount;
+    } else if (
+      pmLower.includes('account') ||
+      pmLower.includes('transfer') ||
+      pmLower.includes('bank') ||
+      pmLower.includes('neft') ||
+      pmLower.includes('imps') ||
+      pmLower.includes('rtgs') ||
+      pmLower.includes('cheque') ||
+      pmLower.includes('card')
+    ) {
+      accountTransfer = totalAmount;
+    } else {
+      upi = totalAmount;
+    }
+
+    return { totalAmount, cash, upi, accountTransfer };
+  };
+
   // Helper to test if payment method matches filter
   const matchesPaymentFilter = (inv, filter) => {
     if (!filter || filter === 'ALL') return true;
     const pm = (inv.paymentMethod || inv.payment_method || '').toLowerCase();
+    const b = parseInvoicePaymentBreakdown(inv);
 
     if (filter === 'Cash') {
-      return pm.includes('cash') && !pm.includes('split');
+      return b.cash > 0 || (pm.includes('cash') && !pm.includes('split'));
     }
     if (filter === 'UPI') {
-      return (pm === 'upi' || (pm.includes('upi') && !pm.includes('gpay') && !pm.includes('phonepe') && !pm.includes('split')));
+      return b.upi > 0 || pm === 'upi' || pm.includes('upi') || pm.includes('gpay') || pm.includes('phonepe') || pm.includes('paytm') || pm.includes('qr');
     }
     if (filter === 'GPay') {
-      return (pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay')) && !pm.includes('split');
+      return pm === 'gpay' || pm.includes('gpay') || pm.includes('google pay');
     }
     if (filter === 'PhonePe') {
-      return (pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe')) && !pm.includes('split');
+      return pm === 'phonepe' || pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe');
     }
     if (filter === 'Account Transfer' || filter === 'Account') {
-      return (pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps')) && !pm.includes('split');
+      return b.accountTransfer > 0 || pm.includes('account') || pm.includes('transfer') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps') || pm.includes('rtgs') || pm.includes('cheque');
     }
     if (filter === 'Split') {
       return pm.includes('split');
+    }
+    if (filter === 'Split: GPay') {
+      return pm.includes('split') && (pm.includes('gpay') || pm.includes('google pay'));
+    }
+    if (filter === 'Split: PhonePe') {
+      return pm.includes('split') && (pm.includes('phonepe') || pm.includes('phone pay') || pm.includes('phone_pe'));
+    }
+    if (filter === 'Split: Account') {
+      return pm.includes('split') && (pm.includes('account') || pm.includes('bank') || pm.includes('neft') || pm.includes('imps') || pm.includes('transfer'));
+    }
+    if (filter === 'Split: Other' || filter === 'Other') {
+      return pm.includes('split') &&
+        !pm.includes('gpay') && !pm.includes('google pay') &&
+        !pm.includes('phonepe') && !pm.includes('phone pay') && !pm.includes('phone_pe') &&
+        !pm.includes('account') && !pm.includes('bank') && !pm.includes('neft') && !pm.includes('imps');
     }
     return pm.includes(filter.toLowerCase());
   };
@@ -234,49 +339,54 @@ export const Financials = () => {
     : (totalInflow > 0 ? '+100.0' : '0.0');
 
   // Filtered Invoices & Member Search
-  const filteredInvoices = gymInvoices
-    .filter((inv) => {
-      const matchesStatus =
-        invoiceFilter === 'ALL' ||
-        String(inv.status || '').toLowerCase() === invoiceFilter.toLowerCase();
+  const filteredInvoices = useMemo(() => {
+    return gymInvoices
+      .filter((inv) => {
+        const matchesStatus =
+          invoiceFilter === 'ALL' ||
+          (invoiceFilter.toLowerCase() === 'paid'
+            ? (String(inv.status || '').toLowerCase() === 'paid' && Number(inv.pendingAmount || inv.duesAmount || 0) === 0)
+            : (String(inv.status || '').toLowerCase() !== 'paid' || Number(inv.pendingAmount || inv.duesAmount || 0) > 0));
 
-      const term = (memberSearchTerm || '').trim().toLowerCase();
-      const matchesMember =
-        !term ||
-        (inv.memberName || '').toLowerCase().includes(term) ||
-        (inv.member_name || '').toLowerCase().includes(term) ||
-        (inv.id || '').toLowerCase().includes(term) ||
-        (inv.planName || '').toLowerCase().includes(term);
+        const term = (memberSearchTerm || '').trim().toLowerCase();
+        const matchesMember =
+          !term ||
+          (inv.memberName || '').toLowerCase().includes(term) ||
+          (inv.member_name || '').toLowerCase().includes(term) ||
+          (inv.id || '').toLowerCase().includes(term) ||
+          (inv.planName || '').toLowerCase().includes(term);
 
-      const matchesDate = matchesDateCriteria(inv.date || inv.created_at);
-      const matchesPayment = matchesPaymentFilter(inv, paymentMethodFilter);
+        const invDate = inv.date || inv.invoiceDate || inv.invoice_date || inv.issueDate || inv.issue_date || inv.createdAt || inv.created_at;
+        const matchesDate = matchesDateCriteria(invDate);
+        const matchesPayment = matchesPaymentFilter(inv, paymentMethodFilter);
 
-      let matchesPreset = true;
-      if (activeFilter && activeFilter !== 'ALL') {
-        const invDate = inv.date ? new Date(inv.date) : (inv.created_at ? new Date(inv.created_at) : null);
-        if (invDate && !isNaN(invDate.getTime())) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const target = new Date(invDate);
-          target.setHours(0, 0, 0, 0);
+        let matchesPreset = true;
+        if (activeFilter && activeFilter !== 'ALL') {
+          const invDateObj = invDate ? new Date(invDate) : null;
+          if (invDateObj && !isNaN(invDateObj.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const target = new Date(invDateObj);
+            target.setHours(0, 0, 0, 0);
 
-          if (activeFilter === 'TODAY') {
-            matchesPreset = target.getTime() === today.getTime();
-          } else if (activeFilter === 'THIS_WEEK') {
-            const weekStart = new Date(today);
-            weekStart.setDate(today.getDate() - today.getDay());
-            matchesPreset = target >= weekStart;
-          } else if (activeFilter === 'THIS_MONTH') {
-            matchesPreset = target.getFullYear() === today.getFullYear() && target.getMonth() === today.getMonth();
-          } else if (activeFilter === 'THIS_YEAR') {
-            matchesPreset = target.getFullYear() === today.getFullYear();
+            if (activeFilter === 'TODAY') {
+              matchesPreset = target.getTime() === today.getTime();
+            } else if (activeFilter === 'THIS_WEEK') {
+              const weekStart = new Date(today);
+              weekStart.setDate(today.getDate() - today.getDay());
+              matchesPreset = target >= weekStart;
+            } else if (activeFilter === 'THIS_MONTH') {
+              matchesPreset = target.getFullYear() === today.getFullYear() && target.getMonth() === today.getMonth();
+            } else if (activeFilter === 'THIS_YEAR') {
+              matchesPreset = target.getFullYear() === today.getFullYear();
+            }
           }
         }
-      }
 
-      return matchesStatus && matchesMember && matchesDate && matchesPayment && matchesPreset;
-    })
-    .sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+        return matchesStatus && matchesMember && matchesDate && matchesPayment && matchesPreset;
+      })
+      .sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+  }, [gymInvoices, invoiceFilter, memberSearchTerm, startDate, endDate, selectedMonth, paymentMethodFilter, activeFilter]);
 
   // Filtered Expenses
   const filteredExpenses = gymExpenses.filter((exp) => {
@@ -303,6 +413,46 @@ export const Financials = () => {
       if (id) set.add(id);
     });
     return set.size;
+  }, [filteredInvoices]);
+
+  // Live breakdown across all payment methods for active filters in Financials
+  // Dynamically recalculates whenever any filter (Month, Date Range, Status, Payment Mode, Preset, Search) changes
+  const paymentBreakdown = useMemo(() => {
+    let totalAllPayments = 0;
+    let cashTotal = 0;
+    let cashCount = 0;
+    let upiTotal = 0;
+    let upiCount = 0;
+    let accountTransferTotal = 0;
+    let accountTransferCount = 0;
+
+    filteredInvoices.forEach((inv) => {
+      const b = parseInvoicePaymentBreakdown(inv);
+      totalAllPayments += b.totalAmount;
+      if (b.cash > 0) {
+        cashTotal += b.cash;
+        cashCount++;
+      }
+      if (b.upi > 0) {
+        upiTotal += b.upi;
+        upiCount++;
+      }
+      if (b.accountTransfer > 0) {
+        accountTransferTotal += b.accountTransfer;
+        accountTransferCount++;
+      }
+    });
+
+    return {
+      totalAllPayments,
+      totalCount: filteredInvoices.length,
+      cashTotal,
+      cashCount,
+      upiTotal,
+      upiCount,
+      accountTransferTotal,
+      accountTransferCount,
+    };
   }, [filteredInvoices]);
 
   const filterSummaryTitle = useMemo(() => {
@@ -881,63 +1031,94 @@ export const Financials = () => {
             </div>
           )}
 
-          {/* TOTAL TAB: Live Total Amount, Number of Fields, and Metrics for the Selected Filter */}
-          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border-b border-emerald-100">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                  <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
+          {/* 4 LIVE PAYMENT BREAKDOWN CARDS (FULL WIDTH, CENTERED & COMPACT) */}
+          <div className="p-2 sm:p-2.5 bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-emerald-50/70 border-b border-emerald-100/90 w-full">
+            <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
+              {/* 1. Cash Total */}
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                    Cash Total
+                  </span>
+                  <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
+                    <Banknote className="w-3 h-3" />
+                  </div>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                      {filterSummaryTitle} Total Tab
-                    </span>
-                    {activeFiltersCount > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-2xs">
-                        {paymentMethodFilter !== 'ALL' ? `${paymentMethodFilter} Filter Active` : `${activeFiltersCount} Filters Applied`}
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                        All Inflows
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-0.5">
-                    <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                      ₹{filteredInflowTotal.toLocaleString('en-IN')}
-                    </span>
-                  </div>
+                <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight my-0.5">
+                  ₹{paymentBreakdown.cashTotal.toLocaleString('en-IN')}
+                </div>
+                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                  <span>{paymentBreakdown.cashCount} {paymentBreakdown.cashCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                  <span className="text-slate-400 font-semibold">
+                    {paymentBreakdown.totalAllPayments > 0
+                      ? `${((paymentBreakdown.cashTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                      : '0%'}
+                  </span>
                 </div>
               </div>
 
-              {/* 3 Metric Summary Boxes */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 shrink-0">
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                    Total Fields / Records
+              {/* 2. UPI Total */}
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                    UPI Total
                   </span>
-                  <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
-                    {filteredInvoices.length} <span className="text-[10px] font-medium text-slate-500">Invoices</span>
+                  <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0">
+                    <Smartphone className="w-3 h-3" />
                   </div>
                 </div>
-
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                    Average Payment
+                <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight my-0.5">
+                  ₹{paymentBreakdown.upiTotal.toLocaleString('en-IN')}
+                </div>
+                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                  <span>{paymentBreakdown.upiCount} {paymentBreakdown.upiCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                  <span className="text-slate-400 font-semibold">
+                    {paymentBreakdown.totalAllPayments > 0
+                      ? `${((paymentBreakdown.upiTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                      : '0%'}
                   </span>
-                  <div className="text-sm sm:text-base font-black text-emerald-700 mt-0.5">
-                    ₹{filteredAvgAmount.toLocaleString('en-IN')}
+                </div>
+              </div>
+
+              {/* 3. Account Transfer Total */}
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                    Account Transfer
+                  </span>
+                  <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 flex items-center justify-center shrink-0">
+                    <Building2 className="w-3 h-3" />
                   </div>
                 </div>
-
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
-                    Unique Members
+                <div className="text-base sm:text-lg font-black text-purple-700 tracking-tight my-0.5">
+                  ₹{paymentBreakdown.accountTransferTotal.toLocaleString('en-IN')}
+                </div>
+                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                  <span>{paymentBreakdown.accountTransferCount} {paymentBreakdown.accountTransferCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                  <span className="text-slate-400 font-semibold">
+                    {paymentBreakdown.totalAllPayments > 0
+                      ? `${((paymentBreakdown.accountTransferTotal / paymentBreakdown.totalAllPayments) * 100).toFixed(0)}%`
+                      : '0%'}
                   </span>
-                  <div className="text-sm sm:text-base font-black text-slate-800 mt-0.5">
-                    {filteredUniqueMembersCount} <span className="text-[10px] font-medium text-slate-500">People</span>
+                </div>
+              </div>
+
+              {/* 4. Total of All Payment Options */}
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-emerald-300/80 bg-white shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-800 tracking-wider truncate">
+                    Total of All
+                  </span>
+                  <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
+                    <IndianRupee className="w-3 h-3" />
                   </div>
+                </div>
+                <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+                  ₹{paymentBreakdown.totalAllPayments.toLocaleString('en-IN')}
+                </div>
+                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                  <span>{paymentBreakdown.totalCount} {paymentBreakdown.totalCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                  <span className="text-emerald-600 font-bold">All Modes</span>
                 </div>
               </div>
             </div>
@@ -1722,28 +1903,64 @@ export const Financials = () => {
                 </div>
               </div>
 
-              {/* Payment Mode */}
+              {/* Status Filter */}
               <div className="pt-2 border-t border-slate-100">
                 <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Payment Mode
+                  Invoice Status
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All Statuses' },
+                    { id: 'PAID', label: 'Paid Invoices' },
+                    { id: 'PENDING', label: 'Pending / Due' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setInvoiceFilter(st.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                        invoiceFilter.toUpperCase() === st.id.toUpperCase()
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Mode & Split Settlement Filter */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Payment Mode & Split Settlement
+                  </label>
+                  <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                    Online Platforms
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'ALL', label: 'All Modes' },
                     { id: 'UPI', label: 'UPI' },
                     { id: 'GPay', label: 'GPay' },
                     { id: 'PhonePe', label: 'PhonePe' },
-                    { id: 'Cash', label: 'Cash' },
                     { id: 'Account Transfer', label: 'Account' },
-                    { id: 'Split', label: 'Split' },
+                    { id: 'Cash', label: 'Cash' },
+                    { id: 'Split', label: 'All Split' },
+                    { id: 'Split: GPay', label: 'Split (GPay)' },
+                    { id: 'Split: PhonePe', label: 'Split (PhonePe)' },
+                    { id: 'Split: Account', label: 'Split (Account)' },
+                    { id: 'Split: Other', label: 'Split (Other)' },
                   ].map((pm) => (
                     <button
                       key={pm.id}
                       type="button"
                       onClick={() => setPaymentMethodFilter(pm.id)}
-                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
                         paymentMethodFilter === pm.id
-                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                          ? 'bg-violet-600 border-violet-600 text-white shadow-xs'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
