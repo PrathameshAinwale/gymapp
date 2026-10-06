@@ -727,21 +727,6 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             </button>
           )}
 
-          {maxStaffQuota !== null && (
-            <div className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
-              staffList.length >= maxStaffQuota
-                ? 'bg-amber-50 text-amber-900 border-amber-300'
-                : 'bg-slate-50 text-slate-700 border-slate-200'
-            }`}>
-              <span>Staff Quota: {staffList.length}/{maxStaffQuota}</span>
-              {staffList.length >= maxStaffQuota && (
-                <span className="text-[10px] uppercase font-black tracking-wide text-amber-900 bg-amber-200/80 px-1 py-0.5 rounded">
-                  Max Reached
-                </span>
-              )}
-            </div>
-          )}
-
           <button
             type="button"
             onClick={() => {

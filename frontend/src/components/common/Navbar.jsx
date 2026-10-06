@@ -153,7 +153,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
+              <div className="flex items-center gap-1 text-[9px] sm:text-[8px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
                 <span>powered by</span>
                 <span className="font-black text-slate-800 tracking-tight">
                   ARCH<span className="text-lime-500">FIT</span>

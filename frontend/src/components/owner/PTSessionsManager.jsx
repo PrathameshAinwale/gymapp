@@ -843,10 +843,10 @@ export const PTSessionsManager = () => {
                           {pkg.name} — {pkg.sessions} Sessions (₹{Number(pkg.price).toLocaleString('en-IN')})
                         </option>
                       ))}
-                      <option value="custom">⚙️ Custom / Ad-hoc PT Package</option>
+                      <option value="custom">Add Your Custom Plan</option>
                     </>
                   ) : (
-                    <option value="custom">⚙️ Custom / Ad-hoc PT Package</option>
+                    <option value="custom">Add Your Custom Plan</option>
                   )}
                 </select>
                 {(!ptPlans || ptPlans.length === 0) && (
