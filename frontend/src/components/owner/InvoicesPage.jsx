@@ -1421,7 +1421,7 @@ export const InvoicesPage = () => {
                   ? "No billing records match your search or date filter. Try clearing filters or record a new member fee payment."
                   : "Track member billing transactions, issue GST invoices, and record fee collections."
               }
-              actionText="Create Bill"
+              actionText="Create Invoice"
               onAction={() => setIsRecordPaymentOpen(true)}
               secondaryActionText={searchTerm || activeFilter !== 'ALL' ? "Clear Filters" : undefined}
               onSecondaryAction={searchTerm || activeFilter !== 'ALL' ? () => { setSearchTerm(''); setActiveFilter('ALL'); } : undefined}

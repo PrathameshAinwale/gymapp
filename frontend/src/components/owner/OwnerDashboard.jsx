@@ -3,6 +3,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { MemberProfileView } from './MemberProfileView';
+import { RecordPaymentModal } from './RecordPaymentModal';
 import {
   CustomizeStatCardsModal,
   ALL_STAT_CARD_DEFINITIONS,
@@ -57,7 +58,8 @@ import {
   CalendarDays,
   User,
   Phone,
-  Mail
+  Mail,
+  Receipt
 } from 'lucide-react';
 import {
   AreaChart,
@@ -93,6 +95,7 @@ const StaffAvatar = ({ src, alt, className = "w-8 h-8 rounded-full", iconClassNa
 
 export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProfile }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
   const [isCustomizeCardsOpen, setIsCustomizeCardsOpen] = useState(false);
 
   // Universal Member Search Bar State
@@ -602,11 +605,11 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
           <button
             type="button"
-            onClick={() => setActiveTab('attendance')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-xs font-bold border border-slate-200 hover:border-teal-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+            onClick={() => setIsCreateInvoiceOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
           >
-            <CalendarCheck className="w-3.5 h-3.5 text-teal-600" />
-            <span>Attendance</span>
+            <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Create Invoice</span>
           </button>
 
           <button
@@ -2235,6 +2238,12 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
           setSelectedProfileMember(null);
           setActiveTab?.('members');
         }}
+      />
+
+      {/* Create Invoice & Record Payment Modal */}
+      <RecordPaymentModal
+        isOpen={isCreateInvoiceOpen}
+        onClose={() => setIsCreateInvoiceOpen(false)}
       />
 
     </div>
