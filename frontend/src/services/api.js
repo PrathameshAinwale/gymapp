@@ -80,19 +80,22 @@ const getDefaultHosts = () => {
 const CANDIDATE_API_HOSTS = getDefaultHosts();
 
 let activeBaseUrl = (function () {
-  const envApiUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
-  if (envApiUrl) return envApiUrl;
-
   if (typeof window !== 'undefined') {
-    const inCapacitor = isRunningInCapacitor();
     const currentHost = window.location.hostname;
     const isLive = currentHost && !isLocalHost(currentHost);
-    const originApiUrl = getOriginApiUrl();
 
+    // If on localhost / LAN development: strictly lock to local Laravel backend
+    if (!isLive) {
+      localStorage.removeItem('archfit_api_url');
+      localStorage.removeItem('pulsefit_api_url');
+      return 'http://127.0.0.1:8000/api/v1';
+    }
+
+    const inCapacitor = isRunningInCapacitor();
+    const originApiUrl = getOriginApiUrl();
     const saved = localStorage.getItem('archfit_api_url') || localStorage.getItem('pulsefit_api_url');
 
     if (isLive) {
-      // Purge any stale LAN/localhost URL saved in localStorage from previous local tests
       if (
         saved &&
         (saved.includes('127.0.0.1') ||
@@ -119,13 +122,6 @@ let activeBaseUrl = (function () {
       }
       return LIVE_PRODUCTION_API_URL;
     }
-
-    // Normal browser on localhost - strictly connect to local backend database
-    if (saved && (saved.startsWith('https://') || saved.includes('archenterprises.co.in'))) {
-      localStorage.removeItem('archfit_api_url');
-      localStorage.removeItem('pulsefit_api_url');
-    }
-    return 'http://127.0.0.1:8000/api/v1';
   }
   return 'http://127.0.0.1:8000/api/v1';
 })();
@@ -243,15 +239,13 @@ const apiFetch = async (urlOrPath, options = {}) => {
         }
       });
     } else {
-      // Local development machine - strictly use local backend server
+      // Local development machine - strictly use local backend server only
       rawHosts = [
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
         `http://${currentHost}:8000/api/v1`,
         `http://${CURRENT_LAN_IP}:8000/api/v1`,
-        activeBaseUrl,
-        ...CANDIDATE_API_HOSTS,
-      ].filter((h) => Boolean(h) && !h.includes('10.0.2.2') && !h.startsWith('https://'));
+      ];
     }
 
     if (isHttps) {
