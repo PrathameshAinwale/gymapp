@@ -1,5 +1,6 @@
 // API Service Client for Laravel REST API Backend
 
+const LIVE_PRODUCTION_API_URL = 'https://archfit.archenterprises.co.in/api/v1';
 const CURRENT_LAN_IP = '192.168.1.40';
 
 const isRunningInCapacitor = () => {
@@ -14,50 +15,116 @@ const isRunningInCapacitor = () => {
   );
 };
 
-const getDefaultHosts = () => {
-  if (typeof window === 'undefined') return ['http://127.0.0.1:8000/api/v1'];
+const isLocalHost = (hostname) => {
+  if (!hostname) return true;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)
+  );
+};
 
+const getOriginApiUrl = () => {
+  if (typeof window === 'undefined') return null;
+  const { protocol, host } = window.location;
+  if (!host) return null;
+  return `${protocol}//${host}/api/v1`;
+};
+
+const getDefaultHosts = () => {
+  const envApiUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+  const originApiUrl = getOriginApiUrl();
   const inCapacitor = isRunningInCapacitor();
-  const currentHost = window.location.hostname;
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
   if (inCapacitor) {
-    return [
-      `http://${CURRENT_LAN_IP}:8000/api/v1`,
-      'http://10.0.2.2:8000/api/v1',
-    ];
+    return Array.from(
+      new Set(
+        [
+          envApiUrl,
+          LIVE_PRODUCTION_API_URL,
+          `http://${CURRENT_LAN_IP}:8000/api/v1`,
+          'http://10.0.2.2:8000/api/v1',
+        ].filter(Boolean)
+      )
+    );
   }
 
-  const hosts = [
-    'http://127.0.0.1:8000/api/v1',
-    'http://localhost:8000/api/v1',
-  ];
-
-  if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-    if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
-      hosts.push(`http://${currentHost}:8000/api/v1`);
-    } else {
-      hosts.push(`${window.location.origin}/api/v1`);
-    }
+  // Running on a live website (domain is not localhost / not private LAN IP)
+  if (currentHost && !isLocalHost(currentHost)) {
+    return Array.from(
+      new Set(
+        [
+          envApiUrl,
+          originApiUrl,
+          LIVE_PRODUCTION_API_URL,
+        ].filter(Boolean)
+      )
+    );
   }
 
+  // Local development machine
+  const hosts = [];
+  if (envApiUrl) hosts.push(envApiUrl);
+  hosts.push('http://127.0.0.1:8000/api/v1');
+  hosts.push('http://localhost:8000/api/v1');
+
+  if (currentHost && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
+    hosts.push(`http://${currentHost}:8000/api/v1`);
+  }
   hosts.push(`http://${CURRENT_LAN_IP}:8000/api/v1`);
+  hosts.push(LIVE_PRODUCTION_API_URL);
 
-  return Array.from(new Set(hosts));
+  return Array.from(new Set(hosts.filter(Boolean)));
 };
 
 const CANDIDATE_API_HOSTS = getDefaultHosts();
 
 let activeBaseUrl = (function () {
+  const envApiUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+  if (envApiUrl) return envApiUrl;
+
   if (typeof window !== 'undefined') {
     const inCapacitor = isRunningInCapacitor();
-    if (inCapacitor) {
-      const saved = localStorage.getItem('archfit_api_url') || localStorage.getItem('pulsefit_api_url');
-      if (saved && !saved.includes('127.0.0.1') && !saved.includes('localhost') && !saved.includes('192.168.1.48')) {
+    const currentHost = window.location.hostname;
+    const isLive = currentHost && !isLocalHost(currentHost);
+    const originApiUrl = getOriginApiUrl();
+
+    const saved = localStorage.getItem('archfit_api_url') || localStorage.getItem('pulsefit_api_url');
+
+    if (isLive) {
+      // Purge any stale LAN/localhost URL saved in localStorage from previous local tests
+      if (
+        saved &&
+        (saved.includes('127.0.0.1') ||
+          saved.includes('localhost') ||
+          saved.includes('192.168.') ||
+          saved.includes(':8000'))
+      ) {
+        localStorage.removeItem('archfit_api_url');
+        localStorage.removeItem('pulsefit_api_url');
+      } else if (saved && saved.startsWith('https://')) {
         return saved;
       }
-      return `http://${CURRENT_LAN_IP}:8000/api/v1`;
+      return originApiUrl || LIVE_PRODUCTION_API_URL;
     }
-    // In normal browser, always prioritize 127.0.0.1:8000 for instant local connectivity
+
+    if (inCapacitor) {
+      if (
+        saved &&
+        !saved.includes('127.0.0.1') &&
+        !saved.includes('localhost') &&
+        !saved.includes('192.168.1.48')
+      ) {
+        return saved;
+      }
+      return LIVE_PRODUCTION_API_URL;
+    }
+
+    // Normal browser on localhost
+    if (saved && !saved.includes(':8000') && saved.startsWith('https://')) {
+      return saved;
+    }
     return 'http://127.0.0.1:8000/api/v1';
   }
   return 'http://127.0.0.1:8000/api/v1';
@@ -74,8 +141,8 @@ export const setActiveApiUrl = (url) => {
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-// Fast fetch helper with timeout to avoid browser hangs (3s allowance for failovers)
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 3500) => {
+// Fast fetch helper with timeout to avoid browser hangs
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -99,17 +166,22 @@ const apiFetch = async (urlOrPath, options = {}) => {
   let relativePath = urlOrPath;
   const allKnownHosts = [
     activeBaseUrl,
+    LIVE_PRODUCTION_API_URL,
+    getOriginApiUrl(),
     'http://127.0.0.1:8000/api/v1',
     'http://localhost:8000/api/v1',
     `http://${CURRENT_LAN_IP}:8000/api/v1`,
     ...CANDIDATE_API_HOSTS
-  ];
+  ].filter(Boolean);
 
   for (const host of allKnownHosts) {
     if (relativePath.startsWith(host)) {
       relativePath = relativePath.slice(host.length);
       break;
     }
+  }
+  if (relativePath.startsWith('/api/v1')) {
+    relativePath = relativePath.slice('/api/v1'.length);
   }
   if (!relativePath.startsWith('/')) {
     relativePath = '/' + relativePath;
@@ -142,28 +214,60 @@ const apiFetch = async (urlOrPath, options = {}) => {
   const executeFetch = async () => {
     const inCapacitor = isRunningInCapacitor();
     const currentHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
+    const isLive = typeof window !== 'undefined' && currentHost && !isLocalHost(currentHost);
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-    const hostsToTry = inCapacitor
-      ? Array.from(new Set([
+    let rawHosts = [];
+    if (inCapacitor) {
+      rawHosts = [
+        activeBaseUrl,
+        LIVE_PRODUCTION_API_URL,
+        ...CANDIDATE_API_HOSTS,
         `http://${CURRENT_LAN_IP}:8000/api/v1`,
         'http://10.0.2.2:8000/api/v1',
+      ].filter((h) => Boolean(h) && !h.includes('127.0.0.1') && !h.includes('localhost'));
+    } else if (isLive) {
+      // On live production, strictly use live endpoints (no local LAN IPs or insecure http on https)
+      rawHosts = [
         activeBaseUrl,
-        ...CANDIDATE_API_HOSTS
-      ])).filter((h) => Boolean(h) && !h.includes('127.0.0.1') && !h.includes('localhost'))
-      : Array.from(new Set([
+        getOriginApiUrl(),
+        LIVE_PRODUCTION_API_URL,
+        ...CANDIDATE_API_HOSTS,
+      ].filter((h) => {
+        if (!h) return false;
+        try {
+          const urlObj = new URL(h, window.location.origin);
+          return !isLocalHost(urlObj.hostname);
+        } catch {
+          return true;
+        }
+      });
+    } else {
+      // Local development machine
+      rawHosts = [
         activeBaseUrl,
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
         `http://${currentHost}:8000/api/v1`,
         `http://${CURRENT_LAN_IP}:8000/api/v1`,
-        ...CANDIDATE_API_HOSTS
-      ])).filter((h) => Boolean(h) && !h.includes('10.0.2.2'));
+        LIVE_PRODUCTION_API_URL,
+        ...CANDIDATE_API_HOSTS,
+      ].filter((h) => Boolean(h) && !h.includes('10.0.2.2'));
+    }
+
+    if (isHttps) {
+      rawHosts = rawHosts.filter((h) => h.startsWith('https://'));
+    }
+
+    const hostsToTry = Array.from(new Set(rawHosts));
 
     let lastError = null;
-    const timeoutMs = 3000;
+    const timeoutMs = 8000;
     for (const host of hostsToTry) {
       try {
-        const fullUrl = `${host}${relativePath}`;
+        const cleanHost = host.replace(/\/+$/, '');
+        const cleanPath = relativePath.startsWith('/') ? relativePath : '/' + relativePath;
+        const fullUrl = `${cleanHost}${cleanPath}`;
         const res = await fetchWithTimeout(fullUrl, options, timeoutMs);
         if (activeBaseUrl !== host) {
           activeBaseUrl = host;
