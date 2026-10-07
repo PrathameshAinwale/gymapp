@@ -606,9 +606,9 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
           <button
             type="button"
             onClick={() => setIsCreateInvoiceOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
           >
-            <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Create Invoice</span>
           </button>
 
@@ -623,11 +623,11 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                 setIsAddMemberOpen(true);
               }
             }}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
           >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Add Member</span>
-            </button>
+            <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Add Member</span>
+          </button>
           </div>
         </div>
 
