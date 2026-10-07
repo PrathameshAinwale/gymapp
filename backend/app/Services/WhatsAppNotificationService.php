@@ -155,7 +155,52 @@ class WhatsAppNotificationService
             }
         }
 
-        // 3. Custom REST Webhook Gateway
+        // 3. MSG91 (Message91) WhatsApp API
+        if ($provider === 'msg91' && !empty($settings->api_token) && !empty($settings->phone_number_id)) {
+            try {
+                $endpoint = !empty($settings->api_url)
+                    ? trim($settings->api_url)
+                    : "https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/";
+
+                $cleanIntegratedNumber = preg_replace('/\D/', '', $settings->phone_number_id);
+
+                $response = Http::timeout(12)
+                    ->withHeaders([
+                        'authkey'      => trim($settings->api_token),
+                        'Content-Type' => 'application/json',
+                    ])
+                    ->post($endpoint, [
+                        'integrated_number' => $cleanIntegratedNumber,
+                        'content_type'      => 'text',
+                        'payload'           => [
+                            'to'   => $cleanPhone,
+                            'text' => $message,
+                        ],
+                    ]);
+
+                $json = $response->json();
+                $isSent = $response->successful() && (!isset($json['status']) || $json['status'] === 'success' || (isset($json['type']) && $json['type'] === 'success'));
+
+                return [
+                    'success'  => $isSent,
+                    'status'   => $isSent ? 'sent' : 'failed',
+                    'provider' => 'msg91',
+                    'response' => $json,
+                    'wa_link'  => $waLink,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning("MSG91 WhatsApp dispatch failed: " . $e->getMessage());
+                return [
+                    'success'  => false,
+                    'status'   => 'gateway_error',
+                    'provider' => 'msg91',
+                    'error'    => $e->getMessage(),
+                    'wa_link'  => $waLink,
+                ];
+            }
+        }
+
+        // 4. Custom REST Webhook Gateway
         if ($provider === 'custom' && !empty($settings->api_url)) {
             try {
                 $headers = [];

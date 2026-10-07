@@ -1861,7 +1861,8 @@ export const WhatsAppAutomation = () => {
                       onChange={(e) => setGatewayForm({ ...gatewayForm, provider: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                     >
-                      <option value="ultramsg">UltraMsg REST API (Recommended for India)</option>
+                      <option value="msg91">MSG91 (Message91 WhatsApp API - Popular in India)</option>
+                      <option value="ultramsg">UltraMsg REST API (QR-Code Instant)</option>
                       <option value="meta">Meta WhatsApp Business Cloud API</option>
                       <option value="custom">Custom Webhook / HTTP REST Gateway</option>
                       <option value="none">Manual 1-Click WhatsApp Link Mode</option>
@@ -1869,6 +1870,37 @@ export const WhatsAppAutomation = () => {
                   </div>
 
                   {/* Provider-specific fields */}
+                  {gatewayForm.provider === 'msg91' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-900 leading-relaxed">
+                        <strong>MSG91 WhatsApp Setup:</strong> Log in to <a href="https://msg91.com" target="_blank" rel="noreferrer" className="underline font-bold">msg91.com</a>. Obtain your <strong>AuthKey</strong> (from Dashboard &gt; Authkeys) and your <strong>Integrated WhatsApp Number</strong> (e.g. 919876543210 with country code).
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">MSG91 AuthKey *</label>
+                        <input
+                          type="password"
+                          placeholder="e.g. 384824Abcdef123..."
+                          value={gatewayForm.api_token}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Integrated Sender Number * (With Country Code)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 919876543210"
+                          value={gatewayForm.phone_number_id}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, phone_number_id: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                        <span className="text-[10px] text-slate-500">Your registered WhatsApp Business number with 91 country code (no + or spaces).</span>
+                      </div>
+                    </div>
+                  )}
+
                   {gatewayForm.provider === 'ultramsg' && (
                     <div className="space-y-3 pt-1">
                       <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
