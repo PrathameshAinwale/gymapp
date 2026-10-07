@@ -272,24 +272,26 @@ export const PayrollManager = () => {
   }, [monthlyRecords, searchTerm, statusFilter, roleFilter]);
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-10 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner with 1-Year Month Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
               <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">Staff Payroll & Salaries</h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Staff Payroll & Salaries</h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Manage staff payroll, base compensation, PT incentive bonuses, deductions, and salary disbursement receipts.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Manage staff payroll, base compensation, PT incentive bonuses, deductions, and salary disbursement receipts.
-          </p>
         </div>
 
         {/* 1-Year Historical Month Selector & Refresh */}
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-xs">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-xs">
             <div className="flex items-center gap-1.5 px-1.5 text-slate-600 text-xs font-bold">
               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden sm:inline">Cycle:</span>

@@ -7,6 +7,7 @@ import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate } from '../../utils/dateUtils';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getGymConsentForm } from '../../utils/consentFormConfig';
 import {
   isValidEmail,
   isValidPhone,
@@ -337,6 +338,20 @@ export const AddMemberModal = ({
       });
     }
   }, [plans]);
+
+  const [consentConfig, setConsentConfig] = useState(() => getGymConsentForm(gymInfo?.id));
+
+  useEffect(() => {
+    setConsentConfig(getGymConsentForm(gymInfo?.id));
+  }, [gymInfo?.id]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setConsentConfig(getGymConsentForm(gymInfo?.id));
+    };
+    window.addEventListener('consent_settings_updated', handleUpdate);
+    return () => window.removeEventListener('consent_settings_updated', handleUpdate);
+  }, [gymInfo?.id]);
 
   const [consentAgreed, setConsentAgreed] = useState(true);
   const [signedInPerson, setSignedInPerson] = useState(true);
@@ -2495,18 +2510,30 @@ export const AddMemberModal = ({
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span className="text-xs font-bold text-slate-900">
-                    Integrated Consent Form & Liability Waiver
+                    {consentConfig?.title || 'Integrated Consent Form & Liability Waiver'}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Digital Signature
+                  {consentConfig?.badgeText || 'Digital Signature'}
                 </span>
               </div>
 
               {/* Legal Waiver Text Box */}
-              <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-24 overflow-y-auto">
-                <p className="font-semibold text-slate-800 mb-1">Member Health Declaration & Assumption of Risk:</p>
-                I certify that I am physically fit and medically sound to participate in gym exercises, weight training, group classes, and recovery sessions. I acknowledge that physical activity involves inherent risk of physical injury. In consideration of my membership, I agree to abide by club safety rules and release the gym facility, management, and trainers from all liability.
+              <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto space-y-2">
+                <p className="font-semibold text-slate-800">
+                  {consentConfig?.subtitle || 'Member Health Declaration & Assumption of Risk:'}
+                </p>
+                {Array.isArray(consentConfig?.clauses) && consentConfig.clauses.length > 0 ? (
+                  consentConfig.clauses.map((clause, idx) => (
+                    <div key={clause.id || idx} className="text-slate-600">
+                      <strong className="text-slate-800">{clause.title}:</strong> {clause.content}
+                    </div>
+                  ))
+                ) : (
+                  <div>
+                    I certify that I am physically fit and medically sound to participate in gym exercises, weight training, group classes, and recovery sessions. I acknowledge that physical activity involves inherent risk of physical injury. In consideration of my membership, I agree to abide by club safety rules and release the gym facility, management, and trainers from all liability.
+                  </div>
+                )}
               </div>
 
               {/* Agreement Checkbox */}
@@ -2519,7 +2546,7 @@ export const AddMemberModal = ({
                   className="mt-0.5 w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
                 />
                 <span className="text-xs text-slate-700 font-medium">
-                  I accept the terms of the Health Declaration, Liability Waiver & Gym Rules.
+                  {consentConfig?.declarationText || 'I accept the terms of the Health Declaration, Liability Waiver & Gym Rules.'}
                 </span>
               </label>
 

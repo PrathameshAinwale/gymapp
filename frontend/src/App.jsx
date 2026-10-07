@@ -62,12 +62,14 @@ import { TrainerLeaveView } from './components/trainer/TrainerLeaveView';
 import { WhatsAppAutomation } from './components/owner/WhatsAppAutomation';
 import { ShiftManager } from './components/owner/ShiftManager';
 import { MemberProfilePage } from './components/owner/MemberProfilePage';
+import { AddMemberPage } from './components/owner/AddMemberPage';
 
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
   const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
+  const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -297,6 +299,10 @@ function MainApp() {
         return (
           <OwnerDashboard
             setActiveTab={handleNavigateTab}
+            onOpenAddMember={() => {
+              setAddMemberInitialData(null);
+              handleNavigateTab('add-member');
+            }}
             onOpenMemberProfile={(memberId) => {
               setSelectedMemberProfileId(memberId);
               handleNavigateTab('member-profile');
@@ -311,13 +317,35 @@ function MainApp() {
             onNavigateTab={handleNavigateTab}
           />
         );
+      case 'add-member':
+        return (
+          <AddMemberPage
+            initialData={addMemberInitialData}
+            onBack={() => {
+              setAddMemberInitialData(null);
+              handleNavigateTab('members');
+            }}
+            onNavigateTab={handleNavigateTab}
+            onMemberAdded={() => {
+              setAddMemberInitialData(null);
+              handleNavigateTab('members');
+            }}
+          />
+        );
       case 'whatsapp-automation':
         return <WhatsAppAutomation />;
       case 'members':
         return (
           <MemberList
-            isOpenAddModal={isOpenAddMemberModal}
-            setIsOpenAddModal={setIsOpenAddMemberModal}
+            setActiveTab={handleNavigateTab}
+            onOpenAddMember={() => {
+              setAddMemberInitialData(null);
+              handleNavigateTab('add-member');
+            }}
+            onNavigateToAddMember={(data) => {
+              setAddMemberInitialData(data || null);
+              handleNavigateTab('add-member');
+            }}
           />
         );
       case 'classes':
@@ -327,9 +355,9 @@ function MainApp() {
       case 'enquiries':
         return (
           <EnquiriesManager
-            onConvertLeadToMember={() => {
-              handleNavigateTab('members');
-              setIsOpenAddMemberModal(true);
+            onConvertLeadToMember={(enquiry) => {
+              setAddMemberInitialData(enquiry || null);
+              handleNavigateTab('add-member');
             }}
           />
         );
@@ -412,7 +440,7 @@ function MainApp() {
         />
 
         {/* Main Content Viewport: Full width responsive dashboard */}
-        <main className="flex-1 min-w-0 h-full overflow-y-auto px-2.5 sm:px-5 lg:px-8 py-3 sm:py-5 pb-6 safe-bottom">
+        <main className="flex-1 min-w-0 h-full overflow-y-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-4 pb-6 safe-bottom">
           {renderContent()}
         </main>
       </div>

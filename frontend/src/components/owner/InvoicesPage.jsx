@@ -745,40 +745,38 @@ export const InvoicesPage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
 
       {/* 1. CLEAN & CALM HEADER */}
-      <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Member Invoices
-            </h1>
-            <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
-              Search member billing records, view payment history, and generate GST invoices.
-            </p>
-          </div>
+      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            Member Invoices
+          </h1>
+          <p className="text-[11px] text-slate-500 hidden sm:block">
+            Search member billing records, view payment history, and generate GST invoices.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 lg:pt-0">
-            <button
-              type="button"
-              onClick={handleToggleExpandAll}
-              className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] sm:text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-            >
-              {filteredMembers.length > 0 && filteredMembers.every((m) => expandedMembers[m.memberKey])
-                ? 'Collapse All'
-                : 'Expand All'}
-            </button>
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <button
+            type="button"
+            onClick={handleToggleExpandAll}
+            className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+          >
+            {filteredMembers.length > 0 && filteredMembers.every((m) => expandedMembers[m.memberKey])
+              ? 'Collapse All'
+              : 'Expand All'}
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setIsRecordPaymentOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Create Invoice</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsRecordPaymentOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Create Invoice</span>
+          </button>
         </div>
       </div>
 

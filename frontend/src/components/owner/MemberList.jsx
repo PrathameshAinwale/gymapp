@@ -50,13 +50,12 @@ import {
   sanitizeDecimal,
   preventNonNumericKey
 } from '../../utils/validation';
-import { AddMemberModal } from './AddMemberModal';
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getPlanByTier } from '../superadmin/packagePlans';
 
-export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
+export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddMember, onOpenAddMember, setActiveTab }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
   const {
     members = [],
@@ -566,20 +565,20 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
   ]);
 
   return (
-    <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
 
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200/80 p-3.5 sm:p-5 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 shrink-0">
-              <Users className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                 Member Directory
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
+              <p className="text-[11px] text-slate-500 hidden sm:block">
                 Manage athletes, track subscription validity, and issue instant login credentials.
               </p>
             </div>
@@ -591,7 +590,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
             type="button"
             onClick={handleRefreshMembers}
             disabled={isRefreshing}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh members list from database"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
@@ -603,9 +602,15 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                 addToast(`Member capacity reached (${maxMembersQuota} members max on your ${currentTier} plan). Please upgrade to a higher plan to add more members.`, 'error');
                 return;
               }
-              setIsOpenAddModal(true);
+              if (onNavigateToAddMember) {
+                onNavigateToAddMember();
+              } else if (setActiveTab) {
+                setActiveTab('add-member');
+              } else {
+                setIsOpenAddModal?.(true);
+              }
             }}
-            className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Member</span>
@@ -1005,7 +1010,15 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
                         ? "There is currently no member data for this gym. Click below to add and register your first athlete."
                         : `No members match the search query "${searchTerm}" or the selected status filter.`}
                       actionText="Add Member"
-                      onAction={() => setIsOpenAddModal(true)}
+                      onAction={() => {
+                        if (onOpenAddMember) {
+                          onOpenAddMember();
+                        } else if (onNavigateToAddMember) {
+                          onNavigateToAddMember();
+                        } else if (setActiveTab) {
+                          setActiveTab('add-member');
+                        }
+                      }}
                       secondaryActionText={activeFiltersCount > 0 || searchTerm ? "Clear All Filters" : undefined}
                       onSecondaryAction={handleResetFilters}
                       accentColor="emerald"
@@ -1166,7 +1179,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
 
                           <button
                             type="button"
-                            onClick={() => setUpgradingMember(member)}
+                            onClick={() => {
+                              if (onNavigateToAddMember) {
+                                onNavigateToAddMember({ ...member, isUpgrade: true });
+                              } else {
+                                setUpgradingMember(member);
+                              }
+                            }}
                             title="Upgrade / Add Top-ups (PT, Recovery, Membership Upgrade)"
                             className="px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                           >
@@ -1895,17 +1914,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal }) => {
         member={payingDueMember}
       />
 
-      {/* REGISTER NEW MEMBER OR UPGRADE EXISTING MEMBER MODAL */}
-      <AddMemberModal
-        isOpen={isOpenAddModal || !!upgradingMember}
-        onClose={() => {
-          setIsOpenAddModal(false);
-          setUpgradingMember(null);
-        }}
-        initialData={upgradingMember}
-        isUpgrade={!!upgradingMember}
-        upgradeMember={upgradingMember}
-      />
 
       {/* EDIT MEMBER MODAL (All Fields + Mobile OTP Verification for Password) */}
       <Modal

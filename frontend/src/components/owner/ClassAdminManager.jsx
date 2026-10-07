@@ -182,30 +182,32 @@ export const ClassAdminManager = () => {
   }, [classes, searchTerm, categoryFilter, trainerFilter, dayFilter]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
-        <div>
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
-              <Calendar className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Group Classes & Batch Scheduling
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Group Classes & Batch Scheduling
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Create group workout batches, allocate certified coaches, set hall capacity, and monitor member enrollment.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Create group workout batches, allocate certified coaches, set hall capacity, and monitor member enrollment.
-          </p>
         </div>
 
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>Schedule New Class</span>
+          <span>Schedule Class</span>
         </button>
       </div>
 

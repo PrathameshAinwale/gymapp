@@ -396,6 +396,7 @@ export const isTabAllowedForGym = (tabId, packageTier, customFeatures = null) =>
   const universalAllowedTabs = [
     'dashboard',
     'member-profile',
+    'add-member',
     'privacy-policy',
     'terms-conditions',
     'help-support'

@@ -442,37 +442,39 @@ export const ProductsManager = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-10 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
               <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">Pro Shop & Inventory</h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Pro Shop & Inventory</h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Manage inventory and retail sales of gym supplements, protein, merchandise, lifting gear, and beverages.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Manage inventory and retail sales of gym supplements, protein, merchandise, lifting gear, and beverages.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleOpenNewSale}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
           >
-            <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ShoppingCart className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sell Product</span>
             <span className="inline sm:hidden">Sell</span>
           </button>
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Add Product</span>
             <span className="inline sm:hidden">Add Item</span>
           </button>

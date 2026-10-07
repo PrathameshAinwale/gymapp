@@ -164,19 +164,19 @@ export const ConsentFormsManager = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-5 animate-fadeIn pb-10 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-3.5 sm:p-5 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                 Consent Forms & Waivers
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
+              <p className="text-[11px] text-slate-500 hidden sm:block">
                 Ensure safety and legal compliance with digital liability waivers, PAR-Q, and health clearances.
               </p>
             </div>
@@ -202,7 +202,7 @@ export const ConsentFormsManager = () => {
             }
             setIsCreateModalOpen(true);
           }}
-          className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Consent Form</span>

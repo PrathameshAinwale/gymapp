@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
-import { AddMemberModal } from './AddMemberModal';
 import { MemberProfileView } from './MemberProfileView';
 import {
   CustomizeStatCardsModal,
@@ -564,64 +563,70 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
     .filter((card) => canAccessFinancials || !card.restricted);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-16 w-full">
 
       {/* 1. CLEAN & CALM HEADER */}
-      <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Gym Overview
-              </h1>
-            </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
-              Welcome back. Here is your facility's real-time operational pulse and multi-module hub.
-            </p>
+      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+              Gym Overview
+            </h1>
           </div>
+          <p className="text-[11px] text-slate-500 hidden sm:block">
+            Welcome back. Here is your facility's real-time operational pulse and multi-module hub.
+          </p>
+        </div>
 
-          {/* Action Buttons with high-contrast hover feedback */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 lg:pt-0">
+        {/* Action Buttons with high-contrast hover feedback */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsAddEnquiryOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-blue-600" />
+            <span>New Enquiry</span>
+          </button>
+
+          {canAccessFinancials && (
             <button
               type="button"
-              onClick={() => setIsAddEnquiryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] sm:text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+              onClick={() => setActiveTab('financials')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
             >
-              <UserPlus className="w-3.5 h-3.5 text-blue-600" />
-              <span>New Enquiry</span>
+              <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Record Fee</span>
             </button>
+          )}
 
-            {canAccessFinancials && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('financials')}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-[11px] sm:text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-              >
-                <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Record Fee</span>
-              </button>
-            )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-xs font-bold border border-slate-200 hover:border-teal-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+          >
+            <CalendarCheck className="w-3.5 h-3.5 text-teal-600" />
+            <span>Attendance</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('attendance')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-[11px] sm:text-xs font-bold border border-slate-200 hover:border-teal-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-            >
-              <CalendarCheck className="w-3.5 h-3.5 text-teal-600" />
-              <span>Attendance</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsAddMemberOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
-            >
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenAddMember) {
+                onOpenAddMember();
+              } else if (setActiveTab) {
+                setActiveTab('add-member');
+              } else {
+                setIsAddMemberOpen(true);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+          >
               <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Add Member</span>
             </button>
           </div>
         </div>
-      </div>
 
       {/* UNIVERSAL DASHBOARD SEARCH BAR (Search by Name, Date, Mobile, Email, Plan, etc.) */}
       <div className="relative w-full" ref={searchContainerRef}>
@@ -2216,11 +2221,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
         </form>
       </Modal>
 
-      {/* Direct Add Member Modal on Gym Overview Dashboard */}
-      <AddMemberModal
-        isOpen={isAddMemberOpen}
-        onClose={() => setIsAddMemberOpen(false)}
-      />
 
       {/* Comprehensive Member Profile View Modal */}
       <MemberProfileView

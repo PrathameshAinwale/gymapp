@@ -458,31 +458,33 @@ export const AnalyticsPage = () => {
   }, [dbData, products]);
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* ── HEADER ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-5 sm:p-6 rounded-2xl shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-xs">
-            <BarChart3 className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Gym Analytics & Visual Insights
-              </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Database className="w-3 h-3 text-emerald-600" />
-                Live Database
-              </span>
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Live visual charts and historical trends aggregated from your gym's database.
-              {lastSyncTime && <span className="ml-1.5 text-slate-400">Synced at {lastSyncTime}</span>}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                  Gym Analytics & Visual Insights
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline-flex">
+                  <Database className="w-2.5 h-2.5 text-emerald-600" />
+                  Live
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Live visual charts and historical trends aggregated from your gym's database.
+                {lastSyncTime && <span className="ml-1.5 text-slate-400">Synced at {lastSyncTime}</span>}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => fetchDbAnalytics(true)}

@@ -565,39 +565,38 @@ export const WhatsAppAutomation = () => {
   const birthdayCelebrantsNames = birthdayCelebrants.map((b) => b.name).filter(Boolean).join(', ');
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* ── Top Header Banner ──────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-                <MessageSquare className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
-                  <span>WhatsApp & Templates</span>
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${
-                    isPlatinum
-                      ? 'bg-purple-50 text-purple-700 border-purple-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-300'
-                  }`}>
-                    {isPlatinum ? 'Platinum: 100% Automated WhatsApp' : 'Gold: Manual Template Sending Mode'}
-                  </span>
+      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                  WhatsApp & Templates
                 </h1>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  {isPlatinum
-                    ? '100% completely automated background dispatch for birthdays, dues, and expiry alerts, plus instant broadcast templates.'
-                    : 'Personalized member & trainer birthday greetings, expiry renewal alerts, and fee notices with 1-click manual template dispatch.'}
-                </p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border hidden sm:inline-flex ${
+                  isPlatinum
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                }`}>
+                  {isPlatinum ? 'Automated' : 'Templates'}
+                </span>
               </div>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Member & trainer birthday greetings, expiry renewal alerts, and fee notices with 1-click dispatch.
+              </p>
             </div>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={handleRefreshAll}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleRefreshAll}
               disabled={isRefreshing}
               className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               title="Refresh triggers and templates"
@@ -615,7 +614,6 @@ export const WhatsAppAutomation = () => {
             </button>
           </div>
         </div>
-      </div>
 
       {/* Metric Ribbon Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">

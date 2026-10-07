@@ -171,45 +171,45 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
   const totalAssignedStaffCount = shifts.reduce((acc, s) => acc + (s.assigned_staff_count || 0), 0);
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* 1. HEADER SECTION */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
-                <Clock className="w-5 h-5" />
+      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                   Staff Shift Management
                 </h1>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  Create customized shifts with multiple timing options and slots. These shifts will be dynamically selectable in staff accounts.
+                <p className="text-[11px] text-slate-500 hidden sm:block">
+                  Create customized shifts with multiple timing options and slots dynamically selectable in staff accounts.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {onNavigateTab && (
               <button
                 type="button"
                 onClick={() => onNavigateTab('staff-accounts')}
-                className="px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Users className="w-4 h-4 text-slate-500" />
-                <span>Go to Staff Accounts</span>
+                <Users className="w-3.5 h-3.5 text-slate-500" />
+                <span>Go to Staff</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={openCreateModal}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Create New Shift</span>
+              <span>Create Shift</span>
             </button>
           </div>
         </div>

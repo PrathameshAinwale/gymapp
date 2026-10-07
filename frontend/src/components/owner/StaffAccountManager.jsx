@@ -698,31 +698,33 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
-        <div>
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
-              <UserPlus className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Staff & Employee Directory
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Staff & Employee Directory
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Create and maintain staff entries with identity verification, working shifts, salaries, and secure login access.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Create and maintain staff entries with identity verification (Aadhaar & PAN cards with document photos), working shifts, salaries, and secure login access.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
           {onNavigateTab && (
             <button
               type="button"
               onClick={() => onNavigateTab('shifts')}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
             >
-              <Clock className="w-4 h-4 text-emerald-600" />
+              <Clock className="w-3.5 h-3.5 text-emerald-600" />
               <span>Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
             </button>
           )}
@@ -736,10 +738,10 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               }
               setIsCreateModalOpen(true);
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <UserPlus className="w-4 h-4" />
-            <span>+ Add Staff Member</span>
+            <span>Add Staff</span>
           </button>
         </div>
       </div>

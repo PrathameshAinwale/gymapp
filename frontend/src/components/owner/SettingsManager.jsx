@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle } from 'lucide-react';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
+import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
 import {
   hasSqlInjection,
   isValidEmail,
@@ -33,6 +34,69 @@ const calculateDaysRemaining = (expiryDate) => {
 export const SettingsManager = () => {
   const { gymInfo, setGymInfo, fetchGymInfo, addToast, branches = [], branchesData = {}, fetchBranches, switchBranch, createBranch } = useGymData();
   const { currentUser, updateUserPassword } = useAuth();
+
+  // Active Settings Sub-Tab: 'general' | 'consent'
+  const [activeSettingsTab, setActiveSettingsTab] = useState('general');
+
+  // Dynamic Consent Form Builder State
+  const [consentFormConfig, setConsentFormConfig] = useState(() => getGymConsentForm(gymInfo?.id));
+  const [isSavingConsent, setIsSavingConsent] = useState(false);
+
+  // Sync consent form if gym id changes
+  useEffect(() => {
+    if (gymInfo?.id) {
+      setConsentFormConfig(getGymConsentForm(gymInfo.id));
+    }
+  }, [gymInfo?.id]);
+
+  const handleSaveConsentForm = () => {
+    setIsSavingConsent(true);
+    try {
+      saveGymConsentForm(gymInfo?.id, consentFormConfig);
+      addToast('Registration consent form updated successfully! New members will now review these clauses.', 'success');
+    } catch (err) {
+      addToast('Failed to save consent form: ' + err.message, 'error');
+    } finally {
+      setIsSavingConsent(false);
+    }
+  };
+
+  const handleResetConsentForm = () => {
+    if (window.confirm('Reset all consent form clauses to the standard legal template?')) {
+      setConsentFormConfig(DEFAULT_CONSENT_FORM);
+      saveGymConsentForm(gymInfo?.id, DEFAULT_CONSENT_FORM);
+      addToast('Reset to standard legal waiver template.', 'info');
+    }
+  };
+
+  const handleAddClause = () => {
+    const nextId = Date.now();
+    setConsentFormConfig((prev) => ({
+      ...prev,
+      clauses: [
+        ...prev.clauses,
+        {
+          id: nextId,
+          title: `Custom Policy / Clause #${prev.clauses.length + 1}`,
+          text: 'Enter the terms, rules, or waiver declaration for this clause here.'
+        }
+      ]
+    }));
+  };
+
+  const handleUpdateClause = (clauseId, field, value) => {
+    setConsentFormConfig((prev) => ({
+      ...prev,
+      clauses: prev.clauses.map((c) => (c.id === clauseId ? { ...c, [field]: value } : c))
+    }));
+  };
+
+  const handleDeleteClause = (clauseId) => {
+    setConsentFormConfig((prev) => ({
+      ...prev,
+      clauses: prev.clauses.filter((c) => c.id !== clauseId)
+    }));
+  };
 
   // Owner Password Update States
   const [ownerCurrentPassword, setOwnerCurrentPassword] = useState('');
@@ -322,28 +386,30 @@ export const SettingsManager = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-12 max-w-5xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
               <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
-              Settings & Branding
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Settings & Branding
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Configure club business information, operational timings, and front desk communications.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Configure club business information, operational timings, and front desk communications.
-          </p>
         </div>
 
         <button
           type="button"
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
           title="Refresh from MySQL Database"
         >
           <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
@@ -351,8 +417,44 @@ export const SettingsManager = () => {
         </button>
       </div>
 
-      {/* SUBSCRIPTION PLAN & VALIDITY DETAILS (CLEAN & SIMPLE) */}
-      <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+      {/* Top Level Settings Tabs Switcher */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('general')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'general'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <Building className="w-4 h-4" />
+          <span>Facility Profile & Branding</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('consent')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'consent'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>Member Registration Consent Form</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+            activeSettingsTab === 'consent' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+          }`}>
+            Waiver
+          </span>
+        </button>
+      </div>
+
+      {activeSettingsTab === 'general' ? (
+        <div className="space-y-4">
+          {/* SUBSCRIPTION PLAN & VALIDITY DETAILS (CLEAN & SIMPLE) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
         {/* Top Header Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -1017,6 +1119,265 @@ export const SettingsManager = () => {
           </div>
         )}
       </div>
+      </div>
+      ) : (
+        /* ══════════════════════════════════════════════════════════ */
+        /* TAB 2: DIGITAL CONSENT & WAIVER BUILDER                   */
+        /* ══════════════════════════════════════════════════════════ */
+        <div className="space-y-4 sm:space-y-6">
+          {/* Top Info & Action Card */}
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  Digital Consent & Liability Waiver Builder
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500">
+                Customize the legal clauses, club policies, and health declarations presented to new athletes during member enrollment.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleResetConsentForm}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5"
+                title="Reset to default legal waiver template"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Reset to Standard</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveConsentForm}
+                disabled={isSavingConsent}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                {isSavingConsent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSavingConsent ? 'Saving...' : 'Save Consent Form'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Form Configuration Card */}
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
+            <h3 className="font-bold text-xs sm:text-sm text-slate-900 border-b border-slate-100 pb-2.5">
+              Document Header & Declaration
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Document Title *
+                </label>
+                <input
+                  type="text"
+                  value={consentFormConfig.title}
+                  onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Gym Rules & Liability Waiver Consent Form"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Instruction / Subtitle Note
+                </label>
+                <input
+                  type="text"
+                  value={consentFormConfig.subtitle}
+                  onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, subtitle: e.target.value }))}
+                  placeholder="e.g. Review terms & physical activity declaration below before signing."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Mandatory Checkbox Acknowledgment Text *
+                </label>
+                <input
+                  type="text"
+                  value={consentFormConfig.declarationText}
+                  onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, declarationText: e.target.value }))}
+                  placeholder="e.g. I have read, understood, and accept all terms of the Health Declaration, Liability Waiver & Gym Rules."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            {/* Allowed Signing Methods */}
+            <div className="pt-2 border-t border-slate-100">
+              <label className="block text-[11px] font-bold text-slate-700 mb-2">
+                Allowed Signature Methods During Registration
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={consentFormConfig.allowPhysicalSign}
+                    onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, allowPhysicalSign: e.target.checked }))}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Physical / Paper Form Signed</span>
+                    <span className="text-[10px] text-slate-500 block">Front desk staff verifies physical signed paper</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={consentFormConfig.allowEmailOtp}
+                    onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, allowEmailOtp: e.target.checked }))}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Email OTP Digital Signature</span>
+                    <span className="text-[10px] text-slate-500 block">Member verifies with one-time password sent to email</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Legal Clauses List & Editor */}
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div>
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
+                  Consent Form Clauses & Rules ({consentFormConfig.clauses.length} Clauses)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Add, edit, or remove clauses below. Each clause will be displayed clearly to athletes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddClause}
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Clause</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {consentFormConfig.clauses.map((clause, index) => (
+                <div
+                  key={clause.id || index}
+                  className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2.5 transition-all hover:border-slate-300"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Clause #{index + 1}
+                    </span>
+                    {consentFormConfig.clauses.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClause(clause.id || index)}
+                        className="p-1 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        title="Remove this clause"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Clause Title
+                    </label>
+                    <input
+                      type="text"
+                      value={clause.title}
+                      onChange={(e) => handleUpdateClause(clause.id || index, 'title', e.target.value)}
+                      placeholder="e.g. Physical Fitness & Medical Health Affirmation"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Clause Full Description / Text
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={clause.text}
+                      onChange={(e) => handleUpdateClause(clause.id || index, 'text', e.target.value)}
+                      placeholder="Enter legal terms, waiver declarations or club rules..."
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 leading-relaxed resize-y"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddClause}
+              className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-slate-600 hover:text-emerald-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Another Clause</span>
+            </button>
+          </div>
+
+          {/* Live Preview Card */}
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Registration Live Preview (How Athletes & Staff See It)
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                Preview Mode
+              </span>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-200 text-[11px]">
+                <span className="font-bold text-slate-800">
+                  Participant: <span className="text-emerald-700">Athlete Name</span>
+                </span>
+                <span className="text-slate-500">
+                  Facility: <strong className="text-slate-700">{gymInfo?.name || 'PulseFit Athletic Club'}</strong> &bull; Date: Today
+                </span>
+              </div>
+
+              <div className="space-y-2.5 text-xs text-slate-700">
+                {consentFormConfig.clauses.map((clause, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="font-bold text-emerald-700 shrink-0 text-xs">{idx + 1}.</span>
+                    <p>
+                      <strong className="text-slate-900">{clause.title}:</strong> {clause.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Simulated Mandatory Checkbox */}
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-slate-800">
+              <input type="checkbox" checked readOnly className="mt-0.5 w-4 h-4 text-emerald-600 rounded border-emerald-300" />
+              <div>
+                <span className="font-bold block text-emerald-950">
+                  {consentFormConfig.declarationText || 'I have read, understood, and accept all terms of the Health Declaration, Liability Waiver & Gym Rules.'}
+                </span>
+                <span className="text-[11px] text-slate-600">
+                  {consentFormConfig.declarationSubtext || 'By checking this box, the athlete confirms full agreement and understanding of the above clauses.'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ADD ANOTHER GYM MODAL (PLATINUM MULTI-GYM) */}
       {isAddBranchModalOpen && createPortal(

@@ -470,44 +470,44 @@ export const MembershipFreezeManager = () => {
   }, [transferData.membershipStartDate, transferData.transferDate, remainingDaysSource]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-10 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <PauseCircle className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                 Freeze, Extension & Transfers
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
+              <p className="text-[11px] text-slate-500 hidden sm:block">
                 Manage membership holds, complimentary/paid validity extensions, and transfer memberships between members.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
           {activeTab === 'freezes' ? (
             <>
               <button
                 type="button"
                 onClick={() => setIsExtendModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
               >
-                <CalendarPlus className="w-4 h-4 text-emerald-600" />
-                <span>+ Extend</span>
+                <CalendarPlus className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Extend</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsFreezeModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
               >
-                <PauseCircle className="w-4 h-4" />
-                <span>+ Freeze</span>
+                <PauseCircle className="w-3.5 h-3.5" />
+                <span>Freeze</span>
               </button>
             </>
           ) : (

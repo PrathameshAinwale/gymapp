@@ -251,6 +251,46 @@ class RevenueBillingController extends Controller
         $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
         $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
 
+        $inflowDate = $request->date ?: now()->toDateString();
+        $inflowAmount = (float)$request->amount;
+        $inflowTotalAmount = (float)($request->total_amount ?? $request->totalAmount ?? ($inflowAmount + $duesAmount));
+
+        // Duplicate Invoice Validation: Only applies to the active plans of the member
+        // If invoice date is different -> allowed.
+        // If invoice date is same, but other contents differ -> allowed.
+        // If invoice date is same AND all contents/amounts are identical for the active plan -> blocked.
+        if ($userId) {
+            $userObj = User::with('memberProfile')->find($userId);
+            $profile = $userObj?->memberProfile;
+            $todayStr = now()->toDateString();
+            $expiryStr = $profile?->expiry_date ? $profile->expiry_date->format('Y-m-d') : null;
+            $isMemberActive = $profile && ($profile->status === 'Active' || ($expiryStr && $expiryStr >= $todayStr));
+            $activePlanId = $profile?->plan_id;
+
+            if ($isMemberActive && $activePlanId) {
+                $targetPlanId = $planId ?: $activePlanId;
+
+                if ((int)$targetPlanId === (int)$activePlanId) {
+                    $dupQuery = RevenueBilling::where('gym_id', $gymId)
+                        ->where('type', 'inflow')
+                        ->where('user_id', $userId)
+                        ->whereDate('date', $inflowDate)
+                        ->where('amount', $inflowAmount)
+                        ->where(function ($q) use ($activePlanId, $planName) {
+                            $q->where('plan_id', $activePlanId)
+                              ->orWhere('plan_name', $planName);
+                        });
+
+                    if ($dupQuery->exists()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Duplicate Invoice Detected: An identical invoice of ₹" . number_format($inflowAmount, 2) . " for this active plan already exists on {$inflowDate}. If this is a separate transaction, please adjust the invoice date or invoice details.",
+                        ], 422);
+                    }
+                }
+            }
+        }
+
         $record = RevenueBilling::create([
             'gym_id' => $gymId,
             'type' => 'inflow',

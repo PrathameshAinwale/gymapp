@@ -241,21 +241,23 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
   }
 
   return (
-    <div className="space-y-5 animate-fadeIn pb-14 max-w-7xl mx-auto">
-      {/* Top Breadcrumb & Page Title (Identical to reference mockup) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-        <div>
+    <div className="space-y-4 animate-fadeIn pb-14 w-full">
+      {/* Top Header Navigation Bar (Matches AddMemberPage) */}
+      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onBackToDashboard || (() => onNavigateTab?.('dashboard'))}
-            className="text-xs font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1.5 transition-colors cursor-pointer mb-1 group"
+            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+            title="Return to Dashboard"
           >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to dashboard</span>
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Member Profile
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+              Member Profile: {currentMember.name || 'Member Details'}
+            </h1>
+          </div>
         </div>
       </div>
 

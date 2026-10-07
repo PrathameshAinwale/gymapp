@@ -344,31 +344,33 @@ export const LeaveManagement = () => {
   const pendingCount = leaveRequests.filter((r) => r.status === 'Pending').length;
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* 1. Top Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
-              Staff & Trainer Leave Management
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Staff & Trainer Leave Management
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Review leave applications, inspect staff leave balances, and set annual quotas for trainers and staff.
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-            Review & accept/reject leave applications, inspect staff leave balances, and set annual quotas for trainers and staff.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleRefreshData}
             disabled={isRefreshing}
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="p-2 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
             title="Refresh leave requests & balances"
           >
-            <RotateCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
           </button>
         </div>
       </div>

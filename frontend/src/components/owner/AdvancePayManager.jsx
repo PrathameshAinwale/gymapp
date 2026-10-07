@@ -99,27 +99,29 @@ export const AdvancePayManager = () => {
   const pendingCount = advanceRequests.filter((r) => r.status === 'Pending').length;
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12 max-w-6xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
-        <div>
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
-              <Coins className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+              <Coins className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Staff Advance Salary & Disbursals
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Staff Advance Salary & Disbursals
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Review staff salary advance requests, grant approvals, and disburse payments directly into expense cash outflows.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Review staff salary advance requests, grant approvals, and disburse payments directly into expense cash outflows.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>{pendingCount} Pending Requests</span>
+            <span>{pendingCount} Pending</span>
           </span>
         </div>
       </div>

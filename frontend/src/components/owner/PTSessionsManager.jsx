@@ -437,28 +437,30 @@ export const PTSessionsManager = () => {
   }, [uniqueSessions, searchTerm, statusFilter, trainerFilter]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12 max-w-7xl mx-auto">
+    <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
-        <div>
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200">
-              <Dumbbell className="w-5 h-5" />
+            <div className="p-1.5 sm:p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200 shrink-0">
+              <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Personal Training (PT) Sessions Tracker
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                Personal Training (PT) Sessions Tracker
+              </h1>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Track individual PT session quotas, completion statuses, trainer assignments, and member OTP verifications.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Track individual PT session quotas, completion statuses, trainer assignments, and member OTP verifications.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleOpenAllocateModal}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Allocate PT Package</span>
