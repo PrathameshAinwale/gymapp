@@ -1337,6 +1337,28 @@ export const api = {
       });
       return handleResponse(res);
     },
+
+    // Master Platform WhatsApp Automation & Gateway Control
+    getWhatsAppSettings: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-settings`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    updateWhatsAppSettings: async (settingsData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-settings`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(settingsData),
+      });
+      return handleResponse(res);
+    },
+    testWhatsAppMessage: async (phone) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-test`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ phone }),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Platform Public/Client Endpoints (Accessible across all roles)

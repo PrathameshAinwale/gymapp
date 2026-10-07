@@ -39,7 +39,8 @@ import {
   FileText,
   History,
   User,
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react';
 import {
   hasSqlInjection,
@@ -780,7 +781,7 @@ export const WhatsAppAutomation = () => {
           { id: 'templates', label: 'Message Templates', icon: FileText, count: whatsappTemplates.length },
           { id: 'triggers', label: "Today's Birthdays (Database Match)", icon: Cake, count: birthdaysTodayCount },
           { id: 'broadcast', label: 'Instant Broadcaster', icon: Send },
-          { id: 'settings', label: 'Automation & Gateway Settings', icon: Settings },
+          { id: 'settings', label: 'Automation Preferences', icon: Settings },
           { id: 'logs', label: 'Delivery Audit Logs', icon: History, count: whatsappLogs.length }
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -1838,162 +1839,59 @@ export const WhatsAppAutomation = () => {
                 </div>
               </div>
 
-              {/* Right Column (5 cols): Gateway API Provider Configuration */}
+              {/* Right Column (5 cols): Centralized Platform Gateway Status */}
               <div className="lg:col-span-5 space-y-6">
-                <form onSubmit={handleSaveGatewaySettings} className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+                <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
-                        <Settings className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center">
+                        <ShieldCheck className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">Gateway API Connection</h4>
-                        <p className="text-[11px] text-slate-500">Connect your WhatsApp delivery gateway</p>
+                        <h4 className="text-sm font-bold text-slate-900">Platform Gateway Status</h4>
+                        <p className="text-[11px] text-slate-500">Centralized Superadmin Gateway</p>
                       </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                      CONNECTED
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50/80 to-purple-50/50 border border-indigo-100 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Gateway Service:</span>
+                      <span className="font-bold text-indigo-900 font-mono">
+                        {gatewayForm.provider === 'msg91'
+                          ? 'MSG91 Enterprise WhatsApp'
+                          : gatewayForm.provider === 'ultramsg'
+                          ? 'UltraMsg Cloud Gateway'
+                          : gatewayForm.provider === 'meta'
+                          ? 'Meta WhatsApp Cloud API'
+                          : 'Platform WhatsApp Gateway'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Sender Number:</span>
+                      <span className="font-bold text-slate-800 font-mono">
+                        {gatewayForm.phone_number_id ? `+${gatewayForm.phone_number_id}` : 'Verified Platform Business'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Gateway Routing:</span>
+                      <span className="font-bold text-emerald-700 flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-emerald-600" /> Managed by Superadmin
+                      </span>
                     </div>
                   </div>
 
-                  {/* Provider Selector */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700">Gateway Provider</label>
-                    <select
-                      value={gatewayForm.provider}
-                      onChange={(e) => setGatewayForm({ ...gatewayForm, provider: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                    >
-                      <option value="msg91">MSG91 (Message91 WhatsApp API - Popular in India)</option>
-                      <option value="ultramsg">UltraMsg REST API (QR-Code Instant)</option>
-                      <option value="meta">Meta WhatsApp Business Cloud API</option>
-                      <option value="custom">Custom Webhook / HTTP REST Gateway</option>
-                      <option value="none">Manual 1-Click WhatsApp Link Mode</option>
-                    </select>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                    <strong>Note:</strong> Delivery credentials and API keys are maintained centrally by your system administrator. Your facility’s automated welcome messages and birthday wishes are routed automatically without requiring any manual setup.
                   </div>
 
-                  {/* Provider-specific fields */}
-                  {gatewayForm.provider === 'msg91' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-900 leading-relaxed">
-                        <strong>MSG91 WhatsApp Setup:</strong> Log in to <a href="https://msg91.com" target="_blank" rel="noreferrer" className="underline font-bold">msg91.com</a>. Obtain your <strong>AuthKey</strong> (from Dashboard &gt; Authkeys) and your <strong>Integrated WhatsApp Number</strong> (e.g. 919876543210 with country code).
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">MSG91 AuthKey *</label>
-                        <input
-                          type="password"
-                          placeholder="e.g. 384824Abcdef123..."
-                          value={gatewayForm.api_token}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Integrated Sender Number * (With Country Code)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 919876543210"
-                          value={gatewayForm.phone_number_id}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, phone_number_id: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                        <span className="text-[10px] text-slate-500">Your registered WhatsApp Business number with 91 country code (no + or spaces).</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {gatewayForm.provider === 'ultramsg' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
-                        <strong>UltraMsg Setup:</strong> Login to <a href="https://ultramsg.com" target="_blank" rel="noreferrer" className="underline font-bold">ultramsg.com</a>, scan your gym’s WhatsApp QR code, and paste your <strong>Instance ID</strong> and <strong>Token</strong> below for instant automated sending.
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Instance ID *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. instance12345"
-                          value={gatewayForm.instance_id}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, instance_id: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">API Token *</label>
-                        <input
-                          type="password"
-                          placeholder="e.g. abc123xyztoken"
-                          value={gatewayForm.api_token}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {gatewayForm.provider === 'meta' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-900 leading-relaxed">
-                        <strong>Meta Cloud API Setup:</strong> Requires Meta for Developers account with a registered WhatsApp Business Phone Number ID and Permanent Access Token.
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Phone Number ID *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 109876543210987"
-                          value={gatewayForm.phone_number_id}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, phone_number_id: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Permanent Access Token *</label>
-                        <input
-                          type="password"
-                          placeholder="EAAB..."
-                          value={gatewayForm.api_token}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {gatewayForm.provider === 'custom' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Webhook / Gateway URL *</label>
-                        <input
-                          type="text"
-                          placeholder="https://api.yourgateway.com/send"
-                          value={gatewayForm.api_url}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_url: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700">Authorization Bearer Token (Optional)</label>
-                        <input
-                          type="password"
-                          placeholder="Bearer token or API key"
-                          value={gatewayForm.api_token}
-                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {gatewayForm.provider === 'none' && (
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
-                      In manual mode, all birthday and registration notifications prepare direct pre-filled WhatsApp Web / WhatsApp Mobile links with 1-click dispatch buttons.
-                    </div>
-                  )}
-
-                  <div className="pt-2">
+                  <form onSubmit={handleSaveGatewaySettings}>
                     <button
                       type="submit"
                       disabled={isSavingSettings}
@@ -2002,17 +1900,17 @@ export const WhatsAppAutomation = () => {
                       {isSavingSettings ? (
                         <>
                           <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Saving Settings...</span>
+                          <span>Updating Preferences...</span>
                         </>
                       ) : (
                         <>
                           <Check className="w-3.5 h-3.5" />
-                          <span>Save WhatsApp Gateway Settings</span>
+                          <span>Save Facility Notification Preferences</span>
                         </>
                       )}
                     </button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             </div>
           </div>

@@ -457,5 +457,10 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         // Platform About Pages (Privacy Policy, Terms, Help & Support)
         Route::get('/pages', [SuperadminController::class, 'indexPages']);
         Route::put('/pages/{slug}', [SuperadminController::class, 'updatePage']);
+
+        // Platform-wide WhatsApp Automation & Gateway Control
+        Route::get('/whatsapp-settings', [SuperadminController::class, 'getWhatsAppSettings']);
+        Route::put('/whatsapp-settings', [SuperadminController::class, 'updateWhatsAppSettings']);
+        Route::post('/whatsapp-test', [SuperadminController::class, 'testWhatsAppMessage']);
     });
 });

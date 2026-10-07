@@ -35,14 +35,14 @@ import {
   Layers,
   FileText,
   KeyRound,
-  Ban,
-  Unlock,
-  ShieldAlert
+  ShieldAlert,
+  MessageSquare
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { PlansManager } from './PlansManager';
 import { PagesManager } from './PagesManager';
 import { SuperadminCredentialsManager } from './SuperadminCredentialsManager';
+import { SuperadminWhatsAppManager } from './SuperadminWhatsAppManager';
 import { PACKAGE_PLANS } from './packagePlans';
 import {
   hasSqlInjection,
@@ -631,6 +631,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
             {[
               { id: 'gyms', label: 'Facilities Directory', icon: Building2, count: gyms.length },
               { id: 'plans', label: 'SaaS Plans Management', icon: Layers },
+              { id: 'whatsapp', label: 'WhatsApp Gateway & Automation', icon: MessageSquare },
               { id: 'pages', label: 'About & Support Pages', icon: FileText },
               { id: 'credentials', label: 'Admin Credentials & Security', icon: KeyRound },
               { id: 'analytics', label: 'Platform Telemetry & MRR', icon: TrendingUp }
@@ -1069,6 +1070,13 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
         {/* TAB 3: SAAS PLANS MANAGEMENT                              */}
         {/* ══════════════════════════════════════════════════════════ */}
         {activeMainTab === 'plans' && <PlansManager onPlansUpdated={loadData} />}
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* TAB: WHATSAPP GATEWAY & AUTOMATION CONTROL                 */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {activeMainTab === 'whatsapp' && (
+          <SuperadminWhatsAppManager showToast={showToast} />
+        )}
 
         {/* ══════════════════════════════════════════════════════════ */}
         {/* TAB 4: ABOUT & LEGAL SUPPORT PAGES                         */}

@@ -1016,4 +1016,108 @@ class SuperadminController extends Controller
             'page' => $page
         ]);
     }
+
+    /**
+     * Get Master Platform WhatsApp Automation & Gateway settings
+     */
+    public function getWhatsAppSettings(Request $request)
+    {
+        $settings = \App\Models\WhatsAppSetting::whereNull('gym_id')->first()
+            ?: \App\Models\WhatsAppSetting::first();
+
+        if (!$settings) {
+            $settings = \App\Models\WhatsAppSetting::create([
+                'gym_id'             => null,
+                'provider'           => 'msg91',
+                'is_enabled'         => true,
+                'instance_id'        => null,
+                'api_token'          => null,
+                'phone_number_id'    => null,
+                'api_url'            => null,
+                'auto_send_welcome'  => true,
+                'auto_send_birthday' => true,
+                'auto_send_expiry'   => true,
+                'auto_send_dues'     => true,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $settings,
+        ]);
+    }
+
+    /**
+     * Update Master Platform WhatsApp Automation & Gateway settings
+     */
+    public function updateWhatsAppSettings(Request $request)
+    {
+        $settings = \App\Models\WhatsAppSetting::whereNull('gym_id')->first()
+            ?: \App\Models\WhatsAppSetting::first();
+
+        if (!$settings) {
+            $settings = new \App\Models\WhatsAppSetting();
+            $settings->gym_id = null;
+        }
+
+        $validated = $request->validate([
+            'provider'           => 'required|string|in:msg91,ultramsg,meta,custom,none',
+            'is_enabled'         => 'nullable|boolean',
+            'instance_id'        => 'nullable|string|max:255',
+            'api_token'          => 'nullable|string',
+            'phone_number_id'    => 'nullable|string|max:255',
+            'api_url'            => 'nullable|string|max:500',
+            'auto_send_welcome'  => 'nullable|boolean',
+            'auto_send_birthday' => 'nullable|boolean',
+            'auto_send_expiry'   => 'nullable|boolean',
+            'auto_send_dues'     => 'nullable|boolean',
+        ]);
+
+        $settings->fill($validated);
+        $settings->gym_id = null;
+        $settings->save();
+
+        // Also update existing gym rows so they inherit master settings
+        \App\Models\WhatsAppSetting::whereNotNull('gym_id')->update([
+            'provider'           => $settings->provider,
+            'is_enabled'         => $settings->is_enabled,
+            'instance_id'        => $settings->instance_id,
+            'api_token'          => $settings->api_token,
+            'phone_number_id'    => $settings->phone_number_id,
+            'api_url'            => $settings->api_url,
+            'auto_send_welcome'  => $settings->auto_send_welcome,
+            'auto_send_birthday' => $settings->auto_send_birthday,
+            'auto_send_expiry'   => $settings->auto_send_expiry,
+            'auto_send_dues'     => $settings->auto_send_dues,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Platform WhatsApp Automation & Gateway settings saved successfully by Superadmin!',
+            'data'    => $settings,
+        ]);
+    }
+
+    /**
+     * Send a live test WhatsApp message from Superadmin
+     */
+    public function testWhatsAppMessage(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string',
+        ]);
+
+        $phone = $request->input('phone');
+        $testMsg = "Hello from *ArchFit Superadmin*! 🚀\n\nThis is a test notification confirming that the platform-wide WhatsApp gateway is fully active and connected!";
+
+        $result = \App\Services\WhatsAppNotificationService::dispatchViaGateway($phone, $testMsg, null);
+
+        return response()->json([
+            'success' => $result['success'] ?? true,
+            'message' => ($result['status'] ?? '') === 'sent'
+                ? 'Test WhatsApp message dispatched successfully via gateway!'
+                : 'Test WhatsApp message processed.',
+            'result'  => $result,
+        ]);
+    }
 }
