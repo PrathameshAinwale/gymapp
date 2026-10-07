@@ -73,7 +73,6 @@ const getDefaultHosts = () => {
     hosts.push(`http://${currentHost}:8000/api/v1`);
   }
   hosts.push(`http://${CURRENT_LAN_IP}:8000/api/v1`);
-  hosts.push(LIVE_PRODUCTION_API_URL);
 
   return Array.from(new Set(hosts.filter(Boolean)));
 };
@@ -121,9 +120,10 @@ let activeBaseUrl = (function () {
       return LIVE_PRODUCTION_API_URL;
     }
 
-    // Normal browser on localhost
-    if (saved && !saved.includes(':8000') && saved.startsWith('https://')) {
-      return saved;
+    // Normal browser on localhost - strictly connect to local backend database
+    if (saved && (saved.startsWith('https://') || saved.includes('archenterprises.co.in'))) {
+      localStorage.removeItem('archfit_api_url');
+      localStorage.removeItem('pulsefit_api_url');
     }
     return 'http://127.0.0.1:8000/api/v1';
   }
@@ -243,16 +243,15 @@ const apiFetch = async (urlOrPath, options = {}) => {
         }
       });
     } else {
-      // Local development machine
+      // Local development machine - strictly use local backend server
       rawHosts = [
-        activeBaseUrl,
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
         `http://${currentHost}:8000/api/v1`,
         `http://${CURRENT_LAN_IP}:8000/api/v1`,
-        LIVE_PRODUCTION_API_URL,
+        activeBaseUrl,
         ...CANDIDATE_API_HOSTS,
-      ].filter((h) => Boolean(h) && !h.includes('10.0.2.2'));
+      ].filter((h) => Boolean(h) && !h.includes('10.0.2.2') && !h.startsWith('https://'));
     }
 
     if (isHttps) {
