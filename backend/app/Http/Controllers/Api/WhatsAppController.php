@@ -1100,7 +1100,7 @@ class WhatsAppController extends Controller
         $settings = \App\Models\WhatsAppSetting::forGym($gymId);
 
         $validated = $request->validate([
-            'provider'           => 'nullable|string|in:ultramsg,meta,custom,none',
+            'provider'           => 'nullable|string|in:ultramsg,meta,msg91,custom,none',
             'is_enabled'         => 'nullable|boolean',
             'instance_id'        => 'nullable|string|max:255',
             'api_token'          => 'nullable|string',
