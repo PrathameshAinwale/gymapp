@@ -742,6 +742,7 @@ export const GymDataProvider = ({ children }) => {
     birthdays_today: 0,
     expiring_soon: 0,
   });
+  const [whatsappSettings, setWhatsappSettings] = useState(null);
 
   const initialExercises = SEED_EXERCISES;
 
@@ -1366,6 +1367,53 @@ export const GymDataProvider = ({ children }) => {
     }
   }, [fetchWhatsAppTriggers, fetchWhatsAppLogs, fetchWhatsAppStats]);
 
+  const fetchWhatsAppSettings = useCallback(async (params = {}) => {
+    try {
+      if (api.whatsapp?.getSettings) {
+        const res = await api.whatsapp.getSettings(params);
+        if (res?.data) {
+          setWhatsappSettings(res.data);
+          return res.data;
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch whatsapp settings note:', e.message);
+    }
+  }, []);
+
+  const updateWhatsAppSettings = useCallback(async (data) => {
+    try {
+      if (api.whatsapp?.updateSettings) {
+        const res = await api.whatsapp.updateSettings(data);
+        if (res?.success) {
+          setWhatsappSettings(res.data);
+          addToast(res.message || 'WhatsApp automation settings updated!', 'success');
+          return res.data;
+        }
+      }
+    } catch (e) {
+      addToast(e.message || 'Failed to update WhatsApp settings', 'error');
+      throw e;
+    }
+  }, [addToast]);
+
+  const testWhatsAppMessage = useCallback(async (phone) => {
+    try {
+      if (api.whatsapp?.testMessage) {
+        const res = await api.whatsapp.testMessage(phone);
+        if (res?.success) {
+          addToast(res.message || 'Test WhatsApp message sent!', 'success');
+          fetchWhatsAppLogs?.();
+          fetchWhatsAppStats?.();
+          return res;
+        }
+      }
+    } catch (e) {
+      addToast(e.message || 'Failed to send test WhatsApp message', 'error');
+      throw e;
+    }
+  }, [addToast, fetchWhatsAppLogs, fetchWhatsAppStats]);
+
   // Staff Shift Management Callbacks
   const fetchShifts = useCallback(async (params = {}) => {
     try {
@@ -1495,7 +1543,10 @@ export const GymDataProvider = ({ children }) => {
         fetchLeaveBalances(),
         fetchLeaveSummary(),
         fetchWhatsAppTemplates(),
+        fetchWhatsAppSettings(),
+        fetchWhatsAppTriggers(),
         fetchWhatsAppStats(),
+        processWhatsAppAutoSend(),
         fetchShifts()
       ]);
       setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false, leaves: false }));
@@ -3895,6 +3946,10 @@ export const GymDataProvider = ({ children }) => {
         broadcastWhatsAppTemplate,
         broadcastWhatsAppDirect,
         processWhatsAppAutoSend,
+        whatsappSettings,
+        fetchWhatsAppSettings,
+        updateWhatsAppSettings,
+        testWhatsAppMessage,
         // Staff Shift Management
         shifts,
         fetchShifts,

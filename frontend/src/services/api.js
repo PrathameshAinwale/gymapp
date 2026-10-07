@@ -1774,6 +1774,29 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/whatsapp/stats${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
+    getSettings: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/settings${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    updateSettings: async (data) => {
+      const payload = withGymParam(data);
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/settings`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    testMessage: async (phone) => {
+      const payload = withGymParam({ phone });
+      const res = await apiFetch(`${API_BASE_URL}/whatsapp/test-message`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Reports & Analytics

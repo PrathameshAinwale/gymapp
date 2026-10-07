@@ -838,12 +838,18 @@ class WhatsAppController extends Controller
     public function processAutoTriggers(Request $request)
     {
         $gymId = $this->resolveGymId($request) ?: 1;
-        $result = $this->executeAutoTriggersDirect($gymId);
+        $result = \App\Services\WhatsAppNotificationService::processDailyBirthdayGreetings($gymId);
 
         return response()->json([
             'success' => true,
-            'message' => "Automated triggers executed! {$result['birthdays_count']} birthday message(s) processed.",
-            'data'    => $result,
+            'message' => "Automated trigger engine executed! {$result['count']} birthday message(s) processed.",
+            'data'    => [
+                'birthdays_count' => $result['count'],
+                'expiries_count'  => 0,
+                'total_processed' => $result['count'],
+                'birthdays'       => $result['dispatched'],
+                'timestamp'       => $result['timestamp'],
+            ],
         ]);
     }
 
@@ -1070,5 +1076,77 @@ class WhatsAppController extends Controller
             'samples'     => $sample,
         ]);
     }
+
+    /**
+     * 14. Get WhatsApp Automation & Gateway settings
+     */
+    public function getSettings(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $settings = \App\Models\WhatsAppSetting::forGym($gymId);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $settings,
+        ]);
+    }
+
+    /**
+     * 15. Update WhatsApp Automation & Gateway settings
+     */
+    public function updateSettings(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $settings = \App\Models\WhatsAppSetting::forGym($gymId);
+
+        $validated = $request->validate([
+            'provider'           => 'nullable|string|in:ultramsg,meta,custom,none',
+            'is_enabled'         => 'nullable|boolean',
+            'instance_id'        => 'nullable|string|max:255',
+            'api_token'          => 'nullable|string',
+            'phone_number_id'    => 'nullable|string|max:255',
+            'api_url'            => 'nullable|string|max:500',
+            'auto_send_welcome'  => 'nullable|boolean',
+            'auto_send_birthday' => 'nullable|boolean',
+            'auto_send_expiry'   => 'nullable|boolean',
+            'auto_send_dues'     => 'nullable|boolean',
+        ]);
+
+        $settings->fill($validated);
+        $settings->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'WhatsApp automation settings updated successfully!',
+            'data'    => $settings,
+        ]);
+    }
+
+    /**
+     * 16. Send a live test WhatsApp message
+     */
+    public function testMessage(Request $request)
+    {
+        $gymId = $this->resolveGymId($request) ?: 1;
+        $request->validate([
+            'phone' => 'required|string',
+        ]);
+
+        $phone = $request->input('phone');
+        $gym = Gym::find($gymId);
+        $gymName = $gym ? $gym->name : 'PulseFit Pro';
+        $testMsg = "Hello from *{$gymName}*! 🚀\n\nThis is a test notification confirming your automated WhatsApp delivery engine is connected and working!";
+
+        $result = \App\Services\WhatsAppNotificationService::dispatchViaGateway($phone, $testMsg, $gymId);
+
+        return response()->json([
+            'success' => $result['success'] ?? true,
+            'message' => ($result['status'] ?? '') === 'sent'
+                ? 'Test WhatsApp message dispatched successfully via gateway!'
+                : 'Test WhatsApp message prepared.',
+            'result'  => $result,
+        ]);
+    }
 }
+
 

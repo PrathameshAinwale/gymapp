@@ -1314,7 +1314,8 @@ export const AddMemberPage = ({
         ptName: trainingType === 'pt' ? `${ptCustomSessions} 1-on-1 PT Sessions` : null,
         recoveryName: chosenRecoveryPlan?.name,
         trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
-        trainerName: resolvedTrainerName
+        trainerName: resolvedTrainerName,
+        whatsappWelcome: createdMember?.whatsapp_welcome || null
       });
 
       resetFormState();
@@ -1465,6 +1466,48 @@ export const AddMemberPage = ({
             </button>
           </div>
         </div>
+
+        {/* Automated WhatsApp Welcome Status Banner */}
+        {newlyCreatedCredentials?.whatsappWelcome?.sent ? (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-emerald-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/20 text-emerald-600 rounded-xl">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs">WhatsApp Welcome Message Sent Automatically!</h4>
+                <p className="text-[11px] text-emerald-700">
+                  Directly dispatched to <strong>{newlyCreatedCredentials.phone}</strong> via {newlyCreatedCredentials.whatsappWelcome.provider || 'Gateway'}.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 text-white uppercase tracking-wider shrink-0">
+              Auto Sent
+            </span>
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-slate-700">
+            <div className="flex items-center gap-2.5">
+              <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="text-xs">
+                <span className="font-bold text-slate-800">WhatsApp Welcome Notification:</span>{' '}
+                <span className="text-slate-500">
+                  {newlyCreatedCredentials?.whatsappWelcome?.skipped
+                    ? 'Automated welcome is currently paused in WhatsApp Settings.'
+                    : 'Direct gateway credentials not yet configured. Use the button below to send in 1 click.'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleShareMemberWhatsApp}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>1-Click WhatsApp</span>
+            </button>
+          </div>
+        )}
 
         {/* Member Credentials & Receipt Card */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">

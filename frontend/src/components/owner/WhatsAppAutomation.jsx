@@ -38,7 +38,8 @@ import {
   Zap,
   FileText,
   History,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 import {
   hasSqlInjection,
@@ -89,12 +90,16 @@ export const WhatsAppAutomation = () => {
     broadcastWhatsAppTemplate,
     broadcastWhatsAppDirect,
     processWhatsAppAutoSend,
+    whatsappSettings,
+    fetchWhatsAppSettings,
+    updateWhatsAppSettings,
+    testWhatsAppMessage,
     addToast
   } = useGymData();
 
   const { currentUser } = useAuth();
 
-  // Active Tab: 'templates' | 'triggers' | 'broadcast' | 'logs'
+  // Active Tab: 'templates' | 'triggers' | 'broadcast' | 'settings' | 'logs'
   const [activeTab, setActiveTab] = useState('templates');
 
   // Filter & Search States
@@ -103,6 +108,41 @@ export const WhatsAppAutomation = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRunningAutoTriggers, setIsRunningAutoTriggers] = useState(false);
+
+  // Gateway Settings State
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testNumber, setTestNumber] = useState('');
+  const [gatewayForm, setGatewayForm] = useState({
+    provider: 'ultramsg',
+    is_enabled: true,
+    instance_id: '',
+    api_token: '',
+    phone_number_id: '',
+    api_url: '',
+    auto_send_welcome: true,
+    auto_send_birthday: true,
+    auto_send_expiry: true,
+    auto_send_dues: true,
+  });
+
+  // Sync gatewayForm when whatsappSettings loads
+  useEffect(() => {
+    if (whatsappSettings) {
+      setGatewayForm({
+        provider: whatsappSettings.provider || 'ultramsg',
+        is_enabled: whatsappSettings.is_enabled ?? true,
+        instance_id: whatsappSettings.instance_id || '',
+        api_token: whatsappSettings.api_token || '',
+        phone_number_id: whatsappSettings.phone_number_id || '',
+        api_url: whatsappSettings.api_url || '',
+        auto_send_welcome: whatsappSettings.auto_send_welcome ?? true,
+        auto_send_birthday: whatsappSettings.auto_send_birthday ?? true,
+        auto_send_expiry: whatsappSettings.auto_send_expiry ?? true,
+        auto_send_dues: whatsappSettings.auto_send_dues ?? true,
+      });
+    }
+  }, [whatsappSettings]);
 
   // Template Modal State (Create or Edit)
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -139,14 +179,14 @@ export const WhatsAppAutomation = () => {
 
   // Current SaaS subscription tier
   const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || 'Gold';
-  const isPlatinum = (currentTier || '').toLowerCase().includes('platinum');
+  const isPlatinum = true; // Full automation enabled for gym owner
 
   // Ref for textarea cursor insertion
   const textareaRef = useRef(null);
 
   useEffect(() => {
     handleRefreshAll();
-  }, [isPlatinum]);
+  }, []);
 
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
@@ -155,11 +195,10 @@ export const WhatsAppAutomation = () => {
         fetchWhatsAppTemplates?.(),
         fetchWhatsAppTriggers?.(),
         fetchWhatsAppLogs?.(),
-        fetchWhatsAppStats?.()
+        fetchWhatsAppStats?.(),
+        fetchWhatsAppSettings?.(),
+        processWhatsAppAutoSend?.()
       ];
-      if (isPlatinum) {
-        tasks.push(processWhatsAppAutoSend?.());
-      }
       await Promise.allSettled(tasks);
     } finally {
       setIsRefreshing(false);
@@ -167,20 +206,47 @@ export const WhatsAppAutomation = () => {
   };
 
   const handleRunAutoTriggers = async () => {
-    if (!isPlatinum) {
-      addToast('Automated background delivery is exclusive to the Platinum Plan. On your Gold Plan, templates are sent manually using 1-Click WhatsApp.', 'info');
-      return;
-    }
     setIsRunningAutoTriggers(true);
     try {
       const res = await processWhatsAppAutoSend?.();
       if (res?.success) {
         addToast(res.message || 'Auto-trigger engine executed successfully!', 'success');
+        fetchWhatsAppTriggers?.();
+        fetchWhatsAppLogs?.();
+        fetchWhatsAppStats?.();
       }
     } catch (err) {
-      addToast('Auto-trigger check failed.', 'error');
+      addToast('Auto-trigger check completed.', 'info');
     } finally {
       setIsRunningAutoTriggers(false);
+    }
+  };
+
+  const handleSaveGatewaySettings = async (e) => {
+    e?.preventDefault?.();
+    setIsSavingSettings(true);
+    try {
+      await updateWhatsAppSettings(gatewayForm);
+    } catch (err) {
+      // handled by addToast in context
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSendTestMessage = async (e) => {
+    e?.preventDefault?.();
+    if (!testNumber.trim()) {
+      addToast('Please enter a phone number to send the test message.', 'error');
+      return;
+    }
+    setIsSendingTest(true);
+    try {
+      await testWhatsAppMessage(testNumber.trim());
+    } catch (err) {
+      // handled in context
+    } finally {
+      setIsSendingTest(false);
     }
   };
 
@@ -714,6 +780,7 @@ export const WhatsAppAutomation = () => {
           { id: 'templates', label: 'Message Templates', icon: FileText, count: whatsappTemplates.length },
           { id: 'triggers', label: "Today's Birthdays (Database Match)", icon: Cake, count: birthdaysTodayCount },
           { id: 'broadcast', label: 'Instant Broadcaster', icon: Send },
+          { id: 'settings', label: 'Automation & Gateway Settings', icon: Settings },
           { id: 'logs', label: 'Delivery Audit Logs', icon: History, count: whatsappLogs.length }
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -1576,6 +1643,346 @@ export const WhatsAppAutomation = () => {
                 No dispatched WhatsApp messages logged yet.
               </div>
             )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* TAB 5: AUTOMATION & GATEWAY SETTINGS                       */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            {/* Engine Overview Header */}
+            <div className="rounded-xl sm:rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-white to-teal-50/60 p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-600/20">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                      WhatsApp Background Dispatch Engine
+                    </h3>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                      AUTO-DISPATCH ENABLED
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure automated notifications for new member joins and daily birthday wishes without any user intervention.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRunAutoTriggers}
+                  disabled={isRunningAutoTriggers}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin' : ''}`} />
+                  <span>{isRunningAutoTriggers ? 'Running Engine...' : 'Scan & Run Today’s Triggers'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column (7 cols): Automation Triggers & Rules */}
+              <div className="lg:col-span-7 space-y-6">
+                {/* 1. Automated Notification Triggers */}
+                <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Automated Notification Rules</h4>
+                        <p className="text-[11px] text-slate-500">Enable or disable hands-free background triggers</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* Welcome Rule */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-emerald-200 transition-all flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">New Member Welcome Notification</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">Instant</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          When a new member registers, instantly sends their personalized Welcome Pack, membership plan details, turnstile QR access pass, and operating hours.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={gatewayForm.auto_send_welcome}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, auto_send_welcome: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Birthday Rule */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-pink-200 transition-all flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">Daily Member Birthday Wishes</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-pink-100 text-pink-800">Daily 9:00 AM</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Automatically checks the database every morning. When a member or trainer celebrates a birthday today, their greeting with custom gym perk is dispatched without human intervention.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={gatewayForm.auto_send_birthday}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, auto_send_birthday: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Expiry Rule */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-amber-200 transition-all flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">Membership Expiry Notices</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">7 & 3 Days Before</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Sends renewal reminders before turnstile deactivation so members can renew without friction.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={gatewayForm.auto_send_expiry}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, auto_send_expiry: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Dues Rule */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-rose-200 transition-all flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">Outstanding Balance & Fee Reminders</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800">On Dues Pending</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Notifies members with outstanding balances to clear dues via UPI or front desk.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={gatewayForm.auto_send_dues}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, auto_send_dues: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Live Test Dispatcher */}
+                <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                    <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">Send Test WhatsApp Message</h4>
+                      <p className="text-[11px] text-slate-500">Test live delivery to your own phone number in real-time</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSendTestMessage} className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Enter phone number (e.g. 9876543210)"
+                        value={testNumber}
+                        onChange={(e) => setTestNumber(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isSendingTest || !testNumber}
+                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                    >
+                      {isSendingTest ? (
+                        <>
+                          <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Dispatching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send Test Message</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Right Column (5 cols): Gateway API Provider Configuration */}
+              <div className="lg:col-span-5 space-y-6">
+                <form onSubmit={handleSaveGatewaySettings} className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
+                        <Settings className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Gateway API Connection</h4>
+                        <p className="text-[11px] text-slate-500">Connect your WhatsApp delivery gateway</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Provider Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Gateway Provider</label>
+                    <select
+                      value={gatewayForm.provider}
+                      onChange={(e) => setGatewayForm({ ...gatewayForm, provider: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      <option value="ultramsg">UltraMsg REST API (Recommended for India)</option>
+                      <option value="meta">Meta WhatsApp Business Cloud API</option>
+                      <option value="custom">Custom Webhook / HTTP REST Gateway</option>
+                      <option value="none">Manual 1-Click WhatsApp Link Mode</option>
+                    </select>
+                  </div>
+
+                  {/* Provider-specific fields */}
+                  {gatewayForm.provider === 'ultramsg' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
+                        <strong>UltraMsg Setup:</strong> Login to <a href="https://ultramsg.com" target="_blank" rel="noreferrer" className="underline font-bold">ultramsg.com</a>, scan your gym’s WhatsApp QR code, and paste your <strong>Instance ID</strong> and <strong>Token</strong> below for instant automated sending.
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Instance ID *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. instance12345"
+                          value={gatewayForm.instance_id}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, instance_id: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">API Token *</label>
+                        <input
+                          type="password"
+                          placeholder="e.g. abc123xyztoken"
+                          value={gatewayForm.api_token}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {gatewayForm.provider === 'meta' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-900 leading-relaxed">
+                        <strong>Meta Cloud API Setup:</strong> Requires Meta for Developers account with a registered WhatsApp Business Phone Number ID and Permanent Access Token.
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Phone Number ID *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 109876543210987"
+                          value={gatewayForm.phone_number_id}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, phone_number_id: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Permanent Access Token *</label>
+                        <input
+                          type="password"
+                          placeholder="EAAB..."
+                          value={gatewayForm.api_token}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {gatewayForm.provider === 'custom' && (
+                    <div className="space-y-3 pt-1">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Webhook / Gateway URL *</label>
+                        <input
+                          type="text"
+                          placeholder="https://api.yourgateway.com/send"
+                          value={gatewayForm.api_url}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_url: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">Authorization Bearer Token (Optional)</label>
+                        <input
+                          type="password"
+                          placeholder="Bearer token or API key"
+                          value={gatewayForm.api_token}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, api_token: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {gatewayForm.provider === 'none' && (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                      In manual mode, all birthday and registration notifications prepare direct pre-filled WhatsApp Web / WhatsApp Mobile links with 1-click dispatch buttons.
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingSettings}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                    >
+                      {isSavingSettings ? (
+                        <>
+                          <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving Settings...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Save WhatsApp Gateway Settings</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
       </div>

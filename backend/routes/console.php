@@ -11,10 +11,10 @@ Artisan::command('inspire', function () {
 
 Artisan::command('whatsapp:process-triggers', function () {
     $this->info('Scanning database for today\'s birthdays and automated triggers...');
-    $controller = new \App\Http\Controllers\Api\WhatsAppController();
-    $result = $controller->executeAutoTriggersDirect(null);
-    $this->info("Completed: {$result['birthdays_count']} birthday greetings processed using master birthday template.");
+    $result = \App\Services\WhatsAppNotificationService::processDailyBirthdayGreetings(null);
+    $this->info("Completed: {$result['count']} birthday greetings dispatched using master birthday template.");
 })->purpose('Scan database for birthdays and auto-dispatch WhatsApp greetings');
 
 // Automatically check database daily at 09:00 AM for members whose birthday is today
 Schedule::command('whatsapp:process-triggers')->dailyAt('09:00');
+

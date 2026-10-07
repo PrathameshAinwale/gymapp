@@ -212,6 +212,11 @@ class AuthController extends Controller
                 'qr_pass_code' => 'PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 4)),
             ]);
             $user->load('memberProfile');
+            try {
+                \App\Services\WhatsAppNotificationService::sendWelcomeMessage($user, $user->memberProfile, $user->gym_id ?: 1);
+            } catch (\Throwable $e) {
+                // Keep silent on auth
+            }
         } elseif ($user->role === 'trainer') {
             TrainerProfile::create([
                 'user_id' => $user->id,

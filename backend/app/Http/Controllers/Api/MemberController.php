@@ -570,6 +570,14 @@ class MemberController extends Controller
             Enquiry::where('id', $cleanEnqId)->delete();
         }
 
+        // Automatically dispatch WhatsApp Welcome Notification to the new member
+        $whatsappResult = null;
+        try {
+            $whatsappResult = \App\Services\WhatsAppNotificationService::sendWelcomeMessage($user, $profile, $gymId);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Auto WhatsApp welcome notification failed for user {$user->id}: " . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Member registered successfully',
@@ -607,6 +615,7 @@ class MemberController extends Controller
                 'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
                 'qrPassCode' => $qrCode,
                 'avatar' => $user->avatar,
+                'whatsapp_welcome' => $whatsappResult,
             ],
         ], 201);
     }

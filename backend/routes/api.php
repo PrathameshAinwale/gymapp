@@ -421,6 +421,9 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         Route::post('/logs', [WhatsAppController::class, 'storeLog']);
         Route::get('/logs', [WhatsAppController::class, 'indexLogs']);
         Route::get('/stats', [WhatsAppController::class, 'stats']);
+        Route::get('/settings', [WhatsAppController::class, 'getSettings']);
+        Route::put('/settings', [WhatsAppController::class, 'updateSettings']);
+        Route::post('/test-message', [WhatsAppController::class, 'testMessage']);
     });
 
     // Platform Pages & Plans (Readable by all app clients)

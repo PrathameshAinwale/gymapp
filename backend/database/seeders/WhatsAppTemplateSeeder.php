@@ -131,7 +131,7 @@ class WhatsAppTemplateSeeder extends Seeder
                 'name'     => 'Gold Annual All-Access',
                 'price'    => 12999,
                 'period'   => '12 Months',
-                'duration' => 12,
+                'duration_months' => 12,
                 'features' => ['All-access gym floor', 'Locker & Steam', 'Nutrition consultation'],
             ]);
 
