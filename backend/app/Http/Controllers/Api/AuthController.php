@@ -88,22 +88,43 @@ class AuthController extends Controller
         // Verify gym affiliation for non-superadmin accounts
         if ($user->role !== 'superadmin') {
             $gym = null;
-            if ($user->gym_id) {
-                $gym = \App\Models\Gym::find($user->gym_id);
-            }
-            if (!$gym && $user->role === 'owner') {
+            if ($user->role === 'owner') {
+                // Owner MUST only ever belong to a gym they actually own
                 $gym = \App\Models\Gym::where('owner_id', $user->id)->first();
-                if ($gym) {
-                    $user->gym_id = $gym->id;
-                    $user->save();
+                if (!$gym && $user->gym_id) {
+                    $candidate = \App\Models\Gym::find($user->gym_id);
+                    if ($candidate && ($candidate->owner_id === $user->id || empty($candidate->owner_id))) {
+                        $candidate->owner_id = $user->id;
+                        $candidate->save();
+                        $gym = $candidate;
+                    }
                 }
-            }
-
-            if (!$gym) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Account not found. This gym account has been deleted.'
-                ], 404);
+                if (!$gym) {
+                    // Auto-provision their dedicated facility so an owner NEVER sees another club
+                    $gym = \App\Models\Gym::create([
+                        'name' => ($user->name ? $user->name . "'s Gym" : 'Club Facility'),
+                        'owner_id' => $user->id,
+                        'phone' => $user->phone,
+                        'email' => $user->email,
+                        'package' => 'Bronze',
+                        'package_tier' => 'Bronze',
+                        'billing_cycle' => 'Annual',
+                        'status' => 'Active',
+                        'currency' => '₹',
+                    ]);
+                }
+                $user->gym_id = $gym->id;
+                $user->save();
+            } else {
+                if ($user->gym_id) {
+                    $gym = \App\Models\Gym::find($user->gym_id);
+                }
+                if (!$gym) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Account not found. This gym account has been deleted.'
+                    ], 404);
+                }
             }
 
             if (in_array(strtolower($gym->status ?? 'active'), ['suspended', 'expired', 'inactive'])) {
@@ -119,15 +140,6 @@ class AuthController extends Controller
             $user->load(['memberProfile.plan', 'memberProfile.trainer', 'gym']);
         } elseif ($user->role === 'trainer') {
             $user->load(['trainerProfile', 'gym']);
-        } elseif ($user->role === 'owner' || $user->role === 'superadmin') {
-            if (!$user->gym_id) {
-                $ownedGym = \App\Models\Gym::where('owner_id', $user->id)->first();
-                if ($ownedGym) {
-                    $user->gym_id = $ownedGym->id;
-                    $user->save();
-                }
-            }
-            $user->load('gym');
         } else {
             $user->load('gym');
         }
@@ -240,7 +252,24 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-        if ($user && $user->role !== 'superadmin') {
+        if (!$user && $request->bearerToken()) {
+            $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($tokenModel) $user = $tokenModel->tokenable;
+        }
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if ($user->role === 'owner') {
+            $ownedGym = \App\Models\Gym::where('owner_id', $user->id)->first();
+            if ($ownedGym && $user->gym_id !== $ownedGym->id) {
+                $user->gym_id = $ownedGym->id;
+                $user->save();
+            }
+        }
+
+        if ($user->role !== 'superadmin') {
             $gym = $user->gym_id ? \App\Models\Gym::find($user->gym_id) : ($user->role === 'owner' ? \App\Models\Gym::where('owner_id', $user->id)->first() : null);
             if ($gym && in_array(strtolower($gym->status ?? 'active'), ['suspended', 'expired', 'inactive'])) {
                 return response()->json([
@@ -250,6 +279,7 @@ class AuthController extends Controller
             }
         }
 
+        $user->load('gym');
         if ($user->role === 'member') {
             $user->load(['memberProfile.plan', 'memberProfile.trainer']);
         } elseif ($user->role === 'trainer') {

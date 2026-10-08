@@ -184,7 +184,10 @@ const apiFetch = async (urlOrPath, options = {}) => {
   }
 
   const method = (options.method || 'GET').toUpperCase();
-  const cacheKey = `${method}:${relativePath}`;
+  const currentGymId = getActiveGymId();
+  const token = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_token') : '';
+  const tokenSnippet = token ? token.slice(-8) : 'anon';
+  const cacheKey = `${method}:${relativePath}:${currentGymId || 'all'}:${tokenSnippet}`;
 
   // On data mutations, invalidate all GET caches immediately so fresh data is loaded
   if (method !== 'GET') {
@@ -346,6 +349,12 @@ const handleResponse = async (response) => {
 };
 
 export const api = {
+  // Clear in-memory cache on auth state changes
+  clearCache: () => {
+    getResponseCache.clear();
+    inflightGetRequests.clear();
+  },
+
   // Auth Endpoints
   auth: {
     login: async (loginOrEmail, password) => {
@@ -1608,8 +1617,9 @@ export const api = {
 
   // Gym Business Information
   gymInfo: {
-    get: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/gym-info`, { headers: getHeaders() });
+    get: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/gym-info${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     update: async (data) => {
@@ -1620,8 +1630,9 @@ export const api = {
       });
       return handleResponse(res);
     },
-    getBranches: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/owner/branches`, { headers: getHeaders() });
+    getBranches: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/owner/branches${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     createBranch: async (branchData) => {

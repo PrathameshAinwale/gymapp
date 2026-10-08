@@ -1013,10 +1013,11 @@ export const GymDataProvider = ({ children }) => {
     } catch (e) { console.warn('Fetch trainer reviews error:', e.message); }
   }, []);
 
-  const fetchGymInfo = useCallback(async () => {
+  const fetchGymInfo = useCallback(async (explicitGymId = null) => {
     try {
       if (api.gymInfo?.get) {
-        const res = await api.gymInfo.get();
+        const targetGymId = explicitGymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
+        const res = await api.gymInfo.get(targetGymId ? { gym_id: targetGymId } : {});
         if (res?.data) {
           const cleanInfo = {
             id: res.data.id || null,
@@ -1052,7 +1053,7 @@ export const GymDataProvider = ({ children }) => {
         }
       }
     } catch (e) { console.warn('Fetch gym info error:', e.message); }
-  }, []);
+  }, [currentUser?.gymId, currentUser?.gym_id]);
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -1504,41 +1505,41 @@ export const GymDataProvider = ({ children }) => {
     try {
       setIsLoadingBackend(true);
 
-      // Batch 1: Core member, trainer, plans & recovery
-      await Promise.allSettled([fetchMembers(), fetchTrainers(), fetchPlans(), fetchRecoveryPlans(), fetchPtPlans()]);
-      setLoadingModules((prev) => ({ ...prev, dashboard: false, members: false, trainers: false, plans: false }));
+      // Batch 1: Facility info, branding, branches & membership plans
+      await Promise.allSettled([fetchGymInfo(), fetchBranches(), fetchPlans(), fetchRecoveryPlans(), fetchPtPlans()]);
+      setLoadingModules((prev) => ({ ...prev, gymInfo: false, plans: false }));
 
-      // Batch 2: Financial data (invoices & expenses) & dashboard stats
+      // Batch 2: Core members & trainers
+      await Promise.allSettled([fetchMembers(), fetchTrainers()]);
+      setLoadingModules((prev) => ({ ...prev, dashboard: false, members: false, trainers: false }));
+
+      // Batch 3: Financial data (invoices & expenses) & dashboard stats
       await Promise.allSettled([fetchInvoices(), fetchExpenses()]);
       await fetchDashboardStats();
       setLoadingModules((prev) => ({ ...prev, financials: false, invoices: false, analytics: false, reports: false }));
 
-      // Batch 3: CRM & classes
+      // Batch 4: CRM & classes
       await Promise.allSettled([fetchEnquiries(), fetchClasses()]);
       setLoadingModules((prev) => ({ ...prev, enquiries: false, classes: false }));
 
-      // Batch 4: Attendance & equipment
+      // Batch 5: Attendance & equipment
       await Promise.allSettled([fetchAttendance(), fetchEquipment()]);
       setLoadingModules((prev) => ({ ...prev, attendance: false, equipment: false }));
 
-      // Batch 5: Products & commissions
+      // Batch 6: Products & commissions
       await Promise.allSettled([fetchProducts(), fetchCommissions()]);
       setLoadingModules((prev) => ({ ...prev, products: false, commissions: false }));
 
-      // Batch 6: Freezes & payroll
+      // Batch 7: Freezes & payroll
       await Promise.allSettled([fetchFreezes(), fetchPayroll()]);
       setLoadingModules((prev) => ({ ...prev, freezes: false, payroll: false }));
 
-      // Batch 7: Consent & PT sessions
-      await Promise.allSettled([fetchConsentForms(), fetchPtSessions()]);
-      setLoadingModules((prev) => ({ ...prev, consent: false, ptSessions: false }));
-
-      // Batch 8: Advance requests, reviews, leaves & gym info
+      // Batch 8: Advance requests, reviews, leaves & notifications
       await Promise.allSettled([
+        fetchConsentForms(),
+        fetchPtSessions(),
         fetchAdvanceRequests(),
         fetchTrainerReviews(),
-        fetchGymInfo(),
-        fetchBranches(),
         fetchLeaveRequests(),
         fetchLeaveBalances(),
         fetchLeaveSummary(),
@@ -1549,7 +1550,7 @@ export const GymDataProvider = ({ children }) => {
         processWhatsAppAutoSend(),
         fetchShifts()
       ]);
-      setLoadingModules((prev) => ({ ...prev, advanceRequests: false, trainerReviews: false, gymInfo: false, leaves: false }));
+      setLoadingModules((prev) => ({ ...prev, consent: false, ptSessions: false, advanceRequests: false, trainerReviews: false, leaves: false }));
 
     } catch (err) {
       console.warn('Backend sync note:', err.message);
@@ -1655,6 +1656,80 @@ export const GymDataProvider = ({ children }) => {
   }, [isLoadingBackend, loadingModules]);
 
   useEffect(() => {
+    // If not authenticated, clear gym data completely and do not fetch backend
+    if (!currentUser) {
+      setGymInfo({
+        id: null,
+        name: '',
+        tagline: '',
+        logo: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        phone: '',
+        email: '',
+        website: '',
+        operatingHours: '',
+        currency: '₹',
+        packageTier: 'Bronze',
+        package: 'Bronze',
+        packageName: 'Bronze Plan',
+        billingCycle: 'Annual',
+        status: 'Active',
+      });
+      setBranches([]);
+      setMembers([]);
+      setTrainers([]);
+      setInvoices([]);
+      setExpenses([]);
+      setEnquiries([]);
+      setAttendance([]);
+      setBookedClasses([]);
+      setPtSessions([]);
+      setProducts([]);
+      setCommissions([]);
+      setMembershipFreezes([]);
+      setConsentForms([]);
+      setPayrollRecords([]);
+      setAdvanceRequests([]);
+      setTrainerReviews([]);
+      setShifts([]);
+      return;
+    }
+
+    // Immediately hydrate gymInfo from currentUser.gym if available to avoid flashing stale gym branding
+    if (currentUser?.gym) {
+      const g = currentUser.gym;
+      setGymInfo((prev) => ({
+        ...prev,
+        id: g.id || null,
+        name: g.name || '',
+        tagline: g.tagline || '',
+        logo: g.logo || '',
+        address: g.address || '',
+        city: g.city || '',
+        state: g.state || '',
+        pincode: g.pincode || '',
+        phone: g.phone || '',
+        email: g.email || '',
+        website: g.website || '',
+        operatingHours: g.operating_hours || '',
+        currency: g.currency || '₹',
+        packageTier: g.package_tier || g.package || 'Bronze',
+        package: g.package_tier || g.package || 'Bronze',
+        packageName: g.package_name || (g.package_tier ? `${g.package_tier} Plan` : 'Bronze Plan'),
+        billingCycle: g.billing_cycle || 'Annual',
+        packageAmount: g.package_amount ?? null,
+        subscriptionStartsAt: g.created_at || '',
+        subscriptionExpiresAt: g.subscription_expires_at || '',
+        status: g.status || 'Active',
+        maxMembers: g.max_members ?? null,
+        maxTrainers: g.max_trainers ?? null,
+        maxBranches: g.max_branches ?? 1,
+      }));
+    }
+
     // Reset state before loading data for the active gym to prevent any cross-tenant data leakage
     setMembers([]);
     setTrainers([]);
@@ -1687,7 +1762,7 @@ export const GymDataProvider = ({ children }) => {
     });
     setRevenueAnalytics([]);
 
-    fetchAllFromBackend();
+    fetchAllFromBackend(true);
   }, [currentUser?.gymId, currentUser?.gym_id, currentUser?.userId]);
 
   // MEMBER ACTIONS (Direct Backend Sync)

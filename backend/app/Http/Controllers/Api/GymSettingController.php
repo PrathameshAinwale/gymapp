@@ -171,11 +171,18 @@ class GymSettingController extends Controller
     }
 
     /**
-     * Get all gym branches owned by the authenticated owner (Platinum multi-gym).
+     * Get all gym branches owned by the authenticated owner.
      */
     public function getBranches(Request $request)
     {
-        $user = $request->user() ?: auth('sanctum')->user();
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($tokenModel) $user = $tokenModel->tokenable;
+        }
+        if (!$user) {
+            $user = auth('sanctum')->user();
+        }
 
         $ownerId = null;
         if ($user) {
@@ -254,7 +261,14 @@ class GymSettingController extends Controller
      */
     public function createBranch(Request $request)
     {
-        $user = $request->user() ?: auth('sanctum')->user();
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($tokenModel) $user = $tokenModel->tokenable;
+        }
+        if (!$user) {
+            $user = auth('sanctum')->user();
+        }
 
         $ownerId = null;
         if ($user) {
@@ -367,7 +381,14 @@ class GymSettingController extends Controller
      */
     public function switchBranch(Request $request)
     {
-        $user = $request->user() ?: auth('sanctum')->user();
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($tokenModel) $user = $tokenModel->tokenable;
+        }
+        if (!$user) {
+            $user = auth('sanctum')->user();
+        }
 
         $gymId = (int)$request->input('gym_id');
         if (!$gymId) {

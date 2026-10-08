@@ -101,13 +101,15 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
+    const isAuth = localStorage.getItem('pulsefit_isAuth') === 'true';
+    if (!isAuth) return null;
     const saved = localStorage.getItem('pulsefit_currentUser_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return defaultAccounts[0];
+    return null;
   });
 
   const currentRole = currentUser?.role || 'superadmin';
@@ -206,11 +208,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('pulsefit_isAuth', isAuthenticated.toString());
-    if (currentUser) {
+    if (isAuthenticated && currentUser) {
       localStorage.setItem('pulsefit_currentUser_v2', JSON.stringify(currentUser));
       if (currentUser.gymId || currentUser.gym_id) {
         localStorage.setItem('pulsefit_gym_id', (currentUser.gymId || currentUser.gym_id).toString());
       }
+    } else if (!isAuthenticated) {
+      localStorage.removeItem('pulsefit_gym_id');
+      localStorage.removeItem('pulsefit_currentUser_v2');
+      localStorage.removeItem('pulsefit_token');
     }
   }, [isAuthenticated, currentUser]);
 
@@ -221,12 +227,13 @@ export const AuthProvider = ({ children }) => {
 
     try {
       // 1. Attempt live Laravel Backend API Login
+      api.clearCache?.();
       const res = await api.auth.login(trimmedLogin, trimmedPass);
       if (res.success && res.user) {
         let userRole = res.user.role || 'superadmin';
         if (userRole === 'owner') userRole = 'superadmin';
-        const gymId = res.user.gym_id || res.user.gymId || (res.user.gym ? res.user.gym.id : (res.user.id === 1 ? 1 : null));
-        const gymName = res.user.gym?.name || (gymId === 1 ? 'PULSE FIT Athletic Club' : (res.user.name + "'s Gym"));
+        const gymId = res.user.gym_id || res.user.gymId || (res.user.gym ? res.user.gym.id : null);
+        const gymName = res.user.gym?.name || (res.user.name + "'s Gym");
 
         const roleLabel =
           userRole === 'superadmin' || userRole === 'owner'
@@ -262,6 +269,7 @@ export const AuthProvider = ({ children }) => {
           phone: res.user.phone,
           gym_id: gymId,
           gymId: gymId,
+          gym: res.user.gym || null,
           mustChangePassword: false,
           badge: badge,
           gymName: gymName,
@@ -283,6 +291,7 @@ export const AuthProvider = ({ children }) => {
           joining_date: res.user.joining_date ?? null
         };
 
+        api.clearCache?.();
         if (gymId) {
           localStorage.setItem('pulsefit_gym_id', gymId.toString());
         } else {
@@ -331,9 +340,10 @@ export const AuthProvider = ({ children }) => {
       await api.auth.logout();
     } catch (e) {}
     // Give a smooth feedback transition
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     setIsLoggingOut(false);
     setIsLogoutConfirmOpen(false);
+    setCurrentUser(null);
     setIsAuthenticated(false);
     localStorage.setItem('pulsefit_isAuth', 'false');
     localStorage.removeItem('pulsefit_gym_id');
@@ -343,6 +353,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('pulsefit_expenses');
     localStorage.removeItem('pulsefit_enquiries');
     localStorage.removeItem('pulsefit_accounts_v2');
+    api.clearCache?.();
   };
 
   // LOGOUT FUNCTION (Triggers confirmation popup)
