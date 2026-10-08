@@ -36,7 +36,8 @@ import {
   FileText,
   KeyRound,
   ShieldAlert,
-  MessageSquare
+  MessageSquare,
+  Ban
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { PlansManager } from './PlansManager';
