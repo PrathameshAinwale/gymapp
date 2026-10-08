@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
-import { MembershipPlanModal } from '../common/MembershipPlanModal';
+import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate } from '../../utils/dateUtils';
@@ -189,7 +189,7 @@ export const AddMemberPage = ({
   const [selectedPackages, setSelectedPackages] = useState([
     {
       id: 'pkg-1',
-      packageType: 'membership',
+      packageType: 'Gym-Cardio',
       packageId: '',
       price: 0,
       discount: ''
@@ -197,37 +197,29 @@ export const AddMemberPage = ({
   ]);
 
   const getPackageObject = (type, id) => {
-    if (!id) return null;
-    if (type === 'membership') return (plans || []).find((p) => String(p.id) === String(id));
-    if (type === 'pt') return (ptPlans || []).find((p) => String(p.id) === String(id));
-    if (type === 'recovery') return (recoveryPlans || []).find((r) => String(r.id) === String(id));
-    return null;
+    return getPackageObjectFromLists(type, id, plans, ptPlans, recoveryPlans);
   };
 
   const handlePackageTypeChange = (rowId, newType) => {
-    if (newType === 'pt' && trainers && trainers.length > 0) {
+    const isPt = newType === 'Personal Training' || newType === 'pt';
+    if (isPt && trainers && trainers.length > 0) {
       setSelectedTrainerId((prev) => prev || trainers[0].id);
       setFormData((prev) => ({ ...prev, trainerId: prev.trainerId || trainers[0].id }));
     }
+    const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
+    const firstPlan = available[0] || null;
+
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
-        let newPackageId = '';
-        let newPrice = 0;
-        if (newType === 'membership' && plans && plans.length > 0) {
-          newPackageId = String(plans[0].id);
-          newPrice = Number(plans[0].price) || 0;
-          if (!isManualEndDate && membershipStartDate) {
-            const calculated = computePlanEndDate(membershipStartDate, plans[0]);
-            if (calculated) setMembershipEndDate(calculated);
-          }
-        } else if (newType === 'pt' && ptPlans && ptPlans.length > 0) {
-          newPackageId = String(ptPlans[0].id);
-          newPrice = Number(ptPlans[0].price) || 0;
-        } else if (newType === 'recovery' && recoveryPlans && recoveryPlans.length > 0) {
-          newPackageId = String(recoveryPlans[0].id);
-          newPrice = Number(recoveryPlans[0].price) || 0;
+        const newPackageId = firstPlan ? String(firstPlan.id) : '';
+        const newPrice = Number(firstPlan?.price) || 0;
+
+        if (firstPlan && !isPt && !isManualEndDate && membershipStartDate) {
+          const calculated = computePlanEndDate(membershipStartDate, firstPlan);
+          if (calculated) setMembershipEndDate(calculated);
         }
+
         return {
           ...row,
           packageType: newType,
@@ -242,31 +234,24 @@ export const AddMemberPage = ({
   const handlePackageIdChange = (rowId, newPackageId) => {
     if (newPackageId === '__ADD_NEW__') {
       const row = selectedPackages.find((r) => r.id === rowId);
-      handleOpenQuickAdd(row?.packageType || 'membership');
+      handleOpenQuickAdd(row?.packageType || 'Gym-Cardio', rowId);
       return;
     }
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
-        let price = 0;
-        if (row.packageType === 'membership') {
-          const found = (plans || []).find((p) => String(p.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
-          if (found && !isManualEndDate && membershipStartDate) {
-            const calculated = computePlanEndDate(membershipStartDate, found);
-            if (calculated) setMembershipEndDate(calculated);
-          }
-        } else if (row.packageType === 'pt') {
-          const found = (ptPlans || []).find((p) => String(p.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
-          if (trainers && trainers.length > 0 && !selectedTrainerId) {
-            setSelectedTrainerId(trainers[0].id);
-            setFormData((prevData) => ({ ...prevData, trainerId: trainers[0].id }));
-          }
-        } else if (row.packageType === 'recovery') {
-          const found = (recoveryPlans || []).find((r) => String(r.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
+        const found = getPackageObject(row.packageType, newPackageId);
+        const price = Number(found?.price) || 0;
+        const isPt = row.packageType === 'Personal Training' || row.packageType === 'pt';
+
+        if (found && !isPt && !isManualEndDate && membershipStartDate) {
+          const calculated = computePlanEndDate(membershipStartDate, found);
+          if (calculated) setMembershipEndDate(calculated);
+        } else if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
+          setSelectedTrainerId(trainers[0].id);
+          setFormData((prevData) => ({ ...prevData, trainerId: trainers[0].id }));
         }
+
         return {
           ...row,
           packageId: newPackageId,
@@ -285,32 +270,18 @@ export const AddMemberPage = ({
 
   const handleAddPackageRow = () => {
     const typesUsed = selectedPackages.map((p) => p.packageType);
-    let nextType = 'pt';
-    if (!typesUsed.includes('membership')) nextType = 'membership';
-    else if (!typesUsed.includes('pt')) nextType = 'pt';
-    else if (!typesUsed.includes('recovery')) nextType = 'recovery';
-    else nextType = 'pt';
+    let nextType = PACKAGE_TYPES.find((t) => !typesUsed.includes(t)) || 'Personal Training';
 
-    let initialPkgId = '';
-    let initialPrice = 0;
-    if (nextType === 'pt' && ptPlans && ptPlans.length > 0) {
-      initialPkgId = String(ptPlans[0].id);
-      initialPrice = Number(ptPlans[0].price) || 0;
-    } else if (nextType === 'recovery' && recoveryPlans && recoveryPlans.length > 0) {
-      initialPkgId = String(recoveryPlans[0].id);
-      initialPrice = Number(recoveryPlans[0].price) || 0;
-    } else if (nextType === 'membership' && plans && plans.length > 0) {
-      initialPkgId = String(plans[0].id);
-      initialPrice = Number(plans[0].price) || 0;
-    }
+    const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
+    const firstPlan = available[0] || null;
 
     setSelectedPackages((prev) => [
       ...prev,
       {
         id: `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         packageType: nextType,
-        packageId: initialPkgId,
-        price: initialPrice,
+        packageId: firstPlan ? String(firstPlan.id) : '',
+        price: Number(firstPlan?.price) || 0,
         discount: ''
       }
     ]);
@@ -318,12 +289,15 @@ export const AddMemberPage = ({
 
   const handleRemovePackageRow = (rowId) => {
     if (selectedPackages.length <= 1) {
+      const defaultType = 'Gym-Cardio';
+      const available = getPackagesForType(defaultType, plans, ptPlans, recoveryPlans);
+      const first = available[0] || plans[0] || null;
       setSelectedPackages([
         {
           id: `pkg-${Date.now()}`,
-          packageType: 'membership',
-          packageId: '',
-          price: 0,
+          packageType: defaultType,
+          packageId: first ? String(first.id) : '',
+          price: Number(first?.price) || 0,
           discount: ''
         }
       ]);
@@ -337,17 +311,19 @@ export const AddMemberPage = ({
     if (plans && plans.length > 0) {
       setSelectedPackages((prev) => {
         const first = prev[0];
-        if (first && first.packageType === 'membership' && !first.packageId) {
+        if (first && !first.packageId) {
+          const available = getPackagesForType(first.packageType, plans, ptPlans, recoveryPlans);
+          const p = available[0] || plans[0];
           return prev.map((row, idx) =>
             idx === 0
-              ? { ...row, packageId: String(plans[0].id), price: Number(plans[0].price) || 0 }
+              ? { ...row, packageType: row.packageType || p.packageType || 'Gym-Cardio', packageId: String(p.id), price: Number(p.price) || 0 }
               : row
           );
         }
         return prev;
       });
     }
-  }, [plans]);
+  }, [plans, ptPlans, recoveryPlans]);
 
   // Owner-configured Dynamic Consent Form & Liability Waiver
   const [consentConfig, setConsentConfig] = useState(() => getGymConsentForm(gymInfo?.id));
@@ -394,210 +370,11 @@ export const AddMemberPage = ({
 
   // Quick Add Plan State
   const [quickAddPlanType, setQuickAddPlanType] = useState(null);
-  const [isSavingQuickPlan, setIsSavingQuickPlan] = useState(false);
-  const [quickPlanForm, setQuickPlanForm] = useState({
-    name: '',
-    price: 1999,
-    period: 'Monthly (1 Month)',
-    durationMonths: 1,
-    maxDiscount: 0,
-    offer: '',
-    offerDays: 0,
-    featuresText: 'Full gym floor access & strength zone\nPersonal fitness orientation session\nLocker, steam room & shower access\nPulseFit mobile app tracking',
-    popular: false,
-    category: 'General Membership',
-    sessions: 12,
-    validityDays: 30,
-    duration: '30 Mins',
-    instructorOrType: 'Therapy',
-    description: 'Standard access and sessions included.'
-  });
+  const [activeQuickAddRowId, setActiveQuickAddRowId] = useState(null);
 
-  const handleOpenQuickAdd = (type) => {
-    if (type === 'membership') {
-      setQuickPlanForm({
-        name: '',
-        price: 1999,
-        period: 'Monthly (1 Month)',
-        durationMonths: 1,
-        maxDiscount: 0,
-        offer: '',
-        offerDays: 0,
-        featuresText: 'Full gym floor access & strength zone\nPersonal fitness orientation session\nLocker, steam room & shower access\nPulseFit mobile app tracking',
-        popular: false,
-        category: 'General Membership',
-        sessions: 1,
-        validityDays: 30,
-        duration: '30 Days',
-        instructorOrType: 'General Access',
-        description: 'Full gym access, locker & shower access.'
-      });
-    } else if (type === 'recovery') {
-      setQuickPlanForm({
-        name: '',
-        price: 799,
-        period: 'Per Session',
-        durationMonths: 1,
-        category: 'Recovery',
-        sessions: 1,
-        validityDays: 30,
-        duration: '30 Mins',
-        instructorOrType: 'Ice Plunge',
-        description: 'Cold plunge hydrotherapy & deep muscle recovery.'
-      });
-    } else if (type === 'pt') {
-      setQuickPlanForm({
-        name: '',
-        price: 3000,
-        period: '30 Days',
-        durationMonths: 1,
-        category: 'Personal Training',
-        sessions: 12,
-        validityDays: 30,
-        duration: '45 Mins/Session',
-        instructorOrType: 'Master Coach',
-        description: '1-on-1 personalized training and nutrition guidance.'
-      });
-    }
-    setQuickAddPlanType(type);
-  };
-
-  const handleSaveQuickPlan = async (e) => {
-    e.preventDefault();
-    if (!quickPlanForm.name.trim()) {
-      addToast('Please enter a plan name.', 'error');
-      return;
-    }
-    if (!quickPlanForm.price || Number(quickPlanForm.price) <= 0) {
-      addToast('Please enter a valid plan price.', 'error');
-      return;
-    }
-
-    setIsSavingQuickPlan(true);
-    try {
-      if (quickAddPlanType === 'membership') {
-        const feats = quickPlanForm.featuresText
-          ? quickPlanForm.featuresText.split('\n').map((f) => f.trim()).filter(Boolean)
-          : ['Access to gym floor & cardio machines', 'Locker, steam room & shower access', 'PulseFit mobile app tracking'];
-
-        const created = await addPlan({
-          name: quickPlanForm.name.trim(),
-          price: Number(quickPlanForm.price),
-          max_discount: Number(quickPlanForm.maxDiscount) || 0,
-          maxDiscount: Number(quickPlanForm.maxDiscount) || 0,
-          offer: quickPlanForm.offer?.trim() || null,
-          offer_days: Number(quickPlanForm.offerDays) || 0,
-          offerDays: Number(quickPlanForm.offerDays) || 0,
-          period: quickPlanForm.period || 'Monthly (1 Month)',
-          durationMonths: Number(quickPlanForm.durationMonths) || 1,
-          popular: Boolean(quickPlanForm.popular),
-          features: feats
-        });
-
-        if (created?.id) {
-          setFormData((prev) => ({ ...prev, planId: created.id }));
-          const calculatedEnd = computePlanEndDate(membershipStartDate || getTodayDateStr(), created);
-          if (calculatedEnd) {
-            setMembershipEndDate(calculatedEnd);
-          }
-          setSelectedPackages((prev) => {
-            let replaced = false;
-            const updated = prev.map((r) => {
-              if (!replaced && r.packageType === 'membership') {
-                replaced = true;
-                return { ...r, packageId: String(created.id), price: Number(created.price) || 0 };
-              }
-              return r;
-            });
-            if (!replaced) {
-              updated.push({
-                id: `pkg-${Date.now()}`,
-                packageType: 'membership',
-                packageId: String(created.id),
-                price: Number(created.price) || 0,
-                discount: ''
-              });
-            }
-            return updated;
-          });
-        }
-        addToast(`Membership plan "${quickPlanForm.name}" created and applied!`, 'success');
-      } else if (quickAddPlanType === 'recovery') {
-        const created = await addRecoveryPlan({
-          name: quickPlanForm.name.trim(),
-          duration: quickPlanForm.duration || '30 Mins',
-          sessions: Number(quickPlanForm.sessions) || 1,
-          price: Number(quickPlanForm.price),
-          type: quickPlanForm.instructorOrType || 'Ice Plunge',
-          description: quickPlanForm.description || 'Therapy & Recovery Session'
-        });
-        if (created?.id) {
-          setRecoveryPlanId(created.id);
-          setSelectedPackages((prev) => {
-            let replaced = false;
-            const updated = prev.map((r) => {
-              if (!replaced && r.packageType === 'recovery') {
-                replaced = true;
-                return { ...r, packageId: String(created.id), price: Number(created.price) || 0 };
-              }
-              return r;
-            });
-            if (!replaced) {
-              updated.push({
-                id: `pkg-${Date.now()}`,
-                packageType: 'recovery',
-                packageId: String(created.id),
-                price: Number(created.price) || 0,
-                discount: ''
-              });
-            }
-            return updated;
-          });
-        }
-        addToast(`Recovery plan "${quickPlanForm.name}" created and selected!`, 'success');
-      } else if (quickAddPlanType === 'pt') {
-        const created = await addPTPlan({
-          name: quickPlanForm.name.trim(),
-          sessions: Number(quickPlanForm.sessions) || 12,
-          validityDays: Number(quickPlanForm.validityDays) || 30,
-          price: Number(quickPlanForm.price),
-          trainerLevel: quickPlanForm.instructorOrType || 'Master Coach',
-          description: quickPlanForm.description || '1-on-1 PT coaching'
-        });
-        if (created?.id) {
-          setSelectedPtPlanId(String(created.id));
-          setSelectedPackages((prev) => {
-            let replaced = false;
-            const updated = prev.map((r) => {
-              if (!replaced && r.packageType === 'pt') {
-                replaced = true;
-                return { ...r, packageId: String(created.id), price: Number(created.price) || 0 };
-              }
-              return r;
-            });
-            if (!replaced) {
-              updated.push({
-                id: `pkg-${Date.now()}`,
-                packageType: 'pt',
-                packageId: String(created.id),
-                price: Number(created.price) || 0,
-                discount: ''
-              });
-            }
-            return updated;
-          });
-        }
-        setPtCustomSessions(Number(quickPlanForm.sessions) || 12);
-        setPtPackageFee(Number(quickPlanForm.price) || 3000);
-        addToast(`PT package "${quickPlanForm.name}" created and applied!`, 'success');
-      }
-      setQuickAddPlanType(null);
-    } catch (err) {
-      console.error('Error saving quick plan:', err);
-      addToast(`Failed to save plan: ${err.message}`, 'error');
-    } finally {
-      setIsSavingQuickPlan(false);
-    }
+  const handleOpenQuickAdd = (type, rowId = null) => {
+    setActiveQuickAddRowId(rowId);
+    setQuickAddPlanType(type || 'Gym-Cardio');
   };
 
   // Sync initialData or default plan on mount
@@ -1134,6 +911,26 @@ export const AddMemberPage = ({
       return;
     }
 
+    // Validate max discount ceiling on selected packages
+    for (const pkgRow of selectedPackages) {
+      if (pkgRow.packageId) {
+        const pObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
+        const maxDisc = pObj ? Number(pObj.maxDiscount ?? pObj.max_discount ?? 0) : 0;
+        const enteredDisc = Math.max(0, Number(pkgRow.discount) || 0);
+        const pkgPrice = Number(pkgRow.price) || (pObj ? Number(pObj.price) : 0);
+
+        if (maxDisc > 0 && enteredDisc > maxDisc) {
+          addToast(`Discount ₹${enteredDisc.toLocaleString('en-IN')} on "${pObj?.name || pkgRow.packageType}" exceeds maximum allowed discount of ₹${maxDisc.toLocaleString('en-IN')}.`, 'error');
+          return;
+        }
+
+        if (enteredDisc > pkgPrice && pkgPrice > 0) {
+          addToast(`Discount ₹${enteredDisc.toLocaleString('en-IN')} cannot exceed plan fee of ₹${pkgPrice.toLocaleString('en-IN')}.`, 'error');
+          return;
+        }
+      }
+    }
+
     if (!consentAgreed) {
       addToast('Please review and agree to the Gym Terms & Liability Waiver.', 'error');
       return;
@@ -1206,6 +1003,9 @@ export const AddMemberPage = ({
         paidAmount: effectivePaidAmount,
         total_amount: totalCalculatedAmount,
         totalAmount: totalCalculatedAmount,
+        discount: numDiscount,
+        discount_amount: numDiscount,
+        discountAmount: numDiscount,
         dues_amount: calculatedBalanceDue,
         duesAmount: calculatedBalanceDue,
         due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
@@ -1986,9 +1786,10 @@ export const AddMemberPage = ({
           <div className="space-y-2.5">
             {selectedPackages.map((pkgRow, idx) => {
               const currentPkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
-              const isMembership = pkgRow.packageType === 'membership';
-              const isPt = pkgRow.packageType === 'pt';
-              const isRecovery = pkgRow.packageType === 'recovery';
+              const isPt = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
+              const isMembership = !isPt;
+              const availablePackages = getPackagesForType(pkgRow.packageType, plans, ptPlans, recoveryPlans);
+              const maxPlanDiscount = currentPkgObj ? Number(currentPkgObj.maxDiscount ?? currentPkgObj.max_discount ?? 0) : 0;
 
               return (
                 <div
@@ -1999,9 +1800,6 @@ export const AddMemberPage = ({
                     <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                       <Tag className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Package #{idx + 1}</span>
-                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
-                        {pkgRow.packageType}
-                      </span>
                     </span>
 
                     {selectedPackages.length > 1 && (
@@ -2016,28 +1814,31 @@ export const AddMemberPage = ({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  {/* Line 1: Package Type & Package Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Package Type */}
-                    <div className="sm:col-span-4">
+                    <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">Package Type *</label>
                       <select
                         value={pkgRow.packageType}
                         onChange={(e) => handlePackageTypeChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                       >
-                        <option value="membership">Membership Plan</option>
-                        <option value="pt">Personal Training (PT)</option>
-                        <option value="recovery">Recovery & Therapy</option>
+                        {PACKAGE_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
                     {/* Package Name */}
-                    <div className="sm:col-span-5">
+                    <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-[11px] font-bold text-slate-700">Package Name *</label>
                         <button
                           type="button"
-                          onClick={() => handleOpenQuickAdd(pkgRow.packageType)}
+                          onClick={() => handleOpenQuickAdd(pkgRow.packageType, pkgRow.id)}
                           className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
                         >
                           + New
@@ -2048,50 +1849,59 @@ export const AddMemberPage = ({
                         onChange={(e) => handlePackageIdChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                       >
-                        <option value="">-- Choose {pkgRow.packageType} --</option>
-                        {isMembership &&
-                          (plans || []).map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.period || `${p.durationMonths || 1} Month`}) — ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                            </option>
-                          ))}
-                        {isPt &&
-                          (ptPlans || []).map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.sessions} Sessions) — ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                            </option>
-                          ))}
-                        {isRecovery &&
-                          (recoveryPlans || []).map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name} ({r.type}) — ₹{Number(r.price || 0).toLocaleString('en-IN')}
-                            </option>
-                          ))}
+                        <option value="">
+                          -- Choose {pkgRow.packageType} {availablePackages.length === 0 ? '(No plans yet)' : ''} --
+                        </option>
+                        {availablePackages.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths} Month)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                          </option>
+                        ))}
                         <option value="__ADD_NEW__">+ Create New Plan...</option>
                       </select>
                     </div>
+                  </div>
 
-                    {/* Fee & Discount */}
-                    <div className="sm:col-span-3 grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1">Fee (₹)</label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={`₹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
-                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700"
-                        />
+                  {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={`₹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
+                        className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700">Discount (₹)</label>
+                        {maxPlanDiscount > 0 && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                            Number(pkgRow.discount) > maxPlanDiscount
+                              ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1">Discount (₹)</label>
-                        <input
-                          type="text"
-                          placeholder="0"
-                          value={pkgRow.discount}
-                          onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
-                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        placeholder="0"
+                        value={pkgRow.discount}
+                        onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
+                        className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${
+                          maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
+                            ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
+                            : 'border-slate-200 text-slate-900 focus:border-emerald-500'
+                        }`}
+                      />
+                      {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
+                        <p className="text-[10px] text-rose-600 font-bold mt-1">
+                          ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2800,8 +2610,12 @@ export const AddMemberPage = ({
 
       {/* Shared Reusable Membership Plan Modal (Nested-Safe Dialog for creating new plans) */}
       <MembershipPlanModal
-        isOpen={quickAddPlanType === 'membership'}
-        onClose={() => setQuickAddPlanType(null)}
+        isOpen={Boolean(quickAddPlanType)}
+        onClose={() => {
+          setQuickAddPlanType(null);
+          setActiveQuickAddRowId(null);
+        }}
+        defaultPackageType={typeof quickAddPlanType === 'string' ? quickAddPlanType : 'Gym-Cardio'}
         isNested={true}
         onSuccess={(created) => {
           if (created?.id) {
@@ -2810,17 +2624,19 @@ export const AddMemberPage = ({
             if (calculatedEnd) setMembershipEndDate(calculatedEnd);
             setSelectedPackages((prev) => {
               let replaced = false;
+              const createdType = created.package_type || created.packageType || quickAddPlanType;
+              const targetId = activeQuickAddRowId;
               const updated = prev.map((r) => {
-                if (!replaced && r.packageType === 'membership') {
+                if (targetId ? r.id === targetId : (!replaced && (r.packageType === createdType || !r.packageId))) {
                   replaced = true;
-                  return { ...r, packageId: String(created.id), price: Number(created.price) || 0 };
+                  return { ...r, packageType: createdType, packageId: String(created.id), price: Number(created.price) || 0 };
                 }
                 return r;
               });
-              if (!replaced) {
+              if (!replaced && !targetId) {
                 updated.push({
                   id: `pkg-${Date.now()}`,
-                  packageType: 'membership',
+                  packageType: createdType,
                   packageId: String(created.id),
                   price: Number(created.price) || 0,
                   discount: ''
@@ -2831,107 +2647,9 @@ export const AddMemberPage = ({
             addToast(`Plan "${created.name}" created and applied to this member!`, 'success');
           }
           setQuickAddPlanType(null);
+          setActiveQuickAddRowId(null);
         }}
       />
-
-      {/* Quick Add PT / Recovery Plan Modal */}
-      <Modal
-        isOpen={quickAddPlanType === 'pt' || quickAddPlanType === 'recovery'}
-        onClose={() => setQuickAddPlanType(null)}
-        title={quickAddPlanType === 'recovery' ? 'Create New Recovery Plan' : 'Create Personal Training (PT) Package'}
-        maxWidth="max-w-md"
-      >
-        <form onSubmit={handleSaveQuickPlan} className="space-y-4 text-xs">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Plan / Service Name *</label>
-              <input
-                type="text"
-                required
-                placeholder={quickAddPlanType === 'recovery' ? 'e.g. Ice Bath Therapy, Sauna Session' : 'e.g. 12 Sessions Personal Training'}
-                value={quickPlanForm.name}
-                onChange={(e) => setQuickPlanForm({ ...quickPlanForm, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Fee / Price (₹) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
-                  <input
-                    type="number"
-                    min={0}
-                    required
-                    value={quickPlanForm.price}
-                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, price: e.target.value })}
-                    className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              {quickAddPlanType === 'pt' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Included Sessions</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={120}
-                    value={quickPlanForm.sessions}
-                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, sessions: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
-                  />
-                </div>
-              )}
-
-              {quickAddPlanType === 'recovery' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Therapy Category</label>
-                  <select
-                    value={quickPlanForm.instructorOrType}
-                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, instructorOrType: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    <option value="Ice Plunge">Ice Plunge / Cold Bath</option>
-                    <option value="Infrared Sauna">Infrared Sauna</option>
-                    <option value="Massage Gun">Percussion Massage Gun</option>
-                    <option value="Cryotherapy">Cryotherapy</option>
-                    <option value="Physiotherapy">Physiotherapy & Stretch</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setQuickAddPlanType(null)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSavingQuickPlan}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isSavingQuickPlan ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving Plan...</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Save & Apply Plan</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 };

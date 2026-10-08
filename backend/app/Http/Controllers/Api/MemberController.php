@@ -372,13 +372,39 @@ class MemberController extends Controller
 
         $rawExpiry = $request->expiry_date ?? $request->expiryDate;
         $plan = null;
+        if ($planId) {
+            $plan = Plan::find($planId);
+            if ($plan && $plan->max_discount !== null && (float)$plan->max_discount > 0) {
+                $maxDisc = (float)$plan->max_discount;
+                $enteredDisc = (float)($request->discount ?? $request->discount_amount ?? $request->discountAmount ?? 0);
+                if ($enteredDisc > $maxDisc) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'errors' => [
+                            'discount' => ["Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
+                        ]
+                    ], 422);
+                }
+
+                $totalBillInput = (float)($request->input('total_amount', $request->input('totalAmount', 0)));
+                if ($totalBillInput > 0 && $plan->price > 0 && ($plan->price - $totalBillInput) > ($maxDisc + 0.01)) {
+                    $implicitDisc = (float)($plan->price - $totalBillInput);
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'errors' => [
+                            'discount' => ["Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
+                        ]
+                    ], 422);
+                }
+            }
+        }
+
         if ($rawExpiry) {
             $expiryDate = \Illuminate\Support\Carbon::parse($rawExpiry)->toDateString();
-            if ($planId) {
-                $plan = Plan::find($planId);
-                if ($plan) {
-                    $plan->increment('active_subscribers');
-                }
+            if ($plan) {
+                $plan->increment('active_subscribers');
             }
         } else {
             $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
@@ -386,22 +412,19 @@ class MemberController extends Controller
                 ? $startCarbon->copy()->endOfMonth()->toDateString() 
                 : $startCarbon->copy()->addDays(30)->toDateString();
 
-            if ($planId) {
-                $plan = Plan::find($planId);
-                if ($plan) {
-                    $durationMonths = (int)($plan->duration_months ?? 1);
-                    $offerDays = (int)($plan->offer_days ?? 0);
-                    if ($startCarbon->day === 1) {
-                        $expiry = $startCarbon->copy()->addMonths($durationMonths - 1)->endOfMonth();
-                    } else {
-                        $expiry = $startCarbon->copy()->addDays($durationMonths * 30);
-                    }
-                    if ($offerDays > 0) {
-                        $expiry = $expiry->addDays($offerDays);
-                    }
-                    $expiryDate = $expiry->toDateString();
-                    $plan->increment('active_subscribers');
+            if ($plan) {
+                $durationMonths = (int)($plan->duration_months ?? 1);
+                $offerDays = (int)($plan->offer_days ?? 0);
+                if ($startCarbon->day === 1) {
+                    $expiry = $startCarbon->copy()->addMonths($durationMonths - 1)->endOfMonth();
+                } else {
+                    $expiry = $startCarbon->copy()->addDays($durationMonths * 30);
                 }
+                if ($offerDays > 0) {
+                    $expiry = $expiry->addDays($offerDays);
+                }
+                $expiryDate = $expiry->toDateString();
+                $plan->increment('active_subscribers');
             }
         }
 

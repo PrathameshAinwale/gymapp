@@ -3,7 +3,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import MemberSearchSelect from '../common/MemberSearchSelect';
-import { MembershipPlanModal } from '../common/MembershipPlanModal';
+import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate } from '../../utils/dateUtils';
@@ -96,7 +96,7 @@ export const RecordPaymentModal = ({
   const [selectedPackages, setSelectedPackages] = useState([
     {
       id: 'pkg-1',
-      packageType: 'membership',
+      packageType: 'Gym-Cardio',
       packageId: '',
       price: 0,
       discount: ''
@@ -140,11 +140,7 @@ export const RecordPaymentModal = ({
   };
 
   const getPackageObject = (type, id) => {
-    if (!id) return null;
-    if (type === 'membership') return (plans || []).find((p) => String(p.id) === String(id));
-    if (type === 'pt') return (ptPlans || []).find((p) => String(p.id) === String(id));
-    if (type === 'recovery') return (recoveryPlans || []).find((r) => String(r.id) === String(id));
-    return null;
+    return getPackageObjectFromLists(type, id, plans, ptPlans, recoveryPlans);
   };
 
   // Helper to compute combined end date:
@@ -213,10 +209,11 @@ export const RecordPaymentModal = ({
       }
 
       // Default Package Row
+      const defaultPackageType = defaultPlan?.packageType || defaultPlan?.package_type || 'Gym-Cardio';
       setSelectedPackages([
         {
           id: 'pkg-1',
-          packageType: 'membership',
+          packageType: defaultPackageType,
           packageId: defaultPlan ? String(defaultPlan.id) : '',
           price: Number(defaultPlan?.price) || 0,
           discount: ''
@@ -237,18 +234,19 @@ export const RecordPaymentModal = ({
     if (plans && plans.length > 0) {
       setSelectedPackages((prev) => {
         const first = prev[0];
-        if (first && first.packageType === 'membership' && !first.packageId) {
-          const p = plans[0];
+        if (first && !first.packageId) {
+          const available = getPackagesForType(first.packageType, plans, ptPlans, recoveryPlans);
+          const p = available[0] || plans[0];
           return prev.map((row, idx) =>
             idx === 0
-              ? { ...row, packageId: String(p.id), price: Number(p.price) || 0 }
+              ? { ...row, packageType: row.packageType || p.packageType || 'Gym-Cardio', packageId: String(p.id), price: Number(p.price) || 0 }
               : row
           );
         }
         return prev;
       });
     }
-  }, [plans]);
+  }, [plans, ptPlans, recoveryPlans]);
 
   // Selected Member Resolution
   const currentMember = useMemo(
@@ -284,10 +282,11 @@ export const RecordPaymentModal = ({
 
       const matchedPlan = plans.find((p) => String(p.id) === String(m.planId) || p.name === m.planName) || plans[0];
       if (matchedPlan) {
+        const matchedType = matchedPlan.packageType || matchedPlan.package_type || 'Gym-Cardio';
         setSelectedPackages((prev) =>
-          prev.map((row) =>
-            row.packageType === 'membership'
-              ? { ...row, packageId: String(matchedPlan.id), price: Number(matchedPlan.price) || 0 }
+          prev.map((row, idx) =>
+            idx === 0
+              ? { ...row, packageType: matchedType, packageId: String(matchedPlan.id), price: Number(matchedPlan.price) || 0 }
               : row
           )
         );
@@ -304,28 +303,24 @@ export const RecordPaymentModal = ({
 
   // Package Row Handlers
   const handlePackageTypeChange = (rowId, newType) => {
-    if (newType === 'pt' && trainers && trainers.length > 0 && !selectedTrainerId) {
+    const isPt = newType === 'Personal Training' || newType === 'pt';
+    if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
       setSelectedTrainerId(trainers[0].id);
     }
+    const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
+    const firstPlan = available[0] || null;
+
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
-        let newPackageId = '';
-        let newPrice = 0;
-        if (newType === 'membership' && plans && plans.length > 0) {
-          newPackageId = String(plans[0].id);
-          newPrice = Number(plans[0].price) || 0;
-          if (!isManualEndDate && membershipStartDate) {
-            const calculated = computeCombinedPlanEndDate(membershipStartDate, plans[0], currentMember?.expiryDate);
-            if (calculated) setMembershipEndDate(calculated);
-          }
-        } else if (newType === 'pt' && ptPlans && ptPlans.length > 0) {
-          newPackageId = String(ptPlans[0].id);
-          newPrice = Number(ptPlans[0].price) || 0;
-        } else if (newType === 'recovery' && recoveryPlans && recoveryPlans.length > 0) {
-          newPackageId = String(recoveryPlans[0].id);
-          newPrice = Number(recoveryPlans[0].price) || 0;
+        const newPackageId = firstPlan ? String(firstPlan.id) : '';
+        const newPrice = Number(firstPlan?.price) || 0;
+
+        if (firstPlan && !isPt && !isManualEndDate && membershipStartDate) {
+          const calculated = computeCombinedPlanEndDate(membershipStartDate, firstPlan, currentMember?.expiryDate);
+          if (calculated) setMembershipEndDate(calculated);
         }
+
         return {
           ...row,
           packageType: newType,
@@ -340,30 +335,23 @@ export const RecordPaymentModal = ({
   const handlePackageIdChange = (rowId, newPackageId) => {
     if (newPackageId === '__ADD_NEW__') {
       const row = selectedPackages.find((r) => r.id === rowId);
-      handleOpenQuickAdd(row?.packageType || 'membership', rowId);
+      handleOpenQuickAdd(row?.packageType || 'Gym-Cardio', rowId);
       return;
     }
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
-        let price = 0;
-        if (row.packageType === 'membership') {
-          const found = (plans || []).find((p) => String(p.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
-          if (found && !isManualEndDate && membershipStartDate) {
-            const calculated = computeCombinedPlanEndDate(membershipStartDate, found, currentMember?.expiryDate);
-            if (calculated) setMembershipEndDate(calculated);
-          }
-        } else if (row.packageType === 'pt') {
-          const found = (ptPlans || []).find((p) => String(p.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
-          if (trainers && trainers.length > 0 && !selectedTrainerId) {
-            setSelectedTrainerId(trainers[0].id);
-          }
-        } else if (row.packageType === 'recovery') {
-          const found = (recoveryPlans || []).find((r) => String(r.id) === String(newPackageId));
-          price = Number(found?.price) || 0;
+        const found = getPackageObject(row.packageType, newPackageId);
+        const price = Number(found?.price) || 0;
+        const isPt = row.packageType === 'Personal Training' || row.packageType === 'pt';
+
+        if (found && !isPt && !isManualEndDate && membershipStartDate) {
+          const calculated = computeCombinedPlanEndDate(membershipStartDate, found, currentMember?.expiryDate);
+          if (calculated) setMembershipEndDate(calculated);
+        } else if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
+          setSelectedTrainerId(trainers[0].id);
         }
+
         return {
           ...row,
           packageId: newPackageId,
@@ -389,32 +377,18 @@ export const RecordPaymentModal = ({
 
   const handleAddPackageRow = () => {
     const typesUsed = selectedPackages.map((p) => p.packageType);
-    let nextType = 'pt';
-    if (!typesUsed.includes('membership')) nextType = 'membership';
-    else if (!typesUsed.includes('pt')) nextType = 'pt';
-    else if (!typesUsed.includes('recovery')) nextType = 'recovery';
-    else nextType = 'pt';
+    let nextType = PACKAGE_TYPES.find((t) => !typesUsed.includes(t)) || 'Personal Training';
 
-    let initialPkgId = '';
-    let initialPrice = 0;
-    if (nextType === 'pt' && ptPlans && ptPlans.length > 0) {
-      initialPkgId = String(ptPlans[0].id);
-      initialPrice = Number(ptPlans[0].price) || 0;
-    } else if (nextType === 'recovery' && recoveryPlans && recoveryPlans.length > 0) {
-      initialPkgId = String(recoveryPlans[0].id);
-      initialPrice = Number(recoveryPlans[0].price) || 0;
-    } else if (nextType === 'membership' && plans && plans.length > 0) {
-      initialPkgId = String(plans[0].id);
-      initialPrice = Number(plans[0].price) || 0;
-    }
+    const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
+    const firstPlan = available[0] || null;
 
     setSelectedPackages((prev) => [
       ...prev,
       {
         id: `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         packageType: nextType,
-        packageId: initialPkgId,
-        price: initialPrice,
+        packageId: firstPlan ? String(firstPlan.id) : '',
+        price: Number(firstPlan?.price) || 0,
         discount: ''
       }
     ]);
@@ -422,12 +396,15 @@ export const RecordPaymentModal = ({
 
   const handleRemovePackageRow = (rowId) => {
     if (selectedPackages.length <= 1) {
+      const defaultType = 'Gym-Cardio';
+      const available = getPackagesForType(defaultType, plans, ptPlans, recoveryPlans);
+      const first = available[0] || plans[0] || null;
       setSelectedPackages([
         {
           id: `pkg-${Date.now()}`,
-          packageType: 'membership',
-          packageId: plans[0]?.id ? String(plans[0].id) : '',
-          price: Number(plans[0]?.price) || 0,
+          packageType: defaultType,
+          packageId: first ? String(first.id) : '',
+          price: Number(first?.price) || 0,
           discount: ''
         }
       ]);
@@ -547,7 +524,7 @@ export const RecordPaymentModal = ({
 
   // PT Package & Commission Calculation
   const ptPackages = useMemo(
-    () => selectedPackages.filter((r) => r.packageType === 'pt' && r.packageId),
+    () => selectedPackages.filter((r) => (r.packageType === 'pt' || r.packageType === 'Personal Training') && r.packageId),
     [selectedPackages]
   );
   const hasPtPackage = ptPackages.length > 0;
@@ -579,17 +556,17 @@ export const RecordPaymentModal = ({
     selectedPackages.forEach((pkgRow) => {
       const pkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
       if (!pkgObj) return;
-      if (pkgRow.packageType === 'membership') {
-        lineTitles.push(`${pkgObj.name} (${pkgObj.durationMonths || 1}M)`);
-      } else if (pkgRow.packageType === 'pt') {
+      const isPtType = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
+      if (isPtType) {
         const sess = pkgObj.sessions || ptCustomSessions || 12;
         lineTitles.push(`${sess} Sessions PT${currentTrainer ? ` (Coach ${currentTrainer.name})` : ''}`);
-      } else if (pkgRow.packageType === 'recovery') {
-        lineTitles.push(pkgObj.name);
+      } else {
+        const duration = pkgObj.period || `${pkgObj.durationMonths || pkgObj.duration_months || 1}M`;
+        lineTitles.push(`${pkgObj.name} (${duration})`);
       }
     });
     return lineTitles.join(' + ') || 'Gym Services Package';
-  }, [selectedPackages, currentTrainer, ptCustomSessions]);
+  }, [selectedPackages, currentTrainer, ptCustomSessions, plans, ptPlans, recoveryPlans]);
 
   // Live Duplicate Invoice Check - Scoped strictly to the Member's Current Active Plan
   // Rules:
@@ -687,16 +664,14 @@ export const RecordPaymentModal = ({
       return;
     }
 
-    // Check discount ceiling on membership rows
+    // Check discount ceiling across all selected packages
     for (const r of selectedPackages) {
-      if (r.packageType === 'membership') {
-        const pObj = getPackageObject('membership', r.packageId);
-        const maxDisc = pObj ? Number(pObj.maxDiscount ?? pObj.max_discount ?? 0) : 0;
-        const enteredDisc = Math.max(0, Number(r.discount) || 0);
-        if (maxDisc > 0 && enteredDisc > maxDisc) {
-          addToast(`Discount ₹${enteredDisc} on ${pObj.name} exceeds max allowed discount of ₹${maxDisc}.`, 'error');
-          return;
-        }
+      const pObj = getPackageObject(r.packageType, r.packageId);
+      const maxDisc = pObj ? Number(pObj.maxDiscount ?? pObj.max_discount ?? 0) : 0;
+      const enteredDisc = Math.max(0, Number(r.discount) || 0);
+      if (maxDisc > 0 && enteredDisc > maxDisc) {
+        addToast(`Discount ₹${enteredDisc.toLocaleString('en-IN')} on "${pObj?.name || r.packageType}" exceeds max allowed discount of ₹${maxDisc.toLocaleString('en-IN')}.`, 'error');
+        return;
       }
     }
 
@@ -708,24 +683,27 @@ export const RecordPaymentModal = ({
         : Number(currentMember?.id) || 1;
 
       const invoiceTitle = currentInvoiceTitle;
-      const hasMembership = selectedPackages.some((r) => r.packageType === 'membership' && r.packageId);
-      const hasPt = selectedPackages.some((r) => r.packageType === 'pt' && r.packageId);
+      const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt') && r.packageId;
+      const isRecoveryRow = (r) => (r.packageType === 'Massage' || r.packageType === 'Activities' || r.packageType === 'recovery') && r.packageId;
+      const hasPt = selectedPackages.some(isPtRow);
+      const hasRecovery = selectedPackages.some(isRecoveryRow);
+      const hasMembership = selectedPackages.some((r) => !isPtRow(r) && !isRecoveryRow(r) && r.packageId);
+
+      const membershipRow = selectedPackages.find((r) => !isPtRow(r) && !isRecoveryRow(r) && r.packageId) || selectedPackages.find((r) => r.packageId);
+      const membershipPlanObj = membershipRow ? getPackageObject(membershipRow.packageType, membershipRow.packageId) : null;
+
+      const ptRow = selectedPackages.find(isPtRow);
+      const ptPlanObj = ptRow ? getPackageObject(ptRow.packageType, ptRow.packageId) : null;
+
+      const recoveryRow = selectedPackages.find(isRecoveryRow);
+      const recoveryPlanObj = recoveryRow ? getPackageObject(recoveryRow.packageType, recoveryRow.packageId) : null;
 
       const mainCategory = hasMembership
-        ? 'Membership Fee'
+        ? (membershipRow ? (membershipRow.packageType || 'Membership Fee') : 'Membership Fee')
         : (hasPt ? 'Personal Training' : 'Recovery & Wellness');
 
       const generatedInvoiceNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
-
-      const membershipRow = selectedPackages.find((r) => r.packageType === 'membership' && r.packageId);
-      const membershipPlanObj = membershipRow ? getPackageObject('membership', membershipRow.packageId) : null;
-
-      const ptRow = selectedPackages.find((r) => r.packageType === 'pt' && r.packageId);
-      const ptPlanObj = ptRow ? getPackageObject('pt', ptRow.packageId) : null;
-
-      const recoveryRow = selectedPackages.find((r) => r.packageType === 'recovery' && r.packageId);
-      const recoveryPlanObj = recoveryRow ? getPackageObject('recovery', recoveryRow.packageId) : null;
 
       // 1. Record Revenue Inflow in Database
       let backendInvoiceRef = generatedInvoiceNo;
@@ -1097,11 +1075,11 @@ export const RecordPaymentModal = ({
               <div className="space-y-3">
                 {selectedPackages.map((pkgRow, idx) => {
                   const currentPkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
-                  const isMembership = pkgRow.packageType === 'membership';
-                  const isPt = pkgRow.packageType === 'pt';
-                  const isRecovery = pkgRow.packageType === 'recovery';
+                  const isPt = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
+                  const isMembership = !isPt;
+                  const availablePackages = getPackagesForType(pkgRow.packageType, plans, ptPlans, recoveryPlans);
 
-                  const maxPlanDiscount = isMembership && currentPkgObj
+                  const maxPlanDiscount = currentPkgObj
                     ? Number(currentPkgObj.maxDiscount ?? currentPkgObj.max_discount ?? 0)
                     : 0;
 
@@ -1115,9 +1093,7 @@ export const RecordPaymentModal = ({
                           <Tag className="w-3.5 h-3.5 text-emerald-600" />
                           <span>Package #{idx + 1}</span>
                           <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
-                            {pkgRow.packageType === 'membership'
-                              ? 'Membership Plan'
-                              : (pkgRow.packageType === 'pt' ? 'Personal Training' : 'Recovery & Therapy')}
+                            {pkgRow.packageType}
                           </span>
                         </span>
 
@@ -1133,9 +1109,10 @@ export const RecordPaymentModal = ({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      {/* Line 1: Package Type & Package Name */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Package Type */}
-                        <div className="sm:col-span-4">
+                        <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
                             Package Type *
                           </label>
@@ -1144,14 +1121,16 @@ export const RecordPaymentModal = ({
                             onChange={(e) => handlePackageTypeChange(pkgRow.id, e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                           >
-                            <option value="membership">Membership Plan</option>
-                            <option value="pt">Personal Training (PT)</option>
-                            <option value="recovery">Recovery & Therapy</option>
+                            {PACKAGE_TYPES.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
                           </select>
                         </div>
 
                         {/* Package Name / Selector */}
-                        <div className="sm:col-span-5">
+                        <div>
                           <div className="flex items-center justify-between mb-1">
                             <label className="block text-[11px] font-bold text-slate-700">
                               Package Name *
@@ -1169,67 +1148,65 @@ export const RecordPaymentModal = ({
                             onChange={(e) => handlePackageIdChange(pkgRow.id, e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                           >
-                            <option value="">-- Choose {pkgRow.packageType} --</option>
-                            {isMembership &&
-                              (plans || []).map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.period || `${p.durationMonths || 1} Month`}) — ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                                </option>
-                              ))}
-                            {isPt &&
-                              (ptPlans || []).map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.sessions} Sessions) — ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                                </option>
-                              ))}
-                            {isRecovery &&
-                              (recoveryPlans || []).map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name} ({r.type || r.duration || 'Session'}) — ₹{Number(r.price || 0).toLocaleString('en-IN')}
-                                </option>
-                              ))}
+                            <option value="">
+                              -- Choose {pkgRow.packageType} {availablePackages.length === 0 ? '(No plans yet)' : ''} --
+                            </option>
+                            {availablePackages.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths}M)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                              </option>
+                            ))}
                             <option value="__ADD_NEW__">+ Create New Plan...</option>
                           </select>
                         </div>
+                      </div>
 
-                        {/* Fee & Discount */}
-                        <div className="sm:col-span-3 grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1">Fee (₹)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              inputMode="decimal"
-                              value={pkgRow.price}
-                              onKeyDown={(e) => preventNonNumericKey(e, true)}
-                              onChange={(e) => handlePackagePriceChange(pkgRow.id, e.target.value)}
-                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
+                      {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={pkgRow.price}
+                            onKeyDown={(e) => preventNonNumericKey(e, true)}
+                            onChange={(e) => handlePackagePriceChange(pkgRow.id, e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-slate-700">Discount</label>
+                            {maxPlanDiscount > 0 && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                                Number(pkgRow.discount) > maxPlanDiscount
+                                  ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                              </span>
+                            )}
                           </div>
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-[10px] font-bold text-slate-600">Discount</label>
-                              {maxPlanDiscount > 0 && (
-                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
-                                  Max: ₹{maxPlanDiscount}
-                                </span>
-                              )}
-                            </div>
-                            <input
-                              type="number"
-                              min="0"
-                              inputMode="decimal"
-                              placeholder="0"
-                              value={pkgRow.discount}
-                              onKeyDown={(e) => preventNonNumericKey(e, true)}
-                              onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
-                              className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
-                                  ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700'
-                                  : 'border-slate-200 focus:border-emerald-500'
-                              }`}
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            placeholder="0"
+                            value={pkgRow.discount}
+                            onKeyDown={(e) => preventNonNumericKey(e, true)}
+                            onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
+                            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                              maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
+                                ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
+                                : 'border-slate-200 focus:border-emerald-500'
+                            }`}
+                          />
+                          {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
+                            <p className="text-[10px] text-rose-600 font-bold mt-1">
+                              ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1730,8 +1707,9 @@ export const RecordPaymentModal = ({
 
       {/* Shared Reusable Membership Plan Modal (Nested-Safe Dialog for creating new plans) */}
       <MembershipPlanModal
-        isOpen={quickAddPlanType === 'membership'}
+        isOpen={Boolean(quickAddPlanType && quickAddPlanType !== 'pt' && quickAddPlanType !== 'recovery')}
         onClose={() => setQuickAddPlanType(null)}
+        defaultPackageType={quickAddPlanType || 'Gym-Cardio'}
         isNested={true}
         onSuccess={async (created) => {
           if (created?.id) {
@@ -1740,7 +1718,12 @@ export const RecordPaymentModal = ({
               setSelectedPackages((prev) =>
                 prev.map((r) =>
                   r.id === quickAddTargetRowId
-                    ? { ...r, packageId: String(created.id), price: Number(created.price) || 0 }
+                    ? {
+                        ...r,
+                        packageType: created.package_type || created.packageType || quickAddPlanType,
+                        packageId: String(created.id),
+                        price: Number(created.price) || 0
+                      }
                     : r
                 )
               );
@@ -1753,7 +1736,7 @@ export const RecordPaymentModal = ({
                 if (calculatedEnd) setMembershipEndDate(calculatedEnd);
               }
             }
-            addToast(`Membership plan "${created.name}" created and applied!`, 'success');
+            addToast(`Package plan "${created.name}" created and applied!`, 'success');
           }
           setQuickAddPlanType(null);
         }}

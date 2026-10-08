@@ -19,6 +19,80 @@ export const PACKAGE_TYPES = [
   'General Fitness'
 ];
 
+export const getPackagesForType = (type, plans = [], ptPlans = [], recoveryPlans = []) => {
+  if (!type) return [];
+  const normalizedType = String(type).trim().toLowerCase();
+
+  // If type is Personal Training
+  if (normalizedType === 'personal training' || normalizedType === 'pt') {
+    const fromPlans = (plans || []).filter((p) => {
+      const pType = String(p.packageType || p.package_type || p.category || '').trim().toLowerCase();
+      return pType === 'personal training' || pType === 'pt';
+    });
+    const combined = [...fromPlans];
+    (ptPlans || []).forEach((pt) => {
+      if (!combined.some((item) => String(item.id) === String(pt.id))) {
+        combined.push(pt);
+      }
+    });
+    return combined;
+  }
+
+  // If type is Massage
+  if (normalizedType === 'massage') {
+    const fromPlans = (plans || []).filter((p) => {
+      const pType = String(p.packageType || p.package_type || p.category || '').trim().toLowerCase();
+      return pType === 'massage';
+    });
+    const combined = [...fromPlans];
+    (recoveryPlans || []).forEach((rec) => {
+      const recType = String(rec.type || rec.category || '').trim().toLowerCase();
+      if ((recType === 'massage' || !recType) && !combined.some((item) => String(item.id) === String(rec.id))) {
+        combined.push(rec);
+      }
+    });
+    return combined;
+  }
+
+  // If type is Activities
+  if (normalizedType === 'activities') {
+    const fromPlans = (plans || []).filter((p) => {
+      const pType = String(p.packageType || p.package_type || p.category || '').trim().toLowerCase();
+      return pType === 'activities';
+    });
+    const combined = [...fromPlans];
+    (recoveryPlans || []).forEach((rec) => {
+      const recType = String(rec.type || rec.category || '').trim().toLowerCase();
+      if (recType === 'activities' && !combined.some((item) => String(item.id) === String(rec.id))) {
+        combined.push(rec);
+      }
+    });
+    return combined;
+  }
+
+  // For all other package types (Gym-Cardio, Gym-Cardio-Crossfit, Crossfit, Locker, Functional Training, Kids Training, Club Membership, Zumba, General Fitness)
+  return (plans || []).filter((p) => {
+    const pType = String(p.packageType || p.package_type || p.category || '').trim().toLowerCase();
+    if (pType === normalizedType) return true;
+    // Fallback for legacy plans with empty or 'membership' type if Gym-Cardio or General Fitness is selected
+    if ((pType === 'membership' || !pType) && (normalizedType === 'gym-cardio' || normalizedType === 'general fitness')) {
+      return true;
+    }
+    return false;
+  });
+};
+
+export const getPackageObjectFromLists = (type, id, plans = [], ptPlans = [], recoveryPlans = []) => {
+  if (!id) return null;
+  const foundInPlans = (plans || []).find((p) => String(p.id) === String(id));
+  if (foundInPlans) return foundInPlans;
+  const foundInPt = (ptPlans || []).find((p) => String(p.id) === String(id));
+  if (foundInPt) return foundInPt;
+  const foundInRec = (recoveryPlans || []).find((r) => String(r.id) === String(id));
+  if (foundInRec) return foundInRec;
+  return null;
+};
+
 export const DURATION_PRESETS = [
   { label: '1 Mo', months: 1, period: '1 Month' },
   { label: '2 Mo', months: 2, period: '2 Months' },

@@ -1235,11 +1235,11 @@ export const api = {
   // Superadmin Platform Control
   superadmin: {
     getStats: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/superadmin/stats`, { headers: getHeaders() });
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/stats`, { headers: getHeaders(), skipCache: true });
       return handleResponse(res);
     },
     getGyms: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms`, { headers: getHeaders() });
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms`, { headers: getHeaders(), skipCache: true });
       return handleResponse(res);
     },
     createGym: async (gymData) => {

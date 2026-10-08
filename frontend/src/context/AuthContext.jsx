@@ -167,8 +167,17 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('pulsefit_gym_id');
           api.clearCache?.();
         }
-      }).catch(() => {
-        // Backend offline or unreachable
+      }).catch((err) => {
+        // If 401 unauthenticated, clear stale token from previous database session
+        if (err?.status === 401 || err?.message?.toLowerCase().includes('unauthenticated')) {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          localStorage.removeItem('pulsefit_isAuth');
+          localStorage.removeItem('pulsefit_currentUser_v2');
+          localStorage.removeItem('pulsefit_token');
+          localStorage.removeItem('pulsefit_gym_id');
+          api.clearCache?.();
+        }
       });
     }
   }, []);
