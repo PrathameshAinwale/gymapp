@@ -194,6 +194,8 @@ Route::get('/setup-database', function (Request $request) {
             $seedOutput = \Illuminate\Support\Facades\Artisan::output();
         }
 
+        $gymsSummary = \App\Models\Gym::select('id', 'name', 'owner_id', 'package_tier')->get();
+
         return response()->json([
             'status'           => 'success',
             'host'             => $dbHost,
@@ -203,6 +205,7 @@ Route::get('/setup-database', function (Request $request) {
             'message'          => 'Database connected and migrations executed successfully!',
             'migration_output' => $migrateOutput,
             'seed_output'      => $seedOutput,
+            'gyms'             => $gymsSummary,
         ]);
     } catch (\Throwable $e) {
         return response()->json([
