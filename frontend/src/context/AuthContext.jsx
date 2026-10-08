@@ -131,6 +131,48 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('pulsefit_accounts_v2', JSON.stringify(accounts));
   }, [accounts]);
 
+  // On mount: Validate session with currently connected backend to prevent stale cross-database session leakage
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_token') : null;
+    if (token && api.auth?.me) {
+      api.auth.me().then((res) => {
+        if (res?.success && res?.user) {
+          let userRole = res.user.role || 'superadmin';
+          if (userRole === 'owner') userRole = 'superadmin';
+          const gymId = res.user.gym_id || res.user.gymId || res.user.gym?.id || null;
+          const gymName = res.user.gym?.name || (res.user.name + "'s Gym");
+          setCurrentUser((prev) => ({
+            ...(prev || {}),
+            id: `usr-${userRole}-${res.user.id}`,
+            userId: res.user.id,
+            name: res.user.name,
+            email: res.user.email,
+            role: userRole,
+            gym_id: gymId,
+            gymId: gymId,
+            gym: res.user.gym || null,
+            gymName: gymName,
+          }));
+          setIsAuthenticated(true);
+          if (gymId) {
+            localStorage.setItem('pulsefit_gym_id', gymId.toString());
+          }
+        } else {
+          // Token invalid on this backend (e.g. switched from live DB to local XAMPP DB)
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          localStorage.removeItem('pulsefit_isAuth');
+          localStorage.removeItem('pulsefit_currentUser_v2');
+          localStorage.removeItem('pulsefit_token');
+          localStorage.removeItem('pulsefit_gym_id');
+          api.clearCache?.();
+        }
+      }).catch(() => {
+        // Backend offline or unreachable
+      });
+    }
+  }, []);
+
   // Hydrate staff accounts from Laravel SQLite backend for the active gym
   useEffect(() => {
     const currentGymId = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
