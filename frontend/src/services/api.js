@@ -242,13 +242,14 @@ const apiFetch = async (urlOrPath, options = {}) => {
         }
       });
     } else {
-      // Local development machine - strictly use local backend server only
+      // Local development machine - strictly use local backend server only (via Vite proxy or direct port 8000)
       rawHosts = [
+        getOriginApiUrl(),
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
         `http://${currentHost}:8000/api/v1`,
         `http://${CURRENT_LAN_IP}:8000/api/v1`,
-      ];
+      ].filter(Boolean);
     }
 
     if (isHttps) {
