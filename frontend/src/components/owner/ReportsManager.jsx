@@ -459,9 +459,6 @@ export const ReportsManager = ({ setActiveTab }) => {
               )}
             </button>
 
-            <span className="text-xs text-slate-500 font-bold whitespace-nowrap px-1 sm:px-2">
-              Showing: <strong className="text-slate-900">{currentData.length}</strong> items
-            </span>
           </div>
         </div>
 

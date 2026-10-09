@@ -88,7 +88,7 @@ export const RecordPaymentModal = ({
   // PT Specific State
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
   const [commissionType, setCommissionType] = useState('percent'); // 'percent' | 'fixed'
-  const [ptCommissionPercent, setPtCommissionPercent] = useState(20);
+  const [ptCommissionPercent, setPtCommissionPercent] = useState();
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
   const [ptCustomSessions, setPtCustomSessions] = useState(12);
 

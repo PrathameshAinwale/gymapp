@@ -42,9 +42,18 @@ function numberToWordsINR(amount) {
  * Cross-browser PDF download helper
  */
 export function downloadPdfBlob(blob, fileName, doc = null) {
-  if (doc && typeof doc.save === 'function') {
+  let actualBlob = blob;
+  let actualDoc = doc;
+
+  // Handle case where result object from generateInvoicePdf was passed directly
+  if (blob && typeof blob === 'object' && !(blob instanceof Blob)) {
+    if (blob.blob instanceof Blob) actualBlob = blob.blob;
+    if (blob.doc) actualDoc = blob.doc;
+  }
+
+  if (actualDoc && typeof actualDoc.save === 'function') {
     try {
-      doc.save(fileName);
+      actualDoc.save(fileName);
       return true;
     } catch (docErr) {
       console.warn('doc.save failed, falling back to blob anchor:', docErr);
@@ -52,7 +61,11 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
   }
 
   try {
-    const url = URL.createObjectURL(blob);
+    if (!actualBlob) {
+      console.error('downloadPdfBlob error: No valid Blob available');
+      return false;
+    }
+    const url = URL.createObjectURL(actualBlob);
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
@@ -70,9 +83,12 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
   } catch (err) {
     console.error('downloadPdfBlob anchor error:', err);
     try {
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      return true;
+      if (actualBlob) {
+        const url = URL.createObjectURL(actualBlob);
+        window.open(url, '_blank');
+        return true;
+      }
+      return false;
     } catch (e) {
       console.error('All download methods failed:', e);
       return false;
@@ -84,7 +100,34 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
  * Generate a modern, elegant Gym Membership & Payment Receipt PDF
  * (Clean fitness club format — easy to read, transparent, and aesthetically premium)
  */
-export function generateInvoicePdf({ invoice, member, gymInfo }) {
+export function generateInvoicePdf(arg1, arg2, arg3) {
+  let invoice = null;
+  let member = null;
+  let gymInfo = null;
+
+  if (arg1 && typeof arg1 === 'object') {
+    if ('invoice' in arg1) {
+      invoice = arg1.invoice;
+      member = arg1.member || null;
+      gymInfo = arg1.gymInfo || null;
+    } else {
+      invoice = arg1;
+      if (arg2 && typeof arg2 === 'object') {
+        if (arg2.gstin || arg2.gst_number || arg2.address || arg2.tagline || arg2.currency || arg2.logo) {
+          gymInfo = arg2;
+          member = arg3 || null;
+        } else {
+          member = arg2;
+          gymInfo = arg3 || null;
+        }
+      }
+    }
+  }
+
+  invoice = invoice || {};
+  member = member || {};
+  gymInfo = gymInfo || {};
+
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -107,7 +150,7 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
   const memberPhone = member?.phone || invoice.phone || 'N/A';
   const memberEmail = member?.email || invoice.email || 'N/A';
 
-  const invoiceId = (invoice.id || 'INV-001').toUpperCase();
+  const invoiceId = (invoice.id || invoice.invoiceNumber || 'INV-001').toUpperCase();
   const invoiceDate = invoice.date || new Date().toISOString().split('T')[0];
   const paymentMode = invoice.paymentMethod || 'UPI';
   const planName = invoice.planName || 'Comprehensive Gym Membership Pass';
@@ -501,6 +544,8 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
     blob,
     pdfFile,
     fileName,
+    output: (...args) => doc.output(...args),
+    save: (...args) => doc.save(...args),
     download: () => downloadPdfBlob(blob, fileName, doc)
   };
 }
@@ -508,8 +553,8 @@ export function generateInvoicePdf({ invoice, member, gymInfo }) {
 /**
  * Direct shortcut to generate and trigger download of Invoice PDF
  */
-export function downloadInvoicePdf({ invoice, member, gymInfo }) {
-  const result = generateInvoicePdf({ invoice, member, gymInfo });
+export function downloadInvoicePdf(arg1, arg2, arg3) {
+  const result = generateInvoicePdf(arg1, arg2, arg3);
   return result.download();
 }
 

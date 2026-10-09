@@ -150,16 +150,11 @@ export const calculatePlanExpiryDate = (startDateStr, durationMonths = 1, period
       end = new Date(start.getTime());
       end.setDate(end.getDate() + parseInt(matchDays[1], 10));
     } else {
-      const months = Number(durationMonths) || 1;
-      if (start.getDate() === 1) {
-        // Starts on 1st of month: ends on the last day of the (months) month
-        // Day 0 of start.getMonth() + months gives the exact last day of the target month
-        end = new Date(start.getFullYear(), start.getMonth() + months, 0);
-      } else {
-        // Any other date: expires after 30 days per month
-        end = new Date(start.getTime());
-        end.setDate(end.getDate() + (months * 30));
-      }
+      const matchMonths = (periodStr || '').match(/(\d+)\s*Months?/i);
+      const months = Number(durationMonths) || (matchMonths ? parseInt(matchMonths[1], 10) : 1);
+      // Fixed 30 days per month count regardless of calendar month length
+      end = new Date(start.getTime());
+      end.setDate(end.getDate() + (months * 30));
     }
 
     const bonus = Number(offerDays) || 0;

@@ -54,6 +54,7 @@ import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getPlanByTier } from '../superadmin/packagePlans';
+import { matchesMemberUniversal } from '../../utils/searchUtils';
 
 export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddMember, onOpenAddMember, setActiveTab }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
@@ -257,36 +258,11 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
   };
 
   const openEditModal = (m) => {
-    const computedAge = m.dob ? calculateAgeFromDob(m.dob) : (m.age ?? '');
-    setEditingMember({
-      ...m,
-      weight: m.weight ?? '',
-      targetWeight: m.targetWeight ?? '',
-      height: m.height ?? '',
-      gender: m.gender || 'Male',
-      dob: m.dob || '',
-      age: computedAge,
-      goal: m.goal || 'General Fitness',
-      medicalNotes: m.medicalNotes || '',
-      emergencyContact: m.emergencyContact || '',
-      executive: m.executive || '',
-      trainingType: m.trainingType || m.training_type || 'self',
-      kycDocType: m.kycDocType || m.kyc_doc_type || 'Aadhaar Card',
-      kycDocNumber: m.kycDocNumber || m.kyc_doc_number || '',
-      kycStatus: m.kycStatus || m.kyc_status || 'Verified',
-      phone: m.phone || '',
-      email: m.email || '',
-      name: m.name || '',
-      trainerId: m.trainerId || '',
-      status: m.status || 'Active',
-      expiryDate: m.expiryDate || ''
-    });
-    setOtpSent(false);
-    setGeneratedOtp('');
-    setEnteredOtp('');
-    setIsOtpVerified(false);
-    setNewPassword('');
-    setShowPasswordText(false);
+    if (onNavigateToAddMember) {
+      onNavigateToAddMember({ ...m, isEdit: true });
+    } else if (setActiveTab) {
+      setActiveTab('add-member');
+    }
   };
 
   // Resolve member for selected invoice
@@ -470,30 +446,29 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
 
   const searchSuggestions = useMemo(() => {
     if (!searchTerm || searchTerm.trim().length < 2) return [];
-    const term = searchTerm.toLowerCase().trim();
     return (members || [])
       .filter((m) =>
-        (m?.name || '').toLowerCase().includes(term) ||
-        (m?.phone || '').includes(term) ||
-        (m?.email || '').toLowerCase().includes(term) ||
-        (m?.planName || '').toLowerCase().includes(term) ||
-        (m?.trainerName || '').toLowerCase().includes(term)
+        matchesMemberUniversal(m, searchTerm, {
+          plans,
+          trainers,
+          invoices,
+          calculateMemberStatus: getMemberEffectiveStatus
+        })
       )
-      .slice(0, 5);
-  }, [searchTerm, members]);
+      .slice(0, 8);
+  }, [searchTerm, members, plans, trainers, invoices]);
 
   const filteredMembers = useMemo(() => {
     return (members || []).filter((m) => {
-      const term = (searchTerm || '').trim().toLowerCase();
       const matchSearch =
-        !term ||
-        (m?.name || '').toLowerCase().includes(term) ||
-        (m?.email || '').toLowerCase().includes(term) ||
-        (m?.phone || '').toLowerCase().includes(term) ||
-        (m?.qrPassCode || '').toLowerCase().includes(term) ||
-        (m?.planName || '').toLowerCase().includes(term) ||
-        (m?.trainerName || '').toLowerCase().includes(term) ||
-        String(m?.id || '').toLowerCase().includes(term);
+        !searchTerm ||
+        !searchTerm.trim() ||
+        matchesMemberUniversal(m, searchTerm, {
+          plans,
+          trainers,
+          invoices,
+          calculateMemberStatus: getMemberEffectiveStatus
+        });
 
       if (!matchSearch) return false;
 
@@ -634,7 +609,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                 setSearchTerm(e.target.value);
                 setIsSearchDropdownOpen(true);
               }}
-              placeholder="Search member name, phone, email, plan, or coach..."
+              placeholder="Search anything: Name, Mobile, Email, Date, Plan..."
               className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
             />
             {searchTerm && (
@@ -1915,14 +1890,14 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
       />
 
 
-      {/* EDIT MEMBER MODAL (All Fields + Mobile OTP Verification for Password) */}
-      <Modal
-        isOpen={!!editingMember}
-        onClose={() => setEditingMember(null)}
-        title={`Edit Athlete Dossier: ${editingMember?.name || ''}`}
-        maxWidth="max-w-2xl"
-      >
-        {editingMember && (
+      {/* Old edit modal replaced by direct AddMemberPage navigation */}
+      {false && editingMember && (
+        <Modal
+          isOpen={false}
+          onClose={() => setEditingMember(null)}
+          title={`Edit Athlete Dossier: ${editingMember?.name || ''}`}
+          maxWidth="max-w-2xl"
+        >
           <form onSubmit={handleEditSubmit} className="space-y-4 text-xs max-h-[80vh] overflow-y-auto pr-1">
             {/* 1. Personal & Contact Details */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -2383,8 +2358,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
               </button>
             </div>
           </form>
-        )}
-      </Modal>
+        </Modal>
+      )}
 
       {/* Advanced Filter Modal (Portalled to document.body, matching InvoicesPage & ReportsManager) */}
       {showFilterModal && typeof document !== 'undefined' && createPortal(

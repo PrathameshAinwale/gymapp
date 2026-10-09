@@ -321,6 +321,10 @@ function MainApp() {
         return (
           <AddMemberPage
             initialData={addMemberInitialData}
+            isEdit={Boolean(addMemberInitialData?.isEdit || addMemberInitialData?.isEditMode)}
+            editMember={addMemberInitialData?.isEdit ? addMemberInitialData : null}
+            isUpgrade={Boolean(addMemberInitialData?.isUpgrade)}
+            upgradeMember={addMemberInitialData?.isUpgrade ? addMemberInitialData : null}
             onBack={() => {
               setAddMemberInitialData(null);
               handleNavigateTab('members');

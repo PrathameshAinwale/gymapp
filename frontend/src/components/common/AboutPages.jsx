@@ -149,11 +149,6 @@ export const AboutPages = ({ activeTab = 'privacy-policy', setActiveTab }) => {
                 <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4" /> Official Platform Legal Document
                 </span>
-                {metadata.version && (
-                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                    Version {metadata.version}
-                  </span>
-                )}
               </div>
 
               {/* Render Structured Content */}

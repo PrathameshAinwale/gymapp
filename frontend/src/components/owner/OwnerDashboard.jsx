@@ -18,6 +18,7 @@ import {
   isValidPhone,
   isValidEmail
 } from '../../utils/validation';
+import { matchesMemberUniversal, matchesEnquiryUniversal } from '../../utils/searchUtils';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import {
   Users,
@@ -151,74 +152,28 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
   const { currentUser, currentRole, canAccessFinancials } = useAuth();
 
-  // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, ID
+  // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, Coach, ID, Status, Dues, KYC, etc.
   const searchResults = useMemo(() => {
     if (!memberSearchQuery || !memberSearchQuery.trim()) return [];
-    const term = memberSearchQuery.toLowerCase().trim();
-    const termDigits = term.replace(/\D/g, '');
+    return (members || [])
+      .filter((m) =>
+        matchesMemberUniversal(m, memberSearchQuery, {
+          plans,
+          trainers,
+          invoices,
+          calculateMemberStatus
+        })
+      )
+      .slice(0, 30);
+  }, [members, memberSearchQuery, plans, trainers, invoices, calculateMemberStatus]);
 
-    return (members || []).filter((m) => {
-      // 1. Name match
-      if ((m.name || '').toLowerCase().includes(term)) return true;
-
-      // 2. Mobile / Phone match
-      const mPhone = String(m.phone || '');
-      const mPhoneDigits = mPhone.replace(/\D/g, '');
-      if (mPhone.toLowerCase().includes(term)) return true;
-      if (termDigits.length >= 2 && mPhoneDigits.includes(termDigits)) return true;
-
-      // 3. Email match
-      if ((m.email || '').toLowerCase().includes(term)) return true;
-
-      // 4. Member ID / Code
-      if ((m.id || '').toLowerCase().includes(term)) return true;
-      if ((m.memberId || '').toLowerCase().includes(term)) return true;
-
-      // 5. Plan Name
-      if ((m.planName || '').toLowerCase().includes(term)) return true;
-
-      // 6. Dates: Joining Date, Expiry Date, Created Date, Due Date
-      const dateValues = [
-        m.joinDate,
-        m.join_date,
-        m.joiningDate,
-        m.joining_date,
-        m.createdAt,
-        m.created_at,
-        m.expiryDate,
-        m.expiry_date,
-        m.dueDate,
-        m.due_date
-      ];
-
-      for (const d of dateValues) {
-        if (!d) continue;
-        const dStr = String(d).toLowerCase();
-        if (dStr.includes(term)) return true;
-
-        try {
-          const parsed = new Date(d);
-          if (!isNaN(parsed.getTime())) {
-            const formattedGB = parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toLowerCase();
-            const monthFull = parsed.toLocaleDateString('en-US', { month: 'long' }).toLowerCase();
-            const monthShort = parsed.toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
-            if (formattedGB.includes(term) || monthFull.includes(term) || monthShort.includes(term)) {
-              return true;
-            }
-          }
-        } catch (_) { }
-      }
-
-      // 7. Status match
-      const effStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : m.status;
-      if (String(effStatus || '').toLowerCase().includes(term)) return true;
-
-      // 8. Coach Name
-      if ((m.trainerName || m.trainer || '').toLowerCase().includes(term)) return true;
-
-      return false;
-    }).slice(0, 8);
-  }, [members, memberSearchQuery, calculateMemberStatus]);
+  // Matching Enquiries / Leads for universal search
+  const searchEnquiryResults = useMemo(() => {
+    if (!memberSearchQuery || !memberSearchQuery.trim()) return [];
+    return (enquiries || [])
+      .filter((enq) => matchesEnquiryUniversal(enq, memberSearchQuery))
+      .slice(0, 6);
+  }, [enquiries, memberSearchQuery]);
 
   // Segment tab state for Priority Action Hub (reduces page clutter)
   const [activeActionTab, setActiveActionTab] = useState('leads'); // 'leads' | 'renewals'
@@ -386,12 +341,25 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
       : [])
   ].filter((item) => item.value > 0);
 
-  // If no members in database yet, provide clean placeholder
+  // If no members in database yet, provide neutral empty ring for chart visual
   const chartPieData =
     memberPieData.length > 0
       ? memberPieData
       : [
-        { name: 'Active Passes', value: 1, color: '#10B981' },
+        { name: 'No Members', value: 1, color: '#E2E8F0' }
+      ];
+
+  // Breakdown items to display in the legend
+  const membershipBreakdown = totalMembersCount > 0
+    ? [
+        { name: 'Active Passes', value: activeMembersCount, color: '#10B981' },
+        ...(expiringSoonCount > 0 ? [{ name: 'Expiring Soon', value: expiringSoonCount, color: '#F59E0B' }] : []),
+        ...(expiredOnlyCount > 0 ? [{ name: 'Expired', value: expiredOnlyCount, color: '#EF4444' }] : []),
+        ...(frozenMembersCount > 0 ? [{ name: 'Frozen / On Hold', value: frozenMembersCount, color: '#0EA5E9' }] : []),
+        ...(inactiveOtherCount > 0 ? [{ name: 'Inactive / Other', value: inactiveOtherCount, color: '#94A3B8' }] : [])
+      ]
+    : [
+        { name: 'Active Passes', value: 0, color: '#10B981' },
         { name: 'Inactive', value: 0, color: '#94A3B8' }
       ];
 
@@ -577,7 +545,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
             </h1>
           </div>
           <p className="text-[11px] text-slate-500 hidden sm:block">
-            Welcome back. Here is your facility's real-time operational pulse and multi-module hub.
+            Real-time overview of your memberships, live attendance, revenue, and daily operations.
           </p>
         </div>
 
@@ -639,7 +607,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
 
-            <div className="flex-1 relative">
+            <div className="flex-1 relative flex items-center">
               <input
                 type="text"
                 value={memberSearchQuery}
@@ -649,7 +617,9 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                   setIsSearchFocused(true);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Escape') {
+                    setIsSearchFocused(false);
+                  } else if (e.key === 'Enter') {
                     e.preventDefault();
                     const target = searchResults[0];
                     if (target) {
@@ -661,40 +631,37 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                         setSelectedProfileMember(target);
                         setActiveTab?.('member-profile');
                       }
+                    } else if (searchEnquiryResults.length > 0) {
+                      setIsSearchFocused(false);
+                      setActiveTab?.('enquiries');
                     }
                   }
                 }}
-                placeholder="Search by Name, Mobile, Email, Date, Plan..."
-                className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none"
+                placeholder="Search anything: Name, Mobile, Email, Date, Plan..."
+                className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-6"
               />
+              {memberSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemberSearchQuery('');
+                  }}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-
-            {memberSearchQuery ? (
-              <button
-                type="button"
-                onClick={() => setMemberSearchQuery('')}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-                title="Clear Search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1 text-[9px] text-slate-400 font-medium shrink-0">
-                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Name</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Mobile</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Email</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">Date</span>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Live Search Results Dropdown */}
         {isSearchFocused && memberSearchQuery.trim().length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[400px] flex flex-col">
+          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[480px] flex flex-col">
             <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
               <span className="font-bold text-slate-700 text-[11px]">
-                Found {searchResults.length} member{searchResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
+                Found {searchResults.length + searchEnquiryResults.length} result{searchResults.length + searchEnquiryResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
               </span>
               <button
                 type="button"
@@ -710,92 +677,179 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                       setActiveTab?.('member-profile');
                     }
                   } else {
-                    setActiveTab?.('member-profile');
+                    setActiveTab?.('members');
                   }
                 }}
                 className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
               >
-                <span>Open Full Profile Page</span>
+                <span>View in Member Directory</span>
                 <ArrowRight className="w-3 h-3" />
               </button>
             </div>
 
             <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
-              {searchResults.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 space-y-1">
-                  <p className="font-bold text-xs text-slate-700">No matching members found</p>
-                  <p className="text-[11px] text-slate-400">
-                    Try searching by full name, 10-digit mobile number, email, or date (e.g. 2026-10-01, Oct).
+              {searchResults.length === 0 && searchEnquiryResults.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 space-y-2">
+                  <p className="font-bold text-xs text-slate-700">No matching records found</p>
+                  <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                    Try searching by name, mobile number, email, date, plan name.....
                   </p>
                 </div>
               ) : (
-                searchResults.map((m) => {
-                  const mStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : m.status;
-                  const mJoinDate = m.joinDate || m.join_date || m.joiningDate || m.joining_date || m.createdAt;
-                  return (
-                    <div
-                      key={m.id}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setIsSearchFocused(false);
-                        setMemberSearchQuery('');
-                        if (onOpenMemberProfile) {
-                          onOpenMemberProfile(m.id);
-                        } else {
-                          setSelectedProfileMember(m);
-                          setActiveTab?.('member-profile');
-                        }
-                      }}
-                      className="p-3 hover:bg-emerald-50/70 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {m.avatar ? (
-                          <img
-                            src={m.avatar}
-                            alt={m.name}
-                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-emerald-300"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center border border-emerald-200 shrink-0 group-hover:scale-105 transition-transform">
-                            {m.name?.charAt(0) || 'M'}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 truncate">
-                              {m.name}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${mStatus === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : mStatus === 'Expiring Soon'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                    : 'bg-rose-50 text-rose-700 border-rose-200'
-                                }`}
-                            >
-                              {mStatus}
-                            </span>
-                          </div>
+                <>
+                  {searchResults.map((m) => {
+                    const mStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : m.status;
+                    const mJoinDate = m.joinDate || m.join_date || m.joiningDate || m.joining_date || m.createdAt;
+                    const mPlan = m.planName || m.plan_name || m.packageName || plans.find(p => String(p.id) === String(m.planId || m.plan_id))?.name || 'General';
+                    const mCoach = m.trainerName || m.trainer_name || m.trainer || trainers.find(t => String(t.id) === String(m.trainerId || m.trainer_id))?.name || null;
+                    const mDue = Number(m.dueAmount ?? m.due_amount ?? m.balance ?? 0);
 
-                          <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
-                            {m.phone && <span className="font-medium text-slate-700 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" />{m.phone}</span>}
-                            {m.email && <span className="text-slate-400 truncate max-w-[140px] sm:max-w-[200px]">{m.email}</span>}
-                            <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">
-                              {m.planName || 'Plan'}
-                            </span>
+                    return (
+                      <div
+                        key={m.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setIsSearchFocused(false);
+                          setMemberSearchQuery('');
+                          if (onOpenMemberProfile) {
+                            onOpenMemberProfile(m.id);
+                          } else {
+                            setSelectedProfileMember(m);
+                            setActiveTab?.('member-profile');
+                          }
+                        }}
+                        className="p-3 hover:bg-emerald-50/70 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {m.avatar ? (
+                            <img
+                              src={m.avatar}
+                              alt={m.name}
+                              className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-emerald-300"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center border border-emerald-200 shrink-0 group-hover:scale-105 transition-transform">
+                              {m.name?.charAt(0) || 'M'}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 truncate">
+                                {m.name}
+                              </span>
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${mStatus === 'Active'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : mStatus === 'Expiring Soon'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                  }`}
+                              >
+                                {mStatus}
+                              </span>
+                              {mDue > 0 && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  Due: ₹{mDue.toLocaleString('en-IN')}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
+                              {m.phone && (
+                                <span className="font-medium text-slate-700 flex items-center gap-1">
+                                  <Phone className="w-2.5 h-2.5 text-slate-400" />
+                                  {m.phone}
+                                </span>
+                              )}
+                              {m.email && (
+                                <span className="text-slate-400 truncate max-w-[140px] sm:max-w-[200px] flex items-center gap-1">
+                                  <Mail className="w-2.5 h-2.5 text-slate-400" />
+                                  {m.email}
+                                </span>
+                              )}
+                              <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50">
+                                {mPlan}
+                              </span>
+                              {mCoach && (
+                                <span className="font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/50 flex items-center gap-1">
+                                  <Dumbbell className="w-2.5 h-2.5 text-indigo-500" />
+                                  Coach: {mCoach}
+                                </span>
+                              )}
+                              {m.memberId && (
+                                <span className="text-slate-400 text-[10px]">
+                                  #{m.memberId}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase block">Joined / Expiry</span>
+                          <span className="text-[11px] font-semibold text-slate-700 block">
+                            {formatDisplayDate(mJoinDate)} → {formatDisplayDate(m.expiryDate)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Matching Enquiries / Leads Section */}
+                  {searchEnquiryResults.length > 0 && (
+                    <div className="p-2.5 bg-slate-50/60 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          Matching Leads & Enquiries ({searchEnquiryResults.length})
+                        </span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setIsSearchFocused(false);
+                            setActiveTab?.('enquiries');
+                          }}
+                          className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                        >
+                          Open Leads Hub
+                        </button>
                       </div>
 
-                      <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Joined / Expiry</span>
-                        <span className="text-[11px] font-semibold text-slate-700 block">
-                          {formatDisplayDate(mJoinDate)} → {formatDisplayDate(m.expiryDate)}
-                        </span>
+                      <div className="space-y-1">
+                        {searchEnquiryResults.map((enq) => (
+                          <div
+                            key={enq.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setIsSearchFocused(false);
+                              setActiveTab?.('enquiries');
+                            }}
+                            className="p-2 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all cursor-pointer flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-slate-900 truncate">
+                                  {enq.name || enq.fullName}
+                                </span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  Lead • {enq.status || 'Active'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                {enq.phone && <span>{enq.phone}</span>}
+                                {enq.planInterested && <span className="text-indigo-600">Interested: {enq.planInterested}</span>}
+                                {enq.date && <span>Date: {formatDisplayDate(enq.date)}</span>}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-bold text-indigo-600 shrink-0">
+                              View Lead →
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  );
-                })
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1083,20 +1137,22 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
               <div className="sm:col-span-6 h-48 relative flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        borderColor: '#e2e8f0',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        color: '#0f172a',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
-                      }}
-                      formatter={(val, name) => [
-                        `${val} members (${((val / (totalMembersCount || 1)) * 100).toFixed(1)}%)`,
-                        name
-                      ]}
-                    />
+                    {totalMembersCount > 0 && (
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          borderColor: '#e2e8f0',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          color: '#0f172a',
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
+                        }}
+                        formatter={(val, name) => [
+                          `${val} members (${((val / (totalMembersCount || 1)) * 100).toFixed(1)}%)`,
+                          name
+                        ]}
+                      />
+                    )}
                     <Pie
                       data={chartPieData}
                       dataKey="value"
@@ -1132,7 +1188,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                   Membership Breakdown
                 </div>
-                {chartPieData.map((item) => {
+                {membershipBreakdown.map((item) => {
                   const pct = totalMembersCount > 0 ? ((item.value / totalMembersCount) * 100).toFixed(0) : 0;
                   return (
                     <div
@@ -1423,62 +1479,80 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
         <div className="lg:col-span-8 space-y-3 sm:space-y-6">
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm sm:text-base font-bold text-slate-900">Today's Priority Actions</h3>
                 <p className="text-xs text-slate-500">Items that require owner review or immediate callback</p>
               </div>
 
               {/* Segmented Tab Switcher */}
-              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200">
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 overflow-x-auto no-scrollbar shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveActionTab('leads')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeActionTab === 'leads'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    activeActionTab === 'leads'
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
                 >
-                  Hot Leads ({hotLeads.length})
+                  <span>Hot Leads</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      hotLeads.length > 0
+                        ? 'bg-rose-100 text-rose-700'
+                        : activeActionTab === 'leads'
+                        ? 'bg-slate-100 text-slate-600'
+                        : 'bg-slate-200/80 text-slate-600'
+                    }`}
+                  >
+                    {hotLeads.length}
+                  </span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setActiveActionTab('renewals')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeActionTab === 'renewals'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    activeActionTab === 'renewals'
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
                 >
-                  Renewals Due ({expiringMembers.length})
+                  <span>Renewals Due</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      expiringMembers.length > 0
+                        ? 'bg-amber-100 text-amber-800'
+                        : activeActionTab === 'renewals'
+                        ? 'bg-slate-100 text-slate-600'
+                        : 'bg-slate-200/80 text-slate-600'
+                    }`}
+                  >
+                    {expiringMembers.length}
+                  </span>
                 </button>
+
                 {canAccessFinancials && (
                   <button
                     type="button"
                     onClick={() => setActiveActionTab('advances')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeActionTab === 'advances'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      activeActionTab === 'advances'
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
                   >
                     <span>Advances</span>
-                    {pendingAdvances.length > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                        {pendingAdvances.length}
-                      </span>
-                    )}
-                  </button>
-                )}
-                {canAccessFinancials && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveActionTab('invoices')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeActionTab === 'invoices'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        pendingAdvances.length > 0
+                          ? 'bg-amber-500 text-white'
+                          : activeActionTab === 'advances'
+                          ? 'bg-slate-100 text-slate-600'
+                          : 'bg-slate-200/80 text-slate-600'
                       }`}
-                  >
-                    <span>Recent Invoices</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      {recentInvoicesAudit.length}
+                    >
+                      {pendingAdvances.length}
                     </span>
                   </button>
                 )}

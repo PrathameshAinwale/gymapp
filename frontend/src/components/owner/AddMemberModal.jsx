@@ -172,7 +172,7 @@ export const AddMemberModal = ({
   const [ptPackageFee, setPtPackageFee] = useState(3000);
   const [recoveryPlanId, setRecoveryPlanId] = useState('');
   const [commissionType, setCommissionType] = useState('percent'); // 'percent' | 'fixed'
-  const [ptCommissionPercent, setPtCommissionPercent] = useState(20);
+  const [ptCommissionPercent, setPtCommissionPercent] = useState();
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
 
   // Unified Multi-Package Selection State
@@ -715,7 +715,7 @@ export const AddMemberModal = ({
     setRecoveryPlanId('');
     setIsUpgradingBasePlan(false);
     setCommissionType('percent');
-    setPtCommissionPercent(20);
+    setPtCommissionPercent();
     setPtFixedCommission(1000);
     setConsentAgreed(true);
     setSignedInPerson(true);
@@ -757,11 +757,13 @@ export const AddMemberModal = ({
         paymentMethod: newlyCreatedCredentials.paymentMethod || 'UPI',
         status: (Number(newlyCreatedCredentials.duesAmount || 0) > 0) ? 'Pending' : 'Paid'
       };
-      const doc = generateInvoicePdf(invData, gymInfo, targetMember);
-      if (doc) {
-        downloadPdfBlob(doc.output('blob'), `Invoice-${newlyCreatedCredentials.invoiceNumber}.pdf`, doc);
-        addToast('Invoice PDF downloaded!');
+      const result = generateInvoicePdf({ invoice: invData, gymInfo, member: targetMember || newlyCreatedCredentials });
+      if (result && typeof result.download === 'function') {
+        result.download();
+      } else {
+        downloadPdfBlob(result?.blob || result, `Invoice-${newlyCreatedCredentials.invoiceNumber}.pdf`, result?.doc);
       }
+      addToast('Invoice PDF downloaded!');
     } catch (err) {
       console.warn('PDF download error:', err);
     }

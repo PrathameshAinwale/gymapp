@@ -57,13 +57,16 @@ import {
   Activity,
   User,
   Phone,
-  Mail
+  Mail,
+  Save
 } from 'lucide-react';
 
 export const AddMemberPage = ({
   initialData = null,
   isUpgrade = false,
   upgradeMember = null,
+  isEdit = false,
+  editMember = null,
   onBack,
   onNavigateTab,
   onMemberAdded
@@ -79,6 +82,7 @@ export const AddMemberPage = ({
     fetchPtPlans,
     addMember,
     updateMember,
+    calculateMemberStatus,
     addConsentForm,
     addCommissionRecord,
     allocatePTSessions,
@@ -95,8 +99,9 @@ export const AddMemberPage = ({
     addPTPlan
   } = useGymData();
 
-  const isUpgradeMode = Boolean(isUpgrade || upgradeMember || initialData?.isUpgrade);
-  const targetMember = upgradeMember || (isUpgrade ? initialData : (initialData?.isUpgrade ? initialData : null));
+  const isEditMode = Boolean(isEdit || editMember || initialData?.isEdit || initialData?.isEditMode);
+  const isUpgradeMode = Boolean(!isEditMode && (isUpgrade || upgradeMember || initialData?.isUpgrade));
+  const targetMember = editMember || upgradeMember || (isUpgrade || isEdit ? initialData : (initialData?.isUpgrade || initialData?.isEdit ? initialData : null));
 
   const [isUpgradingBasePlan, setIsUpgradingBasePlan] = useState(false);
 
@@ -182,7 +187,7 @@ export const AddMemberPage = ({
   const [ptPackageFee, setPtPackageFee] = useState(3000);
   const [recoveryPlanId, setRecoveryPlanId] = useState('');
   const [commissionType, setCommissionType] = useState('percent');
-  const [ptCommissionPercent, setPtCommissionPercent] = useState(20);
+  const [ptCommissionPercent, setPtCommissionPercent] = useState();
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
 
   // Multi-Package Selection State
@@ -355,18 +360,19 @@ export const AddMemberPage = ({
 
   // Check if a member with the same phone already exists
   const duplicatePhoneMember = useMemo(() => {
-    if (isUpgradeMode || !formData.phone) return null;
+    if (isUpgradeMode || isEditMode || !formData.phone) return null;
     const cleanInput = String(formData.phone).replace(/\D/g, '');
     const last10 = cleanInput.length >= 10 ? cleanInput.slice(-10) : cleanInput;
     if (last10.length < 7) return null;
 
     return (members || []).find((m) => {
       if (!m.phone) return false;
+      if (targetMember && (String(m.id) === String(targetMember.id) || String(m.phone) === String(targetMember.phone))) return false;
       const cleanMPhone = String(m.phone).replace(/\D/g, '');
       const mPhoneLast10 = cleanMPhone.length >= 10 ? cleanMPhone.slice(-10) : cleanMPhone;
       return mPhoneLast10 === last10 || cleanMPhone === cleanInput || m.phone === formData.phone;
     }) || null;
-  }, [formData.phone, isUpgradeMode, members]);
+  }, [formData.phone, isUpgradeMode, isEditMode, members, targetMember]);
 
   // Quick Add Plan State
   const [quickAddPlanType, setQuickAddPlanType] = useState(null);
@@ -384,7 +390,50 @@ export const AddMemberPage = ({
     fetchRecoveryPlans?.();
     fetchPtPlans?.();
 
-    if (isUpgradeMode && targetMember) {
+    if (isEditMode && targetMember) {
+      const initDob = targetMember.dob || '';
+      const computedAge = initDob ? calculateAgeFromDob(initDob) : (targetMember.age ?? '');
+      const rawMedNotes = targetMember.medicalNotes || '';
+      const safeMedNotes = (rawMedNotes === 'None' || rawMedNotes === 'None reported' || rawMedNotes === targetMember.notes || rawMedNotes === targetMember.enquiryNotes)
+        ? ''
+        : rawMedNotes;
+
+      setFormData({
+        name: targetMember.name || '',
+        email: targetMember.email || '',
+        phone: targetMember.phone || '',
+        password: '',
+        avatar: targetMember.avatar || '',
+        dob: initDob,
+        age: computedAge,
+        gender: targetMember.gender || 'Male',
+        planId: targetMember.planId || targetMember.plan_id || plans[0]?.id || '',
+        trainerId: targetMember.trainerId || targetMember.trainer_id || '',
+        trainingType: targetMember.trainingType || targetMember.training_type || 'self',
+        ptSessionsCount: targetMember.ptSessions ? Number(targetMember.ptSessions) : 12,
+        goal: targetMember.goal || 'General Fitness',
+        weight: targetMember.weight !== undefined && targetMember.weight !== null ? targetMember.weight : '',
+        targetWeight: targetMember.targetWeight !== undefined && targetMember.targetWeight !== null ? targetMember.targetWeight : '',
+        height: targetMember.height !== undefined && targetMember.height !== null ? targetMember.height : '',
+        medicalNotes: safeMedNotes,
+        emergencyContact: targetMember.emergencyContact || '',
+        executive: targetMember.executive || defaultStaffExecutive,
+        kycDocType: targetMember.kycDocType || targetMember.kyc_doc_type || 'Aadhaar Card',
+        kycDocNumber: targetMember.kycDocNumber || targetMember.kyc_doc_number || '',
+        kycStatus: targetMember.kycStatus || targetMember.kyc_status || 'Verified',
+        status: targetMember.status || 'Active',
+        expiryDate: targetMember.expiryDate || targetMember.expiry_date || targetMember.planExpiry || '',
+        joinDate: targetMember.joinDate || targetMember.joining_date || getTodayDateStr()
+      });
+
+      setSelectedTrainerId(targetMember.trainerId || targetMember.trainer_id || '');
+      setTrainingType(targetMember.trainingType || targetMember.training_type || 'self');
+      setMembershipStartDate(targetMember.joinDate || targetMember.joining_date || getTodayDateStr());
+      setMembershipEndDate(targetMember.expiryDate || targetMember.expiry_date || targetMember.planExpiry || '');
+      setConsentAgreed(true);
+      setSignedInPerson(true);
+      setOtpVerified(true);
+    } else if (isUpgradeMode && targetMember) {
       setFormData({
         name: targetMember.name || '',
         email: targetMember.email || '',
@@ -487,7 +536,7 @@ export const AddMemberPage = ({
         }
       ]);
     }
-  }, [plans, initialData, isUpgradeMode, targetMember, defaultStaffExecutive, fetchRecoveryPlans, fetchPtPlans, fetchPlans, fetchTrainers]);
+  }, [plans, initialData, isUpgradeMode, isEditMode, targetMember, defaultStaffExecutive, fetchRecoveryPlans, fetchPtPlans, fetchPlans, fetchTrainers]);
 
   useEffect(() => {
     if (trainingType === 'pt' && !selectedPtPlanId && ptPlans && ptPlans.length > 0) {
@@ -563,12 +612,9 @@ export const AddMemberPage = ({
   const computePlanEndDate = (startDateStr, planObj) => {
     if (!startDateStr || !planObj) return '';
     try {
-      const d = new Date(startDateStr);
-      if (isNaN(d.getTime())) return '';
-
       const name = (planObj.name || '').toLowerCase();
       const period = (planObj.period || '').toLowerCase();
-      let monthsToAdd = planObj.durationMonths || 1;
+      let monthsToAdd = Number(planObj.durationMonths || planObj.duration_months) || 1;
 
       if (name.includes('annual') || name.includes('1 year') || name.includes('12 month') || period.includes('12 month') || period.includes('annual')) {
         monthsToAdd = 12;
@@ -580,8 +626,8 @@ export const AddMemberPage = ({
         monthsToAdd = 1;
       }
 
-      d.setMonth(d.getMonth() + monthsToAdd);
-      return d.toISOString().split('T')[0];
+      const bonusDays = Number(planObj.offerDays || planObj.offer_days) || 0;
+      return calculatePlanExpiryDate(startDateStr, monthsToAdd, planObj.period || '', bonusDays);
     } catch {
       return '';
     }
@@ -747,6 +793,78 @@ export const AddMemberPage = ({
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
+
+    if (isEditMode && targetMember) {
+      if (!formData.name?.trim()) {
+        addToast('Please enter member full name.', 'error');
+        return;
+      }
+
+      if (
+        hasSqlInjection(formData.name) ||
+        hasSqlInjection(formData.emergencyContact) ||
+        hasSqlInjection(formData.goal) ||
+        hasSqlInjection(formData.medicalNotes)
+      ) {
+        addToast('Security Warning: Disallowed characters or potential SQL injection detected.', 'error');
+        return;
+      }
+
+      setIsCreatingMember(true);
+      try {
+        const chosenTrainer = trainers.find((t) => String(t.id) === String(selectedTrainerId || formData.trainerId));
+        const effectiveExpiry = formData.expiryDate || membershipEndDate || targetMember.expiryDate;
+        const autoStatus = calculateMemberStatus
+          ? calculateMemberStatus(effectiveExpiry, formData.status || targetMember.status)
+          : (formData.status || targetMember.status || 'Active');
+
+        const payload = {
+          ...targetMember,
+          ...formData,
+          name: formData.name.trim(),
+          email: targetMember.email, // locked & preserved
+          phone: targetMember.phone, // locked & preserved
+          emergencyContact: formData.emergencyContact || '',
+          dob: formData.dob || null,
+          age: formData.age !== '' && formData.age !== null ? Number(formData.age) : null,
+          gender: formData.gender || 'Male',
+          weight: formData.weight !== '' && formData.weight !== null ? Number(formData.weight) : null,
+          targetWeight: formData.targetWeight !== '' && formData.targetWeight !== null ? Number(formData.targetWeight) : null,
+          height: formData.height !== '' && formData.height !== null ? Number(formData.height) : null,
+          goal: formData.goal || 'General Fitness',
+          medicalNotes: formData.medicalNotes || '',
+          executive: formData.executive || '',
+          kycDocType: formData.kycDocType || 'Aadhaar Card',
+          kycDocNumber: formData.kycDocNumber || '',
+          avatar: formData.avatar || targetMember.avatar || '',
+          trainerId: chosenTrainer ? chosenTrainer.id : (formData.trainerId || null),
+          trainerName: chosenTrainer ? chosenTrainer.name : (formData.trainerId ? targetMember.trainerName : null),
+          status: autoStatus,
+          expiryDate: effectiveExpiry || null,
+        };
+
+        if (updateMember) {
+          await updateMember(targetMember.id, payload);
+        }
+        addToast(`Member "${formData.name}" details updated successfully!`, 'success');
+        fetchMembers?.();
+        fetchDashboardStats?.();
+
+        if (onMemberAdded) {
+          onMemberAdded();
+        } else if (onBack) {
+          onBack();
+        } else if (onNavigateTab) {
+          onNavigateTab('members');
+        }
+      } catch (err) {
+        console.error('Failed to update member:', err);
+        addToast(err?.message || 'Failed to update member details', 'error');
+      } finally {
+        setIsCreatingMember(false);
+      }
+      return;
+    }
 
     if (isUpgradeMode && targetMember) {
       if (totalCalculatedAmount <= 0) {
@@ -1194,7 +1312,7 @@ export const AddMemberPage = ({
     try {
       const invObj = {
         invoiceNumber: newlyCreatedCredentials.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-        id: newlyCreatedCredentials.invoiceNumber || 'INV-101',
+        id: newlyCreatedCredentials.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
         memberName: newlyCreatedCredentials.name,
         name: newlyCreatedCredentials.name,
         memberPhone: newlyCreatedCredentials.phone,
@@ -1207,14 +1325,21 @@ export const AddMemberPage = ({
         amount: newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount,
         totalAmount: newlyCreatedCredentials.totalAmount,
         duesAmount: newlyCreatedCredentials.duesAmount || 0,
+        pendingAmount: newlyCreatedCredentials.duesAmount || 0,
         dueDate: newlyCreatedCredentials.dueDate,
         paymentMethod: newlyCreatedCredentials.paymentMethod || 'UPI',
         date: newlyCreatedCredentials.startDate || getTodayDateStr(),
         startDate: newlyCreatedCredentials.startDate,
-        expiryDate: newlyCreatedCredentials.expiryDate
+        expiryDate: newlyCreatedCredentials.expiryDate,
+        status: Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? 'Pending' : 'Paid'
       };
-      const blob = await generateInvoicePdf(invObj, gymInfo);
-      downloadPdfBlob(blob, `Invoice_${invObj.invoiceNumber}_${newlyCreatedCredentials.name.replace(/\s+/g, '_')}.pdf`);
+      const result = generateInvoicePdf({ invoice: invObj, gymInfo, member: newlyCreatedCredentials });
+      if (result && typeof result.download === 'function') {
+        result.download();
+      } else {
+        const fileName = `Invoice_${invObj.invoiceNumber}_${(newlyCreatedCredentials.name || 'Member').replace(/\s+/g, '_')}.pdf`;
+        downloadPdfBlob(result?.blob || result, fileName, result?.doc);
+      }
       addToast('Invoice PDF downloaded successfully!', 'success');
     } catch (err) {
       console.error('Invoice PDF generation error:', err);
@@ -1493,11 +1618,35 @@ export const AddMemberPage = ({
             <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
               {isUpgradeMode
                 ? `Upgrade Services: ${targetMember?.name || 'Member'}`
-                : 'Register Member'}
+                : isEditMode
+                  ? `Edit Athlete Dossier: ${targetMember?.name || formData.name || 'Member'}`
+                  : 'Register Member'}
             </h1>
           </div>
         </div>
       </div>
+
+      {/* Edit Mode Notification Banner */}
+      {isEditMode && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 flex items-center justify-between shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs shrink-0">
+              <UserCheck className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-emerald-950 truncate">
+                Editing Athlete: {targetMember?.name} ({targetMember?.id || 'Profile'})
+              </h4>
+              <p className="text-[11px] text-emerald-700 truncate">
+                Email and Phone number are locked for account security. Personal details, biometrics, goals, and coach can be updated below.
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0 ml-2">
+            Edit Mode
+          </span>
+        </div>
+      )}
 
       {/* Upgrade Notification Banner */}
       {isUpgradeMode && (
@@ -1534,7 +1683,7 @@ export const AddMemberPage = ({
                 1. Member Profile & Portal Access
               </h2>
             </div>
-            {!isUpgradeMode && (
+            {!isUpgradeMode && !isEditMode && (
               <span className="text-[11px] text-slate-400 hidden sm:inline">
                 Login with mobile or email
               </span>
@@ -1554,9 +1703,8 @@ export const AddMemberPage = ({
               <div className="flex-1 min-w-0 space-y-1">
                 <div>
                   <span className="text-xs font-bold text-slate-800 block leading-tight">Member Photo</span>
-                  <span className="text-[10px] text-slate-400 block leading-tight">For QR pass & biometric turnstile</span>
                 </div>
-                {!isUpgradeMode && (
+                {(!isUpgradeMode || isEditMode) && (
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <label className="cursor-pointer px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs inline-flex items-center gap-1 transition-all">
                       <Upload className="w-3 h-3" />
@@ -1584,7 +1732,7 @@ export const AddMemberPage = ({
                   <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Member Portal Login Credentials</span>
                 </div>
-                {!isUpgradeMode && (
+                {!isUpgradeMode && !isEditMode && (
                   <button
                     type="button"
                     onClick={generateRandomPassword}
@@ -1595,14 +1743,14 @@ export const AddMemberPage = ({
                 )}
               </div>
 
-              {isUpgradeMode ? (
+              {isUpgradeMode || isEditMode ? (
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2 text-slate-700">
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
                     <span>Login Email: <strong>{formData.email || 'Mobile Login'}</strong></span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                    Preserved
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Preserved
                   </span>
                 </div>
               ) : (
@@ -1654,11 +1802,11 @@ export const AddMemberPage = ({
               <input
                 type="text"
                 required
-                disabled={isUpgradeMode}
+                disabled={isUpgradeMode && !isEditMode}
                 placeholder="e.g. Liam Hemsworth"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode
+                className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode && !isEditMode
                   ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                   : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
                 }`}
@@ -1668,32 +1816,66 @@ export const AddMemberPage = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-[11px] font-bold text-slate-700">Phone Number *</label>
-                {isUpgradeMode && <Lock className="w-3 h-3 text-slate-400" />}
+                {(isUpgradeMode || isEditMode) && (
+                  <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
+                  </span>
+                )}
               </div>
               <input
                 type="tel"
-                required={!isUpgradeMode}
-                disabled={isUpgradeMode}
+                required={!isUpgradeMode && !isEditMode}
+                disabled={isUpgradeMode || isEditMode}
+                readOnly={isEditMode}
                 placeholder="10-digit mobile number"
                 maxLength={10}
                 inputMode="numeric"
                 onKeyDown={preventNonPhoneKey}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
-                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors ${duplicatePhoneMember
-                  ? 'bg-rose-50 border-2 border-rose-500 text-slate-900 focus:outline-none'
-                  : isUpgradeMode
-                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
-                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
+                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors ${
+                  isUpgradeMode || isEditMode
+                    ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed select-none font-medium'
+                    : duplicatePhoneMember
+                      ? 'bg-rose-50 border-2 border-rose-500 text-slate-900 focus:outline-none'
+                      : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
                 }`}
               />
-              {duplicatePhoneMember && (
+              {isEditMode ? (
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5 text-slate-400" />
+                  <span>Locked for mobile OTP verification & account security.</span>
+                </p>
+              ) : duplicatePhoneMember && (
                 <p className="text-[10px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
                   <span>Existing member already registered with this mobile</span>
                 </p>
               )}
             </div>
+
+            {isEditMode && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">Email Address</label>
+                  <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
+                  </span>
+                </div>
+                <input
+                  type="email"
+                  disabled
+                  readOnly
+                  value={formData.email || ''}
+                  className="w-full px-3 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-xs cursor-not-allowed select-none font-medium"
+                  placeholder="athlete@example.com"
+                />
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5 text-slate-400" />
+                  <span>Permanent member login ID (cannot be changed).</span>
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
@@ -1703,10 +1885,14 @@ export const AddMemberPage = ({
               <input
                 type="date"
                 required
-                disabled={isUpgradeMode}
+                disabled={isUpgradeMode || isEditMode}
                 value={formData.joinDate}
                 onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className={`w-full px-3 py-2 rounded-xl text-xs ${
+                  isUpgradeMode || isEditMode
+                    ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
+                }`}
               />
             </div>
 
@@ -1717,7 +1903,7 @@ export const AddMemberPage = ({
               </label>
               <input
                 type="date"
-                disabled={isUpgradeMode}
+                disabled={isUpgradeMode && !isEditMode}
                 value={formData.dob}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -1739,7 +1925,7 @@ export const AddMemberPage = ({
                 min={5}
                 max={120}
                 placeholder="e.g. 25"
-                disabled={isUpgradeMode}
+                disabled={isUpgradeMode && !isEditMode}
                 value={formData.age}
                 onChange={(e) => setFormData({ ...formData, age: sanitizeDigits(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
@@ -1749,7 +1935,7 @@ export const AddMemberPage = ({
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
               <select
-                disabled={isUpgradeMode}
+                disabled={isUpgradeMode && !isEditMode}
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
@@ -1759,6 +1945,42 @@ export const AddMemberPage = ({
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            {isEditMode && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Membership Status</label>
+                  <select
+                    value={formData.status || 'Active'}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Expiring Soon">Expiring Soon</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Frozen">Frozen / Paused</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Plan Expiry Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.expiryDate || membershipEndDate || ''}
+                    onChange={(e) => {
+                      const newExpiry = e.target.value;
+                      setMembershipEndDate(newExpiry);
+                      const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, formData.status) : formData.status;
+                      setFormData({ ...formData, expiryDate: newExpiry, status: autoStatus });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1770,291 +1992,364 @@ export const AddMemberPage = ({
                 <Dumbbell className="w-4 h-4" />
               </div>
               <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                3. Membership Packages & Add-on Services
+                {isEditMode ? '3. Active Membership Subscription' : '3. Membership Packages & Add-on Services'}
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={handleAddPackageRow}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Package</span>
-            </button>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={handleAddPackageRow}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Package</span>
+              </button>
+            )}
           </div>
 
-          <div className="space-y-2.5">
-            {selectedPackages.map((pkgRow, idx) => {
-              const currentPkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
-              const isPt = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
-              const isMembership = !isPt;
-              const availablePackages = getPackagesForType(pkgRow.packageType, plans, ptPlans, recoveryPlans);
-              const maxPlanDiscount = currentPkgObj ? Number(currentPkgObj.maxDiscount ?? currentPkgObj.max_discount ?? 0) : 0;
+          {isEditMode ? (
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 inline-block mb-1">
+                    Active Plan On Record
+                  </span>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    {targetMember?.planName || chosenPlan?.name || 'Active Membership Pass'}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                    Status: <strong className="text-emerald-700">{formData.status || targetMember?.status || 'Active'}</strong>
+                  </span>
+                </div>
+              </div>
 
-              return (
-                <div
-                  key={pkgRow.id}
-                  className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5 transition-all hover:border-slate-300"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Package #{idx + 1}</span>
-                    </span>
-
-                    {selectedPackages.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePackageRow(pkgRow.id)}
-                        className="text-xs text-rose-500 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove</span>
-                      </button>
-                    )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Enrolled Date</span>
+                  <div className="font-medium text-slate-800 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{formData.joinDate || targetMember?.joinDate || 'N/A'}</span>
                   </div>
+                </div>
 
-                  {/* Line 1: Package Type & Package Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Package Type */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Package Type *</label>
-                      <select
-                        value={pkgRow.packageType}
-                        onChange={(e) => handlePackageTypeChange(pkgRow.id, e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-                      >
-                        {PACKAGE_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Plan Expiry Date</span>
+                  <div className="font-medium text-slate-800 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                    <input
+                      type="date"
+                      value={formData.expiryDate || membershipEndDate || ''}
+                      onChange={(e) => {
+                        const newExpiry = e.target.value;
+                        setMembershipEndDate(newExpiry);
+                        const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, formData.status) : formData.status;
+                        setFormData({ ...formData, expiryDate: newExpiry, status: autoStatus });
+                      }}
+                      className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
 
-                    {/* Package Name */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[11px] font-bold text-slate-700">Package Name *</label>
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Assigned Coach</span>
+                  <select
+                    value={selectedTrainerId || formData.trainerId || ''}
+                    onChange={(e) => {
+                      setSelectedTrainerId(e.target.value);
+                      setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                    }}
+                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                  >
+                    <option value="">None / Self Guided</option>
+                    {trainers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.specialty || 'Coach'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500 pt-1">
+                ℹ️ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {selectedPackages.map((pkgRow, idx) => {
+                const currentPkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
+                const isPt = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
+                const isMembership = !isPt;
+                const availablePackages = getPackagesForType(pkgRow.packageType, plans, ptPlans, recoveryPlans);
+                const maxPlanDiscount = currentPkgObj ? Number(currentPkgObj.maxDiscount ?? currentPkgObj.max_discount ?? 0) : 0;
+
+                return (
+                  <div
+                    key={pkgRow.id}
+                    className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5 transition-all hover:border-slate-300"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Package #{idx + 1}</span>
+                      </span>
+
+                      {selectedPackages.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => handleOpenQuickAdd(pkgRow.packageType, pkgRow.id)}
-                          className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                          onClick={() => handleRemovePackageRow(pkgRow.id)}
+                          className="text-xs text-rose-500 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
                         >
-                          + New
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
                         </button>
-                      </div>
-                      <select
-                        value={pkgRow.packageId}
-                        onChange={(e) => handlePackageIdChange(pkgRow.id, e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-                      >
-                        <option value="">
-                          -- Choose {pkgRow.packageType} {availablePackages.length === 0 ? '(No plans yet)' : ''} --
-                        </option>
-                        {availablePackages.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths} Month)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
-                          </option>
-                        ))}
-                        <option value="__ADD_NEW__">+ Create New Plan...</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
-                      <input
-                        type="text"
-                        readOnly
-                        value={`₹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
-                        className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[11px] font-bold text-slate-700">Discount (₹)</label>
-                        {maxPlanDiscount > 0 && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                            Number(pkgRow.discount) > maxPlanDiscount
-                              ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="0"
-                        value={pkgRow.discount}
-                        onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
-                        className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${
-                          maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
-                            ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
-                            : 'border-slate-200 text-slate-900 focus:border-emerald-500'
-                        }`}
-                      />
-                      {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
-                        <p className="text-[10px] text-rose-600 font-bold mt-1">
-                          ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
-                        </p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Date fields if membership */}
-                  {isMembership && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                    {/* Line 1: Package Type & Package Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Package Type */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Start Date *</span>
-                        </label>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Package Type *</label>
+                        <select
+                          value={pkgRow.packageType}
+                          onChange={(e) => handlePackageTypeChange(pkgRow.id, e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                        >
+                          {PACKAGE_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Package Name */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-700">Package Name *</label>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickAdd(pkgRow.packageType, pkgRow.id)}
+                            className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                          >
+                            + New
+                          </button>
+                        </div>
+                        <select
+                          value={pkgRow.packageId}
+                          onChange={(e) => handlePackageIdChange(pkgRow.id, e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                        >
+                          <option value="">
+                            -- Choose {pkgRow.packageType} {availablePackages.length === 0 ? '(No plans yet)' : ''} --
+                          </option>
+                          {availablePackages.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths} Month)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                            </option>
+                          ))}
+                          <option value="__ADD_NEW__">+ Create New Plan...</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
                         <input
-                          type="date"
-                          required
-                          value={membershipStartDate}
-                          onChange={(e) => {
-                            const newStart = e.target.value;
-                            setMembershipStartDate(newStart);
-                            setIsManualEndDate(false);
-                            if (newStart) {
-                              const calculated = computePlanEndDate(newStart, currentPkgObj || chosenPlan);
-                              if (calculated) setMembershipEndDate(calculated);
-                            }
-                          }}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                          type="text"
+                          readOnly
+                          value={`₹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
+                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700"
                         />
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>End Date (Expiry) *</span>
-                          </label>
-                          {isManualEndDate && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsManualEndDate(false);
-                                const calculated = computePlanEndDate(membershipStartDate, currentPkgObj || chosenPlan);
-                                if (calculated) setMembershipEndDate(calculated);
-                              }}
-                              className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
-                            >
-                              Reset
-                            </button>
+                          <label className="block text-[11px] font-bold text-slate-700">Discount (₹)</label>
+                          {maxPlanDiscount > 0 && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                              Number(pkgRow.discount) > maxPlanDiscount
+                                ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                            </span>
                           )}
                         </div>
                         <input
-                          type="date"
-                          required
-                          value={membershipEndDate}
-                          onChange={(e) => {
-                            setIsManualEndDate(true);
-                            setMembershipEndDate(e.target.value);
-                          }}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                          type="text"
+                          placeholder="0"
+                          value={pkgRow.discount}
+                          onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
+                          className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${
+                            maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
+                              ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
+                              : 'border-slate-200 text-slate-900 focus:border-emerald-500'
+                          }`}
                         />
+                        {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
+                          <p className="text-[10px] text-rose-600 font-bold mt-1">
+                            ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  )}
 
-                  {/* Dedicated PT Coach selection if PT package */}
-                  {isPt && pkgRow.packageId && (
-                    <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2 pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                          <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Dedicated PT Coach Selection</span>
-                        </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                          {currentPkgObj?.sessions || ptCustomSessions} Sessions Included
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                        <div className="sm:col-span-7">
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Assigned Coach *
+                    {/* Date fields if membership */}
+                    {isMembership && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Start Date *</span>
                           </label>
-                          <select
-                            value={selectedTrainerId}
+                          <input
+                            type="date"
+                            required
+                            value={membershipStartDate}
                             onChange={(e) => {
-                              setSelectedTrainerId(e.target.value);
-                              setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                              const newStart = e.target.value;
+                              setMembershipStartDate(newStart);
+                              setIsManualEndDate(false);
+                              if (newStart) {
+                                const calculated = computePlanEndDate(newStart, currentPkgObj || chosenPlan);
+                                if (calculated) setMembershipEndDate(calculated);
+                              }
                             }}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                          >
-                            {trainers && trainers.length > 0 ? (
-                              trainers.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.name} ({t.specialty}) — {t.experience}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">No trainers available</option>
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>End Date (Expiry) *</span>
+                            </label>
+                            {isManualEndDate && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsManualEndDate(false);
+                                  const calculated = computePlanEndDate(membershipStartDate, currentPkgObj || chosenPlan);
+                                  if (calculated) setMembershipEndDate(calculated);
+                                }}
+                                className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                              >
+                                Reset
+                              </button>
                             )}
-                          </select>
+                          </div>
+                          <input
+                            type="date"
+                            required
+                            value={membershipEndDate}
+                            onChange={(e) => {
+                              setIsManualEndDate(true);
+                              setMembershipEndDate(e.target.value);
+                            }}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dedicated PT Coach selection if PT package */}
+                    {isPt && pkgRow.packageId && (
+                      <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                            <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Dedicated PT Coach Selection</span>
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                            {currentPkgObj?.sessions || ptCustomSessions} Sessions Included
+                          </span>
                         </div>
 
-                        <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                              <Percent className="w-3.5 h-3.5 text-indigo-600" />
-                              <span>Commission</span>
-                            </span>
-                            <span className="font-mono font-bold text-indigo-700 text-xs">
-                              ₹{ptCommissionAmount.toLocaleString('en-IN')}
-                            </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                          <div className="sm:col-span-7">
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Assigned Coach *
+                            </label>
+                            <select
+                              value={selectedTrainerId}
+                              onChange={(e) => {
+                                setSelectedTrainerId(e.target.value);
+                                setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                              }}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                            >
+                              {trainers && trainers.length > 0 ? (
+                                trainers.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} ({t.specialty}) — {t.experience}
+                                  </option>
+                                ))
+                              ) : (
+                                <option value="">No trainers available</option>
+                              )}
+                            </select>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setCommissionType('percent')}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
-                              >
-                                %
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setCommissionType('fixed')}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
-                              >
-                                ₹
-                              </button>
+
+                          <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Commission</span>
+                              </span>
+                              <span className="font-mono font-bold text-indigo-700 text-xs">
+                                ₹{ptCommissionAmount.toLocaleString('en-IN')}
+                              </span>
                             </div>
-                            {commissionType === 'percent' ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={ptCommissionPercent}
-                                onChange={(e) => setPtCommissionPercent(sanitizeDigits(e.target.value))}
-                                className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
-                              />
-                            ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                value={ptFixedCommission}
-                                onChange={(e) => setPtFixedCommission(sanitizeDigits(e.target.value))}
-                                className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
-                              />
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setCommissionType('percent')}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                >
+                                  %
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCommissionType('fixed')}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                >
+                                  ₹
+                                </button>
+                              </div>
+                              {commissionType === 'percent' ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={ptCommissionPercent}
+                                  onChange={(e) => setPtCommissionPercent(sanitizeDigits(e.target.value))}
+                                  className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
+                                />
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={ptFixedCommission}
+                                  onChange={(e) => setPtFixedCommission(sanitizeDigits(e.target.value))}
+                                  className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
+                                />
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* SECTION 4: Fitness Profile & Emergency Contact */}
@@ -2146,6 +2441,50 @@ export const AddMemberPage = ({
               />
             </div>
 
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Assigned Coach</label>
+              <select
+                value={selectedTrainerId || formData.trainerId || ''}
+                onChange={(e) => {
+                  setSelectedTrainerId(e.target.value);
+                  setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+              >
+                <option value="">None / Self Guided</option>
+                {trainers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.specialty || 'Coach'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Type</label>
+              <select
+                value={formData.kycDocType || 'Aadhaar Card'}
+                onChange={(e) => setFormData({ ...formData, kycDocType: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+              >
+                <option value="Aadhaar Card">Aadhaar Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Driving License">Driving License</option>
+                <option value="Passport">Passport</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Number</label>
+              <input
+                type="text"
+                placeholder="e.g. Document ID / Aadhaar"
+                value={formData.kycDocNumber || ''}
+                onChange={(e) => setFormData({ ...formData, kycDocNumber: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+
             <div className="sm:col-span-4">
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
                 Medical Notes & Health Considerations
@@ -2162,208 +2501,214 @@ export const AddMemberPage = ({
         </div>
 
         {/* SECTION 5: Fee Calculation, Discounts & Payment Settlement (Unified Card) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-          {/* Header with Title, Gross Packages & Discounts, and Total Payable Price Badge */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <CreditCard className="w-4 h-4" />
-                </div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  5. Fee Calculation & Payment Settlement
-                </h2>
-              </div>
-              <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
-                <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
-                {numDiscount > 0 && (
-                  <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
-                )}
-              </div>
-            </div>
-
-            {/* Total Payable Price Pill */}
-            <div className="sm:self-center shrink-0 bg-emerald-50/90 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2.5 shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-emerald-800">Total Payable Price</span>
-              <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-                ₹{totalCalculatedAmount.toLocaleString('en-IN')}
-              </span>
-            </div>
-          </div>
-
-          {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact 3-column grid with titles on top) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-            {/* 1. Cash */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
-              <span className="text-xs font-bold text-slate-800 block">Cash</span>
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    onKeyDown={(e) => preventNonNumericKey(e, true)}
-                    value={cashAmount}
-                    onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
-                    placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
-                  />
-                </div>
-                <button
-                  type="button"
-                  title="Pay remaining in Cash"
-                  onClick={() => {
-                    const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
-                    setCashAmount(rem > 0 ? String(rem) : '');
-                  }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
-                >
-                  Full
-                </button>
-              </div>
-            </div>
-
-            {/* 2. UPI */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
-              <span className="text-xs font-bold text-slate-800 block">UPI</span>
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    onKeyDown={(e) => preventNonNumericKey(e, true)}
-                    value={upiAmount}
-                    onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
-                    placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
-                  />
-                </div>
-                <button
-                  type="button"
-                  title="Pay remaining via UPI"
-                  onClick={() => {
-                    const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
-                    setUpiAmount(rem > 0 ? String(rem) : '');
-                  }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
-                >
-                  Full
-                </button>
-              </div>
-            </div>
-
-            {/* 3. Account Transfer */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
-              <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    onKeyDown={(e) => preventNonNumericKey(e, true)}
-                    value={accountTransferAmount}
-                    onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
-                    placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
-                  />
-                </div>
-                <button
-                  type="button"
-                  title="Pay remaining via Account Transfer"
-                  onClick={() => {
-                    const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
-                    setAccountTransferAmount(rem > 0 ? String(rem) : '');
-                  }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
-                >
-                  Full
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
-          {calculatedBalanceDue > 0 ? (
-            <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                {/* Balance Due Display */}
-                <div>
-                  <label className="block text-[11px] font-bold text-amber-950 mb-1">
-                    Remaining Balance Due (Pending)
-                  </label>
-                  <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                    <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
-                    <span className="text-sm font-black font-mono text-rose-600">
-                      ₹{calculatedBalanceDue.toLocaleString('en-IN')}
-                    </span>
+        {!isEditMode && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
+            {/* Header with Title, Gross Packages & Discounts, and Total Payable Price Badge */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CreditCard className="w-4 h-4" />
                   </div>
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    5. Fee Calculation & Payment Settlement
+                  </h2>
                 </div>
+                <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
+                  <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
+                  {numDiscount > 0 && (
+                    <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
+                  )}
+                </div>
+              </div>
 
-                {/* Date Option for Remaining Payment */}
-                <div>
-                  <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
-                    <span>Promised Due Date *</span>
-                    <span className="text-[10px] font-normal text-amber-800">When remaining will be paid</span>
-                  </label>
-                  <div className="relative">
-                    <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              {/* Total Payable Price Pill */}
+              <div className="sm:self-center shrink-0 bg-emerald-50/90 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2.5 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-emerald-800">Total Payable Price</span>
+                <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
+                  ₹{totalCalculatedAmount.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact 3-column grid with titles on top) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              {/* 1. Cash */}
+              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+                <span className="text-xs font-bold text-slate-800 block">Cash</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                     <input
-                      type="date"
-                      required
-                      value={balanceDueDate}
-                      min={getTodayDateStr()}
-                      onChange={(e) => setBalanceDueDate(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
                     />
                   </div>
+                  <button
+                    type="button"
+                    title="Pay remaining in Cash"
+                    onClick={() => {
+                      const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      setCashAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  >
+                    Full
+                  </button>
                 </div>
               </div>
 
-              {/* Settlement Summary */}
-              <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
-                <span className="text-slate-600">
-                  Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
-                </span>
-                <span className="text-emerald-700 font-semibold">
-                  Paid Now: <strong className="font-mono">₹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
-                </span>
-                <span className="text-rose-700 font-bold">
-                  Balance Due: <strong className="font-mono">₹{calculatedBalanceDue.toLocaleString('en-IN')}</strong>
-                </span>
+              {/* 2. UPI */}
+              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+                <span className="text-xs font-bold text-slate-800 block">UPI</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={upiAmount}
+                      onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Pay remaining via UPI"
+                    onClick={() => {
+                      const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      setUpiAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  >
+                    Full
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Account Transfer */}
+              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+                <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      onKeyDown={(e) => preventNonNumericKey(e, true)}
+                      value={accountTransferAmount}
+                      onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Pay remaining via Account Transfer"
+                    onClick={() => {
+                      const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
+                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      setAccountTransferAmount(rem > 0 ? String(rem) : '');
+                    }}
+                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  >
+                    Full
+                  </button>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  {totalCalculatedAmount > 0 ? (
-                    <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
-                  ) : (
-                    <>Payment settled. <strong>No balance remaining.</strong></>
-                  )}
+
+            {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
+            {calculatedBalanceDue > 0 ? (
+              <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  {/* Balance Due Display */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Remaining Balance Due (Pending)
+                    </label>
+                    <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
+                      <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
+                      <span className="text-sm font-black font-mono text-rose-600">
+                        ₹{calculatedBalanceDue.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Date Option for Remaining Payment */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                      <span>Promised Due Date *</span>
+                      <span className="text-[10px] font-normal text-amber-800">When remaining will be paid</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="date"
+                        required
+                        value={balanceDueDate}
+                        min={getTodayDateStr()}
+                        onChange={(e) => setBalanceDueDate(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Settlement Summary */}
+                <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+                  <span className="text-slate-600">
+                    Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
+                  </span>
+                  <span className="text-emerald-700 font-semibold">
+                    Paid Now: <strong className="font-mono">₹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
+                  </span>
+                  <span className="text-rose-700 font-bold">
+                    Balance Due: <strong className="font-mono">₹{calculatedBalanceDue.toLocaleString('en-IN')}</strong>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    {totalCalculatedAmount > 0 ? (
+                      <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
+                    ) : (
+                      <>Payment settled. <strong>No balance remaining.</strong></>
+                    )}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">
+                  No Balance Remaining
                 </span>
               </div>
-              <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">
-                No Balance Remaining
-              </span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* SECTION 6: INTEGRATED DIGITAL CONSENT FORM & LIABILITY WAIVER (Fully Readable & Transparent) */}
-        {isUpgradeMode ? (
+        {isUpgradeMode || isEditMode ? (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-3 text-xs text-emerald-800">
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
-              <p className="font-bold text-emerald-900">Health Declaration & Liability Waiver Active On File</p>
+              <p className="font-bold text-emerald-900">
+                {isEditMode ? 'Digital Health Declaration & Liability Waiver Active On File' : 'Health Declaration & Liability Waiver Active On File'}
+              </p>
               <p className="text-[11px] text-emerald-700 mt-0.5">
-                Member digital consent is verified and signed on record. Top-up invoices are billed directly without re-signing.
+                {isEditMode
+                  ? 'Member digital consent was verified and signed upon initial registration. No re-signing required for profile updates.'
+                  : 'Member digital consent is verified and signed on record. Top-up invoices are billed directly without re-signing.'}
               </p>
             </div>
           </div>
@@ -2586,22 +2931,45 @@ export const AddMemberPage = ({
 
           <button
             type="submit"
-            disabled={isCreatingMember || (isUpgradeMode ? totalCalculatedAmount <= 0 : (!consentAgreed || (!otpVerified && !signedInPerson)))}
+            disabled={
+              isCreatingMember ||
+              (isEditMode
+                ? !formData.name?.trim()
+                : isUpgradeMode
+                  ? totalCalculatedAmount <= 0
+                  : (!consentAgreed || (!otpVerified && !signedInPerson)))
+            }
             className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
-              isUpgradeMode
-                ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
-                : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+              isEditMode
+                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                : isUpgradeMode
+                  ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
             }`}
           >
             {isCreatingMember ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{isUpgradeMode ? 'Applying Upgrade...' : 'Registering Athlete...'}</span>
+                <span>{isEditMode ? 'Saving Changes...' : isUpgradeMode ? 'Applying Upgrade...' : 'Registering Athlete...'}</span>
               </>
             ) : (
               <>
-                {isUpgradeMode ? <Zap className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                <span>{isUpgradeMode ? 'Confirm Top-up Upgrade' : 'Register Member & Add to Directory'}</span>
+                {isEditMode ? (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Save & Update Member Details</span>
+                  </>
+                ) : isUpgradeMode ? (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    <span>Confirm Top-up Upgrade</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    <span>Register Member & Add to Directory</span>
+                  </>
+                )}
               </>
             )}
           </button>
