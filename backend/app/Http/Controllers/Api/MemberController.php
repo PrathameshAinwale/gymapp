@@ -11,6 +11,8 @@ use App\Models\Invoice;
 use App\Models\RevenueBilling;
 use App\Models\PtSession;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
@@ -18,7 +20,7 @@ class MemberController extends Controller
 {
     public static function computeMemberStatus($expiryDate, ?string $currentStatus = 'Active'): string
     {
-        if ($currentStatus === 'Frozen' || $currentStatus === 'On Hold') {
+        if ($currentStatus === 'Frozen' || $currentStatus === 'Frozen (Paused)' || $currentStatus === 'On Hold' || $currentStatus === 'Expired') {
             return $currentStatus;
         }
         if (!$expiryDate) {
@@ -46,32 +48,43 @@ class MemberController extends Controller
         }
     }
 
-    public static function syncAllMemberStatuses(): void
+    public static function syncAllMemberStatuses(bool $force = false): void
     {
-        $today = now()->toDateString();
-        $tenDaysLater = now()->addDays(10)->toDateString();
+        $cacheKey = 'member_statuses_last_synced_' . now()->toDateString();
+        if (!$force && Cache::has($cacheKey)) {
+            return;
+        }
 
-        // 1. Members whose expiry_date < today and not Frozen/On Hold -> Expired
-        MemberProfile::whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '<', $today)
-            ->whereNotIn('status', ['Frozen', 'On Hold'])
-            ->where('status', '!=', 'Expired')
-            ->update(['status' => 'Expired']);
+        try {
+            $today = now()->toDateString();
+            $tenDaysLater = now()->addDays(10)->toDateString();
 
-        // 2. Members whose expiry_date >= today and <= today + 10 days and not Frozen/On Hold -> Expiring Soon
-        MemberProfile::whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '>=', $today)
-            ->whereDate('expiry_date', '<=', $tenDaysLater)
-            ->whereNotIn('status', ['Frozen', 'On Hold'])
-            ->where('status', '!=', 'Expiring Soon')
-            ->update(['status' => 'Expiring Soon']);
+            // 1. Members whose expiry_date < today and not Frozen/On Hold -> Expired
+            MemberProfile::whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '<', $today)
+                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold'])
+                ->where('status', '!=', 'Expired')
+                ->update(['status' => 'Expired']);
 
-        // 3. Members whose expiry_date > today + 10 days and not Frozen/On Hold -> Active
-        MemberProfile::whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '>', $tenDaysLater)
-            ->whereNotIn('status', ['Frozen', 'On Hold'])
-            ->where('status', '!=', 'Active')
-            ->update(['status' => 'Active']);
+            // 2. Members whose expiry_date >= today and <= today + 10 days and not Frozen/On Hold/Expired -> Expiring Soon
+            MemberProfile::whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '>=', $today)
+                ->whereDate('expiry_date', '<=', $tenDaysLater)
+                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold', 'Expired'])
+                ->where('status', '!=', 'Expiring Soon')
+                ->update(['status' => 'Expiring Soon']);
+
+            // 3. Members whose expiry_date > today + 10 days and not Frozen/On Hold/Expired -> Active
+            MemberProfile::whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '>', $tenDaysLater)
+                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold', 'Expired'])
+                ->where('status', '!=', 'Active')
+                ->update(['status' => 'Active']);
+
+            Cache::put($cacheKey, true, now()->endOfDay());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Member status sync failed: ' . $e->getMessage());
+        }
     }
 
     public function index(Request $request)
@@ -154,7 +167,9 @@ class MemberController extends Controller
                 'avatar' => $user->avatar,
                 'planId' => $profile?->plan ? 'plan-' . $profile->plan->id : null,
                 'planName' => $profile?->plan?->name ?? 'Unassigned',
-                'status' => $profile?->status ?? 'Active',
+                'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
+                'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
+                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status) : 'Active',
                 'joinDate' => $profile?->join_date?->format('Y-m-d'),
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
@@ -208,7 +223,9 @@ class MemberController extends Controller
                 'avatar' => $user->avatar,
                 'planId' => $profile?->plan ? 'plan-' . $profile->plan->id : null,
                 'planName' => $profile?->plan?->name ?? 'Unassigned',
-                'status' => $profile?->status ?? 'Active',
+                'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
+                'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
+                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status) : 'Active',
                 'joinDate' => $profile?->join_date?->format('Y-m-d'),
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
@@ -330,47 +347,7 @@ class MemberController extends Controller
             }
         }
 
-        // 2. Resolve or create user (Email is optional and can be shared across owner/member/staff)
-        $user = null;
-        if ($numTargetId && $numTargetId > 0) {
-            $user = User::find($numTargetId);
-        }
-
-        $emailVal = !empty($request->email) ? trim($request->email) : null;
-
-        if ($user) {
-            $user->name = $request->name;
-            $user->phone = $request->phone ?? $user->phone;
-            if ($request->has('email')) {
-                $user->email = $emailVal;
-            }
-            if ($request->filled('password')) {
-                $user->password = Hash::make($plainPassword);
-                $user->initial_password = Hash::make($plainPassword);
-                $user->must_change_password = true;
-            }
-            if ($request->filled('avatar')) {
-                $user->avatar = $request->avatar;
-            }
-            $user->save();
-        } else {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $emailVal,
-                'password' => Hash::make($plainPassword),
-                'initial_password' => Hash::make($plainPassword),
-                'must_change_password' => true,
-                'role' => 'member',
-                'phone' => $request->phone,
-                'gym_id' => $gymId,
-                'avatar' => $request->avatar ?? null,
-            ]);
-        }
-
-        $rawJoin = $request->join_date ?? $request->joinDate ?? $request->start_date ?? $request->startDate;
-        $joinDate = $rawJoin ? \Illuminate\Support\Carbon::parse($rawJoin)->toDateString() : now()->toDateString();
-
-        $rawExpiry = $request->expiry_date ?? $request->expiryDate;
+        // 2. Resolve plan and validate discount rules before any database writes
         $plan = null;
         if ($planId) {
             $plan = Plan::find($planId);
@@ -401,11 +378,12 @@ class MemberController extends Controller
             }
         }
 
+        $rawJoin = $request->join_date ?? $request->joinDate ?? $request->start_date ?? $request->startDate;
+        $joinDate = $rawJoin ? \Illuminate\Support\Carbon::parse($rawJoin)->toDateString() : now()->toDateString();
+        $rawExpiry = $request->expiry_date ?? $request->expiryDate;
+
         if ($rawExpiry) {
             $expiryDate = \Illuminate\Support\Carbon::parse($rawExpiry)->toDateString();
-            if ($plan) {
-                $plan->increment('active_subscribers');
-            }
         } else {
             $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
             $expiryDate = $startCarbon->day === 1 
@@ -424,17 +402,10 @@ class MemberController extends Controller
                     $expiry = $expiry->addDays($offerDays);
                 }
                 $expiryDate = $expiry->toDateString();
-                $plan->increment('active_subscribers');
             }
         }
 
         $computedStatus = self::computeMemberStatus($expiryDate, $request->status ?? 'Active');
-
-        $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
-
-        $cleanName = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5)) ?: 'MEMBER';
-        $qrCode = $profile->qr_pass_code ?: ('PF-M-' . $user->id . '-' . $cleanName . '-' . strtoupper(substr(uniqid(), -4)));
-
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', 0)));
         $totalBill = (float)($request->input('total_amount', $request->input('totalAmount', $plan?->price ?? 0)));
         $paidAmountInput = $request->input('paid_amount', $request->input('paidAmount'));
@@ -442,9 +413,8 @@ class MemberController extends Controller
             ? (float)$paidAmountInput 
             : (float)($request->input('amount', $totalBill));
 
-        $rawDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
-        $dob = $rawDob ? \Illuminate\Support\Carbon::parse($rawDob)->toDateString() : ($profile->dob ?? null);
-        $computedAge = $dob ? \Illuminate\Support\Carbon::parse($dob)->age : ($request->age ?? $profile->age ?? null);
+        $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
+        $parsedDueDate = ($duesAmount > 0 && $rawDueDate) ? \Illuminate\Support\Carbon::parse($rawDueDate)->toDateString() : null;
 
         $rawTrainingType = $request->input('training_type', $request->input('trainingType', 'self'));
         $rawExecutive = $request->input('executive', $request->input('staff_name', $request->input('staffName')));
@@ -452,146 +422,201 @@ class MemberController extends Controller
         $rawKycDocNumber = $request->input('kyc_doc_number', $request->input('kycDocNumber'));
         $rawKycStatus = $request->input('kyc_status', $request->input('kycStatus', 'Verified'));
 
-        if (!empty($rawKycDocNumber)) {
-            if ($rawKycDocType === 'Aadhaar Card') {
-                $user->aadhaar_card = $rawKycDocNumber;
-            } elseif ($rawKycDocType === 'PAN Card') {
-                $user->pan_card = $rawKycDocNumber;
-            }
-            $user->save();
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+        $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('executive', $request->input('handled_by', $authCreator?->name))));
+        if (!$creatorName && $creatorId) {
+            $creatorName = User::find($creatorId)?->name;
         }
-
-        $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
-        $parsedDueDate = ($duesAmount > 0 && $rawDueDate) ? \Illuminate\Support\Carbon::parse($rawDueDate)->toDateString() : null;
-
-        $profile->fill([
-            'plan_id' => $planId,
-            'trainer_id' => $trainerId,
-            'executive' => $rawExecutive,
-            'training_type' => $rawTrainingType,
-            'phone' => $request->phone,
-            'status' => $computedStatus,
-            'join_date' => $joinDate,
-            'expiry_date' => $expiryDate,
-            'gender' => $request->gender ?? $profile->gender ?? 'Male',
-            'age' => $computedAge,
-            'dob' => $dob,
-            'weight' => $request->weight ?? $profile->weight ?? 70,
-            'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? 65,
-            'height' => $request->height ?? $profile->height ?? 175,
-            'goal' => $request->goal ?? $profile->goal ?? 'Fitness & Conditioning',
-            'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
-            'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? 'N/A',
-            'kyc_doc_type' => $rawKycDocType,
-            'kyc_doc_number' => $rawKycDocNumber,
-            'kyc_status' => $rawKycStatus,
-            'qr_pass_code' => $qrCode,
-            'dues_amount' => $duesAmount,
-            'due_date' => $parsedDueDate,
-        ]);
-        $profile->save();
-
-        // Create initial invoice and record inflow in revenue_and_billings if plan has a price or payment received
-        if ($receivedAmount > 0 || ($plan && $plan->price > 0)) {
-            $finalAmount = $receivedAmount;
-            $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
-            $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
-            if ($duesAmount > 0) {
-                $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
-            }
-
-            $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
-            $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
-
-            $authCreator = $request->user() ?: auth('sanctum')->user();
-            $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
-            $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('executive', $request->input('handled_by', $authCreator?->name))));
-            if (!$creatorName && $creatorId) {
-                $creatorName = User::find($creatorId)?->name;
-            }
-            if (!$creatorName) {
-                $creatorName = $authCreator?->name ?: (User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff');
-            }
-            $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-            $creatorName = trim($cleanName) ?: ($authCreator?->name ?: 'Staff');
-
-            $invPayload = [
-                'gym_id' => $gymId,
-                'invoice_number' => $invNo,
-                'user_id' => $user->id,
-                'plan_id' => $plan?->id,
-                'amount' => $finalAmount,
-                'date' => now()->toDateString(),
-                'due_date' => $parsedDueDate,
-                'payment_method' => $paymentMethod,
-                'status' => $invStatus,
-                'created_by' => $creatorId,
-                'created_by_name' => $creatorName,
-            ];
-            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
-                $invPayload['pending_amount'] = $duesAmount;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
-                $invPayload['total_amount'] = (float)($totalBill > 0 ? $totalBill : ($finalAmount + $duesAmount));
-            }
-            Invoice::create($invPayload);
-
-            RevenueBilling::create([
-                'gym_id' => $gymId,
-                'type' => 'inflow',
-                'reference_no' => $invNo,
-                'user_id' => $user->id,
-                'member_name' => $user->name,
-                'plan_id' => $plan?->id,
-                'plan_name' => $plan?->name ?? 'Membership',
-                'title' => $invoiceTitle,
-                'category' => 'Membership Fee',
-                'vendor' => null,
-                'amount' => $finalAmount,
-                'date' => now()->toDateString(),
-                'payment_method' => $paymentMethod,
-                'status' => $invStatus,
-                'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
-                'created_by' => $creatorId,
-                'created_by_name' => $creatorName,
-            ]);
+        if (!$creatorName) {
+            $creatorName = $authCreator?->name ?: (User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff');
         }
+        $cleanCreatorName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
+        $creatorName = trim($cleanCreatorName) ?: ($authCreator?->name ?: 'Staff');
 
-        // If member registered with PT, automatically allocate and store PT session in database
-        $trainingType = $request->input('training_type', $request->input('trainingType'));
-        $ptSessionsCount = (int)($request->input('pt_sessions', $request->input('ptSessions', $request->input('ptSessionsCount', 0))));
-        if ($trainingType === 'pt' || $ptSessionsCount > 0) {
-            $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
-            if (!$existingPt) {
-                $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
-                $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
-                $trainerUser = $trainerId ? User::find($trainerId) : null;
-                $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
+        // 3. Perform all database writes atomically inside a transaction
+        [$user, $profile, $qrCode] = DB::transaction(function () use (
+            $numTargetId, $request, $emailVal, $plainPassword, $gymId, $plan,
+            $rawKycDocNumber, $rawKycDocType, $planId, $trainerId, $rawExecutive,
+            $rawTrainingType, $computedStatus, $joinDate, $expiryDate, $duesAmount,
+            $parsedDueDate, $receivedAmount, $totalBill, $rawKycStatus, $creatorId,
+            $creatorName
+        ) {
+            $user = null;
+            if ($numTargetId && $numTargetId > 0) {
+                $user = User::find($numTargetId);
+            }
 
-                PtSession::create([
+            if ($user) {
+                $user->name = $request->name;
+                $user->phone = $request->phone ?? $user->phone;
+                if ($request->has('email')) {
+                    $user->email = $emailVal;
+                }
+                if ($request->filled('password')) {
+                    $user->password = Hash::make($plainPassword);
+                    $user->initial_password = Hash::make($plainPassword);
+                    $user->must_change_password = true;
+                }
+                if ($request->filled('avatar')) {
+                    $user->avatar = $request->avatar;
+                }
+                $user->save();
+            } else {
+                $user = User::create([
+                    'name' => $request->name,
+                    'email' => $emailVal,
+                    'password' => Hash::make($plainPassword),
+                    'initial_password' => Hash::make($plainPassword),
+                    'must_change_password' => true,
+                    'role' => 'member',
+                    'phone' => $request->phone,
                     'gym_id' => $gymId,
-                    'member_id' => $user->id,
-                    'member_name' => $user->name,
-                    'member_avatar' => $user->avatar,
-                    'trainer_id' => $trainerId,
-                    'trainer_name' => $trainerName,
-                    'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
-                    'total_sessions' => $sessions,
-                    'completed_sessions' => 0,
-                    'remaining_sessions' => $sessions,
-                    'client_otp' => $ptOtp,
-                    'status' => 'Active',
-                    'start_date' => now()->toDateString(),
+                    'avatar' => $request->avatar ?? null,
                 ]);
             }
-        }
 
-        // If an enquiry ID is linked, delete it so it is removed from the enquiries page and database
-        $enquiryId = $request->input('enquiry_id', $request->input('enquiryId'));
-        if ($enquiryId) {
-            $cleanEnqId = (int)str_replace('enq-', '', $enquiryId);
-            Enquiry::where('id', $cleanEnqId)->delete();
-        }
+            if ($plan) {
+                $plan->increment('active_subscribers');
+            }
+
+            $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
+
+            $cleanName = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5)) ?: 'MEMBER';
+            $qrCode = $profile->qr_pass_code ?: ('PF-M-' . $user->id . '-' . $cleanName . '-' . strtoupper(substr(uniqid(), -4)));
+
+            $rawDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
+            $dob = $rawDob ? \Illuminate\Support\Carbon::parse($rawDob)->toDateString() : ($profile->dob ?? null);
+            $computedAge = $dob ? \Illuminate\Support\Carbon::parse($dob)->age : ($request->age ?? $profile->age ?? null);
+
+            if (!empty($rawKycDocNumber)) {
+                if ($rawKycDocType === 'Aadhaar Card') {
+                    $user->aadhaar_card = $rawKycDocNumber;
+                } elseif ($rawKycDocType === 'PAN Card') {
+                    $user->pan_card = $rawKycDocNumber;
+                }
+                $user->save();
+            }
+
+            $profile->fill([
+                'plan_id' => $planId,
+                'trainer_id' => $trainerId,
+                'executive' => $rawExecutive,
+                'training_type' => $rawTrainingType,
+                'phone' => $request->phone,
+                'status' => $computedStatus,
+                'join_date' => $joinDate,
+                'expiry_date' => $expiryDate,
+                'gender' => $request->gender ?? $profile->gender ?? 'Male',
+                'age' => $computedAge,
+                'dob' => $dob,
+                'weight' => $request->weight ?? $profile->weight ?? 70,
+                'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? 65,
+                'height' => $request->height ?? $profile->height ?? 175,
+                'goal' => $request->goal ?? $profile->goal ?? 'Fitness & Conditioning',
+                'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
+                'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? 'N/A',
+                'kyc_doc_type' => $rawKycDocType,
+                'kyc_doc_number' => $rawKycDocNumber,
+                'kyc_status' => $rawKycStatus,
+                'qr_pass_code' => $qrCode,
+                'dues_amount' => $duesAmount,
+                'due_date' => $parsedDueDate,
+            ]);
+            $profile->save();
+
+            // Create initial invoice and record inflow in revenue_and_billings if plan has a price or payment received
+            if ($receivedAmount > 0 || ($plan && $plan->price > 0)) {
+                $finalAmount = $receivedAmount;
+                $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
+                $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
+                if ($duesAmount > 0) {
+                    $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
+                }
+
+                $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
+                $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+
+                $invPayload = [
+                    'gym_id' => $gymId,
+                    'invoice_number' => $invNo,
+                    'user_id' => $user->id,
+                    'plan_id' => $plan?->id,
+                    'amount' => $finalAmount,
+                    'date' => now()->toDateString(),
+                    'due_date' => $parsedDueDate,
+                    'payment_method' => $paymentMethod,
+                    'status' => $invStatus,
+                    'created_by' => $creatorId,
+                    'created_by_name' => $creatorName,
+                ];
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                    $invPayload['pending_amount'] = $duesAmount;
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+                    $invPayload['total_amount'] = (float)($totalBill > 0 ? $totalBill : ($finalAmount + $duesAmount));
+                }
+                Invoice::create($invPayload);
+
+                RevenueBilling::create([
+                    'gym_id' => $gymId,
+                    'type' => 'inflow',
+                    'reference_no' => $invNo,
+                    'user_id' => $user->id,
+                    'member_name' => $user->name,
+                    'plan_id' => $plan?->id,
+                    'plan_name' => $plan?->name ?? 'Membership',
+                    'title' => $invoiceTitle,
+                    'category' => 'Membership Fee',
+                    'vendor' => null,
+                    'amount' => $finalAmount,
+                    'date' => now()->toDateString(),
+                    'payment_method' => $paymentMethod,
+                    'status' => $invStatus,
+                    'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
+                    'created_by' => $creatorId,
+                    'created_by_name' => $creatorName,
+                ]);
+            }
+
+            // If member registered with PT, automatically allocate and store PT session in database
+            $trainingType = $request->input('training_type', $request->input('trainingType'));
+            $ptSessionsCount = (int)($request->input('pt_sessions', $request->input('ptSessions', $request->input('ptSessionsCount', 0))));
+            if ($trainingType === 'pt' || $ptSessionsCount > 0) {
+                $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
+                if (!$existingPt) {
+                    $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
+                    $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+                    $trainerUser = $trainerId ? User::find($trainerId) : null;
+                    $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
+
+                    PtSession::create([
+                        'gym_id' => $gymId,
+                        'member_id' => $user->id,
+                        'member_name' => $user->name,
+                        'member_avatar' => $user->avatar,
+                        'trainer_id' => $trainerId,
+                        'trainer_name' => $trainerName,
+                        'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
+                        'total_sessions' => $sessions,
+                        'completed_sessions' => 0,
+                        'remaining_sessions' => $sessions,
+                        'client_otp' => $ptOtp,
+                        'status' => 'Active',
+                        'start_date' => now()->toDateString(),
+                    ]);
+                }
+            }
+
+            // If an enquiry ID is linked, delete it so it is removed from the enquiries page and database
+            $enquiryId = $request->input('enquiry_id', $request->input('enquiryId'));
+            if ($enquiryId) {
+                $cleanEnqId = (int)str_replace('enq-', '', $enquiryId);
+                Enquiry::where('id', $cleanEnqId)->delete();
+            }
+
+            return [$user, $profile, $qrCode];
+        });
 
         // Automatically dispatch WhatsApp Welcome Notification to the new member
         $whatsappResult = null;
@@ -677,126 +702,139 @@ class MemberController extends Controller
             }
             $user->phone = $request->phone;
         }
-        if ($request->has('avatar')) $user->avatar = $request->avatar;
-        if ($request->filled('password')) $user->password = Hash::make($request->password);
-        $user->save();
-
-        if ($request->has('plan_id') || $request->has('planId')) {
-            $rawP = $request->plan_id ?? $request->planId;
-            $profile->plan_id = ($rawP && $rawP !== 'none') ? (int)str_replace('plan-', '', $rawP) : null;
-        }
-        if ($request->has('trainer_id') || $request->has('trainerId')) {
-            $rawT = $request->trainer_id ?? $request->trainerId;
-            $profile->trainer_id = ($rawT && $rawT !== 'none') ? (int)str_replace('trn-', '', $rawT) : null;
-        }
-        if ($request->has('join_date') || $request->has('joinDate')) {
-            $rawJ = $request->join_date ?? $request->joinDate;
-            $profile->join_date = $rawJ ? \Illuminate\Support\Carbon::parse($rawJ)->toDateString() : null;
-        }
-        if ($request->has('expiry_date') || $request->has('expiryDate')) {
-            $profile->expiry_date = $request->expiry_date ?? $request->expiryDate;
-        }
-        if ($request->has('status')) {
-            $profile->status = $request->status;
-        }
-        // If status is not explicitly set to Frozen or On Hold, re-evaluate based on expiry_date
-        if (!in_array($profile->status, ['Frozen', 'On Hold']) && $profile->expiry_date) {
-            $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status);
-        }
-        $rawUpdateDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
-        if ($rawUpdateDob !== null) {
-            $parsedDob = $rawUpdateDob ? \Illuminate\Support\Carbon::parse($rawUpdateDob)->toDateString() : null;
-            $profile->dob = $parsedDob;
-            if ($parsedDob) {
-                $profile->age = \Illuminate\Support\Carbon::parse($parsedDob)->age;
-            }
-        } elseif ($request->has('age')) {
-            $profile->age = (int)$request->age;
-        }
-        if ($request->has('weight')) $profile->weight = (float)$request->weight;
-        if ($request->has('target_weight') || $request->has('targetWeight')) {
-            $profile->target_weight = (float)($request->target_weight ?? $request->targetWeight);
-        }
-        if ($request->has('height')) $profile->height = (float)$request->height;
-        if ($request->has('goal')) $profile->goal = $request->goal;
-        if ($request->has('medical_notes') || $request->has('medicalNotes')) {
-            $profile->medical_notes = $request->medical_notes ?? $request->medicalNotes;
-        }
-        if ($request->has('emergency_contact') || $request->has('emergencyContact')) {
-            $profile->emergency_contact = $request->emergency_contact ?? $request->emergencyContact;
-        }
-        if ($request->has('gender')) $profile->gender = $request->gender;
-        if ($request->has('training_type') || $request->has('trainingType')) {
-            $profile->training_type = $request->training_type ?? $request->trainingType;
-        }
-        if ($request->has('executive') || $request->has('staff_name') || $request->has('staffName')) {
-            $profile->executive = $request->executive ?? $request->staff_name ?? $request->staffName;
-        }
-        if ($request->has('kyc_doc_type') || $request->has('kycDocType')) {
-            $profile->kyc_doc_type = $request->kyc_doc_type ?? $request->kycDocType;
-        }
-        if ($request->has('kyc_doc_number') || $request->has('kycDocNumber')) {
-            $profile->kyc_doc_number = $request->kyc_doc_number ?? $request->kycDocNumber;
-            if ($profile->kyc_doc_type === 'Aadhaar Card') {
-                $user->aadhaar_card = $profile->kyc_doc_number;
-            } elseif ($profile->kyc_doc_type === 'PAN Card') {
-                $user->pan_card = $profile->kyc_doc_number;
-            }
+        DB::transaction(function () use ($request, $user, $profile) {
+            if ($request->has('avatar')) $user->avatar = $request->avatar;
+            if ($request->filled('password')) $user->password = Hash::make($request->password);
             $user->save();
-        }
-        if ($request->has('kyc_status') || $request->has('kycStatus')) {
-            $profile->kyc_status = $request->kyc_status ?? $request->kycStatus;
-        }
-        if ($request->has('phone')) {
-            $profile->phone = $request->phone;
-        }
-        if ($request->has('qr_pass_code') || $request->has('qrPassCode')) {
-            $profile->qr_pass_code = $request->qr_pass_code ?? $request->qrPassCode;
-        }
-        if ($request->has('dues_amount') || $request->has('duesAmount')) {
-            $profile->dues_amount = (float)($request->dues_amount ?? $request->duesAmount);
-            if ($profile->dues_amount <= 0) {
-                $profile->due_date = null;
-            }
-        }
-        if ($request->has('due_date') || $request->has('dueDate')) {
-            $rawUpDueDate = $request->due_date ?? $request->dueDate;
-            $profile->due_date = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
-        }
-        $profile->save();
 
-        // If member was upgraded/updated with PT sessions, allocate or top-up PtSession record
-        $newPtSessions = (int)($request->input('pt_sessions', $request->input('ptSessions', 0)));
-        $upgTrainingType = $request->input('trainingType', $request->input('training_type'));
-        if ($upgTrainingType === 'pt' && $newPtSessions > 0) {
-            $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
-            if ($existingPt) {
-                $existingPt->total_sessions += $newPtSessions;
-                $existingPt->remaining_sessions += $newPtSessions;
-                if ($profile->trainer_id) {
-                    $existingPt->trainer_id = $profile->trainer_id;
-                    $existingPt->trainer_name = $profile->trainer?->name ?? $existingPt->trainer_name;
-                }
-                $existingPt->save();
-            } else {
-                $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
-                PtSession::create([
-                    'gym_id' => $profile->gym_id ?? $this->resolveGymId($request),
-                    'member_id' => $user->id,
-                    'member_name' => $user->name,
-                    'member_avatar' => $user->avatar,
-                    'trainer_id' => $profile->trainer_id,
-                    'trainer_name' => $profile->trainer?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach')),
-                    'plan_name' => "{$newPtSessions} 1-on-1 PT Sessions",
-                    'total_sessions' => $newPtSessions,
-                    'completed_sessions' => 0,
-                    'remaining_sessions' => $newPtSessions,
-                    'client_otp' => $ptOtp,
-                    'status' => 'Active',
-                    'start_date' => now()->toDateString(),
-                ]);
+            if ($request->has('plan_id') || $request->has('planId')) {
+                $rawP = $request->plan_id ?? $request->planId;
+                $profile->plan_id = ($rawP && $rawP !== 'none') ? (int)str_replace('plan-', '', $rawP) : null;
             }
-        }
+            if ($request->has('trainer_id') || $request->has('trainerId')) {
+                $rawT = $request->trainer_id ?? $request->trainerId;
+                $profile->trainer_id = ($rawT && $rawT !== 'none') ? (int)str_replace('trn-', '', $rawT) : null;
+            }
+            if ($request->has('join_date') || $request->has('joinDate')) {
+                $rawJ = $request->join_date ?? $request->joinDate;
+                $profile->join_date = $rawJ ? \Illuminate\Support\Carbon::parse($rawJ)->toDateString() : null;
+            }
+            if ($request->has('expiry_date') || $request->has('expiryDate')) {
+                $profile->expiry_date = $request->expiry_date ?? $request->expiryDate;
+            }
+            if ($request->has('status')) {
+                $profile->status = $request->status;
+            }
+            // If status is not explicitly set to Frozen or On Hold, re-evaluate based on expiry_date
+            if (!in_array($profile->status, ['Frozen', 'On Hold']) && $profile->expiry_date) {
+                $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status);
+            }
+            $rawUpdateDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
+            if ($rawUpdateDob !== null) {
+                $parsedDob = $rawUpdateDob ? \Illuminate\Support\Carbon::parse($rawUpdateDob)->toDateString() : null;
+                $profile->dob = $parsedDob;
+                if ($parsedDob) {
+                    $profile->age = \Illuminate\Support\Carbon::parse($parsedDob)->age;
+                }
+            } elseif ($request->has('age')) {
+                $profile->age = (int)$request->age;
+            }
+            if ($request->has('weight')) $profile->weight = (float)$request->weight;
+            if ($request->has('target_weight') || $request->has('targetWeight')) {
+                $profile->target_weight = (float)($request->target_weight ?? $request->targetWeight);
+            }
+            if ($request->has('height')) $profile->height = (float)$request->height;
+            if ($request->has('goal')) $profile->goal = $request->goal;
+            if ($request->has('medical_notes') || $request->has('medicalNotes')) {
+                $profile->medical_notes = $request->medical_notes ?? $request->medicalNotes;
+            }
+            if ($request->has('emergency_contact') || $request->has('emergencyContact')) {
+                $profile->emergency_contact = $request->emergency_contact ?? $request->emergencyContact;
+            }
+            if ($request->has('gender')) $profile->gender = $request->gender;
+            if ($request->has('training_type') || $request->has('trainingType')) {
+                $profile->training_type = $request->training_type ?? $request->trainingType;
+            }
+            if ($request->has('executive') || $request->has('staff_name') || $request->has('staffName')) {
+                $profile->executive = $request->executive ?? $request->staff_name ?? $request->staffName;
+            }
+            if ($request->has('kyc_doc_type') || $request->has('kycDocType')) {
+                $profile->kyc_doc_type = $request->kyc_doc_type ?? $request->kycDocType;
+            }
+            if ($request->has('kyc_doc_number') || $request->has('kycDocNumber')) {
+                $profile->kyc_doc_number = $request->kyc_doc_number ?? $request->kycDocNumber;
+                if ($profile->kyc_doc_type === 'Aadhaar Card') {
+                    $user->aadhaar_card = $profile->kyc_doc_number;
+                } elseif ($profile->kyc_doc_type === 'PAN Card') {
+                    $user->pan_card = $profile->kyc_doc_number;
+                }
+                $user->save();
+            }
+            if ($request->has('kyc_status') || $request->has('kycStatus')) {
+                $profile->kyc_status = $request->kyc_status ?? $request->kycStatus;
+            }
+            if ($request->has('phone')) {
+                $profile->phone = $request->phone;
+            }
+            if ($request->has('qr_pass_code') || $request->has('qrPassCode')) {
+                $profile->qr_pass_code = $request->qr_pass_code ?? $request->qrPassCode;
+            }
+            if ($request->has('dues_amount') || $request->has('duesAmount')) {
+                $duesVal = (float)($request->dues_amount ?? $request->duesAmount);
+                $profile->dues_amount = $duesVal;
+                if ($duesVal <= 0) {
+                    $profile->due_date = null;
+                    Invoice::where('user_id', $user->id)
+                        ->where('status', 'Pending')
+                        ->update(['status' => 'Paid', 'pending_amount' => 0]);
+                    RevenueBilling::where('user_id', $user->id)
+                        ->where('status', 'Pending')
+                        ->update(['status' => 'Paid']);
+                } else {
+                    Invoice::where('user_id', $user->id)
+                        ->where('status', 'Pending')
+                        ->update(['pending_amount' => $duesVal]);
+                }
+            }
+            if ($request->has('due_date') || $request->has('dueDate')) {
+                $rawUpDueDate = $request->due_date ?? $request->dueDate;
+                $profile->due_date = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
+            }
+            $profile->save();
+
+            // If member was upgraded/updated with PT sessions, allocate or top-up PtSession record
+            $newPtSessions = (int)($request->input('pt_sessions', $request->input('ptSessions', 0)));
+            $upgTrainingType = $request->input('trainingType', $request->input('training_type'));
+            if ($upgTrainingType === 'pt' && $newPtSessions > 0) {
+                $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
+                if ($existingPt) {
+                    $existingPt->total_sessions += $newPtSessions;
+                    $existingPt->remaining_sessions += $newPtSessions;
+                    if ($profile->trainer_id) {
+                        $existingPt->trainer_id = $profile->trainer_id;
+                        $existingPt->trainer_name = $profile->trainer?->name ?? $existingPt->trainer_name;
+                    }
+                    $existingPt->save();
+                } else {
+                    $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+                    PtSession::create([
+                        'gym_id' => $profile->gym_id ?? $this->resolveGymId($request),
+                        'member_id' => $user->id,
+                        'member_name' => $user->name,
+                        'member_avatar' => $user->avatar,
+                        'trainer_id' => $profile->trainer_id,
+                        'trainer_name' => $profile->trainer?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach')),
+                        'plan_name' => "{$newPtSessions} 1-on-1 PT Sessions",
+                        'total_sessions' => $newPtSessions,
+                        'completed_sessions' => 0,
+                        'remaining_sessions' => $newPtSessions,
+                        'client_otp' => $ptOtp,
+                        'status' => 'Active',
+                        'start_date' => now()->toDateString(),
+                    ]);
+                }
+            }
+        });
 
         return response()->json([
             'success' => true,

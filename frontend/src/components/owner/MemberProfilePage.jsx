@@ -35,6 +35,7 @@ import { PayDueModal } from './PayDueModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
+import { compareInvoicesDesc } from '../../utils/searchUtils';
 
 export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNavigateTab }) => {
   const {
@@ -55,7 +56,6 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
   }, [fetchMembers, fetchInvoices]);
 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPayDueOpen, setIsPayDueOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
@@ -107,15 +107,17 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
 
   const memberInvoices = useMemo(() => {
     if (!currentMember) return [];
-    return (invoices || []).filter((inv) => {
-      const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-      if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
-      const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
-      if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
-      const cleanInvName = (inv.memberName || inv.name || '').toLowerCase().trim();
-      if (memberNameClean && cleanInvName && memberNameClean === cleanInvName) return true;
-      return false;
-    });
+    return (invoices || [])
+      .filter((inv) => {
+        const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
+        if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
+        const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+        if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
+        const cleanInvName = (inv.memberName || inv.name || '').toLowerCase().trim();
+        if (memberNameClean && cleanInvName && memberNameClean === cleanInvName) return true;
+        return false;
+      })
+      .sort(compareInvoicesDesc);
   }, [invoices, currentMember, cleanMemberId, cleanMemberPhone, memberNameClean]);
 
   const totalPaidTillDate = useMemo(() => {
@@ -647,44 +649,31 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
           if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
           setPdfPreviewUrl(null);
         }}
-        title={selectedInvoice ? `Tax Invoice & Receipt: #${selectedInvoice.id?.toUpperCase()}` : 'Tax Invoice'}
+        title={selectedInvoice ? `Invoice & Receipt: #${selectedInvoice.id?.toUpperCase()}` : 'Tax Invoice'}
         maxWidth="max-w-3xl"
       >
         {selectedInvoice && currentMember && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('sheet')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'sheet'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>Tax Sheet View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('pdf')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF Document View</span>
-                </button>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">
+                    Tax Invoice & Receipt
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Official gym payment voucher & tax summary
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleDownloadInvoice(selectedInvoice)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer active:scale-95"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
@@ -693,24 +682,25 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
                 <button
                   type="button"
                   onClick={() => handleShareWhatsApp(selectedInvoice)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs transition-colors cursor-pointer active:scale-95"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Send via WhatsApp</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
+                  title="Print Invoice"
+                >
+                  <Printer className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Print</span>
                 </button>
               </div>
             </div>
 
-            {invoiceViewMode === 'pdf' && pdfPreviewUrl ? (
-              <div className="h-[480px] w-full rounded-xl overflow-hidden border border-slate-200">
-                <iframe
-                  src={pdfPreviewUrl}
-                  title="PDF Invoice Preview"
-                  className="w-full h-full"
-                />
-              </div>
-            ) : (
-              <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl space-y-4 text-xs">
+            <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl space-y-4 text-xs">
                 <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                   <div>
                     <h4 className="font-black text-sm text-slate-900">{gymInfo?.name || 'Pulse Fitness'}</h4>
@@ -762,7 +752,6 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
                   <span className="font-mono text-emerald-700 text-base">₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}</span>
                 </div>
               </div>
-            )}
           </div>
         )}
       </Modal>

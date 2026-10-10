@@ -51,14 +51,14 @@ class ReportController extends Controller
 
         // ── Member Demographics ──
         if (in_array($category, ['all', 'members'])) {
-            MemberController::syncAllMemberStatuses();
             $members = MemberProfile::whereHas('user', fn($u) => $u->where('gym_id', $gymId))
                 ->with('user', 'plan')->get();
 
-            $active   = $members->where('status', 'Active')->count();
-            $expiring = $members->where('status', 'Expiring Soon')->count();
-            $expired  = $members->where('status', 'Expired')->count();
-            $frozen   = $members->where('status', 'Frozen')->count();
+            $statusGroups = $members->groupBy(fn($m) => MemberController::computeMemberStatus($m->expiry_date, $m->status));
+            $active   = $statusGroups->get('Active', collect())->count();
+            $expiring = $statusGroups->get('Expiring Soon', collect())->count();
+            $expired  = $statusGroups->get('Expired', collect())->count();
+            $frozen   = $statusGroups->get('Frozen', collect())->count() + $statusGroups->get('On Hold', collect())->count();
 
             $result['members'] = [
                 'total'          => $members->count(),

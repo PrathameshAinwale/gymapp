@@ -8,6 +8,7 @@ use App\Models\MemberProfile;
 use App\Models\Plan;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class InvoiceController extends Controller
@@ -113,12 +114,12 @@ class InvoiceController extends Controller
             $name = $request->member_name ?? $request->memberName;
             $user = User::where('name', 'like', "%{$name}%")->first();
         }
-        if (!$user) {
-            $user = User::where('role', 'member')->first() ?? User::first();
-        }
 
         if (!$user) {
-            return response()->json(['success' => false, 'message' => 'No member user found in database'], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'The specified member could not be found.',
+            ], 422);
         }
 
         // Clean and resolve plan
@@ -186,43 +187,47 @@ class InvoiceController extends Controller
             $invoiceData['due_date'] = $dueDate;
         }
 
-        $invoice = Invoice::create($invoiceData);
+        $invoice = DB::transaction(function () use ($invoiceData, $user, $duesAmount, $dueDate, $plan, $request) {
+            $createdInvoice = Invoice::create($invoiceData);
 
-        // Automatically update member profile status & expiry date in database
-        if ($user->memberProfile) {
-            $updateData = [
-                'status' => 'Active',
-            ];
-            if ($duesAmount > 0) {
-                $updateData['dues_amount'] = $duesAmount;
-                if ($dueDate) {
-                    $updateData['due_date'] = $dueDate;
-                }
-            } else {
-                $updateData['dues_amount'] = 0;
-                $updateData['due_date'] = null;
-            }
-            if ($plan) {
-                $updateData['plan_id'] = $plan->id;
-            }
-            if ($request->expiry_date || $request->expiryDate) {
-                $updateData['expiry_date'] = $request->expiry_date ?? $request->expiryDate;
-            } elseif ($plan) {
-                $months = (int)($plan->duration_months ?? 1);
-                $offerDays = (int)($plan->offer_days ?? 0);
-                $startCarbon = now();
-                if ($startCarbon->day === 1) {
-                    $expiry = $startCarbon->copy()->addMonths($months - 1)->endOfMonth();
+            // Automatically update member profile status & expiry date in database
+            if ($user->memberProfile) {
+                $updateData = [
+                    'status' => 'Active',
+                ];
+                if ($duesAmount > 0) {
+                    $updateData['dues_amount'] = $duesAmount;
+                    if ($dueDate) {
+                        $updateData['due_date'] = $dueDate;
+                    }
                 } else {
-                    $expiry = $startCarbon->copy()->addDays($months * 30);
+                    $updateData['dues_amount'] = 0;
+                    $updateData['due_date'] = null;
                 }
-                if ($offerDays > 0) {
-                    $expiry = $expiry->addDays($offerDays);
+                if ($plan) {
+                    $updateData['plan_id'] = $plan->id;
                 }
-                $updateData['expiry_date'] = $expiry->toDateString();
+                if ($request->expiry_date || $request->expiryDate) {
+                    $updateData['expiry_date'] = $request->expiry_date ?? $request->expiryDate;
+                } elseif ($plan) {
+                    $months = (int)($plan->duration_months ?? 1);
+                    $offerDays = (int)($plan->offer_days ?? 0);
+                    $startCarbon = now();
+                    if ($startCarbon->day === 1) {
+                        $expiry = $startCarbon->copy()->addMonths($months - 1)->endOfMonth();
+                    } else {
+                        $expiry = $startCarbon->copy()->addDays($months * 30);
+                    }
+                    if ($offerDays > 0) {
+                        $expiry = $expiry->addDays($offerDays);
+                    }
+                    $updateData['expiry_date'] = $expiry->toDateString();
+                }
+                $user->memberProfile->update($updateData);
             }
-            $user->memberProfile->update($updateData);
-        }
+
+            return $createdInvoice;
+        });
 
         return response()->json([
             'success' => true,
@@ -320,77 +325,79 @@ class InvoiceController extends Controller
             $invoiceUpdate['created_by_name'] = $request->created_by_name ?? $request->createdByName;
         }
 
-        $invoice->update($invoiceUpdate);
+        DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount) {
+            $invoice->update($invoiceUpdate);
 
-        // ══════════════════════════════════════════════════════════════
-        // SYNCHRONIZE WITH REVENUE & BILLING (INFLOW & OUTFLOW)
-        // ══════════════════════════════════════════════════════════════
-        $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $invoice->invoice_number)->first();
-        $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
-        $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
+            // ══════════════════════════════════════════════════════════════
+            // SYNCHRONIZE WITH REVENUE & BILLING (INFLOW & OUTFLOW)
+            // ══════════════════════════════════════════════════════════════
+            $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $invoice->invoice_number)->first();
+            $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
+            $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
 
-        $inflowData = [
-            'amount' => $amount,
-            'payment_method' => $invoiceUpdate['payment_method'] ?? $invoice->payment_method,
-            'date' => $invoiceUpdate['date'] ?? $invoice->date,
-            'status' => $invoiceUpdate['status'] ?? $invoice->status,
-            'plan_name' => $planName,
-            'member_name' => $memberName,
-            'title' => "{$memberName} - {$planName}",
-        ];
-        if ($request->filled('notes')) {
-            $inflowData['notes'] = $request->notes;
-        }
-
-        if ($matchingInflow) {
-            $matchingInflow->update($inflowData);
-        } else {
-            \App\Models\RevenueBilling::create(array_merge($inflowData, [
-                'gym_id' => $invoice->gym_id,
-                'type' => 'inflow',
-                'reference_no' => $invoice->invoice_number,
-                'user_id' => $invoice->user_id,
-                'category' => 'Membership Fee',
-                'created_by' => $invoice->created_by,
-                'created_by_name' => $invoice->created_by_name,
-            ]));
-        }
-
-        // Also check if any outflow record exists with this invoice reference
-        $matchingOutflow = \App\Models\RevenueBilling::outflow()->where('reference_no', $invoice->invoice_number)->first();
-        if ($matchingOutflow) {
-            $matchingOutflow->update([
+            $inflowData = [
                 'amount' => $amount,
-                'payment_method' => $invoiceUpdate['payment_method'] ?? $matchingOutflow->payment_method,
-                'date' => $invoiceUpdate['date'] ?? $matchingOutflow->date,
-            ]);
-        }
-
-        // Update member user name and member profile dues if applicable
-        if ($invoice->user) {
-            $user = $invoice->user;
-            if ($request->filled('member_name') || $request->filled('memberName')) {
-                $newName = trim((string)($request->member_name ?? $request->memberName));
-                if ($newName && $newName !== $user->name) {
-                    $user->update(['name' => $newName]);
-                }
+                'payment_method' => $invoiceUpdate['payment_method'] ?? $invoice->payment_method,
+                'date' => $invoiceUpdate['date'] ?? $invoice->date,
+                'status' => $invoiceUpdate['status'] ?? $invoice->status,
+                'plan_name' => $planName,
+                'member_name' => $memberName,
+                'title' => "{$memberName} - {$planName}",
+            ];
+            if ($request->filled('notes')) {
+                $inflowData['notes'] = $request->notes;
             }
 
-            if ($user->memberProfile) {
-                $profileUpdate = [];
-                if ($request->has('pending_amount') || $request->has('dues_amount') || $request->has('pendingAmount') || $request->has('duesAmount')) {
-                    $profileUpdate['dues_amount'] = $duesAmount;
-                    if ($duesAmount > 0 && ($invoice->due_date || isset($invoiceUpdate['due_date']))) {
-                        $profileUpdate['due_date'] = $invoiceUpdate['due_date'] ?? $invoice->due_date;
-                    } elseif ($duesAmount == 0) {
-                        $profileUpdate['due_date'] = null;
+            if ($matchingInflow) {
+                $matchingInflow->update($inflowData);
+            } else {
+                \App\Models\RevenueBilling::create(array_merge($inflowData, [
+                    'gym_id' => $invoice->gym_id,
+                    'type' => 'inflow',
+                    'reference_no' => $invoice->invoice_number,
+                    'user_id' => $invoice->user_id,
+                    'category' => 'Membership Fee',
+                    'created_by' => $invoice->created_by,
+                    'created_by_name' => $invoice->created_by_name,
+                ]));
+            }
+
+            // Also check if any outflow record exists with this invoice reference
+            $matchingOutflow = \App\Models\RevenueBilling::outflow()->where('reference_no', $invoice->invoice_number)->first();
+            if ($matchingOutflow) {
+                $matchingOutflow->update([
+                    'amount' => $amount,
+                    'payment_method' => $invoiceUpdate['payment_method'] ?? $matchingOutflow->payment_method,
+                    'date' => $invoiceUpdate['date'] ?? $matchingOutflow->date,
+                ]);
+            }
+
+            // Update member user name and member profile dues if applicable
+            if ($invoice->user) {
+                $user = $invoice->user;
+                if ($request->filled('member_name') || $request->filled('memberName')) {
+                    $newName = trim((string)($request->member_name ?? $request->memberName));
+                    if ($newName && $newName !== $user->name) {
+                        $user->update(['name' => $newName]);
                     }
                 }
-                if (!empty($profileUpdate)) {
-                    $user->memberProfile->update($profileUpdate);
+
+                if ($user->memberProfile) {
+                    $profileUpdate = [];
+                    if ($request->has('pending_amount') || $request->has('dues_amount') || $request->has('pendingAmount') || $request->has('duesAmount')) {
+                        $profileUpdate['dues_amount'] = $duesAmount;
+                        if ($duesAmount > 0 && ($invoice->due_date || isset($invoiceUpdate['due_date']))) {
+                            $profileUpdate['due_date'] = $invoiceUpdate['due_date'] ?? $invoice->due_date;
+                        } elseif ($duesAmount == 0) {
+                            $profileUpdate['due_date'] = null;
+                        }
+                    }
+                    if (!empty($profileUpdate)) {
+                        $user->memberProfile->update($profileUpdate);
+                    }
                 }
             }
-        }
+        });
 
         // Invalidate backend caches to reflect updated numbers in Dashboard & Financial summaries
         try {

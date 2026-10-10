@@ -21,7 +21,7 @@ import {
   Award
 } from 'lucide-react';
 import { EmptyState } from '../common/EmptyState';
-import { MembershipPlanModal, PACKAGE_TYPES } from '../common/MembershipPlanModal';
+import { MembershipPlanModal, PACKAGE_TYPES, normalizePackageType } from '../common/MembershipPlanModal';
 
 const safeFeatures = (features) => {
   if (Array.isArray(features)) return features;
@@ -92,7 +92,7 @@ export const PlanManager = () => {
       counts[t] = 0;
     });
     (plans || []).forEach((p) => {
-      const pType = p.packageType || p.package_type || p.category || 'General Fitness';
+      const pType = normalizePackageType(p.packageType || p.package_type || p.category);
       if (counts[pType] !== undefined) {
         counts[pType]++;
       } else {
@@ -105,7 +105,7 @@ export const PlanManager = () => {
   // Filtered plans list
   const filteredPlans = useMemo(() => {
     return (plans || []).filter((plan) => {
-      const planType = plan.packageType || plan.package_type || plan.category || 'General Fitness';
+      const planType = normalizePackageType(plan.packageType || plan.package_type || plan.category);
       if (selectedTypeFilter !== 'all' && planType !== selectedTypeFilter) {
         return false;
       }
@@ -128,13 +128,13 @@ export const PlanManager = () => {
 
   const handleOpenCreate = (type = null) => {
     setEditingPlan(null);
-    setPreselectedType(type || (selectedTypeFilter !== 'all' ? selectedTypeFilter : 'Gym-Cardio'));
+    setPreselectedType(normalizePackageType(type || (selectedTypeFilter !== 'all' ? selectedTypeFilter : 'Gym-Cardio')));
     setIsAddOpen(true);
   };
 
   const handleOpenEdit = (plan) => {
     setEditingPlan(plan);
-    setPreselectedType(plan.packageType || plan.package_type || plan.category || 'Gym-Cardio');
+    setPreselectedType(normalizePackageType(plan.packageType || plan.package_type || plan.category));
     setIsAddOpen(true);
   };
 
@@ -267,7 +267,7 @@ export const PlanManager = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
           {filteredPlans.map((plan) => {
-            const planType = plan.packageType || plan.package_type || plan.category || 'Gym-Cardio';
+            const planType = normalizePackageType(plan.packageType || plan.package_type || plan.category);
             const isActive = (plan.status || 'Active').toLowerCase() === 'active';
             const features = safeFeatures(plan.features);
 

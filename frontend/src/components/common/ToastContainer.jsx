@@ -1,10 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { useToast } from '../../context/ToastContext';
 import { useGymData } from '../../context/GymDataContext';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export const ToastContainer = () => {
-  const { toasts, removeToast } = useGymData();
+  const toastCtx = useToast();
+  const gymCtx = useGymData();
+  const toasts = (toastCtx && toastCtx.toasts && toastCtx.toasts.length > 0) ? toastCtx.toasts : (gymCtx?.toasts || []);
+  const removeToast = toastCtx?.removeToast || gymCtx?.removeToast || (() => {});
 
   if (!toasts || toasts.length === 0 || typeof document === 'undefined') return null;
 

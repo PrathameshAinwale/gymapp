@@ -428,6 +428,14 @@ class SuperadminController extends Controller
      */
     public function impersonateGym(Request $request, $id)
     {
+        $authUser = $request->user() ?: auth('sanctum')->user();
+        if (!$authUser || $authUser->role !== 'superadmin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: Superadmin access required.'
+            ], 403);
+        }
+
         $gym = Gym::with('owner')->find($id);
 
         if (!$gym || !$gym->owner) {
@@ -571,13 +579,10 @@ class SuperadminController extends Controller
             ], 404);
         }
 
-        // Verify current password against hash (or plain/initial fallbacks)
+        // Verify current password against hash (or initial fallback)
         $currentMatches = Hash::check($request->current_password, $user->password);
-        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
-            $currentMatches = ($user->plain_password === $request->current_password);
-        }
         if (!$currentMatches && !empty($user->initial_password)) {
-            $currentMatches = (Hash::check($request->current_password, $user->initial_password) || $user->initial_password === $request->current_password);
+            $currentMatches = Hash::check($request->current_password, $user->initial_password);
         }
 
         if (!$currentMatches) {
@@ -591,9 +596,6 @@ class SuperadminController extends Controller
         }
 
         $user->password = Hash::make($request->new_password);
-        if (Schema::hasColumn('users', 'plain_password')) {
-            $user->plain_password = $request->new_password;
-        }
         $user->initial_password = null;
         $user->must_change_password = false;
         $user->save();
@@ -655,11 +657,8 @@ class SuperadminController extends Controller
 
         // Verify current password against hash
         $currentMatches = Hash::check($request->current_password, $user->password);
-        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
-            $currentMatches = ($user->plain_password === $request->current_password);
-        }
         if (!$currentMatches && !empty($user->initial_password)) {
-            $currentMatches = (Hash::check($request->current_password, $user->initial_password) || $user->initial_password === $request->current_password);
+            $currentMatches = Hash::check($request->current_password, $user->initial_password);
         }
 
         if (!$currentMatches) {

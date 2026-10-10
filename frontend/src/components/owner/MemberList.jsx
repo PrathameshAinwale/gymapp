@@ -127,7 +127,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
 
   // Invoice Receipt View Modal state
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
   // Password editing via mobile OTP state
@@ -159,17 +158,26 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
       m?.due,
       m?.dues
     ];
+    let hasExplicitZero = false;
     for (const val of directFields) {
       if (val !== undefined && val !== null && val !== '') {
         const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
-        if (!isNaN(num) && num > 0) return num;
+        if (!isNaN(num)) {
+          if (num > 0) return num;
+          if (num === 0) hasExplicitZero = true;
+        }
       }
     }
+
+    // If the member profile explicitly records 0 dues (paid/cleared), return 0
+    if (hasExplicitZero) return 0;
 
     // 2. Cross-reference invoices for this member
     if (Array.isArray(invoices) && invoices.length > 0) {
       const cleanMemberId = String(m?.id || m?.userId || '').replace(/\D/g, '');
       const memberInvoices = invoices.filter((inv) => {
+        // Skip invoices already marked Paid
+        if (String(inv.status).toLowerCase() === 'paid') return false;
         const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
         if (cleanMemberId && invMemId && cleanMemberId === invMemId) return true;
         if (inv.memberId && String(inv.memberId) === String(m.id)) return true;
@@ -194,6 +202,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
           }
         }
         if (inv.status === 'Pending' || String(inv.status).toLowerCase() === 'pending') {
+          const pAmount = parseFloat(String(inv.pendingAmount ?? inv.pending_amount ?? -1));
+          if (pAmount === 0) continue;
           const num = parseFloat(String(inv.amount || 0).replace(/[^0-9.-]+/g, ''));
           if (!isNaN(num) && num > 0) return num;
         }
@@ -1557,52 +1567,28 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
       >
         {selectedInvoice && (
           <div className="space-y-4">
-            {/* View Mode Switcher and Actions Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
-              {/* Mode Switcher Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('sheet')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'sheet'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>Tax Sheet View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('pdf')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF Document View</span>
-                </button>
+            {/* Clean Unified Action Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">
+                    Tax Invoice & Receipt
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Official gym payment voucher & tax summary
+                  </div>
+                </div>
               </div>
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                {pdfPreviewUrl && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer flex items-center gap-1 shadow-2xs"
-                    title="Open PDF in Browser Tab"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Open in Tab</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all"
                   title="Download actual PDF file"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -1612,59 +1598,28 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                 <button
                   type="button"
                   onClick={() => handleSharePdfToMobileNumber(selectedInvoice, selectedInvoiceMember)}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
                   title={`Send PDF to ${selectedInvoiceMember?.phone || 'Mobile'}`}
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Share PDF</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
                 </button>
+
+                {pdfPreviewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                    className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                    title="Open PDF in Browser Tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* TAB CONTENT: 1. NATIVE PDF DOCUMENT VIEWER */}
-            {invoiceViewMode === 'pdf' && pdfPreviewUrl && (
-              <div className="w-full h-[65vh] min-h-[460px] rounded-xl overflow-hidden border border-slate-300 bg-slate-100 shadow-inner flex flex-col relative">
-                <object
-                  data={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                  type="application/pdf"
-                  className="w-full h-full flex-1"
-                >
-                  <iframe
-                    src={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                    title="Invoice PDF Document"
-                    className="w-full h-full border-0"
-                  >
-                    <div className="p-8 text-center bg-white h-full flex flex-col items-center justify-center space-y-3">
-                      <FileText className="w-12 h-12 text-emerald-600 mx-auto" />
-                      <p className="text-slate-800 font-bold">PDF Document Ready</p>
-                      <p className="text-slate-500 text-xs max-w-sm">
-                        If your browser does not render PDFs directly inside the frame, click below to open or download the PDF file.
-                      </p>
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => window.open(pdfPreviewUrl, '_blank')}
-                          className="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl"
-                        >
-                          Open in Browser
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
-                          className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl"
-                        >
-                          Download PDF
-                        </button>
-                      </div>
-                    </div>
-                  </iframe>
-                </object>
-              </div>
-            )}
-
-            {/* TAB CONTENT: 2. AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
-            {(invoiceViewMode === 'sheet' || !pdfPreviewUrl) && (
-              <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-5 print:p-0 print:border-none">
+            {/* AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
+            <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-5 print:p-0 print:border-none">
                 {/* Gym Header Branding & Receipt Pill */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div className="flex items-center gap-3">
@@ -1810,20 +1765,31 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
 
                   {/* Right: Tax Breakdown */}
                   <div className="sm:col-span-5 space-y-1.5 text-xs text-slate-600 bg-white p-3.5 rounded-xl border border-slate-200">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Plan Base Fee:</span>
-                      <span className="font-semibold text-slate-800">
-                        ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>CGST (9%):</span>
-                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>SGST (9%):</span>
-                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
-                    </div>
+                    {Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true) ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Plan Base Fee:</span>
+                          <span className="font-semibold text-slate-800">
+                            ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 text-[11px]">
+                          <span>CGST (9%):</span>
+                          <span>₹{Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 text-[11px]">
+                          <span>SGST (9%):</span>
+                          <span>₹{(Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18) - Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2)).toLocaleString('en-IN')}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Tax Type:</span>
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                          Non-GST Payment (No Tax Bifurcation)
+                        </span>
+                      </div>
+                    )}
                     <div className="border-t border-slate-200 pt-1.5 flex justify-between items-baseline">
                       <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
                       <span className="text-xl font-black text-emerald-600 font-mono">
@@ -1849,7 +1815,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                   </div>
                 </div>
               </div>
-            )}
 
             {/* Bottom Actions */}
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

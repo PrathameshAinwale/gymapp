@@ -36,7 +36,6 @@ import {
   sanitizeDecimal,
   preventNonNumericKey
 } from '../../utils/validation';
-import { RecordPaymentModal } from './RecordPaymentModal';
 
 export const Financials = () => {
   const {
@@ -93,7 +92,6 @@ export const Financials = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceFilter, setInvoiceFilter] = useState('ALL');
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
-  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -596,16 +594,6 @@ export const Financials = () => {
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Add Expense</span>
             <span className="inline sm:hidden">Expense</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsRecordPaymentOpen(true)}
-            className="flex items-center gap-1 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Create Bill</span>
-            <span className="inline sm:hidden">Fee Payment</span>
           </button>
         </div>
       </div>
@@ -1158,21 +1146,13 @@ export const Financials = () => {
                       ? `No invoices found matching member name "${memberSearchTerm}".`
                       : 'No fee transactions or billing records match this status.'}
                   </p>
-                  {memberSearchTerm ? (
+                  {memberSearchTerm && (
                     <button
                       type="button"
                       onClick={() => setMemberSearchTerm('')}
                       className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer"
                     >
                       Clear Search Filter
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsRecordPaymentOpen(true)}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow cursor-pointer"
-                    >
-                      +Create Bill
                     </button>
                   )}
                 </>
@@ -1716,12 +1696,6 @@ export const Financials = () => {
           </div>
         )}
       </Modal>
-
-      {/* RECORD FEE PAYMENT MODAL */}
-      <RecordPaymentModal
-        isOpen={isRecordPaymentOpen}
-        onClose={() => setIsRecordPaymentOpen(false)}
-      />
 
       {/* ADVANCED INVOICE FILTER MODAL */}
       {showFilterModal && typeof document !== 'undefined' && createPortal(

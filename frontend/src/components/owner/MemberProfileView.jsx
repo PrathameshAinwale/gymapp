@@ -53,7 +53,6 @@ export const MemberProfileView = ({
   const { currentUser } = useAuth();
 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPayDueOpen, setIsPayDueOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
@@ -570,50 +569,26 @@ export const MemberProfileView = ({
       >
         {selectedInvoice && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('sheet')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'sheet'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>Tax Sheet View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('pdf')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    invoiceViewMode === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF Document View</span>
-                </button>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">
+                    Tax Invoice & Receipt
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Official gym payment voucher & tax summary
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-1.5 flex-wrap">
-                {pdfPreviewUrl && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer flex items-center gap-1 shadow-2xs"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Open in Tab</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={() => handleDownloadPdf(selectedInvoice)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
@@ -622,30 +597,26 @@ export const MemberProfileView = ({
                 <button
                   type="button"
                   onClick={() => handleShareWhatsApp(selectedInvoice)}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Share PDF</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
                 </button>
+
+                {pdfPreviewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                    className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                    title="Open PDF in new tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {invoiceViewMode === 'pdf' && pdfPreviewUrl ? (
-              <div className="w-full h-[60vh] min-h-[440px] rounded-xl overflow-hidden border border-slate-300 bg-slate-100 shadow-inner flex flex-col relative">
-                <object
-                  data={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                  type="application/pdf"
-                  className="w-full h-full flex-1"
-                >
-                  <iframe
-                    src={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                    title="Invoice PDF Document"
-                    className="w-full h-full border-0"
-                  />
-                </object>
-              </div>
-            ) : (
-              <div className="p-6 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-4">
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="font-bold text-lg text-slate-900">{gymInfo?.name || 'ArchFit Athletic Club'}</h3>
@@ -721,7 +692,6 @@ export const MemberProfileView = ({
                   </button>
                 </div>
               </div>
-            )}
           </div>
         )}
       </Modal>

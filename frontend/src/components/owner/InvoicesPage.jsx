@@ -8,6 +8,7 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 import { PayDueModal } from './PayDueModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
+import { compareInvoicesDesc } from '../../utils/searchUtils';
 import {
   Search,
   FileText,
@@ -37,7 +38,6 @@ import {
   Download,
   ExternalLink,
   ShieldCheck,
-  Eye,
   RotateCw,
   Filter,
   Edit2
@@ -92,7 +92,6 @@ export const InvoicesPage = () => {
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceViewMode, setInvoiceViewMode] = useState('sheet'); // 'sheet' | 'pdf'
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [pdfGeneratedData, setPdfGeneratedData] = useState(null);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
@@ -384,9 +383,7 @@ export const InvoicesPage = () => {
 
     const result = [];
     map.forEach((item) => {
-      const sortedInvoices = [...item.invoices].sort(
-        (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
-      );
+      const sortedInvoices = [...item.invoices].sort(compareInvoicesDesc);
       const matchedMemberObj = (members || []).find((m) => String(m.id) === String(item.memberId));
       const totalAmount = sortedInvoices.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
       const totalPending = sortedInvoices.reduce((sum, i) => {
@@ -400,11 +397,13 @@ export const InvoicesPage = () => {
       const pendingCount = sortedInvoices.filter((i) => {
         return (i.status || '').toLowerCase() !== 'paid' || Number(i.pendingAmount || i.duesAmount || 0) > 0;
       }).length;
-      const latestDate = sortedInvoices[0]?.date || 'N/A';
+      const latestInvoice = sortedInvoices[0];
+      const latestDate = latestInvoice?.date || 'N/A';
 
       result.push({
         ...item,
         invoices: sortedInvoices,
+        latestInvoice,
         totalAmount,
         totalPending,
         invoiceCount: sortedInvoices.length,
@@ -414,7 +413,7 @@ export const InvoicesPage = () => {
       });
     });
 
-    return result.sort((a, b) => new Date(b.latestDate || 0) - new Date(a.latestDate || 0));
+    return result.sort((a, b) => compareInvoicesDesc(a.latestInvoice, b.latestInvoice));
   }, [gymInvoices, members]);
 
   // Selected Invoice Member Resolution
@@ -532,15 +531,18 @@ export const InvoicesPage = () => {
 
         if (!matchesSearch || matchingInvoices.length === 0) return null;
 
-        const filteredTotal = matchingInvoices.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+        const sortedMatchingInvoices = [...matchingInvoices].sort(compareInvoicesDesc);
+        const filteredTotal = sortedMatchingInvoices.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
         return {
           ...m,
-          displayedInvoices: matchingInvoices,
-          displayedTotal: filteredTotal
+          displayedInvoices: sortedMatchingInvoices,
+          displayedTotal: filteredTotal,
+          latestMatchingInvoice: sortedMatchingInvoices[0]
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a, b) => compareInvoicesDesc(a.latestMatchingInvoice, b.latestMatchingInvoice));
   }, [memberInvoicesMap, searchTerm, statusFilter, selectedMonth, startDate, endDate, activeFilter, paymentMethodFilter]);
 
   // Dynamic figures for KPI cards based on current filtered state
@@ -1526,13 +1528,6 @@ export const InvoicesPage = () => {
                 {isExpanded && (
                   <div className="bg-slate-50/70 p-3 sm:p-4 space-y-2.5 animate-fadeIn">
                     <div className="flex items-center justify-between text-[11px] text-slate-600 pb-0.5">
-                      <span className="font-bold flex items-center gap-1.5 text-slate-800">
-                        <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Invoices for {member.name}</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
-                        Click "View PDF" to open document or "Download" to save PDF
-                      </span>
                     </div>
 
                     {/* Table View */}
@@ -1566,16 +1561,21 @@ export const InvoicesPage = () => {
                               return (
                                 <tr
                                   key={inv.id}
-                                  className="hover:bg-slate-50/80 transition-colors"
+                                  onClick={() => setSelectedInvoice(inv)}
+                                  className="hover:bg-emerald-50/50 cursor-pointer transition-colors group/row"
+                                  title="Click to view tax invoice & receipt"
                                 >
                                   <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-mono font-bold text-slate-900 text-xs">
+                                      <span className="font-mono font-bold text-slate-900 group-hover/row:text-emerald-700 transition-colors text-xs">
                                         #{inv.id?.toUpperCase()}
                                       </span>
                                       <button
                                         type="button"
-                                        onClick={(e) => handleCopyInvoiceId(inv.id, e)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCopyInvoiceId(inv.id, e);
+                                        }}
                                         className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
                                         title="Copy Invoice ID"
                                       >
@@ -1647,35 +1647,29 @@ export const InvoicesPage = () => {
                                     </div>
                                   </td>
 
-                                  <td className="py-2 sm:py-2.5 px-3 text-center whitespace-nowrap">
+                                  <td className="py-2 sm:py-2.5 px-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-center gap-1.5">
 
                                       {/* 1. EDIT INVOICE BUTTON */}
                                       <button
                                         type="button"
-                                        onClick={() => setEditingInvoice(inv)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingInvoice(inv);
+                                        }}
                                         className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title="Edit Invoice Details, Amount, or Payment Method"
                                       >
                                         <Edit2 className="w-3 h-3 text-indigo-600" />
-                                        <span>Edit</span>
-                                      </button>
-
-                                      {/* 2. VIEW PDF INVOICE MODAL */}
-                                      <button
-                                        type="button"
-                                        onClick={() => setSelectedInvoice(inv)}
-                                        className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
-                                        title="View Tax Invoice in PDF Format"
-                                      >
-                                        <Eye className="w-3 h-3 text-slate-600" />
-                                        <span>View PDF</span>
                                       </button>
 
                                       {/* 2. DIRECT DOWNLOAD PDF BUTTON */}
                                       <button
                                         type="button"
-                                        onClick={() => handleDownloadInvoicePdf(inv, member)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownloadInvoicePdf(inv, member);
+                                        }}
                                         className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
                                         title="Download Invoice as PDF"
                                       >
@@ -1685,19 +1679,22 @@ export const InvoicesPage = () => {
                                       {/* 3. SHARE INVOICE IN PDF FORMAT TO PARTICULAR MOBILE NUMBER */}
                                       <button
                                         type="button"
-                                        onClick={() => handleSharePdfToMobileNumber(inv, member)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSharePdfToMobileNumber(inv, member);
+                                        }}
                                         className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title={`Share invoice in PDF format to ${member.phone || 'mobile number'}`}
                                       >
                                         <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Send PDF</span>
                                       </button>
 
                                       {/* 4. PAY REMAINING BALANCE DUE */}
                                       {invPending > 0 && (
                                         <button
                                           type="button"
-                                          onClick={() => {
+                                          onClick={(e) => {
+                                            e.stopPropagation();
                                             const target = member || {
                                               id: inv.memberId || inv.userId || inv.user_id,
                                               name: inv.memberName,
@@ -1737,59 +1734,34 @@ export const InvoicesPage = () => {
       <Modal
         isOpen={!!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
-        title={`Tax Invoice: #${selectedInvoice?.id?.toUpperCase()}`}
+        title={`Invoice: #${selectedInvoice?.id?.toUpperCase()}`}
         maxWidth="max-w-4xl"
       >
         {selectedInvoice && (
           <div className="space-y-3.5">
 
-            {/* VIEW MODE TOGGLE & PDF ACTION TOOLBAR */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-100 rounded-xl border border-slate-200">
-
-              {/* Toggle View: PDF Document vs Printable Sheet */}
-              <div className="inline-flex p-1 rounded-lg bg-white border border-slate-200 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('pdf')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF Document View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceViewMode('sheet')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${invoiceViewMode === 'sheet'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>Tax Sheet View</span>
-                </button>
+            {/* CLEAN UNIFIED ACTION TOOLBAR */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">
+                    Tax Invoice & Receipt
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Official gym payment voucher & tax summary
+                  </div>
+                </div>
               </div>
 
-              {/* PDF Action Buttons */}
-              <div className="flex items-center gap-1.5">
-                {pdfPreviewUrl && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 cursor-pointer flex items-center gap-1 shadow-2xs"
-                    title="Open PDF in Full Browser Window"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Open in Tab</span>
-                  </button>
-                )}
-
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all"
                   title="Download actual PDF file"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -1799,68 +1771,38 @@ export const InvoicesPage = () => {
                 <button
                   type="button"
                   onClick={() => handleSharePdfToMobileNumber(selectedInvoice, selectedInvoiceMember)}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
-                  title={`Send PDF to ${selectedInvoiceMember?.phone || 'Mobile'}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
+                  title={`Send PDF on WhatsApp to ${selectedInvoiceMember?.phone || 'Mobile'}`}
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Share PDF to {selectedInvoiceMember?.phone ? selectedInvoiceMember.phone : 'Mobile'}</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setEditingInvoice(selectedInvoice)}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
                   title="Edit invoice data and update revenue"
                 >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>Edit Invoice</span>
+                  <Edit2 className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Edit</span>
                 </button>
+
+                {pdfPreviewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                    className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                    title="Open PDF in new browser tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* TAB CONTENT: 1. NATIVE PDF DOCUMENT VIEWER */}
-            {invoiceViewMode === 'pdf' && pdfPreviewUrl && (
-              <div className="w-full h-[68vh] min-h-[520px] rounded-xl overflow-hidden border border-slate-300 bg-slate-100 shadow-inner flex flex-col relative">
-                <object
-                  data={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                  type="application/pdf"
-                  className="w-full h-full flex-1"
-                >
-                  <iframe
-                    src={`${pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`}
-                    title="Invoice PDF Document"
-                    className="w-full h-full border-0"
-                  >
-                    <div className="p-8 text-center bg-white h-full flex flex-col items-center justify-center space-y-3">
-                      <FileText className="w-12 h-12 text-emerald-600 mx-auto" />
-                      <p className="text-slate-800 font-bold">PDF Document Ready</p>
-                      <p className="text-slate-500 text-xs max-w-sm">
-                        If your browser does not render PDFs directly inside the frame, click below to open or download the PDF file.
-                      </p>
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => window.open(pdfPreviewUrl, '_blank')}
-                          className="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl"
-                        >
-                          Open in Browser
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadInvoicePdf(selectedInvoice, selectedInvoiceMember)}
-                          className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl"
-                        >
-                          Download PDF
-                        </button>
-                      </div>
-                    </div>
-                  </iframe>
-                </object>
-              </div>
-            )}
-
-            {/* TAB CONTENT: 2. AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
-            {(invoiceViewMode === 'sheet' || !pdfPreviewUrl) && (
-              <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-6 print:p-0 print:border-none">
+            {/* AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-6 print:p-0 print:border-none">
 
                 {/* Gym Header Branding & Receipt Pill */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -2077,20 +2019,31 @@ export const InvoicesPage = () => {
 
                   {/* Right: Tax Breakdown */}
                   <div className="sm:col-span-5 space-y-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-slate-200">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Plan Base Fee:</span>
-                      <span className="font-semibold text-slate-800">
-                        ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>CGST (9%):</span>
-                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>SGST (9%):</span>
-                      <span>₹{Math.round(((Number(selectedInvoice.amount || 0) / 1.18) * 0.09)).toLocaleString('en-IN')}</span>
-                    </div>
+                    {Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true) ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Plan Base Fee:</span>
+                          <span className="font-semibold text-slate-800">
+                            ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 text-[11px]">
+                          <span>CGST (9%):</span>
+                          <span>₹{Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 text-[11px]">
+                          <span>SGST (9%):</span>
+                          <span>₹{(Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18) - Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2)).toLocaleString('en-IN')}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Tax Type:</span>
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                          Non-GST Payment (No Tax Bifurcation)
+                        </span>
+                      </div>
+                    )}
                     <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
                       <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
                       <span className="text-2xl font-black text-emerald-600 font-mono">
@@ -2118,7 +2071,6 @@ export const InvoicesPage = () => {
                   </div>
                 </div>
               </div>
-            )}
 
             {/* Bottom Actions */}
             <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">

@@ -1133,15 +1133,25 @@ export const api = {
       });
       return handleResponse(res);
     },
-    update: async (id, freezeData) => {
-      const res = await apiFetch(`${API_BASE_URL}/freezes/${id}`, {
-        method: 'PUT',
+  },
+
+  // Membership Transfers Endpoints
+  transfers: {
+    getAll: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/transfers`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    create: async (transferData) => {
+      const payload = withGymParam(transferData);
+      const res = await apiFetch(`${API_BASE_URL}/transfers`, {
+        method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(freezeData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
   },
+
 
   // Digital Consent & Waivers Endpoints
   consentForms: {

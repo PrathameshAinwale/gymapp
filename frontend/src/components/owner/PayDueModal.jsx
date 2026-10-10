@@ -25,6 +25,7 @@ export const PayDueModal = ({
   const { currentUser } = useAuth();
   const {
     updateMember,
+    invoices = [],
     fetchMembers,
     fetchInvoices,
     fetchDashboardStats,
@@ -203,18 +204,49 @@ export const PayDueModal = ({
         });
       }
 
-      // 2. Update Member profile dues in state & DB
+      // 2. Clear or update any matching pending invoices for this member
+      if (Array.isArray(invoices) && invoices.length > 0 && api.invoices?.update) {
+        const cleanMemIdStr = String(member.id || member.userId || '').replace(/\D/g, '');
+        const matchingPendingInvoices = invoices.filter((inv) => {
+          if (String(inv.status).toLowerCase() === 'paid') return false;
+          const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
+          if (cleanMemIdStr && invMemId && cleanMemIdStr === invMemId) return true;
+          if (inv.memberId && String(inv.memberId) === String(member.id)) return true;
+          if (member.email && inv.memberEmail && inv.memberEmail.toLowerCase() === member.email.toLowerCase()) return true;
+          if (member.name && inv.memberName && inv.memberName.toLowerCase().trim() === member.name.toLowerCase().trim()) return true;
+          return false;
+        });
+
+        for (const pendingInv of matchingPendingInvoices) {
+          const invTarget = pendingInv.invoiceNumber || pendingInv.id || pendingInv.numericId;
+          if (invTarget) {
+            try {
+              await api.invoices.update(invTarget, {
+                pending_amount: remainingDue,
+                dues_amount: remainingDue,
+                status: remainingDue === 0 ? 'Paid' : 'Partial'
+              });
+            } catch (invErr) {
+              console.warn('Sync pending invoice note:', invErr.message);
+            }
+          }
+        }
+      }
+
+      // 3. Update Member profile dues in state & DB
       if (updateMember) {
         await updateMember(member.id, {
           ...member,
           duesAmount: remainingDue,
           dues_amount: remainingDue,
+          balanceDue: remainingDue,
+          balance_due: remainingDue,
           due_date: remainingDue > 0 ? nextDueDate : null,
           dueDate: remainingDue > 0 ? nextDueDate : null
         });
       }
 
-      // 3. Refresh data stores
+      // 4. Refresh data stores
       await Promise.allSettled([
         fetchInvoices?.(),
         fetchMembers?.(),
@@ -316,12 +348,8 @@ export const PayDueModal = ({
           {/* 1. Cash */}
           <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
             <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
-                💵
-              </div>
               <div>
                 <span className="text-xs font-bold text-slate-800 block">Cash</span>
-                <span className="text-[10px] text-slate-500 block">Cash at Reception</span>
               </div>
             </div>
             <div className="relative flex-1 max-w-xs flex items-center gap-1.5">
@@ -355,12 +383,8 @@ export const PayDueModal = ({
           {/* 2. UPI */}
           <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
             <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-100">
-                📱
-              </div>
               <div>
                 <span className="text-xs font-bold text-slate-800 block">UPI</span>
-                <span className="text-[10px] text-slate-500 block">GPay, PhonePe, Paytm</span>
               </div>
             </div>
             <div className="relative flex-1 max-w-xs flex items-center gap-1.5">
@@ -394,12 +418,8 @@ export const PayDueModal = ({
           {/* 3. Account Transfer */}
           <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
             <div className="flex items-center gap-2.5 min-w-[140px] sm:min-w-[160px]">
-              <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0 border border-sky-100">
-                🏦
-              </div>
               <div>
                 <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
-                <span className="text-[10px] text-slate-500 block">NEFT / IMPS / Netbanking</span>
               </div>
             </div>
             <div className="relative flex-1 max-w-xs flex items-center gap-1.5">

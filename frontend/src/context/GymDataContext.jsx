@@ -1,12 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
+import { useToastActions } from './ToastContext';
 import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate, calculatePlanExpiryDate } from '../utils/dateUtils';
+import { compareInvoicesDesc } from '../utils/searchUtils';
 
 const GymDataContext = createContext(null);
 
 export const calculateMemberStatus = (expiryDate, currentStatus = 'Active') => {
-  if (currentStatus === 'Frozen' || currentStatus === 'On Hold') return currentStatus;
+  if (currentStatus === 'Frozen' || currentStatus === 'Frozen (Paused)' || currentStatus === 'On Hold' || currentStatus === 'Expired') return currentStatus;
   if (!expiryDate) return currentStatus || 'Active';
 
   try {
@@ -649,7 +651,8 @@ export const GymDataProvider = ({ children }) => {
         const saved = localStorage.getItem(`pulsefit_invoices_${activeGymKey}`) || localStorage.getItem('pulsefit_invoices');
         if (saved) {
           const parsed = JSON.parse(saved);
-          return Array.isArray(parsed) ? parsed.filter((i) => !i.gymId || i.gymId === Number(activeGymKey)) : [];
+          const filtered = Array.isArray(parsed) ? parsed.filter((i) => !i.gymId || i.gymId === Number(activeGymKey)) : [];
+          return filtered.sort(compareInvoicesDesc);
         }
       } catch (e) { }
     }
@@ -672,23 +675,23 @@ export const GymDataProvider = ({ children }) => {
   const [isLoadingBackend, setIsLoadingBackend] = useState(true);
   const [loadingModules, setLoadingModules] = useState({
     dashboard: true,
-    members: true,
-    trainers: true,
-    plans: true,
-    classes: true,
-    attendance: true,
-    financials: true,
-    invoices: true,
-    enquiries: true,
-    products: true,
-    equipment: true,
-    commissions: true,
-    freezes: true,
-    consent: true,
-    payroll: true,
-    ptSessions: true,
-    advanceRequests: true,
-    trainerReviews: true,
+    members: false,
+    trainers: false,
+    plans: false,
+    classes: false,
+    attendance: false,
+    financials: false,
+    invoices: false,
+    enquiries: false,
+    products: false,
+    equipment: false,
+    commissions: false,
+    freezes: false,
+    consent: false,
+    payroll: false,
+    ptSessions: false,
+    advanceRequests: false,
+    trainerReviews: false,
     gymInfo: true
   });
 
@@ -698,6 +701,15 @@ export const GymDataProvider = ({ children }) => {
   const [commissions, setCommissions] = useState([]);
   const [consentForms, setConsentForms] = useState([]);
   const [membershipFreezes, setMembershipFreezes] = useState([]);
+  const [transfers, setTransfers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`pulsefit_transfers_${activeGymKey}`) || localStorage.getItem('pulsefit_transfers');
+        if (saved) return JSON.parse(saved);
+      } catch (e) { }
+    }
+    return [];
+  });
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [staffAttendanceLogs, setStaffAttendanceLogs] = useState([]);
   const [ptPlans, setPtPlans] = useState([]);
@@ -763,20 +775,25 @@ export const GymDataProvider = ({ children }) => {
 
   const [revenueAnalytics, setRevenueAnalytics] = useState([]);
 
-  // Toast Notification System
-  const [toasts, setToasts] = useState([]);
+  // Toast Notification System (delegated to decoupled ToastContext to avoid cascading re-renders)
+  const toastActions = useToastActions();
+  const [localToasts, setLocalToasts] = useState([]);
 
-  const addToast = (message, type = 'success') => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
+  const localRemoveToast = useCallback((id) => {
+    setLocalToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const localAddToast = useCallback((message, type = 'success') => {
+    const id = Date.now() + Math.random().toString(36).substring(2, 7);
+    setLocalToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
+      localRemoveToast(id);
     }, 4000);
-  };
+  }, [localRemoveToast]);
 
-  const removeToast = (id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  const addToast = toastActions?.addToast || localAddToast;
+  const removeToast = toastActions?.removeToast || localRemoveToast;
+  const toasts = localToasts;
 
   const fetchEnquiries = useCallback(async () => {
     try {
@@ -828,8 +845,13 @@ export const GymDataProvider = ({ children }) => {
               feats = feats.split('\n').map((f) => f.trim()).filter(Boolean);
             }
           }
+          const rawType = String(p.packageType || p.package_type || p.category || 'Gym-Cardio').trim();
+          const cleanType = (rawType.toLowerCase() === 'membership' || !rawType) ? 'Gym-Cardio' : rawType;
           return {
             ...p,
+            packageType: cleanType,
+            package_type: cleanType,
+            category: cleanType,
             maxDiscount: Number(p.max_discount ?? p.maxDiscount ?? 0),
             max_discount: Number(p.max_discount ?? p.maxDiscount ?? 0),
             features: Array.isArray(feats) ? feats : []
@@ -918,9 +940,10 @@ export const GymDataProvider = ({ children }) => {
         ? await api.revenueBilling.getInflows({ gym_id: activeGym })
         : await api.invoices.getAll({ gym_id: activeGym });
       if (Array.isArray(res?.data)) {
-        setInvoices(res.data);
+        const sorted = [...res.data].sort(compareInvoicesDesc);
+        setInvoices(sorted);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(`pulsefit_invoices_${activeGym || 'default'}`, JSON.stringify(res.data));
+          localStorage.setItem(`pulsefit_invoices_${activeGym || 'default'}`, JSON.stringify(sorted));
         }
       }
       return res?.data;
@@ -966,6 +989,28 @@ export const GymDataProvider = ({ children }) => {
       return res?.data;
     } catch (e) { console.warn('Fetch freezes error:', e.message); }
   }, []);
+
+  const fetchTransfers = useCallback(async () => {
+    try {
+      const res = await api.transfers?.getAll();
+      if (Array.isArray(res?.data)) {
+        setTransfers((prev) => {
+          const remoteIds = new Set(res.data.map((r) => String(r.numericId || r.id)));
+          const localOnly = prev.filter((p) => !remoteIds.has(String(p.numericId || p.id)));
+          const merged = [...res.data, ...localOnly];
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(`pulsefit_transfers_${activeGymKey}`, JSON.stringify(merged));
+            } catch (e) {}
+          }
+          return merged;
+        });
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('Fetch transfers error:', e.message);
+    }
+  }, [activeGymKey]);
 
   const fetchConsentForms = useCallback(async () => {
     try {
@@ -1492,11 +1537,11 @@ export const GymDataProvider = ({ children }) => {
 
   // Live Async Fetch from Laravel + MySQL Backend with Progressive Hydration
   // NOTE: PHP built-in dev server is single-threaded, so we fetch in small
-  // sequential batches of 2 to avoid request queuing and timeouts.
-  const fetchAllFromBackend = useCallback(async (force = false) => {
+  // Live Async Fetch from Laravel + MySQL Backend with On-Demand Progressive Hydration
+  const fetchAllFromBackend = useCallback(async (fullSync = false) => {
     if (isFetchingAllRef.current) return;
     const now = Date.now();
-    if (!force && (now - lastFetchTimeRef.current < 10000)) {
+    if (!fullSync && (now - lastFetchTimeRef.current < 10000)) {
       return;
     }
     isFetchingAllRef.current = true;
@@ -1505,53 +1550,33 @@ export const GymDataProvider = ({ children }) => {
     try {
       setIsLoadingBackend(true);
 
-      // Batch 1: Facility info, branding, branches & membership plans
-      await Promise.allSettled([fetchGymInfo(), fetchBranches(), fetchPlans(), fetchRecoveryPlans(), fetchPtPlans()]);
-      setLoadingModules((prev) => ({ ...prev, gymInfo: false, plans: false }));
-
-      // Batch 2: Core members & trainers
-      await Promise.allSettled([fetchMembers(), fetchTrainers()]);
-      setLoadingModules((prev) => ({ ...prev, dashboard: false, members: false, trainers: false }));
-
-      // Batch 3: Financial data (invoices & expenses) & dashboard stats
-      await Promise.allSettled([fetchInvoices(), fetchExpenses()]);
-      await fetchDashboardStats();
-      setLoadingModules((prev) => ({ ...prev, financials: false, invoices: false, analytics: false, reports: false }));
-
-      // Batch 4: CRM & classes
-      await Promise.allSettled([fetchEnquiries(), fetchClasses()]);
-      setLoadingModules((prev) => ({ ...prev, enquiries: false, classes: false }));
-
-      // Batch 5: Attendance & equipment
-      await Promise.allSettled([fetchAttendance(), fetchEquipment()]);
-      setLoadingModules((prev) => ({ ...prev, attendance: false, equipment: false }));
-
-      // Batch 6: Products & commissions
-      await Promise.allSettled([fetchProducts(), fetchCommissions()]);
-      setLoadingModules((prev) => ({ ...prev, products: false, commissions: false }));
-
-      // Batch 7: Freezes & payroll
-      await Promise.allSettled([fetchFreezes(), fetchPayroll()]);
-      setLoadingModules((prev) => ({ ...prev, freezes: false, payroll: false }));
-
-      // Batch 8: Advance requests, reviews, leaves & notifications
+      // Phase 1: Critical Shell & Dashboard Essentials (Fast Initial Paint)
       await Promise.allSettled([
-        fetchConsentForms(),
-        fetchPtSessions(),
-        fetchAdvanceRequests(),
-        fetchTrainerReviews(),
-        fetchLeaveRequests(),
-        fetchLeaveBalances(),
-        fetchLeaveSummary(),
-        fetchWhatsAppTemplates(),
-        fetchWhatsAppSettings(),
-        fetchWhatsAppTriggers(),
-        fetchWhatsAppStats(),
-        processWhatsAppAutoSend(),
-        fetchShifts()
+        fetchGymInfo(),
+        fetchBranches(),
+        fetchPlans(),
+        fetchDashboardStats(),
       ]);
-      setLoadingModules((prev) => ({ ...prev, consent: false, ptSessions: false, advanceRequests: false, trainerReviews: false, leaves: false }));
 
+      setLoadingModules((prev) => ({
+        ...prev,
+        gymInfo: false,
+        plans: false,
+        dashboard: false
+      }));
+
+      // Phase 2: If full sync is explicitly requested (e.g. manual refresh or reports)
+      if (fullSync === 'all' || fullSync === 'full' || fullSync === true) {
+        await Promise.allSettled([
+          fetchMembers(),
+          fetchTrainers(),
+          fetchInvoices(),
+          fetchExpenses(),
+          fetchAttendance(),
+          fetchEnquiries(),
+          fetchClasses(),
+        ]);
+      }
     } catch (err) {
       console.warn('Backend sync note:', err.message);
     } finally {
@@ -1564,30 +1589,17 @@ export const GymDataProvider = ({ children }) => {
       });
     }
   }, [
+    fetchGymInfo,
+    fetchBranches,
+    fetchPlans,
+    fetchDashboardStats,
     fetchMembers,
     fetchTrainers,
-    fetchPlans,
-    fetchRecoveryPlans,
-    fetchPtPlans,
-    fetchClasses,
-    fetchEnquiries,
-    fetchAttendance,
     fetchInvoices,
     fetchExpenses,
-    fetchEquipment,
-    fetchProducts,
-    fetchCommissions,
-    fetchFreezes,
-    fetchConsentForms,
-    fetchPayroll,
-    fetchPtSessions,
-    fetchAdvanceRequests,
-    fetchTrainerReviews,
-    fetchGymInfo,
-    fetchDashboardStats,
-    fetchWhatsAppTemplates,
-    fetchWhatsAppStats,
-    fetchShifts
+    fetchAttendance,
+    fetchEnquiries,
+    fetchClasses,
   ]);
 
   // Safety timer to guarantee no owner page ever hangs on a loader
@@ -1599,7 +1611,7 @@ export const GymDataProvider = ({ children }) => {
         for (const k in prev) cleared[k] = false;
         return cleared;
       });
-    }, 4500);
+    }, 1500);
     return () => clearTimeout(safetyTimer);
   }, []);
 
@@ -1610,49 +1622,12 @@ export const GymDataProvider = ({ children }) => {
       return false;
     }
 
-    switch (tabName) {
-      case 'dashboard':
-        return Boolean(loadingModules.dashboard);
-      case 'members':
-        return Boolean(loadingModules.members);
-      case 'classes':
-        return Boolean(loadingModules.classes);
-      case 'pt-sessions':
-        return Boolean(loadingModules.ptSessions);
-      case 'enquiries':
-        return Boolean(loadingModules.enquiries);
-      case 'attendance':
-        return Boolean(loadingModules.attendance);
-      case 'plans':
-        return Boolean(loadingModules.plans);
-      case 'membership-freeze':
-        return Boolean(loadingModules.freezes);
-      case 'consent-forms':
-        return Boolean(loadingModules.consent);
-      case 'staff-accounts':
-      case 'trainers':
-        return Boolean(loadingModules.trainers);
-      case 'advance-pay':
-        return Boolean(loadingModules.advanceRequests);
-      case 'payroll':
-        return Boolean(loadingModules.payroll);
-      case 'commissions':
-        return Boolean(loadingModules.commissions);
-      case 'analytics':
-      case 'reports':
-      case 'financials':
-        return Boolean(loadingModules.financials);
-      case 'invoices':
-        return Boolean(loadingModules.invoices);
-      case 'products':
-        return Boolean(loadingModules.products);
-      case 'equipment':
-        return Boolean(loadingModules.equipment);
-      case 'settings':
-        return Boolean(loadingModules.gymInfo);
-      default:
-        return Boolean(isLoadingBackend);
+    if (tabName === 'dashboard') {
+      return Boolean(loadingModules.dashboard);
     }
+
+    // For all other owner tabs, the components handle their own localized loading state
+    return false;
   }, [isLoadingBackend, loadingModules]);
 
   useEffect(() => {
@@ -1690,6 +1665,7 @@ export const GymDataProvider = ({ children }) => {
       setProducts([]);
       setCommissions([]);
       setMembershipFreezes([]);
+      setTransfers([]);
       setConsentForms([]);
       setPayrollRecords([]);
       setAdvanceRequests([]);
@@ -1742,6 +1718,7 @@ export const GymDataProvider = ({ children }) => {
     setProducts([]);
     setCommissions([]);
     setMembershipFreezes([]);
+    setTransfers([]);
     setConsentForms([]);
     setPayrollRecords([]);
     setAdvanceRequests([]);
@@ -1766,7 +1743,7 @@ export const GymDataProvider = ({ children }) => {
   }, [currentUser?.gymId, currentUser?.gym_id, currentUser?.userId]);
 
   // MEMBER ACTIONS (Direct Backend Sync)
-  const addMember = async (newMemberData) => {
+  const addMember = useCallback(async (newMemberData) => {
     try {
       const res = await api.members.create(newMemberData);
       if (res.success && res.data) {
@@ -1790,9 +1767,9 @@ export const GymDataProvider = ({ children }) => {
       addToast(errMsg || 'Failed to add member', 'error');
       throw e;
     }
-  };
+  }, [fetchMembers, fetchInvoices, fetchDashboardStats, fetchPtSessions, fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
-  const updateMember = async (id, updatedData) => {
+  const updateMember = useCallback(async (id, updatedData) => {
     try {
       await api.members.update(id, updatedData);
       await fetchPtSessions?.();
@@ -1810,9 +1787,9 @@ export const GymDataProvider = ({ children }) => {
       prev.map((m) => (m.id === id ? { ...m, ...updatedData, ...(calculatedStatus ? { status: calculatedStatus } : {}) } : m))
     );
     addToast('Member details updated successfully');
-  };
+  }, [fetchPtSessions, fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
-  const deleteMember = async (id) => {
+  const deleteMember = useCallback(async (id) => {
     try {
       await api.members.delete(id);
       fetchWhatsAppTriggers?.();
@@ -1821,12 +1798,14 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend delete member fallback:', e.message);
     }
 
-    const member = members.find((m) => m.id === id);
-    setMembers((prev) => prev.filter((m) => m.id !== id));
-    addToast(`Member "${member?.name || id}" removed`, 'info');
-  };
+    setMembers((prev) => {
+      const member = prev.find((m) => m.id === id);
+      addToast(`Member "${member?.name || id}" removed`, 'info');
+      return prev.filter((m) => m.id !== id);
+    });
+  }, [fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
-  const renewMemberPlan = async (memberId, planId) => {
+  const renewMemberPlan = useCallback(async (memberId, planId) => {
     const selectedPlan = plans.find((p) => p.id === planId) || plans[0];
     const member = members.find((m) => m.id === memberId);
     const today = new Date();
@@ -1921,16 +1900,17 @@ export const GymDataProvider = ({ children }) => {
       date: todayStr,
       paymentMethod: 'Instant Digital Payment',
       status: 'Paid',
-      invoiceUrl: '#'
+      invoiceUrl: '#',
+      createdAt: new Date().toISOString()
     };
     setInvoices((prev) => [newInvoice, ...prev]);
     fetchInvoices?.();
     fetchDashboardStats?.();
     addToast(`Plan renewed! ${selectedPlan.name} extended to ${expiryStr}.`);
-  };
+  }, [plans, members, addToast, fetchInvoices, fetchDashboardStats]);
 
   // RECORD PAYMENT / FEE COLLECTION & MEMBERSHIP ACTIVATION
-  const recordPayment = async ({
+  const recordPayment = useCallback(async ({
     memberId,
     memberName,
     planId,
@@ -1988,7 +1968,8 @@ export const GymDataProvider = ({ children }) => {
       date: resolvedDate,
       paymentMethod: paymentMethod || 'UPI',
       status: resolvedStatus,
-      invoiceUrl: '#'
+      invoiceUrl: '#',
+      createdAt: new Date().toISOString()
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
@@ -2112,10 +2093,10 @@ export const GymDataProvider = ({ children }) => {
 
     addToast(`Payment of ₹${resolvedAmount.toLocaleString('en-IN')} recorded for ${resolvedMemberName}!`);
     return newInvoice;
-  };
+  }, [plans, members, addToast, fetchInvoices, fetchDashboardStats, fetchMembers]);
 
   // TRAINER ACTIONS
-  const addTrainer = async (trainerData) => {
+  const addTrainer = useCallback(async (trainerData) => {
     try {
       const res = await api.trainers.create(trainerData);
       if (res.success && res.data) {
@@ -2127,7 +2108,7 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend add trainer fallback:', e.message);
     }
 
-    const id = `trn-${trainers.length + 1}`;
+    const id = `trn-${Date.now().toString().slice(-4)}`;
     const newTrainer = {
       id,
       avatar: trainerData.avatar || "",
@@ -2138,9 +2119,9 @@ export const GymDataProvider = ({ children }) => {
     };
     setTrainers((prev) => [newTrainer, ...prev]);
     addToast(`Coach "${newTrainer.name}" added to staff!`);
-  };
+  }, [addToast]);
 
-  const updateTrainer = async (id, trainerData) => {
+  const updateTrainer = useCallback(async (id, trainerData) => {
     try {
       await api.trainers.update(id, trainerData);
     } catch (e) {
@@ -2157,47 +2138,74 @@ export const GymDataProvider = ({ children }) => {
       })
     );
     addToast("Trainer information updated");
-  };
+  }, [addToast]);
 
   // PLAN ACTIONS
-  const addPlan = async (planData) => {
+  const addPlan = useCallback(async (planData) => {
+    const rawType = String(planData.package_type || planData.packageType || planData.category || 'Gym-Cardio').trim();
+    const cleanType = (rawType.toLowerCase() === 'membership' || !rawType) ? 'Gym-Cardio' : rawType;
+    const sanitizedData = {
+      ...planData,
+      package_type: cleanType,
+      packageType: cleanType,
+      category: cleanType
+    };
+
     try {
-      const res = await api.plans.create(planData);
+      const res = await api.plans.create(sanitizedData);
       if (res.success && res.data) {
-        setPlans((prev) => [...prev, res.data]);
-        addToast(`Membership package "${res.data.name}" created & saved!`);
-        return res.data;
+        const item = {
+          ...res.data,
+          package_type: cleanType,
+          packageType: cleanType,
+          category: cleanType
+        };
+        setPlans((prev) => [...prev, item]);
+        addToast(`Membership package "${item.name}" created & saved!`);
+        return item;
       }
     } catch (e) {
       console.warn('Backend add plan fallback:', e.message);
     }
 
-    const id = `plan-${plans.length + 1}`;
+    const id = `plan-${Date.now().toString().slice(-4)}`;
     const newPlan = {
       id,
       activeSubscribers: 0,
       popular: false,
       color: "from-purple-500/20 to-pink-500/20 border-purple-500/30",
-      ...planData
+      ...sanitizedData
     };
     setPlans((prev) => [...prev, newPlan]);
     addToast(`Membership package "${newPlan.name}" created successfully!`);
     return newPlan;
-  };
+  }, [addToast]);
 
-  const updatePlan = async (id, updatedData) => {
+  const updatePlan = useCallback(async (id, updatedData) => {
+    let sanitized = { ...updatedData };
+    if (sanitized.package_type || sanitized.packageType || sanitized.category) {
+      const rawType = String(sanitized.package_type || sanitized.packageType || sanitized.category || 'Gym-Cardio').trim();
+      const cleanType = (rawType.toLowerCase() === 'membership' || !rawType) ? 'Gym-Cardio' : rawType;
+      sanitized = {
+        ...sanitized,
+        package_type: cleanType,
+        packageType: cleanType,
+        category: cleanType
+      };
+    }
+
     try {
-      await api.plans.update(id, updatedData);
+      await api.plans.update(id, sanitized);
     } catch (e) {
       console.warn('Backend update plan fallback:', e.message);
     }
     setPlans((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updatedData } : p))
+      prev.map((p) => (p.id === id ? { ...p, ...sanitized } : p))
     );
-    addToast(`Membership package "${updatedData.name || 'Plan'}" updated!`);
-  };
+    addToast(`Membership package "${sanitized.name || 'Plan'}" updated!`);
+  }, [addToast]);
 
-  const deletePlan = async (id) => {
+  const deletePlan = useCallback(async (id) => {
     try {
       await api.plans.delete(id);
     } catch (e) {
@@ -2205,10 +2213,10 @@ export const GymDataProvider = ({ children }) => {
     }
     setPlans((prev) => prev.filter((p) => p.id !== id));
     addToast(`Plan package removed from active memberships.`);
-  };
+  }, [addToast]);
 
   // EQUIPMENT ACTIONS
-  const addEquipment = async (itemData) => {
+  const addEquipment = useCallback(async (itemData) => {
     try {
       const res = await api.equipment.create(itemData);
       if (res.success && res.data) {
@@ -2220,16 +2228,16 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend add equipment fallback:', e.message);
     }
     const newItem = {
-      id: `eq-${equipment.length + 1}`,
+      id: `eq-${Date.now().toString().slice(-4)}`,
       lastServiceDate: new Date().toISOString().split('T')[0],
       ...itemData
     };
     setEquipment((prev) => [newItem, ...prev]);
     addToast(`Asset "${newItem.name}" added!`, 'success');
     return newItem;
-  };
+  }, [addToast]);
 
-  const updateEquipment = async (id, updatedData) => {
+  const updateEquipment = useCallback(async (id, updatedData) => {
     try {
       await api.equipment.update(id, updatedData);
     } catch (e) {
@@ -2239,9 +2247,9 @@ export const GymDataProvider = ({ children }) => {
       prev.map((item) => (item.id === id ? { ...item, ...updatedData } : item))
     );
     addToast('Equipment details updated', 'info');
-  };
+  }, [addToast]);
 
-  const deleteEquipment = async (id) => {
+  const deleteEquipment = useCallback(async (id) => {
     try {
       await api.equipment.delete(id);
     } catch (e) {
@@ -2249,10 +2257,10 @@ export const GymDataProvider = ({ children }) => {
     }
     setEquipment((prev) => prev.filter((item) => item.id !== id));
     addToast('Equipment record removed', 'info');
-  };
+  }, [addToast]);
 
   // ATTENDANCE & QR CHECK-IN
-  const checkInMemberByQR = async (codeOrId) => {
+  const checkInMemberByQR = useCallback(async (codeOrId) => {
     try {
       const res = await api.attendance.checkIn(codeOrId);
       if (res.success) {
@@ -2314,10 +2322,10 @@ export const GymDataProvider = ({ children }) => {
       addToast(`Welcome ${member.name}! Access Granted.`, 'success');
       return { success: true, member, entry: newEntry };
     }
-  };
+  }, [members, addToast, fetchAllFromBackend]);
 
   // PUNCH OUT MEMBER
-  const punchOutMember = async (attendanceId) => {
+  const punchOutMember = useCallback(async (attendanceId) => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -2358,10 +2366,10 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend attendance punch-out note:', err.message);
       addToast(`Punch-out recorded at ${timeStr}. Workout completed!`, 'info');
     }
-  };
+  }, [addToast]);
 
   // CLASS BOOKING
-  const toggleBookClass = async (classId) => {
+  const toggleBookClass = useCallback(async (classId) => {
     const isBooked = bookedClasses.includes(classId);
     try {
       if (isBooked) {
@@ -2389,7 +2397,7 @@ export const GymDataProvider = ({ children }) => {
         addToast('Class slot successfully booked!', 'success');
       }
     }
-  };
+  }, [bookedClasses, addToast]);
 
   // CLASSES MANAGEMENT
   const addClass = async (classData) => {
@@ -2820,7 +2828,8 @@ export const GymDataProvider = ({ children }) => {
       invoiceUrl: '#',
       createdByName: handledByName || currentUser?.name || 'Staff',
       items: invoiceItems,
-      itemsBreakdown: itemSummaries
+      itemsBreakdown: itemSummaries,
+      createdAt: new Date().toISOString()
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
@@ -3070,6 +3079,7 @@ export const GymDataProvider = ({ children }) => {
 
   // Membership Freezes Handlers
   const addFreezeRequest = async ({ memberId, memberName, planName, freezeStartDate, freezeEndDate, daysFrozen, reason, fee, paymentMethod, type = 'freeze' }) => {
+    const days = Number(daysFrozen) || 15;
     const tempId = `frz-${Date.now()}`;
     const newFreeze = {
       id: tempId,
@@ -3078,7 +3088,7 @@ export const GymDataProvider = ({ children }) => {
       planName,
       freezeStartDate,
       freezeEndDate,
-      daysFrozen: Number(daysFrozen) || 15,
+      daysFrozen: days,
       fee: Number(fee) || 0,
       paymentMethod: paymentMethod || 'Cash',
       type: type || 'freeze',
@@ -3088,15 +3098,23 @@ export const GymDataProvider = ({ children }) => {
     };
     setMembershipFreezes((prev) => [newFreeze, ...prev]);
 
+    let calculatedNewExpiry = null;
     setMembers((prev) =>
       prev.map((m) => {
-        if (m.id === memberId && m.expiryDate) {
-          const exp = new Date(m.expiryDate);
-          exp.setDate(exp.getDate() + Number(newFreeze.daysFrozen));
+        if (m.id === memberId) {
+          const baseDate = m.expiryDate ? new Date(m.expiryDate) : new Date();
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          baseDate.setHours(0, 0, 0, 0);
+          // If member is currently valid, add days to existing expiry; if expired, extend from today
+          const effectiveBase = baseDate >= today ? baseDate : today;
+          effectiveBase.setDate(effectiveBase.getDate() + days);
+          calculatedNewExpiry = effectiveBase.toISOString().split('T')[0];
+
           return {
             ...m,
-            status: type === 'extension' ? 'Active' : 'Frozen (Paused)',
-            expiryDate: exp.toISOString().split('T')[0]
+            status: type === 'extension' ? calculateMemberStatus(calculatedNewExpiry, 'Active') : 'Frozen',
+            expiryDate: calculatedNewExpiry
           };
         }
         return m;
@@ -3110,7 +3128,7 @@ export const GymDataProvider = ({ children }) => {
         planName,
         freezeStartDate,
         freezeEndDate,
-        daysFrozen,
+        daysFrozen: days,
         fee: Number(fee) || 0,
         paymentMethod: paymentMethod || 'Cash',
         type,
@@ -3122,11 +3140,17 @@ export const GymDataProvider = ({ children }) => {
         fetchDashboardStats?.(),
         fetchMembers?.()
       ]);
+      addToast(
+        `${type === 'extension' ? 'Extension' : 'Freeze'} for "${memberName}" applied for ${days} days! Valid until ${calculatedNewExpiry || freezeEndDate}`
+      );
     } catch (err) {
       console.warn('Freeze create sync error:', err.message);
+      // Revert optimistic updates
+      setMembershipFreezes((prev) => prev.filter((f) => f.id !== tempId));
+      fetchMembers?.();
+      addToast(err.message || 'Failed to process freeze/extension request', 'error');
+      throw err;
     }
-
-    addToast(`${type === 'extension' ? 'Extension' : 'Freeze'} for "${memberName}" applied for ${newFreeze.daysFrozen} days!`);
   };
 
   const unfreezeMembership = async (freezeId) => {
@@ -3136,12 +3160,24 @@ export const GymDataProvider = ({ children }) => {
     );
     if (freeze) {
       setMembers((prev) =>
-        prev.map((m) => (m.id === freeze.memberId ? { ...m, status: 'Active' } : m))
+        prev.map((m) => {
+          if (m.id === freeze.memberId) {
+            return {
+              ...m,
+              status: calculateMemberStatus(m.expiryDate, 'Active')
+            };
+          }
+          return m;
+        })
       );
     }
 
     try {
       await api.freezes.unfreeze(freezeId);
+      await Promise.allSettled([
+        fetchFreezes?.(),
+        fetchMembers?.()
+      ]);
     } catch (err) {
       console.warn('Unfreeze sync error:', err.message);
     }
@@ -3151,27 +3187,230 @@ export const GymDataProvider = ({ children }) => {
   const extendMembership = async ({ memberId, extensionDays, reason, fee, paymentMethod }) => {
     const member = members.find((m) => m.id === memberId);
     if (!member) return;
-    const currentExp = member.expiryDate ? new Date(member.expiryDate) : new Date();
-    currentExp.setDate(currentExp.getDate() + Number(extensionDays));
-    const newExpiryStr = currentExp.toISOString().split('T')[0];
-
-    setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, status: 'Active', expiryDate: newExpiryStr } : m))
-    );
+    const days = Number(extensionDays) || 15;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const startDate = member.expiryDate || todayStr;
+    const baseDate = member.expiryDate ? new Date(member.expiryDate) : new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    baseDate.setHours(0, 0, 0, 0);
+    const effectiveBase = baseDate >= today ? baseDate : today;
+    effectiveBase.setDate(effectiveBase.getDate() + days);
+    const newExpiryStr = effectiveBase.toISOString().split('T')[0];
 
     await addFreezeRequest({
       memberId,
       memberName: member.name,
       planName: member.planName || 'Membership Plan',
-      freezeStartDate: new Date().toISOString().split('T')[0],
+      freezeStartDate: startDate,
       freezeEndDate: newExpiryStr,
-      daysFrozen: Number(extensionDays),
+      daysFrozen: days,
       fee: Number(fee) || 0,
       paymentMethod: paymentMethod || 'Cash',
       type: 'extension',
       reason: reason || 'Validity Extension'
     });
   };
+
+  const transferMembership = useCallback(async ({
+    fromMemberId,
+    fromMemberName,
+    toMemberId,
+    toMemberName,
+    toMemberPhone,
+    planName,
+    daysRemaining,
+    transferCharge,
+    transferFee,
+    paymentMethod = 'UPI',
+    reason,
+    transferDate,
+    membershipStartDate,
+    calcRecipientExpiry,
+    isExistingTarget = true
+  }) => {
+    const feeAmount = Number(transferFee ?? transferCharge ?? 0);
+    const today = new Date();
+    const todayIso = today.toISOString().split('T')[0];
+    const resolvedTransferDate = transferDate || todayIso;
+    const resolvedStartDate = membershipStartDate || resolvedTransferDate;
+    const resolvedDays = Number(daysRemaining) || 0;
+    const tempId = `trf-${Date.now()}`;
+
+    const newTransfer = {
+      id: tempId,
+      numericId: Date.now(),
+      fromMemberId,
+      fromMemberName: fromMemberName || 'Source Member',
+      toMemberId: toMemberId || null,
+      toMemberName: toMemberName || 'Recipient',
+      toMemberPhone: toMemberPhone || '',
+      planName: planName || 'Membership Plan',
+      daysRemaining: resolvedDays,
+      transferFee: feeAmount,
+      transferCharge: feeAmount,
+      paymentMethod: paymentMethod || 'UPI',
+      transferDate: resolvedTransferDate,
+      membershipStartDate: resolvedStartDate,
+      recipientExpiryDate: calcRecipientExpiry || resolvedStartDate,
+      reason: reason || 'Membership Transfer',
+      status: 'Completed',
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Optimistically add transfer to transfers list and localStorage
+    setTransfers((prev) => {
+      const updated = [newTransfer, ...prev];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`pulsefit_transfers_${activeGymKey}`, JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+
+    // 2. Optimistically update members in GymDataContext
+    // Yesterday's date for expired source member
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayIso = yesterday.toISOString().split('T')[0];
+
+    const cleanTargetDigits = (id) => String(id || '').replace(/\D/g, '');
+    const fromDigits = cleanTargetDigits(fromMemberId);
+    const toDigits = cleanTargetDigits(toMemberId);
+
+    setMembers((prev) => {
+      let foundDest = false;
+      const updated = prev.map((m) => {
+        const mDigits = cleanTargetDigits(m.id || m.userId);
+        // Source Member -> Expired immediately upon transfer
+        if (m.id === fromMemberId || (fromDigits && mDigits === fromDigits) || (fromMemberName && m.name && m.name.toLowerCase().trim() === fromMemberName.toLowerCase().trim())) {
+          return {
+            ...m,
+            status: 'Expired',
+            expiryDate: yesterdayIso,
+            notes: (m.notes ? `${m.notes} | ` : '') + `Transferred ${resolvedDays} days to ${toMemberName} on ${resolvedTransferDate}. Status set to Expired.`
+          };
+        }
+        // Destination Member (Existing) -> Active with extended expiry
+        if (isExistingTarget && (m.id === toMemberId || (toDigits && mDigits === toDigits) || (toMemberName && m.name && m.name.toLowerCase().trim() === toMemberName.toLowerCase().trim()))) {
+          foundDest = true;
+          return {
+            ...m,
+            status: 'Active',
+            expiryDate: calcRecipientExpiry || resolvedStartDate,
+            planName: m.planName || planName || 'Transferred Membership',
+            notes: (m.notes ? `${m.notes} | ` : '') + `Transferred +${resolvedDays} days from ${fromMemberName} on ${resolvedTransferDate}.`
+          };
+        }
+        return m;
+      });
+
+      // If new transferee and not in member list yet, add as new active member
+      if (!isExistingTarget && !foundDest && toMemberName) {
+        const newMember = {
+          id: `mem-${Date.now()}`,
+          userId: Date.now(),
+          name: toMemberName,
+          phone: toMemberPhone || '',
+          email: `${toMemberName.toLowerCase().replace(/[^a-z0-9]/g, '')}@gym.local`,
+          planName: planName || 'Transferred Membership',
+          status: 'Active',
+          startDate: resolvedStartDate,
+          expiryDate: calcRecipientExpiry || resolvedStartDate,
+          joinDate: resolvedStartDate,
+          duesAmount: 0
+        };
+        return [newMember, ...updated];
+      }
+
+      return updated;
+    });
+
+    // 3. Optimistically create Transfer Fee invoice if fee > 0
+    if (feeAmount > 0) {
+      const invNum = `INV-TRF-${Math.floor(100000 + Math.random() * 900000)}`;
+      const transferInvoice = {
+        id: invNum,
+        invoiceNumber: invNum,
+        memberId: toMemberId || fromMemberId || 'mem-ext',
+        memberName: `${toMemberName} (Transfer from ${fromMemberName})`,
+        planName: `Transfer Fee: ${fromMemberName} → ${toMemberName}`,
+        amount: feeAmount,
+        totalAmount: feeAmount,
+        pendingAmount: 0,
+        duesAmount: 0,
+        date: resolvedTransferDate,
+        paymentMethod: paymentMethod || 'UPI',
+        status: 'Paid',
+        invoiceUrl: '#',
+        createdAt: new Date().toISOString()
+      };
+      setInvoices((prev) => [transferInvoice, ...prev]);
+
+      setOwnerStats((prev) => {
+        const currentRev = Number(prev?.monthlyRevenue) || 0;
+        const currentExp = Number(prev?.monthlyExpenses) || 0;
+        return {
+          ...prev,
+          monthlyRevenue: currentRev + feeAmount,
+          monthlyProfit: Math.max(0, (currentRev + feeAmount) - currentExp)
+        };
+      });
+    }
+
+    // 4. Sync with Backend
+    let displayDate = resolvedStartDate;
+    try {
+      const [y, m, d] = resolvedStartDate.split('-').map(Number);
+      if (y && m && d) {
+        displayDate = new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+    } catch (e) {}
+
+    try {
+      const res = await api.transfers?.create({
+        fromMemberId,
+        fromMemberName,
+        toMemberId,
+        toMemberName,
+        toMemberPhone,
+        planName,
+        daysRemaining: resolvedDays,
+        transferCharge: feeAmount,
+        transferFee: feeAmount,
+        paymentMethod,
+        reason,
+        transferDate: resolvedTransferDate,
+        membershipStartDate: resolvedStartDate
+      });
+
+      if (res?.data) {
+        setTransfers((prev) => {
+          const updated = prev.map((t) => (t.id === tempId ? { ...t, ...res.data, id: res.data.id || t.id } : t));
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(`pulsefit_transfers_${activeGymKey}`, JSON.stringify(updated));
+            } catch (e) {}
+          }
+          return updated;
+        });
+      }
+
+      await Promise.allSettled([
+        fetchTransfers?.(),
+        fetchMembers?.(),
+        fetchInvoices?.(),
+        fetchDashboardStats?.()
+      ]);
+      addToast(`Membership transferred to ${toMemberName}! ${resolvedDays} days added starting from ${displayDate}.`);
+      return res?.data || newTransfer;
+    } catch (err) {
+      console.warn('Backend transfer create note:', err.message);
+      addToast(`Membership transferred to ${toMemberName}! ${resolvedDays} days added starting from ${displayDate}.`);
+      return newTransfer;
+    }
+  }, [activeGymKey, fetchTransfers, fetchMembers, fetchInvoices, fetchDashboardStats, addToast]);
 
   // Payroll Handlers
   const markPayrollPaid = async (id) => {
@@ -3844,195 +4083,238 @@ export const GymDataProvider = ({ children }) => {
     addToast('KYC details updated successfully!');
   };
 
+  const contextValue = useMemo(() => ({
+    gymInfo,
+    setGymInfo,
+    members,
+    trainers,
+    plans,
+    classes,
+    attendance,
+    initialExercises,
+    workoutPlan,
+    setWorkoutPlan,
+    workoutPlans,
+    setWorkoutPlans,
+    saveWorkoutPlan,
+    deleteWorkoutPlan,
+    dietPlan,
+    setDietPlan,
+    dietPlans,
+    setDietPlans,
+    saveDietPlan,
+    deleteDietPlan,
+    waterGlasses,
+    bodyMetrics,
+    invoices,
+    equipment,
+    bookedClasses,
+    toasts,
+    addToast,
+    removeToast,
+    addMember,
+    updateMember,
+    deleteMember,
+    renewMemberPlan,
+    recordPayment,
+    calculateMemberStatus,
+    getExpiryDaysDiff,
+    addTrainer,
+    updateTrainer,
+    addPlan,
+    updatePlan,
+    deletePlan,
+    addClass,
+    deleteClass,
+    addEquipment,
+    updateEquipment,
+    deleteEquipment,
+    checkInMemberByQR,
+    punchOutMember,
+    toggleBookClass,
+    toggleExerciseDone,
+    toggleMealDone,
+    incrementWater,
+    decrementWater,
+    logNewBodyMetrics,
+    fetchAllFromBackend,
+    fetchMembers,
+    fetchTrainers,
+    fetchPlans,
+    fetchClasses,
+    fetchAttendance,
+    fetchBiometricDevices,
+    simulateBiometricPunch,
+    fetchEquipment,
+    fetchInvoices,
+    updateInvoice,
+    fetchExpenses,
+    fetchProducts,
+    fetchCommissions,
+    fetchFreezes,
+    fetchConsentForms,
+    fetchPayroll,
+    fetchPtSessions,
+    fetchAdvanceRequests,
+    fetchTrainerReviews,
+    fetchGymInfo,
+    branches,
+    branchesData,
+    fetchBranches,
+    switchBranch,
+    createBranch,
+    fetchDashboardStats,
+    isLoadingBackend,
+    isOwnerTabLoading,
+    loadingModules,
+    ownerStats,
+    setOwnerStats,
+    revenueAnalytics,
+    setRevenueAnalytics,
+    // New State & Handlers
+    enquiries,
+    setEnquiries,
+    fetchEnquiries,
+    addEnquiry,
+    updateEnquiry,
+    deleteEnquiry,
+    convertEnquiryToMember,
+    products,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    recordProductSale,
+    commissions,
+    addCommissionRecord,
+    markCommissionPaid,
+    consentForms,
+    addConsentForm,
+    updateConsentStatus,
+    membershipFreezes,
+    addFreezeRequest,
+    unfreezeMembership,
+    extendMembership,
+    transfers,
+    fetchTransfers,
+    transferMembership,
+    payrollRecords,
+    markPayrollPaid,
+    updatePayrollAdjustments,
+    advanceRequests,
+    requestAdvancePay,
+    updateAdvancePayStatus,
+    // Staff & Trainer Leave Management & Quotas
+    leaveRequests,
+    leaveBalances,
+    leaveSummary,
+    fetchLeaveRequests,
+    fetchLeaveBalances,
+    fetchLeaveSummary,
+    fetchEmployeeLeaveBalance,
+    updateLeaveStatus,
+    applyLeave,
+    allocateEmployeeLeaves,
+    ptSessions,
+    allocatePTSessions,
+    deletePTSession,
+    logPTSessionWithOtp,
+    trainerReviews,
+    addTrainerReview,
+    staffAttendanceLogs,
+    recordStaffCheckIn,
+    // Day-to-Day Approvals, Biometrics, PT, Recovery & KYC
+    entryApprovals,
+    approveGateEntry,
+    denyGateEntry,
+    scrapEnquiry,
+    biometricDevices,
+    biometricLogs,
+    testTurnstilePulse,
+    addBiometricDevice,
+    ptPlans,
+    fetchPtPlans,
+    addPTPlan,
+    deletePTPlan,
+    recoveryPlans,
+    fetchRecoveryPlans,
+    addRecoveryPlan,
+    deleteRecoveryPlan,
+    updateMemberKYC,
+    // Expenses & Cash Outflow
+    expenses,
+    addExpense,
+    deleteExpense,
+    // WhatsApp Message Templates & Automation Triggers
+    whatsappTemplates,
+    whatsappTriggers,
+    whatsappLogs,
+    whatsappStats,
+    fetchWhatsAppTemplates,
+    createWhatsAppTemplate,
+    updateWhatsAppTemplate,
+    deleteWhatsAppTemplate,
+    toggleWhatsAppTemplate,
+    fetchWhatsAppTriggers,
+    logWhatsAppMessage,
+    fetchWhatsAppLogs,
+    fetchWhatsAppStats,
+    broadcastWhatsAppTemplate,
+    broadcastWhatsAppDirect,
+    processWhatsAppAutoSend,
+    whatsappSettings,
+    fetchWhatsAppSettings,
+    updateWhatsAppSettings,
+    testWhatsAppMessage,
+    // Staff Shift Management
+    shifts,
+    fetchShifts,
+    createShift,
+    updateShift,
+    deleteShift
+  }), [
+    gymInfo, members, trainers, plans, classes, attendance, initialExercises,
+    workoutPlan, workoutPlans, saveWorkoutPlan, deleteWorkoutPlan,
+    dietPlan, dietPlans, saveDietPlan, deleteDietPlan,
+    waterGlasses, bodyMetrics, invoices, equipment, bookedClasses,
+    toasts, addToast, removeToast,
+    addMember, updateMember, deleteMember, renewMemberPlan, recordPayment,
+    addTrainer, updateTrainer, addPlan, updatePlan, deletePlan,
+    addClass, deleteClass, addEquipment, updateEquipment, deleteEquipment,
+    checkInMemberByQR, punchOutMember, toggleBookClass, toggleExerciseDone, toggleMealDone,
+    incrementWater, decrementWater, logNewBodyMetrics,
+    fetchAllFromBackend, fetchMembers, fetchTrainers, fetchPlans, fetchClasses, fetchAttendance,
+    fetchBiometricDevices, simulateBiometricPunch, fetchEquipment, fetchInvoices, updateInvoice,
+    fetchExpenses, fetchProducts, fetchCommissions, fetchFreezes, fetchConsentForms, fetchPayroll,
+    fetchPtSessions, fetchAdvanceRequests, fetchTrainerReviews, fetchGymInfo,
+    branches, branchesData, fetchBranches, switchBranch, createBranch, fetchDashboardStats,
+    isLoadingBackend, isOwnerTabLoading, loadingModules, ownerStats, revenueAnalytics,
+    enquiries, fetchEnquiries, addEnquiry, updateEnquiry, deleteEnquiry, convertEnquiryToMember,
+    products, addProduct, updateProduct, deleteProduct, recordProductSale,
+    commissions, addCommissionRecord, markCommissionPaid,
+    consentForms, addConsentForm, updateConsentStatus,
+    membershipFreezes, addFreezeRequest, unfreezeMembership, extendMembership,
+    transfers, fetchTransfers, transferMembership,
+    payrollRecords, markPayrollPaid, updatePayrollAdjustments,
+    advanceRequests, requestAdvancePay, updateAdvancePayStatus,
+    leaveRequests, leaveBalances, leaveSummary, fetchLeaveRequests, fetchLeaveBalances, fetchLeaveSummary,
+    fetchEmployeeLeaveBalance, updateLeaveStatus, applyLeave, allocateEmployeeLeaves,
+    ptSessions, allocatePTSessions, deletePTSession, logPTSessionWithOtp,
+    trainerReviews, addTrainerReview, staffAttendanceLogs, recordStaffCheckIn,
+    entryApprovals, approveGateEntry, denyGateEntry, scrapEnquiry,
+    biometricDevices, biometricLogs, testTurnstilePulse, addBiometricDevice,
+    ptPlans, fetchPtPlans, addPTPlan, deletePTPlan,
+    recoveryPlans, fetchRecoveryPlans, addRecoveryPlan, deleteRecoveryPlan, updateMemberKYC,
+    expenses, addExpense, deleteExpense,
+    whatsappTemplates, whatsappTriggers, whatsappLogs, whatsappStats,
+    fetchWhatsAppTemplates, createWhatsAppTemplate, updateWhatsAppTemplate, deleteWhatsAppTemplate, toggleWhatsAppTemplate,
+    fetchWhatsAppTriggers, logWhatsAppMessage, fetchWhatsAppLogs, fetchWhatsAppStats,
+    broadcastWhatsAppTemplate, broadcastWhatsAppDirect, processWhatsAppAutoSend,
+    whatsappSettings, fetchWhatsAppSettings, updateWhatsAppSettings, testWhatsAppMessage,
+    shifts, fetchShifts, createShift, updateShift, deleteShift
+  ]);
+
   return (
-    <GymDataContext.Provider
-      value={{
-        gymInfo,
-        setGymInfo,
-        members,
-        trainers,
-        plans,
-        classes,
-        attendance,
-        initialExercises,
-        workoutPlan,
-        setWorkoutPlan,
-        workoutPlans,
-        setWorkoutPlans,
-        saveWorkoutPlan,
-        deleteWorkoutPlan,
-        dietPlan,
-        setDietPlan,
-        dietPlans,
-        setDietPlans,
-        saveDietPlan,
-        deleteDietPlan,
-        waterGlasses,
-        bodyMetrics,
-        invoices,
-        equipment,
-        bookedClasses,
-        toasts,
-        addToast,
-        removeToast,
-        addMember,
-        updateMember,
-        deleteMember,
-        renewMemberPlan,
-        recordPayment,
-        calculateMemberStatus,
-        getExpiryDaysDiff,
-        addTrainer,
-        updateTrainer,
-        addPlan,
-        updatePlan,
-        deletePlan,
-        addClass,
-        deleteClass,
-        addEquipment,
-        updateEquipment,
-        deleteEquipment,
-        checkInMemberByQR,
-        punchOutMember,
-        toggleBookClass,
-        toggleExerciseDone,
-        toggleMealDone,
-        incrementWater,
-        decrementWater,
-        logNewBodyMetrics,
-        fetchAllFromBackend,
-        fetchMembers,
-        fetchTrainers,
-        fetchPlans,
-        fetchClasses,
-        fetchAttendance,
-        fetchBiometricDevices,
-        simulateBiometricPunch,
-        fetchEquipment,
-        fetchInvoices,
-        updateInvoice,
-        fetchExpenses,
-        fetchProducts,
-        fetchCommissions,
-        fetchFreezes,
-        fetchConsentForms,
-        fetchPayroll,
-        fetchPtSessions,
-        fetchAdvanceRequests,
-        fetchTrainerReviews,
-        fetchGymInfo,
-        branches,
-        branchesData,
-        fetchBranches,
-        switchBranch,
-        createBranch,
-        fetchDashboardStats,
-        isLoadingBackend,
-        isOwnerTabLoading,
-        loadingModules,
-        ownerStats,
-        setOwnerStats,
-        revenueAnalytics,
-        setRevenueAnalytics,
-        // New State & Handlers
-        enquiries,
-        setEnquiries,
-        fetchEnquiries,
-        addEnquiry,
-        updateEnquiry,
-        deleteEnquiry,
-        convertEnquiryToMember,
-        products,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        recordProductSale,
-        commissions,
-        addCommissionRecord,
-        markCommissionPaid,
-        consentForms,
-        addConsentForm,
-        updateConsentStatus,
-        membershipFreezes,
-        addFreezeRequest,
-        unfreezeMembership,
-        extendMembership,
-        payrollRecords,
-        markPayrollPaid,
-        updatePayrollAdjustments,
-        advanceRequests,
-        requestAdvancePay,
-        updateAdvancePayStatus,
-        // Staff & Trainer Leave Management & Quotas
-        leaveRequests,
-        leaveBalances,
-        leaveSummary,
-        fetchLeaveRequests,
-        fetchLeaveBalances,
-        fetchLeaveSummary,
-        fetchEmployeeLeaveBalance,
-        updateLeaveStatus,
-        applyLeave,
-        allocateEmployeeLeaves,
-        ptSessions,
-        allocatePTSessions,
-        deletePTSession,
-        logPTSessionWithOtp,
-        trainerReviews,
-        addTrainerReview,
-        staffAttendanceLogs,
-        recordStaffCheckIn,
-        // Day-to-Day Approvals, Biometrics, PT, Recovery & KYC
-        entryApprovals,
-        approveGateEntry,
-        denyGateEntry,
-        scrapEnquiry,
-        biometricDevices,
-        biometricLogs,
-        testTurnstilePulse,
-        addBiometricDevice,
-        ptPlans,
-        fetchPtPlans,
-        addPTPlan,
-        deletePTPlan,
-        recoveryPlans,
-        fetchRecoveryPlans,
-        addRecoveryPlan,
-        deleteRecoveryPlan,
-        updateMemberKYC,
-        // Expenses & Cash Outflow
-        expenses,
-        addExpense,
-        deleteExpense,
-        // WhatsApp Message Templates & Automation Triggers
-        whatsappTemplates,
-        whatsappTriggers,
-        whatsappLogs,
-        whatsappStats,
-        fetchWhatsAppTemplates,
-        createWhatsAppTemplate,
-        updateWhatsAppTemplate,
-        deleteWhatsAppTemplate,
-        toggleWhatsAppTemplate,
-        fetchWhatsAppTriggers,
-        logWhatsAppMessage,
-        fetchWhatsAppLogs,
-        fetchWhatsAppStats,
-        broadcastWhatsAppTemplate,
-        broadcastWhatsAppDirect,
-        processWhatsAppAutoSend,
-        whatsappSettings,
-        fetchWhatsAppSettings,
-        updateWhatsAppSettings,
-        testWhatsAppMessage,
-        // Staff Shift Management
-        shifts,
-        fetchShifts,
-        createShift,
-        updateShift,
-        deleteShift
-      }}
-    >
+    <GymDataContext.Provider value={contextValue}>
       {children}
     </GymDataContext.Provider>
   );

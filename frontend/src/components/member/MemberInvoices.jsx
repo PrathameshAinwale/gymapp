@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { StatCard } from '../common/StatCard';
 import { generateInvoicePdf, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
+import { compareInvoicesDesc } from '../../utils/searchUtils';
 
 export const MemberInvoices = () => {
   const { currentUser } = useAuth();
@@ -26,23 +27,27 @@ export const MemberInvoices = () => {
   const memberDues = Number(currentMember?.duesAmount ?? currentMember?.balanceDue ?? currentMember?.balance ?? 0);
 
   const cleanCurrentUserId = String(currentUser?.id || currentUser?.userId || '').replace(/\D/g, '');
-  const myInvoices = (invoices || []).filter((inv) => {
-    const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-    if (cleanCurrentUserId && cleanInvMemberId && cleanCurrentUserId === cleanInvMemberId) return true;
-    if (currentUser?.email && inv.memberEmail && inv.memberEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
-    if (currentUser?.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
-    return false;
-  });
+  const myInvoices = (invoices || [])
+    .filter((inv) => {
+      const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
+      if (cleanCurrentUserId && cleanInvMemberId && cleanCurrentUserId === cleanInvMemberId) return true;
+      if (currentUser?.email && inv.memberEmail && inv.memberEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+      if (currentUser?.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      return false;
+    })
+    .sort(compareInvoicesDesc);
 
-  const filteredInvoices = myInvoices.filter((inv) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      (inv.planName && inv.planName.toLowerCase().includes(term)) ||
-      (inv.id && String(inv.id).toLowerCase().includes(term)) ||
-      (inv.date && inv.date.toLowerCase().includes(term)) ||
-      (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(term))
-    );
-  });
+  const filteredInvoices = myInvoices
+    .filter((inv) => {
+      const term = searchTerm.toLowerCase();
+      return (
+        (inv.planName && inv.planName.toLowerCase().includes(term)) ||
+        (inv.id && String(inv.id).toLowerCase().includes(term)) ||
+        (inv.date && inv.date.toLowerCase().includes(term)) ||
+        (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(term))
+      );
+    })
+    .sort(compareInvoicesDesc);
 
   const totalInvested = myInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
   const activePlanName = currentMember.planName || (myInvoices[0]?.planName) || 'Standard Access';
@@ -104,7 +109,7 @@ export const MemberInvoices = () => {
           color="cyan"
         />
         <StatCard
-          title="Tax Invoices"
+          title="Invoices"
           value={String(myInvoices.length)}
           change="All Generated"
           isPositive={true}

@@ -53,26 +53,20 @@ class AuthController extends Controller
 
         // Check password against matching user(s)
         $user = null;
-        $hasPlain = Schema::hasColumn('users', 'plain_password');
         foreach ($users as $candidate) {
             $matched = false;
             if (Hash::check($password, $candidate->password)) {
                 $matched = true;
-            } elseif ($hasPlain && !empty($candidate->plain_password) && $candidate->plain_password === $password) {
-                $matched = true;
-            } elseif (!empty($candidate->initial_password) && (Hash::check($password, $candidate->initial_password) || $candidate->initial_password === $password)) {
+            } elseif (!empty($candidate->initial_password) && Hash::check($password, $candidate->initial_password)) {
                 $matched = true;
             }
 
             if ($matched) {
-                // Keep password hash and plain_password in sync
+                // Ensure primary password hash is set
                 if (!Hash::check($password, $candidate->password)) {
                     $candidate->password = Hash::make($password);
+                    $candidate->save();
                 }
-                if ($hasPlain && $candidate->plain_password !== $password) {
-                    $candidate->plain_password = $password;
-                }
-                $candidate->save();
                 $user = $candidate;
                 break;
             }
@@ -323,8 +317,8 @@ class AuthController extends Controller
         }
 
         $currentMatches = Hash::check($request->current_password, $user->password);
-        if (!$currentMatches && Schema::hasColumn('users', 'plain_password') && !empty($user->plain_password)) {
-            $currentMatches = ($user->plain_password === $request->current_password);
+        if (!$currentMatches && !empty($user->initial_password)) {
+            $currentMatches = Hash::check($request->current_password, $user->initial_password);
         }
 
         if (!$currentMatches) {
@@ -335,9 +329,6 @@ class AuthController extends Controller
         }
 
         $user->password = Hash::make($request->new_password);
-        if (Schema::hasColumn('users', 'plain_password')) {
-            $user->plain_password = $request->new_password;
-        }
         $user->must_change_password = false;
         $user->initial_password = null;
         $user->save();

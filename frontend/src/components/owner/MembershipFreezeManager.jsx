@@ -39,15 +39,134 @@ import {
   isValidPhone
 } from '../../utils/validation';
 
+// Helpers for date and plan duration validation
+const getTodayIso = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const cleanId = (idVal) => String(idVal || '').replace(/\D/g, '');
+
+const extractMemberId = (val) => {
+  if (!val) return '';
+  if (typeof val === 'object') {
+    if (val.target && val.target.value !== undefined) return String(val.target.value);
+    if (val.value !== undefined) return String(val.value);
+    if (val.id !== undefined) return String(val.id);
+  }
+  return String(val);
+};
+
+const findMemberById = (memberList, idVal) => {
+  if (!idVal || !Array.isArray(memberList)) return null;
+  const clean = extractMemberId(idVal);
+  if (!clean) return null;
+  const digits = clean.replace(/\D/g, '');
+  return memberList.find((m) => {
+    if (!m) return false;
+    const mIdStr = String(m.id || '');
+    const mUserIdStr = String(m.userId || m.user_id || '');
+    if (mIdStr === clean || mUserIdStr === clean) return true;
+    if (digits && (mIdStr.replace(/\D/g, '') === digits || mUserIdStr.replace(/\D/g, '') === digits)) return true;
+    return false;
+  }) || null;
+};
+
+const getEndDateFromDays = (startStr, days) => {
+  const baseDateStr = startStr || getTodayIso();
+  const [y, m, d] = String(baseDateStr).split('T')[0].split(' ')[0].split('-').map(Number);
+  if (!y || !m || !d) return getTodayIso();
+  const dateObj = new Date(y, m - 1, d);
+  dateObj.setDate(dateObj.getDate() + Number(days || 15));
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const addDaysToDateStr = (dateStr, daysToAdd) => {
+  const days = Number(daysToAdd) || 0;
+  const baseDateStr = dateStr || getTodayIso();
+  const [y, m, d] = String(baseDateStr).split('T')[0].split(' ')[0].split('-').map(Number);
+  if (!y || !m || !d) return getTodayIso();
+  const dateObj = new Date(y, m - 1, d);
+  dateObj.setDate(dateObj.getDate() + days);
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDiffDays = (startDateStr, endDateStr) => {
+  if (!startDateStr || !endDateStr) return 0;
+  const [sy, sm, sd] = String(startDateStr).split('T')[0].split(' ')[0].split('-').map(Number);
+  const [ey, em, ed] = String(endDateStr).split('T')[0].split(' ')[0].split('-').map(Number);
+  if (!sy || !sm || !sd || !ey || !em || !ed) return 0;
+  const start = new Date(sy, sm - 1, sd);
+  const end = new Date(ey, em - 1, ed);
+  const diffTime = end.getTime() - start.getTime();
+  return Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+};
+
+const calculateNewPlanExpiry = (currentExpiry, daysToAdd) => {
+  const days = Number(daysToAdd) || 0;
+  const baseDateStr = currentExpiry || getTodayIso();
+  return addDaysToDateStr(baseDateStr, days);
+};
+
+const formatDateReadable = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return dateStr;
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+};
+
+const getMemberPlanDurationMonths = (member, allPlans = []) => {
+  if (!member) return 0;
+  if (member.durationMonths || member.planDurationMonths) {
+    return Number(member.durationMonths || member.planDurationMonths);
+  }
+  const cleanPlanId = (id) => String(id || '').replace(/^plan-/, '');
+  const memberPlanId = cleanPlanId(member.planId || member.plan_id);
+  const foundPlan = (allPlans || []).find((p) => cleanPlanId(p.id) === memberPlanId || String(p.id) === String(member.planId));
+  if (foundPlan && (foundPlan.durationMonths || foundPlan.duration_months)) {
+    return Number(foundPlan.durationMonths || foundPlan.duration_months);
+  }
+  const text = `${member.planName || ''} ${foundPlan?.name || ''} ${foundPlan?.period || ''}`.toLowerCase();
+  if (text.includes('12 month') || text.includes('year') || text.includes('annual')) return 12;
+  if (text.includes('6 month') || text.includes('half-year') || text.includes('half year')) return 6;
+  if (text.includes('3 month') || text.includes('quarter')) return 3;
+  if (text.includes('1 month') || text.includes('monthly')) return 1;
+  return 0;
+};
+
+const isMemberEligibleForFreeze = (member, allPlans = []) => {
+  const months = getMemberPlanDurationMonths(member, allPlans);
+  return months >= 6;
+};
+
 export const MembershipFreezeManager = () => {
   const {
     membershipFreezes,
     addFreezeRequest,
     unfreezeMembership,
     extendMembership,
+    transfers = [],
+    transferMembership,
+    fetchTransfers,
     members,
+    plans = [],
     fetchFreezes,
     fetchMembers,
+    fetchPlans,
     fetchInvoices,
     fetchDashboardStats,
     addToast
@@ -61,6 +180,13 @@ export const MembershipFreezeManager = () => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
+
+  const todayIso = useMemo(() => getTodayIso(), []);
+
+  // Eligible members for freeze and extension (plans >= 6 months)
+  const eligibleMembers = useMemo(() => {
+    return (members || []).filter((m) => isMemberEligibleForFreeze(m, plans));
+  }, [members, plans]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -82,50 +208,36 @@ export const MembershipFreezeManager = () => {
   const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
   const [unfreezingId, setUnfreezingId] = useState(null);
 
-  // Transfers state
-  const [transfers, setTransfers] = useState([]);
-  const [isLoadingTransfers, setIsLoadingTransfers] = useState(false);
-
   // Initial load
   useEffect(() => {
     fetchFreezes?.();
     fetchMembers?.();
-    loadTransfers();
-  }, [fetchFreezes, fetchMembers]);
-
-  const loadTransfers = async () => {
-    try {
-      setIsLoadingTransfers(true);
-      const res = await api.transfers?.getAll();
-      if (res?.data && Array.isArray(res.data)) {
-        setTransfers(res.data);
-      }
-    } catch (err) {
-      console.warn('Failed to fetch transfers:', err.message);
-    } finally {
-      setIsLoadingTransfers(false);
-    }
-  };
+    fetchPlans?.();
+    fetchTransfers?.();
+  }, [fetchFreezes, fetchMembers, fetchPlans, fetchTransfers]);
 
   // Freeze Form State
-  const [freezeData, setFreezeData] = useState({
-    memberId: members[0]?.id || '',
-    freezeStartDate: new Date().toISOString().split('T')[0],
-    freezeEndDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
-    daysFrozen: 15,
-    fee: 0,
-    isFullPayment: true,
-    paymentMethod: 'UPI',
-    splitCashAmount: 0,
-    splitOnlineAmount: 0,
-    splitOnlineProvider: 'GPay',
-    splitOnlineProviderOther: '',
-    reason: 'Official travel / Out of town'
+  const [freezeData, setFreezeData] = useState(() => {
+    const today = getTodayIso();
+    return {
+      memberId: '',
+      freezeStartDate: today,
+      freezeEndDate: getEndDateFromDays(today, 15),
+      daysFrozen: 15,
+      fee: 0,
+      isFullPayment: true,
+      paymentMethod: 'UPI',
+      splitCashAmount: 0,
+      splitOnlineAmount: 0,
+      splitOnlineProvider: 'GPay',
+      splitOnlineProviderOther: '',
+      reason: 'Official travel / Out of town'
+    };
   });
 
   // Extend Form State
   const [extendData, setExtendData] = useState({
-    memberId: members[0]?.id || '',
+    memberId: '',
     extensionDays: 15,
     fee: 0,
     isFullPayment: true,
@@ -264,24 +376,52 @@ export const MembershipFreezeManager = () => {
     });
   }, [transfers, searchTerm, paymentFilter]);
 
+  const handleOpenFreezeModal = () => {
+    const defaultMember = eligibleMembers[0];
+    const today = getTodayIso();
+    setFreezeData((prev) => ({
+      ...prev,
+      memberId: prev.memberId && eligibleMembers.some((m) => m.id === prev.memberId)
+        ? prev.memberId
+        : (defaultMember?.id || ''),
+      freezeStartDate: today,
+      freezeEndDate: getEndDateFromDays(today, prev.daysFrozen || 15)
+    }));
+    setIsFreezeModalOpen(true);
+  };
+
+  const handleOpenExtendModal = () => {
+    const defaultMember = eligibleMembers[0];
+    setExtendData((prev) => ({
+      ...prev,
+      memberId: prev.memberId && eligibleMembers.some((m) => m.id === prev.memberId)
+        ? prev.memberId
+        : (defaultMember?.id || '')
+    }));
+    setIsExtendModalOpen(true);
+  };
+
   const handleStartDateChange = (startStr) => {
-    const start = new Date(startStr);
-    const end = new Date(start.getTime() + Number(freezeData.daysFrozen) * 86400000);
-    setFreezeData({
-      ...freezeData,
+    if (!startStr) return;
+    const today = getTodayIso();
+    if (startStr < today) {
+      addToast?.(`Freeze start date cannot be before today (${today}).`, 'error');
+      return;
+    }
+    setFreezeData((prev) => ({
+      ...prev,
       freezeStartDate: startStr,
-      freezeEndDate: end.toISOString().split('T')[0]
-    });
+      freezeEndDate: getEndDateFromDays(startStr, prev.daysFrozen || 15)
+    }));
   };
 
   const handleDaysChange = (days) => {
-    const start = new Date(freezeData.freezeStartDate);
-    const end = new Date(start.getTime() + Number(days) * 86400000);
-    setFreezeData({
-      ...freezeData,
-      daysFrozen: Number(days),
-      freezeEndDate: end.toISOString().split('T')[0]
-    });
+    const numDays = Math.max(1, Number(days) || 1);
+    setFreezeData((prev) => ({
+      ...prev,
+      daysFrozen: numDays,
+      freezeEndDate: getEndDateFromDays(prev.freezeStartDate, numDays)
+    }));
   };
 
   const handleFreezeSubmit = async (e) => {
@@ -290,9 +430,21 @@ export const MembershipFreezeManager = () => {
       addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
       return;
     }
-    const mem = members.find((m) => m.id === freezeData.memberId) || members[0];
+
+    const today = getTodayIso();
+    if (freezeData.freezeStartDate < today) {
+      addToast?.(`Freeze start date cannot be before today (${today}).`, 'error');
+      return;
+    }
+
+    const mem = findMemberById(members, freezeData.memberId);
     if (!mem) {
-      addToast?.('Please select a valid member', 'error');
+      addToast?.('Please select an eligible member', 'error');
+      return;
+    }
+
+    if (!isMemberEligibleForFreeze(mem, plans)) {
+      addToast?.('Freeze is only applicable to members with plans above 6 months (6 months and above).', 'error');
       return;
     }
 
@@ -304,7 +456,7 @@ export const MembershipFreezeManager = () => {
       await addFreezeRequest({
         memberId: mem.id,
         memberName: mem.name,
-        planName: mem.planName || 'Silver Monthly Pass',
+        planName: mem.planName || 'Membership Plan',
         freezeStartDate: freezeData.freezeStartDate,
         freezeEndDate: freezeData.freezeEndDate,
         daysFrozen: Number(freezeData.daysFrozen),
@@ -316,6 +468,8 @@ export const MembershipFreezeManager = () => {
         reason: freezeData.reason
       });
       setIsFreezeModalOpen(false);
+    } catch (err) {
+      // Handled in context / toast
     } finally {
       setIsSubmittingFreeze(false);
     }
@@ -327,9 +481,15 @@ export const MembershipFreezeManager = () => {
       addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
       return;
     }
-    const mem = members.find((m) => m.id === extendData.memberId) || members[0];
+
+    const mem = findMemberById(members, extendData.memberId);
     if (!mem) {
-      addToast?.('Please select a valid member', 'error');
+      addToast?.('Please select an eligible member', 'error');
+      return;
+    }
+
+    if (!isMemberEligibleForFreeze(mem, plans)) {
+      addToast?.('Extension is only applicable to members with plans above 6 months (6 months and above).', 'error');
       return;
     }
 
@@ -339,7 +499,7 @@ export const MembershipFreezeManager = () => {
         ? (extendData.splitOnlineProviderOther?.trim() || 'Other')
         : (extendData.splitOnlineProvider || 'GPay');
       await extendMembership({
-        memberId: extendData.memberId,
+        memberId: mem.id,
         extensionDays: Number(extendData.extensionDays),
         fee: Number(extendData.fee) || 0,
         paymentMethod: extendData.paymentMethod === 'Split'
@@ -348,6 +508,8 @@ export const MembershipFreezeManager = () => {
         reason: extendData.reason
       });
       setIsExtendModalOpen(false);
+    } catch (err) {
+      // Handled in context / toast
     } finally {
       setIsSubmittingExtend(false);
     }
@@ -364,7 +526,7 @@ export const MembershipFreezeManager = () => {
       addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
       return;
     }
-    const fromMember = members.find((m) => m.id === transferData.fromMemberId);
+    const fromMember = findMemberById(members, transferData.fromMemberId);
     if (!fromMember) {
       addToast?.('Please select a source member', 'error');
       return;
@@ -375,7 +537,7 @@ export const MembershipFreezeManager = () => {
     let toMemberId = null;
 
     if (transferData.isExistingTarget) {
-      const toMember = members.find((m) => m.id === transferData.toMemberId);
+      const toMember = findMemberById(members, transferData.toMemberId);
       if (!toMember) {
         addToast?.('Please select a destination member', 'error');
         return;
@@ -395,19 +557,26 @@ export const MembershipFreezeManager = () => {
       return;
     }
 
-    // Calculate days remaining
-    const daysRemaining = remainingDaysSource > 0
-      ? remainingDaysSource
-      : (fromMember.expiryDate ? Math.max(1, Math.ceil((new Date(fromMember.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))) : 30);
-    const transferDate = transferData.transferDate || new Date().toISOString().split('T')[0];
-    const membershipStartDate = transferData.membershipStartDate || transferDate;
+    if (remainingDaysSource <= 0) {
+      addToast?.('Selected source member has 0 days left on their plan and cannot transfer membership.', 'error');
+      return;
+    }
+
+    if (transferData.membershipStartDate < minMembershipStartDate) {
+      addToast?.(`Membership start date cannot be earlier than ${formatDateReadable(minMembershipStartDate)} (transferee's current plan expiry).`, 'error');
+      return;
+    }
+
+    const daysRemaining = remainingDaysSource;
+    const transferDate = transferData.transferDate || getTodayIso();
+    const membershipStartDate = transferData.membershipStartDate || minMembershipStartDate;
 
     try {
       setIsSubmittingTransfer(true);
       const transferProvider = transferData.splitOnlineProvider === 'Other'
         ? (transferData.splitOnlineProviderOther?.trim() || 'Other')
         : (transferData.splitOnlineProvider || 'GPay');
-      const res = await api.transfers.create({
+      await transferMembership({
         fromMemberId: fromMember.id,
         fromMemberName: fromMember.name,
         toMemberId: toMemberId,
@@ -422,23 +591,31 @@ export const MembershipFreezeManager = () => {
           : transferData.paymentMethod,
         reason: transferData.reason,
         transferDate,
-        membershipStartDate
+        membershipStartDate,
+        calcRecipientExpiry,
+        isExistingTarget: transferData.isExistingTarget
       });
-
-      if (res?.data) {
-        setTransfers((prev) => [res.data, ...prev]);
-      } else {
-        await loadTransfers();
-      }
-      await Promise.allSettled([
-        loadTransfers(),
-        fetchMembers?.(),
-        fetchInvoices?.(),
-        fetchDashboardStats?.(),
-        fetchFreezes?.()
-      ]);
-      addToast?.(`Membership transferred to ${targetName}! Source marked expired and invoice created.`);
       setIsTransferModalOpen(false);
+      setActiveTab('transfers');
+      fetchTransfers?.();
+      fetchMembers?.();
+      setTransferData({
+        fromMemberId: '',
+        toMemberId: '',
+        toMemberName: '',
+        toMemberPhone: '',
+        isExistingTarget: true,
+        transferCharge: 500,
+        transferDate: getTodayIso(),
+        membershipStartDate: getTodayIso(),
+        isFullPayment: true,
+        paymentMethod: 'UPI',
+        splitCashAmount: 0,
+        splitOnlineAmount: 0,
+        splitOnlineProvider: 'GPay',
+        splitOnlineProviderOther: '',
+        reason: 'Member relocated / transferred to family/friend'
+      });
     } catch (err) {
       console.error('Transfer failed:', err);
       addToast?.(err.message || 'Failed to complete membership transfer', 'error');
@@ -448,26 +625,126 @@ export const MembershipFreezeManager = () => {
   };
 
   // Helper for source member in transfer modal
-  const selectedSourceMember = members.find((m) => m.id === transferData.fromMemberId);
-  const remainingDaysSource = selectedSourceMember?.expiryDate
-    ? Math.max(0, Math.ceil((new Date(selectedSourceMember.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)))
-    : 0;
+  const selectedSourceMember = useMemo(() => {
+    return findMemberById(members, transferData.fromMemberId);
+  }, [members, transferData.fromMemberId]);
+
+  const remainingDaysSource = useMemo(() => {
+    if (!selectedSourceMember?.expiryDate) return 0;
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expDate = new Date(selectedSourceMember.expiryDate);
+      expDate.setHours(0, 0, 0, 0);
+      if (isNaN(expDate.getTime())) return 0;
+      const diffTime = expDate.getTime() - today.getTime();
+      return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    } catch {
+      return 0;
+    }
+  }, [selectedSourceMember]);
+
+  const selectedDestinationMember = useMemo(() => {
+    if (!transferData.isExistingTarget || !transferData.toMemberId) return null;
+    return findMemberById(members, transferData.toMemberId);
+  }, [members, transferData.isExistingTarget, transferData.toMemberId]);
+
+  const minMembershipStartDate = useMemo(() => {
+    const today = getTodayIso();
+    if (transferData.isExistingTarget && selectedDestinationMember?.expiryDate) {
+      try {
+        const destExp = new Date(selectedDestinationMember.expiryDate);
+        destExp.setHours(0, 0, 0, 0);
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        if (!isNaN(destExp.getTime()) && destExp >= todayDate) {
+          const y = destExp.getFullYear();
+          const m = String(destExp.getMonth() + 1).padStart(2, '0');
+          const d = String(destExp.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+      } catch {}
+    }
+    return today;
+  }, [transferData.isExistingTarget, selectedDestinationMember]);
+
+  // Keep membership start date in sync whenever minimum start date increases
+  useEffect(() => {
+    if (isTransferModalOpen && minMembershipStartDate) {
+      setTransferData((prev) => {
+        if (!prev.membershipStartDate || prev.membershipStartDate < minMembershipStartDate) {
+          return { ...prev, membershipStartDate: minMembershipStartDate };
+        }
+        return prev;
+      });
+    }
+  }, [isTransferModalOpen, minMembershipStartDate]);
 
   const calcRecipientExpiry = useMemo(() => {
-    const sDate = transferData.membershipStartDate || transferData.transferDate || new Date().toISOString().split('T')[0];
-    const days = remainingDaysSource > 0 ? remainingDaysSource : 30;
+    const sDate = transferData.membershipStartDate || minMembershipStartDate;
     if (!sDate) return '';
-    const parts = sDate.split('-').map(Number);
-    if (parts.length === 3) {
-      const d = new Date(parts[0], parts[1] - 1, parts[2]);
-      d.setDate(d.getDate() + Number(days));
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
+    return addDaysToDateStr(sDate, remainingDaysSource);
+  }, [transferData.membershipStartDate, minMembershipStartDate, remainingDaysSource]);
+
+  const handleSourceMemberChange = (raw) => {
+    const id = extractMemberId(raw);
+    setTransferData((prev) => ({
+      ...prev,
+      fromMemberId: id
+    }));
+  };
+
+  const handleDestinationMemberChange = (raw) => {
+    const id = extractMemberId(raw);
+    const dest = findMemberById(members, id);
+    const today = getTodayIso();
+    const destExpiry = dest?.expiryDate ? String(dest.expiryDate).split('T')[0].split(' ')[0] : '';
+    const destStart = destExpiry && destExpiry >= today ? destExpiry : today;
+    setTransferData((prev) => ({
+      ...prev,
+      toMemberId: id,
+      membershipStartDate: destStart
+    }));
+  };
+
+  const handleToggleTargetType = (isExisting) => {
+    const today = getTodayIso();
+    let newStart = today;
+    if (isExisting && selectedDestinationMember?.expiryDate) {
+      const expStr = String(selectedDestinationMember.expiryDate).split('T')[0].split(' ')[0];
+      newStart = expStr >= today ? expStr : today;
     }
-    return '';
-  }, [transferData.membershipStartDate, transferData.transferDate, remainingDaysSource]);
+    setTransferData((prev) => ({
+      ...prev,
+      isExistingTarget: isExisting,
+      membershipStartDate: newStart
+    }));
+  };
+
+  const handleOpenTransferModal = () => {
+    const today = getTodayIso();
+    const source = findMemberById(members, transferData.fromMemberId) || members[0];
+    const sourceId = source ? String(source.id) : '';
+    const dest = findMemberById(members, transferData.toMemberId);
+    const destExpiry = dest?.expiryDate ? String(dest.expiryDate).split('T')[0].split(' ')[0] : '';
+    const initialStart = transferData.isExistingTarget && destExpiry && destExpiry >= today
+      ? destExpiry
+      : today;
+
+    setTransferData((prev) => ({
+      ...prev,
+      fromMemberId: sourceId,
+      transferDate: today,
+      membershipStartDate: initialStart
+    }));
+    setIsTransferModalOpen(true);
+  };
+
+  const selectedFreezeMember = findMemberById(members, freezeData.memberId);
+  const freezeMemberPlanMonths = selectedFreezeMember ? getMemberPlanDurationMonths(selectedFreezeMember, plans) : 0;
+
+  const selectedExtendMember = findMemberById(members, extendData.memberId);
+  const extendMemberPlanMonths = selectedExtendMember ? getMemberPlanDurationMonths(selectedExtendMember, plans) : 0;
 
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
@@ -494,7 +771,7 @@ export const MembershipFreezeManager = () => {
             <>
               <button
                 type="button"
-                onClick={() => setIsExtendModalOpen(true)}
+                onClick={handleOpenExtendModal}
                 className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
               >
                 <CalendarPlus className="w-3.5 h-3.5 text-emerald-600" />
@@ -503,8 +780,8 @@ export const MembershipFreezeManager = () => {
 
               <button
                 type="button"
-                onClick={() => setIsFreezeModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                onClick={handleOpenFreezeModal}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
               >
                 <PauseCircle className="w-3.5 h-3.5" />
                 <span>Freeze</span>
@@ -513,7 +790,7 @@ export const MembershipFreezeManager = () => {
           ) : (
             <button
               type="button"
-              onClick={() => setIsTransferModalOpen(true)}
+              onClick={handleOpenTransferModal}
               className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
             >
               <ArrowRightLeft className="w-4 h-4" />
@@ -732,7 +1009,7 @@ export const MembershipFreezeManager = () => {
                   title={searchTerm || activeFiltersCount > 0 ? "No matching freeze records" : "No Memberships Frozen"}
                   description={searchTerm || activeFiltersCount > 0 ? "No freeze records match your search or filter criteria." : "Pause active memberships or add validity extensions with fees."}
                   actionText={searchTerm || activeFiltersCount > 0 ? "Reset Filters" : "Freeze Member Plan"}
-                  onAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : () => setIsFreezeModalOpen(true)}
+                  onAction={searchTerm || activeFiltersCount > 0 ? handleResetFilters : handleOpenFreezeModal}
                   color="amber"
                 />
               </div>
@@ -944,7 +1221,7 @@ export const MembershipFreezeManager = () => {
                   title={searchTerm ? "No matching transfers" : "No Membership Transfers"}
                   description={searchTerm ? `No transfer records match "${searchTerm}".` : "Transfer remaining membership validity from one member to another and charge a transfer fee."}
                   actionText="Transfer Membership"
-                  onAction={() => setIsTransferModalOpen(true)}
+                  onAction={handleOpenTransferModal}
                   color="violet"
                 />
               </div>
@@ -1023,15 +1300,48 @@ export const MembershipFreezeManager = () => {
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleFreezeSubmit} className="space-y-3.5">
+          {/* Eligibility Policy Notice */}
+          <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 text-[11px] leading-relaxed">
+              <span className="font-bold block text-blue-950">Plan Duration Requirement</span>
+              <p className="text-blue-800">
+                Freeze is strictly applicable only to members with membership plans <strong>above 6 months</strong> (Half-Yearly & Annual memberships). Plans below 6 months are not eligible.
+              </p>
+            </div>
+          </div>
+
           {/* Typeable Member Combobox */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Select Member *</label>
-            <MemberSearchSelect
-              members={members}
-              value={freezeData.memberId}
-              onChange={(id) => setFreezeData({ ...freezeData, memberId: id })}
-              placeholder="Type to search member name or phone..."
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700">Select Member *</label>
+              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {eligibleMembers.length} Eligible Members
+              </span>
+            </div>
+            {eligibleMembers.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                No active members currently hold plans with duration above 6 months.
+              </div>
+            ) : (
+              <MemberSearchSelect
+                members={eligibleMembers}
+                value={freezeData.memberId}
+                onChange={(id) => setFreezeData({ ...freezeData, memberId: extractMemberId(id) })}
+                placeholder="Type to search eligible member (6+ month plans)..."
+              />
+            )}
+            {selectedFreezeMember && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-600">
+                <span className="text-slate-400">Current Plan:</span>
+                <span className="font-bold text-slate-800">{selectedFreezeMember.planName}</span>
+                {freezeMemberPlanMonths > 0 && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {freezeMemberPlanMonths} Months Plan
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1040,10 +1350,12 @@ export const MembershipFreezeManager = () => {
               <input
                 type="date"
                 required
+                min={todayIso}
                 value={freezeData.freezeStartDate}
                 onChange={(e) => handleStartDateChange(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Cannot be earlier than today ({todayIso})</span>
             </div>
 
             <div>
@@ -1061,6 +1373,31 @@ export const MembershipFreezeManager = () => {
               />
             </div>
           </div>
+
+          {/* Validity Increase Preview */}
+          {selectedFreezeMember && (
+            <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-600 font-medium">Current Plan Expiry:</span>
+                <span className="font-bold text-slate-800">
+                  {formatDateReadable(selectedFreezeMember.expiryDate)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 font-medium">Freeze Days Added to Plan:</span>
+                <span className="font-bold text-emerald-700">+{freezeData.daysFrozen} Days</span>
+              </div>
+              <div className="pt-1.5 border-t border-emerald-200/90 flex items-center justify-between text-xs">
+                <span className="font-bold text-emerald-950 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>New Extended Plan Validity:</span>
+                </span>
+                <span className="font-black text-emerald-700 bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-xs">
+                  {formatDateReadable(calculateNewPlanExpiry(selectedFreezeMember.expiryDate, freezeData.daysFrozen))}
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
             <div className="font-bold flex items-center gap-1.5 text-[11px]">
@@ -1203,7 +1540,7 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              disabled={isSubmittingFreeze}
+              disabled={isSubmittingFreeze || eligibleMembers.length === 0}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingFreeze && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1221,15 +1558,48 @@ export const MembershipFreezeManager = () => {
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleExtendSubmit} className="space-y-3.5">
+          {/* Eligibility Policy Notice */}
+          <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 text-[11px] leading-relaxed">
+              <span className="font-bold block text-blue-950">Plan Duration Requirement</span>
+              <p className="text-blue-800">
+                Extension is strictly applicable only to members with membership plans <strong>above 6 months</strong> (Half-Yearly & Annual memberships). Plans below 6 months are not eligible.
+              </p>
+            </div>
+          </div>
+
           {/* Typeable Member Combobox */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Select Member *</label>
-            <MemberSearchSelect
-              members={members}
-              value={extendData.memberId}
-              onChange={(id) => setExtendData({ ...extendData, memberId: id })}
-              placeholder="Type to search member name or phone..."
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700">Select Member *</label>
+              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {eligibleMembers.length} Eligible Members
+              </span>
+            </div>
+            {eligibleMembers.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                No active members currently hold plans with duration above 6 months.
+              </div>
+            ) : (
+              <MemberSearchSelect
+                members={eligibleMembers}
+                value={extendData.memberId}
+                onChange={(id) => setExtendData({ ...extendData, memberId: extractMemberId(id) })}
+                placeholder="Type to search eligible member (6+ month plans)..."
+              />
+            )}
+            {selectedExtendMember && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-600">
+                <span className="text-slate-400">Current Plan:</span>
+                <span className="font-bold text-slate-800">{selectedExtendMember.planName}</span>
+                {extendMemberPlanMonths > 0 && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {extendMemberPlanMonths} Months Plan
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -1246,6 +1616,31 @@ export const MembershipFreezeManager = () => {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
+
+          {/* Validity Increase Preview */}
+          {selectedExtendMember && (
+            <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-xs space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-600 font-medium">Current Plan Expiry:</span>
+                <span className="font-bold text-slate-800">
+                  {formatDateReadable(selectedExtendMember.expiryDate)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-blue-700 font-medium">Extension Days Added:</span>
+                <span className="font-bold text-blue-700">+{extendData.extensionDays || 0} Days</span>
+              </div>
+              <div className="pt-1.5 border-t border-blue-200/90 flex items-center justify-between text-xs">
+                <span className="font-bold text-blue-950 flex items-center gap-1">
+                  <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
+                  <span>New Extended Plan Validity:</span>
+                </span>
+                <span className="font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-lg border border-blue-300 shadow-xs">
+                  {formatDateReadable(calculateNewPlanExpiry(selectedExtendMember.expiryDate, extendData.extensionDays))}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Extension Fee & Payment Options */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -1378,7 +1773,7 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              disabled={isSubmittingExtend}
+              disabled={isSubmittingExtend || eligibleMembers.length === 0}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingExtend && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1398,25 +1793,46 @@ export const MembershipFreezeManager = () => {
         <form onSubmit={handleTransferSubmit} className="space-y-4">
           {/* Source Member */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Source Member (Transfer From) *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700">
+                Source Member (Transfer From) *
+              </label>
+              {selectedSourceMember && (
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800 border border-violet-200' : 'bg-red-100 text-red-700 border border-red-200'
+                }`}>
+                  {remainingDaysSource > 0 ? `${remainingDaysSource} Days Remaining` : '0 Days (Expired)'}
+                </span>
+              )}
+            </div>
             <MemberSearchSelect
               members={members}
               value={transferData.fromMemberId}
-              onChange={(id) => setTransferData({ ...transferData, fromMemberId: id })}
+              onChange={handleSourceMemberChange}
               placeholder="Type to search source member..."
             />
             {selectedSourceMember && (
-              <div className="mt-2 p-2.5 rounded-xl bg-violet-50/70 border border-violet-200 text-xs flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-violet-900">{selectedSourceMember.planName || 'Plan'}</span>
-                  <span className="text-[11px] text-violet-700 block">Expires: {selectedSourceMember.expiryDate || 'N/A'}</span>
+              <div className="mt-2 p-3 rounded-xl bg-violet-50/80 border border-violet-200 text-xs space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-violet-950 block">{selectedSourceMember.planName || 'Plan'}</span>
+                    <span className="text-[11px] text-violet-700">Expires: {formatDateReadable(selectedSourceMember.expiryDate)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-violet-600 uppercase font-bold block">Remaining Days Left</span>
+                    <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                      remainingDaysSource > 0 ? 'bg-violet-600 text-white' : 'bg-red-100 text-red-700 border border-red-200'
+                    }`}>
+                      {remainingDaysSource} Days Left
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-violet-600 uppercase font-bold block">Remaining Days</span>
-                  <span className="text-sm font-black text-violet-900">{remainingDaysSource} Days</span>
-                </div>
+                {remainingDaysSource <= 0 && (
+                  <div className="pt-1.5 border-t border-red-200/80 text-[11px] text-red-700 font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                    <span>This member's plan has expired (0 days left). Only members with active remaining days can transfer.</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1430,7 +1846,7 @@ export const MembershipFreezeManager = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setTransferData({ ...transferData, isExistingTarget: true })}
+                  onClick={() => handleToggleTargetType(true)}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
                     transferData.isExistingTarget
                       ? 'bg-violet-600 text-white'
@@ -1441,7 +1857,7 @@ export const MembershipFreezeManager = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTransferData({ ...transferData, isExistingTarget: false })}
+                  onClick={() => handleToggleTargetType(false)}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
                     !transferData.isExistingTarget
                       ? 'bg-violet-600 text-white'
@@ -1454,12 +1870,33 @@ export const MembershipFreezeManager = () => {
             </div>
 
             {transferData.isExistingTarget ? (
-              <MemberSearchSelect
-                members={members.filter((m) => m.id !== transferData.fromMemberId)}
-                value={transferData.toMemberId}
-                onChange={(id) => setTransferData({ ...transferData, toMemberId: id })}
-                placeholder="Type to search recipient member..."
-              />
+              <>
+                <MemberSearchSelect
+                  members={members.filter((m) => String(m.id) !== String(transferData.fromMemberId) && cleanId(m.id) !== cleanId(transferData.fromMemberId))}
+                  value={transferData.toMemberId}
+                  onChange={handleDestinationMemberChange}
+                  placeholder="Type to search recipient member..."
+                />
+                {selectedDestinationMember && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-800 block">{selectedDestinationMember.planName || 'No Active Plan'}</span>
+                      <span className="text-[11px] text-slate-500">
+                        Current Expiry: {formatDateReadable(selectedDestinationMember.expiryDate)}
+                      </span>
+                    </div>
+                    {selectedDestinationMember.expiryDate && String(selectedDestinationMember.expiryDate).split('T')[0] >= todayIso ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Current Plan Expires: {formatDateReadable(selectedDestinationMember.expiryDate)}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        Expired / No Active Plan
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1523,29 +1960,70 @@ export const MembershipFreezeManager = () => {
                 <input
                   type="date"
                   required
+                  min={minMembershipStartDate}
                   value={transferData.membershipStartDate}
-                  onChange={(e) => setTransferData({ ...transferData, membershipStartDate: e.target.value })}
+                  onChange={(e) => {
+                    const chosen = e.target.value;
+                    if (chosen < minMembershipStartDate) {
+                      addToast?.(`Start date cannot be earlier than ${formatDateReadable(minMembershipStartDate)}`, 'warning');
+                      return;
+                    }
+                    setTransferData({ ...transferData, membershipStartDate: chosen });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 font-semibold cursor-pointer"
                 />
+                <span className="text-[10px] text-violet-700 mt-0.5 block font-medium">
+                  {minMembershipStartDate > todayIso
+                    ? `Cannot be earlier than transferee's current plan expiry (${formatDateReadable(minMembershipStartDate)})`
+                    : `Cannot be earlier than today (${formatDateReadable(todayIso)})`}
+                </span>
               </div>
             </div>
 
             {/* Transfer Impact & Validity Calculation Banner */}
-            <div className="p-2.5 rounded-lg bg-white border border-violet-100 text-xs space-y-1.5 shadow-2xs">
+            <div className="p-3 rounded-lg bg-white border border-violet-100 text-xs space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-violet-900 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
-                  Transferee Validity Period:
+                  Transferred Validity Calculation:
                 </span>
-                <span className="text-[11px] font-black text-violet-700 bg-violet-100/70 px-2 py-0.5 rounded">
-                  {remainingDaysSource > 0 ? remainingDaysSource : 30} Days Left
+                <span className={`text-[11px] font-black px-2 py-0.5 rounded ${
+                  remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800' : 'bg-red-100 text-red-700'
+                }`}>
+                  +{remainingDaysSource} Days Added
                 </span>
               </div>
-              <div className="text-[11px] text-slate-700">
-                Valid from <span className="font-bold text-slate-900">{transferData.membershipStartDate}</span> to <span className="font-bold text-slate-900">{calcRecipientExpiry || 'N/A'}</span>
+              <div className="text-[11px] text-slate-700 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Source Plan Days Remaining:</span>
+                  <span className="font-bold text-violet-950">
+                    {remainingDaysSource} Days (from {selectedSourceMember?.name || 'source'})
+                  </span>
+                </div>
+                {selectedDestinationMember && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Transferee Current Plan Expiry:</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedDestinationMember.expiryDate ? formatDateReadable(selectedDestinationMember.expiryDate) : 'No Active Plan'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">New Membership Start Date:</span>
+                  <span className="font-bold text-slate-900">{formatDateReadable(transferData.membershipStartDate)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  <span className="font-bold text-violet-950">Transferee New Expiry Date:</span>
+                  <span className="font-black text-violet-700 bg-violet-50 px-2.5 py-0.5 rounded-lg border border-violet-200">
+                    {formatDateReadable(calcRecipientExpiry)}
+                  </span>
+                </div>
               </div>
+              <p className="text-[10px] text-violet-700 leading-relaxed">
+                Exactly <strong>{remainingDaysSource} days</strong> remaining from <strong>{selectedSourceMember?.name || 'source'}</strong> will be added to {selectedDestinationMember ? <strong>{selectedDestinationMember.name}</strong> : 'the destination member'}'s plan starting from <strong>{formatDateReadable(transferData.membershipStartDate)}</strong> to <strong>{formatDateReadable(calcRecipientExpiry)}</strong>.
+              </p>
               <div className="pt-1 border-t border-slate-100 text-[10px] text-amber-700 flex items-center gap-1 font-medium">
-                <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 <span>Source member will be marked as <strong className="text-amber-900">Expired</strong> immediately upon transfer.</span>
               </div>
             </div>
@@ -1684,7 +2162,7 @@ export const MembershipFreezeManager = () => {
             <button
               type="submit"
               disabled={isSubmittingTransfer}
-              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingTransfer && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingTransfer ? 'Transferring...' : 'Confirm Transfer'}</span>

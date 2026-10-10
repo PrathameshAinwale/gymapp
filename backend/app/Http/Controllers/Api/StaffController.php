@@ -27,10 +27,6 @@ class StaffController extends Controller
         ];
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
-        $hasPlain = Schema::hasColumn('users', 'plain_password');
-        if ($hasPlain) {
-            $selectCols[] = 'plain_password';
-        }
 
         $query = User::whereIn('role', ['manager', 'accounts', 'trainer'])
             ->with(['trainerProfile.assignedMembers.user', 'trainerProfile.assignedMembers.plan']);
@@ -47,38 +43,11 @@ class StaffController extends Controller
             ->orderBy('name')
             ->get($selectCols);
 
-        // Ensure each staff record has the verified plain_password and password
-        $data = $staff->map(function ($u) use ($hasPlain) {
+        // Staff records with masked passwords
+        $data = $staff->map(function ($u) {
             $arr = $u->toArray();
-            $plain = $hasPlain ? $u->plain_password : null;
-
-            if (empty($plain) || $plain === 'password123') {
-                if ($u->email === 'sohan@gmail.com' || Hash::check('sohan123', $u->password ?? '')) {
-                    $plain = 'sohan123';
-                } elseif ($u->email === 'coach1@gmail.com' || Hash::check('trainer123', $u->password ?? '')) {
-                    $plain = 'trainer123';
-                } elseif ($u->email === 'ajay@gmail.com' || Hash::check('123456', $u->password ?? '')) {
-                    $plain = '123456';
-                } elseif (Hash::check('admin123', $u->password ?? '')) {
-                    $plain = 'admin123';
-                } elseif ($u->role === 'manager') {
-                    $plain = 'manager123';
-                } elseif ($u->role === 'accounts') {
-                    $plain = 'accounts123';
-                } elseif ($u->role === 'trainer') {
-                    $plain = 'trainer123';
-                } else {
-                    $plain = 'sohan123';
-                }
-
-                if ($hasPlain) {
-                    $u->plain_password = $plain;
-                    $u->save();
-                }
-            }
-
-            $arr['plain_password'] = $plain;
-            $arr['password'] = $plain;
+            $arr['plain_password'] = '••••••••';
+            $arr['password'] = '••••••••';
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {
@@ -201,9 +170,6 @@ class StaffController extends Controller
             'must_change_password' => false,
         ];
 
-        if (Schema::hasColumn('users', 'plain_password')) {
-            $userData['plain_password'] = $validated['password'];
-        }
 
         // Check if user already exists with this phone or email
         $rawPhone = trim($validated['phone'] ?? '');
@@ -342,27 +308,16 @@ class StaffController extends Controller
         if (array_key_exists('salary', $validated)) $user->salary = $validated['salary'];
         if (array_key_exists('shifts', $validated)) $user->shifts = $validated['shifts'];
 
-        $hasPlain = Schema::hasColumn('users', 'plain_password');
         // Update password if provided
         if (!empty($validated['password'])) {
             $user->password = Hash::make($validated['password']);
-            if ($hasPlain) {
-                $user->plain_password = $validated['password'];
-            }
         }
 
         $user->save();
 
-        $plain = $hasPlain ? $user->plain_password : null;
-        if (empty($plain)) {
-            if ($user->role === 'manager') $plain = 'manager123';
-            elseif ($user->role === 'accounts') $plain = 'accounts123';
-            elseif ($user->role === 'trainer') $plain = 'trainer123';
-            else $plain = 'password123';
-        }
         $responseData = $user->toArray();
-        $responseData['plain_password'] = $plain;
-        $responseData['password'] = $plain;
+        $responseData['plain_password'] = '••••••••';
+        $responseData['password'] = '••••••••';
 
         // If user is a trainer or trainer fields provided, update / create TrainerProfile
         if ($user->role === 'trainer' || ($validated['role'] ?? '') === 'trainer' || $request->has('specialty')) {

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { GymDataProvider, useGymData } from './context/GymDataContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForceChangePasswordModal } from './components/auth/ForceChangePasswordModal';
@@ -13,56 +14,58 @@ import { OwnerPageLoader } from './components/common/OwnerPageLoader';
 import { AboutPages } from './components/common/AboutPages';
 import { isTabAllowedForGym } from './components/superadmin/packagePlans';
 
-// Member Views
-import { MemberDashboard } from './components/member/MemberDashboard';
-import { WorkoutTracker } from './components/member/WorkoutTracker';
-import { DietTracker } from './components/member/DietTracker';
-import { ClassBooking } from './components/member/ClassBooking';
-import { MemberProfile } from './components/member/MemberProfile';
-import { MemberInvoices } from './components/member/MemberInvoices';
-import { MemberTransformation } from './components/member/MemberTransformation';
-
-// Trainer Views
-import { TrainerDashboard } from './components/trainer/TrainerDashboard';
-import { TrainerClientList } from './components/trainer/TrainerClientList';
-import { WorkoutBuilder } from './components/trainer/WorkoutBuilder';
-import { DietBuilder } from './components/trainer/DietBuilder';
-import { TrainerProfile } from './components/trainer/TrainerProfile';
-import { TrainerCommissionsView } from './components/trainer/TrainerCommissionsView';
-import { TrainerSessionsView } from './components/trainer/TrainerSessionsView';
-import { TrainerAdvancePayView } from './components/trainer/TrainerAdvancePayView';
-
-// Owner Views
+// Eager landing view for Owner Dashboard
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
-import { MemberList } from './components/owner/MemberList';
-import { PlanManager } from './components/owner/PlanManager';
-import { Financials } from './components/owner/Financials';
-import { EquipmentManager } from './components/owner/EquipmentManager';
-import { SettingsManager } from './components/owner/SettingsManager';
-import { EnquiriesManager } from './components/owner/EnquiriesManager';
-import { ProductsManager } from './components/owner/ProductsManager';
-import { TrainerCommissions } from './components/owner/TrainerCommissions';
-import { ConsentFormsManager } from './components/owner/ConsentFormsManager';
-import { MembershipFreezeManager } from './components/owner/MembershipFreezeManager';
-import { PayrollManager } from './components/owner/PayrollManager';
-import { AttendanceTracker } from './components/owner/AttendanceTracker';
-import { InvoicesPage } from './components/owner/InvoicesPage';
-import { SuperadminApp } from './components/superadmin/SuperadminApp';
 
-// New Systems: Staff Accounts, Reports, Advance Pay, Classes, PT Sessions, Member Coaches
-import { StaffAccountManager } from './components/owner/StaffAccountManager';
-import { ReportsManager } from './components/owner/ReportsManager';
-import { AdvancePayManager } from './components/owner/AdvancePayManager';
-import { ClassAdminManager } from './components/owner/ClassAdminManager';
-import { PTSessionsManager } from './components/owner/PTSessionsManager';
-import { CoachesDirectory } from './components/member/CoachesDirectory';
-import { AnalyticsPage } from './components/owner/AnalyticsPage';
-import { LeaveManagement } from './components/owner/LeaveManagement';
-import { TrainerLeaveView } from './components/trainer/TrainerLeaveView';
-import { WhatsAppAutomation } from './components/owner/WhatsAppAutomation';
-import { ShiftManager } from './components/owner/ShiftManager';
-import { MemberProfilePage } from './components/owner/MemberProfilePage';
-import { AddMemberPage } from './components/owner/AddMemberPage';
+// Lazy-loaded Superadmin Portal
+const SuperadminApp = lazy(() => import('./components/superadmin/SuperadminApp').then(m => ({ default: m.SuperadminApp })));
+
+// Lazy-loaded Member Views
+const MemberDashboard = lazy(() => import('./components/member/MemberDashboard').then(m => ({ default: m.MemberDashboard })));
+const WorkoutTracker = lazy(() => import('./components/member/WorkoutTracker').then(m => ({ default: m.WorkoutTracker })));
+const DietTracker = lazy(() => import('./components/member/DietTracker').then(m => ({ default: m.DietTracker })));
+const ClassBooking = lazy(() => import('./components/member/ClassBooking').then(m => ({ default: m.ClassBooking })));
+const MemberProfile = lazy(() => import('./components/member/MemberProfile').then(m => ({ default: m.MemberProfile })));
+const MemberInvoices = lazy(() => import('./components/member/MemberInvoices').then(m => ({ default: m.MemberInvoices })));
+const MemberTransformation = lazy(() => import('./components/member/MemberTransformation').then(m => ({ default: m.MemberTransformation })));
+const CoachesDirectory = lazy(() => import('./components/member/CoachesDirectory').then(m => ({ default: m.CoachesDirectory })));
+
+// Lazy-loaded Trainer Views
+const TrainerDashboard = lazy(() => import('./components/trainer/TrainerDashboard').then(m => ({ default: m.TrainerDashboard })));
+const TrainerClientList = lazy(() => import('./components/trainer/TrainerClientList').then(m => ({ default: m.TrainerClientList })));
+const WorkoutBuilder = lazy(() => import('./components/trainer/WorkoutBuilder').then(m => ({ default: m.WorkoutBuilder })));
+const DietBuilder = lazy(() => import('./components/trainer/DietBuilder').then(m => ({ default: m.DietBuilder })));
+const TrainerProfile = lazy(() => import('./components/trainer/TrainerProfile').then(m => ({ default: m.TrainerProfile })));
+const TrainerCommissionsView = lazy(() => import('./components/trainer/TrainerCommissionsView').then(m => ({ default: m.TrainerCommissionsView })));
+const TrainerSessionsView = lazy(() => import('./components/trainer/TrainerSessionsView').then(m => ({ default: m.TrainerSessionsView })));
+const TrainerAdvancePayView = lazy(() => import('./components/trainer/TrainerAdvancePayView').then(m => ({ default: m.TrainerAdvancePayView })));
+const TrainerLeaveView = lazy(() => import('./components/trainer/TrainerLeaveView').then(m => ({ default: m.TrainerLeaveView })));
+
+// Lazy-loaded Owner Views
+const MemberList = lazy(() => import('./components/owner/MemberList').then(m => ({ default: m.MemberList })));
+const PlanManager = lazy(() => import('./components/owner/PlanManager').then(m => ({ default: m.PlanManager })));
+const Financials = lazy(() => import('./components/owner/Financials').then(m => ({ default: m.Financials })));
+const EquipmentManager = lazy(() => import('./components/owner/EquipmentManager').then(m => ({ default: m.EquipmentManager })));
+const SettingsManager = lazy(() => import('./components/owner/SettingsManager').then(m => ({ default: m.SettingsManager })));
+const EnquiriesManager = lazy(() => import('./components/owner/EnquiriesManager').then(m => ({ default: m.EnquiriesManager })));
+const ProductsManager = lazy(() => import('./components/owner/ProductsManager').then(m => ({ default: m.ProductsManager })));
+const TrainerCommissions = lazy(() => import('./components/owner/TrainerCommissions').then(m => ({ default: m.TrainerCommissions })));
+const ConsentFormsManager = lazy(() => import('./components/owner/ConsentFormsManager').then(m => ({ default: m.ConsentFormsManager })));
+const MembershipFreezeManager = lazy(() => import('./components/owner/MembershipFreezeManager').then(m => ({ default: m.MembershipFreezeManager })));
+const PayrollManager = lazy(() => import('./components/owner/PayrollManager').then(m => ({ default: m.PayrollManager })));
+const AttendanceTracker = lazy(() => import('./components/owner/AttendanceTracker').then(m => ({ default: m.AttendanceTracker })));
+const InvoicesPage = lazy(() => import('./components/owner/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
+const StaffAccountManager = lazy(() => import('./components/owner/StaffAccountManager').then(m => ({ default: m.StaffAccountManager })));
+const ReportsManager = lazy(() => import('./components/owner/ReportsManager').then(m => ({ default: m.ReportsManager })));
+const AdvancePayManager = lazy(() => import('./components/owner/AdvancePayManager').then(m => ({ default: m.AdvancePayManager })));
+const ClassAdminManager = lazy(() => import('./components/owner/ClassAdminManager').then(m => ({ default: m.ClassAdminManager })));
+const PTSessionsManager = lazy(() => import('./components/owner/PTSessionsManager').then(m => ({ default: m.PTSessionsManager })));
+const AnalyticsPage = lazy(() => import('./components/owner/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
+const LeaveManagement = lazy(() => import('./components/owner/LeaveManagement').then(m => ({ default: m.LeaveManagement })));
+const WhatsAppAutomation = lazy(() => import('./components/owner/WhatsAppAutomation').then(m => ({ default: m.WhatsAppAutomation })));
+const ShiftManager = lazy(() => import('./components/owner/ShiftManager').then(m => ({ default: m.ShiftManager })));
+const MemberProfilePage = lazy(() => import('./components/owner/MemberProfilePage').then(m => ({ default: m.MemberProfilePage })));
+const AddMemberPage = lazy(() => import('./components/owner/AddMemberPage').then(m => ({ default: m.AddMemberPage })));
 
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
@@ -70,7 +73,6 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
-  const [isOpenAddMemberModal, setIsOpenAddMemberModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Bronze';
@@ -130,13 +132,8 @@ function MainApp() {
         setIsMobileMenuOpen(false);
         return;
       }
-      // 2. Close Add Member modal if open
-      if (isOpenAddMemberModal) {
-        setIsOpenAddMemberModal(false);
-        return;
-      }
 
-      // 3. Tab history step back
+      // 2. Tab history step back
       if (event.state && event.state.tab) {
         setActiveTab(event.state.tab);
       } else {
@@ -146,7 +143,7 @@ function MainApp() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isMobileMenuOpen, isOpenAddMemberModal]);
+  }, [isMobileMenuOpen]);
 
   // Capacitor Native Back Button handling for Mobile View (Hardware / Gesture Back)
   useEffect(() => {
@@ -162,19 +159,13 @@ function MainApp() {
               return;
             }
 
-            // 2. Close Add Member modal if open
-            if (isOpenAddMemberModal) {
-              setIsOpenAddMemberModal(false);
-              return;
-            }
-
-            // 3. If on Dashboard, exit/close the mobile app
+            // 2. If on Dashboard, exit/close the mobile app
             if (activeTab === 'dashboard') {
               CapApp.exitApp();
               return;
             }
 
-            // 4. Otherwise step back one screen in history
+            // 3. Otherwise step back one screen in history
             window.history.back();
           });
         }
@@ -190,7 +181,7 @@ function MainApp() {
         backListener.remove();
       }
     };
-  }, [activeTab, isMobileMenuOpen, isOpenAddMemberModal]);
+  }, [activeTab, isMobileMenuOpen]);
 
   // Reset to dashboard when role switches
   useEffect(() => {
@@ -445,7 +436,9 @@ function MainApp() {
 
         {/* Main Content Viewport: Full width responsive dashboard */}
         <main className="flex-1 min-w-0 h-full overflow-y-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-4 pb-6 safe-bottom">
-          {renderContent()}
+          <Suspense fallback={<OwnerPageLoader activeTab={activeTab} />}>
+            {renderContent()}
+          </Suspense>
         </main>
       </div>
 
@@ -468,14 +461,20 @@ export default function App() {
   const isSuperadmin = currentPath.startsWith('/superadmin');
 
   if (isSuperadmin) {
-    return <SuperadminApp />;
+    return (
+      <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-900 text-white"><div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" /></div>}>
+        <SuperadminApp />
+      </Suspense>
+    );
   }
 
   return (
     <AuthProvider>
-      <GymDataProvider>
-        <MainApp />
-      </GymDataProvider>
+      <ToastProvider>
+        <GymDataProvider>
+          <MainApp />
+        </GymDataProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -560,17 +560,6 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
             <span>New Enquiry</span>
           </button>
 
-          {canAccessFinancials && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('financials')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-            >
-              <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Record Fee</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setIsCreateInvoiceOpen(true)}
@@ -1604,7 +1593,7 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
                           <a
                             href={getWhatsAppUrl(
                               lead.phone,
-                              `Hi ${lead.name}, greetings from ${gymName || 'our gym'}! Following up on your enquiry for ${lead.interestedPlan}. Would you like to book a complimentary trial session this week?`
+                              `Hi ${lead.name}, greetings from ${gymInfo?.name || 'our gym'}! Following up on your enquiry for ${lead.interestedPlan}. Would you like to book a complimentary trial session this week?`
                             )}
                             target="_blank"
                             rel="noopener noreferrer"

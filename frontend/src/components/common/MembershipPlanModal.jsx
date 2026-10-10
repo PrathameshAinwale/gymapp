@@ -19,6 +19,23 @@ export const PACKAGE_TYPES = [
   'General Fitness'
 ];
 
+export const normalizePackageType = (type) => {
+  if (!type) return 'Gym-Cardio';
+  const clean = String(type).trim().toLowerCase();
+  const match = PACKAGE_TYPES.find((t) => t.toLowerCase() === clean);
+  if (match) return match;
+  if (clean === 'membership' || clean === 'gym' || clean === 'cardio' || clean === 'gym cardio') {
+    return 'Gym-Cardio';
+  }
+  if (clean === 'pt' || clean === 'personal training') {
+    return 'Personal Training';
+  }
+  if (clean === 'recovery' || clean === 'massage') {
+    return 'Massage';
+  }
+  return 'Gym-Cardio';
+};
+
 export const getPackagesForType = (type, plans = [], ptPlans = [], recoveryPlans = []) => {
   if (!type) return [];
   const normalizedType = String(type).trim().toLowerCase();
@@ -155,7 +172,7 @@ export function MembershipPlanModal({
         setIsCustomDuration(!hasPreset && Boolean(plan.period));
 
         setFormData({
-          packageType: plan.packageType || plan.package_type || plan.category || defaultPackageType || 'Gym-Cardio',
+          packageType: normalizePackageType(plan.packageType || plan.package_type || plan.category || defaultPackageType),
           name: plan.name || '',
           period: plan.period || '1 Month',
           durationMonths: plan.durationMonths ?? plan.duration_months ?? 1,
@@ -172,7 +189,7 @@ export function MembershipPlanModal({
       } else {
         setIsCustomDuration(false);
         setFormData({
-          packageType: defaultPackageType || 'Gym-Cardio',
+          packageType: normalizePackageType(defaultPackageType),
           name: '',
           period: '1 Month',
           durationMonths: 1,
@@ -247,11 +264,13 @@ export function MembershipPlanModal({
         .map((f) => f.trim())
         .filter(Boolean);
 
+      const resolvedPackageType = normalizePackageType(formData.packageType);
+
       const payload = {
         name: formData.name.trim(),
-        package_type: formData.packageType,
-        packageType: formData.packageType,
-        category: formData.packageType,
+        package_type: resolvedPackageType,
+        packageType: resolvedPackageType,
+        category: resolvedPackageType,
         period: formData.period || '1 Month',
         duration_months: Number(formData.durationMonths) || 1,
         durationMonths: Number(formData.durationMonths) || 1,

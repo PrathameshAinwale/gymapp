@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
-import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists } from '../common/MembershipPlanModal';
+import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate } from '../../utils/dateUtils';
@@ -67,6 +67,7 @@ export const AddMemberPage = ({
   upgradeMember = null,
   isEdit = false,
   editMember = null,
+  isModal = false,
   onBack,
   onNavigateTab,
   onMemberAdded
@@ -171,7 +172,6 @@ export const AddMemberPage = ({
   // Membership Start and End Date States
   const [membershipStartDate, setMembershipStartDate] = useState(getTodayDateStr());
   const [membershipEndDate, setMembershipEndDate] = useState('');
-  const [isManualEndDate, setIsManualEndDate] = useState(false);
 
   // Payment Breakdown States
   const [cashAmount, setCashAmount] = useState('');
@@ -179,6 +179,7 @@ export const AddMemberPage = ({
   const [accountTransferAmount, setAccountTransferAmount] = useState('');
   const [balanceDueDate, setBalanceDueDate] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
+  const [isGstIncluded, setIsGstIncluded] = useState(true);
 
   const [trainingType, setTrainingType] = useState('self');
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
@@ -220,9 +221,16 @@ export const AddMemberPage = ({
         const newPackageId = firstPlan ? String(firstPlan.id) : '';
         const newPrice = Number(firstPlan?.price) || 0;
 
-        if (firstPlan && !isPt && !isManualEndDate && membershipStartDate) {
+        if (firstPlan && membershipStartDate) {
           const calculated = computePlanEndDate(membershipStartDate, firstPlan);
-          if (calculated) setMembershipEndDate(calculated);
+          if (calculated) {
+            setMembershipEndDate(calculated);
+            setFormData((prevData) => ({
+              ...prevData,
+              expiryDate: calculated,
+              status: calculateMemberStatus ? calculateMemberStatus(calculated, prevData.status) : prevData.status
+            }));
+          }
         }
 
         return {
@@ -249,9 +257,16 @@ export const AddMemberPage = ({
         const price = Number(found?.price) || 0;
         const isPt = row.packageType === 'Personal Training' || row.packageType === 'pt';
 
-        if (found && !isPt && !isManualEndDate && membershipStartDate) {
+        if (found && membershipStartDate) {
           const calculated = computePlanEndDate(membershipStartDate, found);
-          if (calculated) setMembershipEndDate(calculated);
+          if (calculated) {
+            setMembershipEndDate(calculated);
+            setFormData((prevData) => ({
+              ...prevData,
+              expiryDate: calculated,
+              status: calculateMemberStatus ? calculateMemberStatus(calculated, prevData.status) : prevData.status
+            }));
+          }
         } else if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
           setSelectedTrainerId(trainers[0].id);
           setFormData((prevData) => ({ ...prevData, trainerId: trainers[0].id }));
@@ -380,7 +395,7 @@ export const AddMemberPage = ({
 
   const handleOpenQuickAdd = (type, rowId = null) => {
     setActiveQuickAddRowId(rowId);
-    setQuickAddPlanType(type || 'Gym-Cardio');
+    setQuickAddPlanType(normalizePackageType(type));
   };
 
   // Sync initialData or default plan on mount
@@ -507,10 +522,11 @@ export const AddMemberPage = ({
         };
       });
 
+      const matchedPkgType = normalizePackageType(matchedPlan?.packageType || matchedPlan?.package_type || 'Gym-Cardio');
       setSelectedPackages([
         {
           id: 'pkg-1',
-          packageType: 'membership',
+          packageType: matchedPkgType,
           packageId: initPlanId,
           price: Number(matchedPlan?.price) || 0,
           discount: ''
@@ -519,6 +535,7 @@ export const AddMemberPage = ({
     } else {
       const defPlanId = plans[0]?.id ? String(plans[0].id) : '';
       const defPlan = plans[0];
+      const defPkgType = normalizePackageType(defPlan?.packageType || defPlan?.package_type || 'Gym-Cardio');
 
       setFormData((prev) => ({
         ...prev,
@@ -529,7 +546,7 @@ export const AddMemberPage = ({
       setSelectedPackages([
         {
           id: 'pkg-1',
-          packageType: 'membership',
+          packageType: defPkgType,
           packageId: defPlanId,
           price: Number(defPlan?.price) || 0,
           discount: ''
@@ -550,22 +567,34 @@ export const AddMemberPage = ({
   const isCoachSelected = Boolean(formData.trainerId && formData.trainerId !== 'general');
   const chosenTrainer = isCoachSelected ? trainers.find((t) => t.id === formData.trainerId) : null;
 
+  const isPtRow = (r) => {
+    const t = String(r?.packageType || '').toLowerCase();
+    return t === 'personal training' || t === 'pt';
+  };
+  const isRecoveryRow = (r) => {
+    const t = String(r?.packageType || '').toLowerCase();
+    return t === 'massage' || t === 'activities' || t === 'recovery';
+  };
+  const isMembershipRow = (r) => !isPtRow(r) && !isRecoveryRow(r);
+
   const selectedMembershipRow = selectedPackages.find(
-    (r) => r.packageType === 'membership' && r.packageId
-  );
+    (r) => isMembershipRow(r) && r.packageId
+  ) || selectedPackages.find(isMembershipRow) || selectedPackages[0];
+
   const chosenPlan = selectedMembershipRow
-    ? ((plans || []).find((p) => String(p.id) === String(selectedMembershipRow.packageId)) || null)
+    ? (getPackageObject(selectedMembershipRow.packageType, selectedMembershipRow.packageId) ||
+       (plans || []).find((p) => String(p.id) === String(selectedMembershipRow.packageId)) || null)
     : ((plans || []).find((p) => String(p.id) === String(formData.planId)) || null);
 
   const selectedPtRow = selectedPackages.find(
-    (r) => r.packageType === 'pt' && r.packageId
+    (r) => isPtRow(r) && r.packageId
   );
   const chosenPtPlan = selectedPtRow
     ? ((ptPlans || []).find((p) => String(p.id) === String(selectedPtRow.packageId)) || null)
     : ((ptPlans || []).find((p) => String(p.id) === String(selectedPtPlanId)) || null);
 
   const selectedRecoveryRow = selectedPackages.find(
-    (r) => r.packageType === 'recovery' && r.packageId
+    (r) => isRecoveryRow(r) && r.packageId
   );
   const chosenRecoveryPlan = selectedRecoveryRow
     ? ((recoveryPlans || []).find((r) => String(r.id) === String(selectedRecoveryRow.packageId)) || null)
@@ -583,29 +612,62 @@ export const AddMemberPage = ({
     return selectedPackages.reduce((sum, r) => sum + Math.max(0, Number(r.discount) || 0), 0);
   }, [selectedPackages]);
 
-  const totalCalculatedAmount = Math.max(0, totalGrossPackages - totalDiscountAmount);
+  const netPackageAmount = Math.max(0, totalGrossPackages - totalDiscountAmount);
+  // Total bill is the net package fee — disabling GST does not increase the bill
+  const totalCalculatedAmount = netPackageAmount;
+
+  const parseAmount = (val) => {
+    if (!val) return 0;
+    const clean = String(val).replace(/,/g, '').trim();
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : Math.max(0, num);
+  };
+  const numCash = parseAmount(cashAmount);
+  const numUpi = parseAmount(upiAmount);
+  const numTransfer = parseAmount(accountTransferAmount);
+  const isAnyPartialFilled = cashAmount !== '' || upiAmount !== '' || accountTransferAmount !== '';
+  const totalEnteredPaid = Math.round((numCash + numUpi + numTransfer) * 100) / 100;
+  const isPaymentAmountEntered = isAnyPartialFilled || totalEnteredPaid > 0;
+  const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
+  const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
+
+  // Live GST breakdown:
+  // - If GST is ticked: Base amount + CGST (9%) + SGST (9%) = targetAmount
+  // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
+  const gstBreakdown = useMemo(() => {
+    const targetAmount = effectivePaidAmount > 0 ? effectivePaidAmount : totalCalculatedAmount;
+    if (isGstIncluded) {
+      const taxable = Math.round(targetAmount / 1.18);
+      const totalGst = Math.max(0, targetAmount - taxable);
+      const cgst = Math.round(totalGst / 2);
+      const sgst = totalGst - cgst;
+      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount };
+    } else {
+      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount };
+    }
+  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount]);
 
   const basePrice = selectedPackages
-    .filter((r) => r.packageType === 'membership')
+    .filter(isMembershipRow)
     .reduce((sum, r) => sum + (Number(r.price) || 0), 0);
   const ptPrice = selectedPackages
-    .filter((r) => r.packageType === 'pt')
+    .filter(isPtRow)
     .reduce((sum, r) => sum + (Number(r.price) || 0), 0);
   const recoveryPrice = selectedPackages
-    .filter((r) => r.packageType === 'recovery')
+    .filter(isRecoveryRow)
     .reduce((sum, r) => sum + (Number(r.price) || 0), 0);
 
-  const calculateEffectivePackagePrice = (pkgType, defaultPrice) => {
-    const row = selectedPackages.find((r) => r.packageType === pkgType && r.packageId);
+  const calculateEffectivePackagePrice = (filterFn, defaultPrice) => {
+    const row = selectedPackages.find((r) => filterFn(r) && r.packageId);
     if (!row) return 0;
     const gross = Number(row.price) || defaultPrice;
     const disc = Math.max(0, Number(row.discount) || 0);
     return Math.max(0, gross - disc);
   };
 
-  const effectiveBasePrice = calculateEffectivePackagePrice('membership', basePrice);
-  const effectivePtPrice = calculateEffectivePackagePrice('pt', ptPrice);
-  const effectiveRecoveryPrice = calculateEffectivePackagePrice('recovery', recoveryPrice);
+  const effectiveBasePrice = calculateEffectivePackagePrice(isMembershipRow, basePrice);
+  const effectivePtPrice = calculateEffectivePackagePrice(isPtRow, ptPrice);
+  const effectiveRecoveryPrice = calculateEffectivePackagePrice(isRecoveryRow, recoveryPrice);
 
   const numDiscount = totalDiscountAmount;
 
@@ -613,7 +675,7 @@ export const AddMemberPage = ({
     if (!startDateStr || !planObj) return '';
     try {
       const name = (planObj.name || '').toLowerCase();
-      const period = (planObj.period || '').toLowerCase();
+      const period = (planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : '')).toLowerCase();
       let monthsToAdd = Number(planObj.durationMonths || planObj.duration_months) || 1;
 
       if (name.includes('annual') || name.includes('1 year') || name.includes('12 month') || period.includes('12 month') || period.includes('annual')) {
@@ -627,34 +689,25 @@ export const AddMemberPage = ({
       }
 
       const bonusDays = Number(planObj.offerDays || planObj.offer_days) || 0;
-      return calculatePlanExpiryDate(startDateStr, monthsToAdd, planObj.period || '', bonusDays);
+      return calculatePlanExpiryDate(startDateStr, monthsToAdd, planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : ''), bonusDays);
     } catch {
       return '';
     }
   };
 
   useEffect(() => {
-    if (!isManualEndDate && membershipStartDate) {
+    if (membershipStartDate && chosenPlan) {
       const calculated = computePlanEndDate(membershipStartDate, chosenPlan);
       if (calculated) {
         setMembershipEndDate(calculated);
+        setFormData((prev) => ({
+          ...prev,
+          expiryDate: calculated,
+          status: calculateMemberStatus ? calculateMemberStatus(calculated, prev.status) : prev.status
+        }));
       }
     }
-  }, [membershipStartDate, chosenPlan, isManualEndDate]);
-
-  const parseAmount = (val) => {
-    if (!val) return 0;
-    const clean = String(val).replace(/,/g, '').trim();
-    const num = parseFloat(clean);
-    return isNaN(num) ? 0 : Math.max(0, num);
-  };
-  const numCash = parseAmount(cashAmount);
-  const numUpi = parseAmount(upiAmount);
-  const numTransfer = parseAmount(accountTransferAmount);
-  const isAnyPartialFilled = cashAmount !== '' || upiAmount !== '' || accountTransferAmount !== '';
-  const totalEnteredPaid = Math.round((numCash + numUpi + numTransfer) * 100) / 100;
-  const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
-  const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
+  }, [membershipStartDate, chosenPlan]);
 
   const getResolvedPaymentMethod = () => {
     const parts = [];
@@ -762,12 +815,12 @@ export const AddMemberPage = ({
     });
     setMembershipStartDate(getTodayDateStr());
     setMembershipEndDate('');
-    setIsManualEndDate(false);
     setCashAmount('');
     setUpiAmount('');
     setAccountTransferAmount('');
     setBalanceDueDate('');
     setDiscountAmount('');
+    setIsGstIncluded(true);
     setTrainingType('self');
     setSelectedTrainerId('');
     setSelectedPtPlanId('');
@@ -780,10 +833,11 @@ export const AddMemberPage = ({
     setOtpValue('');
     setGeneratedOtp('');
     setOtpVerified(false);
+    const firstPlanType = normalizePackageType(plans[0]?.packageType || plans[0]?.package_type || 'Gym-Cardio');
     setSelectedPackages([
       {
         id: 'pkg-1',
-        packageType: 'membership',
+        packageType: firstPlanType,
         packageId: plans[0]?.id ? String(plans[0].id) : '',
         price: Number(plans[0]?.price) || 0,
         discount: ''
@@ -1130,6 +1184,14 @@ export const AddMemberPage = ({
         dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
         payment_method: finalPaymentMethod,
         paymentMethod: finalPaymentMethod,
+        is_gst_included: isGstIncluded,
+        gst_included: isGstIncluded,
+        gst_rate: 18,
+        gstRate: 18,
+        gst_amount: gstBreakdown.totalGst,
+        gstAmount: gstBreakdown.totalGst,
+        taxable_amount: gstBreakdown.taxable,
+        taxableAmount: gstBreakdown.taxable,
         invoice_title: invoiceTitle,
         trainerId: finalTrainerId,
         trainerName: resolvedTrainerName,
@@ -1226,6 +1288,9 @@ export const AddMemberPage = ({
         dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
         isFullPayment: calculatedBalanceDue === 0,
         paymentMethod: finalPaymentMethod,
+        isGstIncluded,
+        gstAmount: gstBreakdown.totalGst,
+        taxableAmount: gstBreakdown.taxable,
         startDate: finalStartDate,
         expiryDate: finalExpiryDate,
         joinDate: finalJoinDate,
@@ -1252,6 +1317,18 @@ export const AddMemberPage = ({
     const net = Number(newlyCreatedCredentials.netAmount || newlyCreatedCredentials.totalAmount || 0);
     const paid = Number(newlyCreatedCredentials.paidAmount ?? net);
     const dues = Number(newlyCreatedCredentials.duesAmount || 0);
+    const isGst = Boolean(newlyCreatedCredentials.isGstIncluded);
+
+    const baseFee = Math.round(paid / 1.18);
+    const totalGst = Math.max(0, paid - baseFee);
+    const cgst = Math.round(totalGst / 2);
+    const sgst = totalGst - cgst;
+
+    const gstSection = isGst
+      ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
+        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
+        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
+      : `• Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to ${gymInfo?.name || 'PulseFit Pro'}!\n\n` +
       `Here are your Member Login Credentials:\n` +
@@ -1262,7 +1339,8 @@ export const AddMemberPage = ({
       `Bill Breakdown:\n` +
       `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
       (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
-      `• Net Amount: ₹${net.toLocaleString('en-IN')}\n` +
+      gstSection +
+      `• Total Bill: ₹${net.toLocaleString('en-IN')}\n` +
       `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
       (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
 
@@ -1287,6 +1365,18 @@ export const AddMemberPage = ({
     const net = Number(newlyCreatedCredentials.netAmount || newlyCreatedCredentials.totalAmount || 0);
     const paid = Number(newlyCreatedCredentials.paidAmount ?? net);
     const dues = Number(newlyCreatedCredentials.duesAmount || 0);
+    const isGst = Boolean(newlyCreatedCredentials.isGstIncluded);
+
+    const baseFee = Math.round(paid / 1.18);
+    const totalGst = Math.max(0, paid - baseFee);
+    const cgst = Math.round(totalGst / 2);
+    const sgst = totalGst - cgst;
+
+    const gstSection = isGst
+      ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
+        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
+        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
+      : `• Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to *${gymInfo?.name || 'PulseFit Pro'}*!\n\n` +
       `Here are your Member Login Credentials:\n` +
@@ -1297,7 +1387,8 @@ export const AddMemberPage = ({
       `*Bill Breakdown:*\n` +
       `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
       (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
-      `• Net Amount: ₹${net.toLocaleString('en-IN')}\n` +
+      gstSection +
+      `• Total Bill: ₹${net.toLocaleString('en-IN')}\n` +
       `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
       (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
 
@@ -1331,6 +1422,8 @@ export const AddMemberPage = ({
         date: newlyCreatedCredentials.startDate || getTodayDateStr(),
         startDate: newlyCreatedCredentials.startDate,
         expiryDate: newlyCreatedCredentials.expiryDate,
+        isGstIncluded: Boolean(newlyCreatedCredentials.isGstIncluded),
+        hasGst: Boolean(newlyCreatedCredentials.isGstIncluded),
         status: Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? 'Pending' : 'Paid'
       };
       const result = generateInvoicePdf({ invoice: invObj, gymInfo, member: newlyCreatedCredentials });
@@ -1604,27 +1697,29 @@ export const AddMemberPage = ({
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* 1. Header Navigation Bar */}
-      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            type="button"
-            onClick={handleBackToMemberList}
-            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
-            title="Return to Member Directory"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-              {isUpgradeMode
-                ? `Upgrade Services: ${targetMember?.name || 'Member'}`
-                : isEditMode
-                  ? `Edit Athlete Dossier: ${targetMember?.name || formData.name || 'Member'}`
-                  : 'Register Member'}
-            </h1>
+      {!isModal && (
+        <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={handleBackToMemberList}
+              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Return to Member Directory"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                {isUpgradeMode
+                  ? `Upgrade Services: ${targetMember?.name || 'Member'}`
+                  : isEditMode
+                    ? `Edit Athlete Dossier: ${targetMember?.name || formData.name || 'Member'}`
+                    : 'Register Member'}
+              </h1>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Edit Mode Notification Banner */}
       {isEditMode && (
@@ -1887,7 +1982,11 @@ export const AddMemberPage = ({
                 required
                 disabled={isUpgradeMode || isEditMode}
                 value={formData.joinDate}
-                onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({ ...prev, joinDate: val }));
+                  setMembershipStartDate(val);
+                }}
                 className={`w-full px-3 py-2 rounded-xl text-xs ${
                   isUpgradeMode || isEditMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
@@ -1963,20 +2062,18 @@ export const AddMemberPage = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Plan Expiry Date</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Plan Expiry Date</span>
+                    </label>
+                  </div>
                   <input
                     type="date"
+                    readOnly
+                    disabled
                     value={formData.expiryDate || membershipEndDate || ''}
-                    onChange={(e) => {
-                      const newExpiry = e.target.value;
-                      setMembershipEndDate(newExpiry);
-                      const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, formData.status) : formData.status;
-                      setFormData({ ...formData, expiryDate: newExpiry, status: autoStatus });
-                    }}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
                   />
                 </div>
               </>
@@ -2040,14 +2137,10 @@ export const AddMemberPage = ({
                     <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                     <input
                       type="date"
+                      readOnly
+                      disabled
                       value={formData.expiryDate || membershipEndDate || ''}
-                      onChange={(e) => {
-                        const newExpiry = e.target.value;
-                        setMembershipEndDate(newExpiry);
-                        const autoStatus = calculateMemberStatus ? calculateMemberStatus(newExpiry, formData.status) : formData.status;
-                        setFormData({ ...formData, expiryDate: newExpiry, status: autoStatus });
-                      }}
-                      className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500"
+                      className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
                     />
                   </div>
                 </div>
@@ -2199,8 +2292,8 @@ export const AddMemberPage = ({
                       </div>
                     </div>
 
-                    {/* Date fields if membership */}
-                    {isMembership && (
+                    {/* Date fields for membership start & end date (always shown no matter whatever the package type is) */}
+                    {(idx === 0 || !isPt) && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
@@ -2214,10 +2307,16 @@ export const AddMemberPage = ({
                             onChange={(e) => {
                               const newStart = e.target.value;
                               setMembershipStartDate(newStart);
-                              setIsManualEndDate(false);
                               if (newStart) {
                                 const calculated = computePlanEndDate(newStart, currentPkgObj || chosenPlan);
-                                if (calculated) setMembershipEndDate(calculated);
+                                if (calculated) {
+                                  setMembershipEndDate(calculated);
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    expiryDate: calculated,
+                                    status: calculateMemberStatus ? calculateMemberStatus(calculated, prev.status) : prev.status
+                                  }));
+                                }
                               }
                             }}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
@@ -2229,29 +2328,13 @@ export const AddMemberPage = ({
                               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                               <span>End Date (Expiry) *</span>
                             </label>
-                            {isManualEndDate && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsManualEndDate(false);
-                                  const calculated = computePlanEndDate(membershipStartDate, currentPkgObj || chosenPlan);
-                                  if (calculated) setMembershipEndDate(calculated);
-                                }}
-                                className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
-                              >
-                                Reset
-                              </button>
-                            )}
                           </div>
                           <input
                             type="date"
-                            required
+                            readOnly
+                            disabled
                             value={membershipEndDate}
-                            onChange={(e) => {
-                              setIsManualEndDate(true);
-                              setMembershipEndDate(e.target.value);
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                            className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
                           />
                         </div>
                       </div>
@@ -2314,7 +2397,7 @@ export const AddMemberPage = ({
                                 >
                                   %
                                 </button>
-                                <button
+                                <button 
                                   type="button"
                                   onClick={() => setCommissionType('fixed')}
                                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
@@ -2441,50 +2524,6 @@ export const AddMemberPage = ({
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Assigned Coach</label>
-              <select
-                value={selectedTrainerId || formData.trainerId || ''}
-                onChange={(e) => {
-                  setSelectedTrainerId(e.target.value);
-                  setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
-                }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-              >
-                <option value="">None / Self Guided</option>
-                {trainers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.specialty || 'Coach'})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Type</label>
-              <select
-                value={formData.kycDocType || 'Aadhaar Card'}
-                onChange={(e) => setFormData({ ...formData, kycDocType: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-              >
-                <option value="Aadhaar Card">Aadhaar Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Driving License">Driving License</option>
-                <option value="Passport">Passport</option>
-              </select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">KYC Doc Number</label>
-              <input
-                type="text"
-                placeholder="e.g. Document ID / Aadhaar"
-                value={formData.kycDocNumber || ''}
-                onChange={(e) => setFormData({ ...formData, kycDocNumber: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
-              />
-            </div>
-
             <div className="sm:col-span-4">
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
                 Medical Notes & Health Considerations
@@ -2518,6 +2557,13 @@ export const AddMemberPage = ({
                   <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
                   {numDiscount > 0 && (
                     <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
+                  )}
+                  {isPaymentAmountEntered && (
+                    isGstIncluded ? (
+                      <span className="text-emerald-700 font-medium">GST (18%): <span className="font-semibold">Included in Bill</span></span>
+                    ) : (
+                      <span className="text-slate-500 font-medium">GST: <span className="font-semibold">Disabled (Non-GST)</span></span>
+                    )
                   )}
                 </div>
               </div>
@@ -2626,6 +2672,100 @@ export const AddMemberPage = ({
                 </div>
               </div>
             </div>
+
+            {/* GST TOGGLE BUTTON & TAX BREAKDOWN (Appears when payment amount is entered) */}
+            {isPaymentAmountEntered && (
+              <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/90 border border-slate-200 space-y-3 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center gap-2.5">
+                    <div
+                      className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${
+                        isGstIncluded
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900">GST</span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                            isGstIncluded
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-slate-200 text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {isGstIncluded ? 'GST Included' : 'GST Disabled (Non-GST)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {isGstIncluded
+                          ? `GST included in ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}. Bill will display Base Fee + CGST + SGST = ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}.`
+                          : `Received ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')} flat without GST. Bill will NOT have CGST / SGST bifurcation.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Button with "GST Included" / "GST Disabled" text */}
+                  <label className="inline-flex items-center gap-2.5 cursor-pointer select-none self-start sm:self-center bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+                    <input
+                      type="checkbox"
+                      checked={isGstIncluded}
+                      onChange={(e) => setIsGstIncluded(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 relative"></div>
+                    <span className="text-xs font-bold text-slate-800">
+                      {isGstIncluded ? 'GST Included' : 'GST Disabled'}
+                    </span>
+                  </label>
+                </div>
+
+                {/* When GST is Ticked: Show Base Amount + CGST + SGST = Total Bifurcation */}
+                {isGstIncluded ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 text-[11px]">
+                    <div className="p-2 rounded-lg bg-white border border-slate-200">
+                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">Base Amount</span>
+                      <strong className="text-slate-800 font-mono text-xs">
+                        ₹{gstBreakdown.taxable.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white border border-slate-200">
+                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST (9%)</span>
+                      <strong className="text-slate-800 font-mono text-xs">
+                        ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white border border-slate-200">
+                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST (9%)</span>
+                      <strong className="text-slate-800 font-mono text-xs">
+                        ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg border bg-emerald-50/70 border-emerald-200 text-emerald-900">
+                      <span className="block text-[10px] font-semibold uppercase">
+                        Total (Base + Taxes)
+                      </span>
+                      <strong className="font-mono text-xs">
+                        ₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  /* When GST is Disabled: Non-Tax Banner, NO CGST / SGST Bifurcation */
+                  <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
+                    <span className="font-medium">
+                      Non-Tax Bill: Flat <strong>₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}</strong> received without GST.
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
+                      No GST Bifurcation on Bill
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
             {calculatedBalanceDue > 0 ? (
@@ -2983,7 +3123,7 @@ export const AddMemberPage = ({
           setQuickAddPlanType(null);
           setActiveQuickAddRowId(null);
         }}
-        defaultPackageType={typeof quickAddPlanType === 'string' ? quickAddPlanType : 'Gym-Cardio'}
+        defaultPackageType={normalizePackageType(quickAddPlanType)}
         isNested={true}
         onSuccess={(created) => {
           if (created?.id) {
@@ -2992,7 +3132,7 @@ export const AddMemberPage = ({
             if (calculatedEnd) setMembershipEndDate(calculatedEnd);
             setSelectedPackages((prev) => {
               let replaced = false;
-              const createdType = created.package_type || created.packageType || quickAddPlanType;
+              const createdType = normalizePackageType(created.package_type || created.packageType || quickAddPlanType);
               const targetId = activeQuickAddRowId;
               const updated = prev.map((r) => {
                 if (targetId ? r.id === targetId : (!replaced && (r.packageType === createdType || !r.packageId))) {

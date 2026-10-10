@@ -19,7 +19,6 @@ class DashboardController extends Controller
     public function getOwnerStats(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        MemberController::syncAllMemberStatuses();
 
         if (!$gymId) {
             return response()->json([

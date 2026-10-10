@@ -47,7 +47,8 @@ class RevenueBillingController extends Controller
             $query->whereDate('date', '<=', $request->end_date);
         }
 
-        $records = $query->orderBy('date', 'desc')
+        $records = $query->orderBy('created_at', 'desc')
+            ->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
             ->get()
             ->map(function ($item) {

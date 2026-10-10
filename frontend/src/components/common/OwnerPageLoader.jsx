@@ -150,7 +150,7 @@ const TAB_CONFIGS = {
   },
   invoices: {
     title: 'Loading Invoices & Billing',
-    subtitle: 'Fetching GST tax invoices, payment histories, and outstanding collections...',
+    subtitle: 'Fetching GST  invoices, payment histories, and outstanding collections...',
     icon: Receipt,
     accent: 'emerald',
     layout: 'table'

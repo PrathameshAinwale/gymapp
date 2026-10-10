@@ -12,11 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'role.superadmin' => \App\Http\Middleware\EnsureSuperadmin::class,
+        ]);
         $middleware->validateCsrfTokens(except: [
             'api/*',
             'v1/*',
             'iclock/*',
-            'setup-database',
             'health',
         ]);
     })

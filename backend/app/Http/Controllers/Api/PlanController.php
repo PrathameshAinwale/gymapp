@@ -26,13 +26,14 @@ class PlanController extends Controller
             }
 
             return $query->get()->map(function ($plan) {
+                $pkgType = $this->normalizePackageType($plan->package_type);
                 return [
                     'id' => 'plan-' . $plan->id,
                     'numericId' => $plan->id,
                     'gymId' => $plan->gym_id,
                     'name' => $plan->name,
-                    'packageType' => $plan->package_type ?? 'Gym-Cardio',
-                    'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                    'packageType' => $pkgType,
+                    'package_type' => $pkgType,
                     'sessions' => $plan->sessions ?? '',
                     'price' => $plan->price,
                     'discount' => (float)($plan->discount ?? 0),
@@ -57,6 +58,18 @@ class PlanController extends Controller
             'success' => true,
             'data' => $plans,
         ]);
+    }
+
+    protected function normalizePackageType(?string $packageType): string
+    {
+        if (empty($packageType)) {
+            return 'Gym-Cardio';
+        }
+        $clean = strtolower(trim($packageType));
+        if ($clean === 'membership' || $clean === 'gym' || $clean === 'cardio' || $clean === 'gym cardio') {
+            return 'Gym-Cardio';
+        }
+        return trim($packageType);
     }
 
     protected function parseFeatures($features): array
@@ -98,8 +111,8 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
-                'packageType' => $plan->package_type ?? 'Gym-Cardio',
-                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'packageType' => $this->normalizePackageType($plan->package_type),
+                'package_type' => $this->normalizePackageType($plan->package_type),
                 'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),
@@ -154,11 +167,12 @@ class PlanController extends Controller
 
         $durationMonths = (int)($request->duration_months ?? $request->durationMonths ?? 1);
         $period = $request->period ?? ($durationMonths > 1 ? "{$durationMonths} Months" : 'Monthly');
+        $packageType = $this->normalizePackageType($request->package_type ?? $request->packageType);
 
         $plan = Plan::create([
             'gym_id' => $gymId,
             'name' => $request->name,
-            'package_type' => $request->package_type ?? $request->packageType ?? 'Gym-Cardio',
+            'package_type' => $packageType,
             'sessions' => $request->sessions ?? null,
             'price' => $request->price,
             'discount' => $request->discount ?? 0,
@@ -184,8 +198,8 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
-                'packageType' => $plan->package_type ?? 'Gym-Cardio',
-                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'packageType' => $packageType,
+                'package_type' => $packageType,
                 'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),
@@ -222,7 +236,7 @@ class PlanController extends Controller
 
         if ($request->has('name')) $plan->name = $request->name;
         if ($request->has('package_type') || $request->has('packageType')) {
-            $plan->package_type = $request->package_type ?? $request->packageType;
+            $plan->package_type = $this->normalizePackageType($request->package_type ?? $request->packageType);
         }
         if ($request->has('sessions')) $plan->sessions = $request->sessions;
         if ($request->has('price')) $plan->price = $request->price;
@@ -248,6 +262,8 @@ class PlanController extends Controller
 
         $this->clearPlanCache($plan->gym_id);
 
+        $resolvedType = $this->normalizePackageType($plan->package_type);
+
         return response()->json([
             'success' => true,
             'message' => 'Plan updated successfully',
@@ -256,8 +272,8 @@ class PlanController extends Controller
                 'numericId' => $plan->id,
                 'gymId' => $plan->gym_id,
                 'name' => $plan->name,
-                'packageType' => $plan->package_type ?? 'Gym-Cardio',
-                'package_type' => $plan->package_type ?? 'Gym-Cardio',
+                'packageType' => $resolvedType,
+                'package_type' => $resolvedType,
                 'sessions' => $plan->sessions ?? '',
                 'price' => $plan->price,
                 'discount' => (float)($plan->discount ?? 0),

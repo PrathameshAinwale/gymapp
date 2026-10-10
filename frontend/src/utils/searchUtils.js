@@ -312,3 +312,50 @@ export const matchesEnquiryUniversal = (enq, query) => {
     return combinedSearchStr.includes(token);
   });
 };
+
+/**
+ * Resolves the most accurate timestamp for an invoice.
+ * Prioritizes creation datetime (createdAt / created_at / timestamp) so recently created invoices sort first,
+ * falling back to transaction / invoice / payment date.
+ */
+export const getInvoiceSortTime = (inv) => {
+  if (!inv) return 0;
+  const createdRaw = inv.createdAt || inv.created_at || inv.timestamp;
+  if (createdRaw) {
+    const t = new Date(createdRaw).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  const dateRaw = inv.date || inv.invoiceDate || inv.invoice_date || inv.issueDate || inv.issue_date || inv.payment_date;
+  if (dateRaw) {
+    const t = new Date(dateRaw).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return 0;
+};
+
+/**
+ * Extracts a numeric weighting from invoice ID for consistent tie-breaking.
+ */
+export const getInvoiceIdNumber = (inv) => {
+  if (!inv?.id) return 0;
+  if (typeof inv.id === 'number') return inv.id;
+  const num = parseInt(String(inv.id).replace(/\D/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+};
+
+/**
+ * Compares two invoices in descending order:
+ * Most recently created invoices come first.
+ */
+export const compareInvoicesDesc = (a, b) => {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  const timeA = getInvoiceSortTime(a);
+  const timeB = getInvoiceSortTime(b);
+  if (timeB !== timeA) {
+    return timeB - timeA;
+  }
+  return getInvoiceIdNumber(b) - getInvoiceIdNumber(a);
+};
+

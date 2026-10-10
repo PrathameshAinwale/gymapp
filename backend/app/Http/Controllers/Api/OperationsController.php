@@ -472,6 +472,51 @@ class OperationsController extends Controller
         $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
         $type = $request->type ?? 'freeze';
 
+        // 1. Start Date Validation: Freeze cannot be started before today
+        $today = now()->toDateString();
+        if ($type !== 'extension' && $freezeStartDate < $today) {
+            return response()->json([
+                'success' => false,
+                'message' => "Freeze start date cannot be before today ({$today})."
+            ], 422);
+        }
+
+        // 2. Plan Eligibility Validation: Applicable only to plans above 6 months (>= 6 months)
+        $profile = null;
+        if ($memberId) {
+            $profile = MemberProfile::with('plan')->where('user_id', $memberId)->first()
+                ?? MemberProfile::with('plan')->find($memberId);
+        }
+
+        if ($profile) {
+            $plan = $profile->plan;
+            $durationMonths = (int)($plan?->duration_months ?? 0);
+
+            // Fallback: Detect duration from period or name if duration_months is 0
+            if ($durationMonths === 0 && $plan) {
+                $desc = strtolower(($plan->period ?? '') . ' ' . ($plan->name ?? ''));
+                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month')) {
+                    $durationMonths = 12;
+                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month')) {
+                    $durationMonths = 6;
+                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month')) {
+                    $durationMonths = 3;
+                } elseif (str_contains($desc, 'month')) {
+                    $durationMonths = 1;
+                }
+            }
+
+            if (!$plan || $durationMonths < 6) {
+                $actionType = $type === 'extension' ? 'extension' : 'freeze';
+                $planTitle = $plan?->name ? "'{$plan->name}'" : 'no active plan';
+                $durInfo = $durationMonths > 0 ? " ({$durationMonths} months)" : '';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Membership {$actionType} is only allowed for members with plans above 6 months (6 months and above). This member has {$planTitle}{$durInfo}, which is not eligible."
+                ], 422);
+            }
+        }
+
         $freeze = MembershipFreeze::create([
             'gym_id' => $this->resolveGymId($request),
             'member_id' => $memberId,
@@ -488,16 +533,26 @@ class OperationsController extends Controller
             'approved_by' => $request->approvedBy ?? 'Vikramaditya Singhania (Owner)',
         ]);
 
-        // Update member expiry date
-        if ($memberId) {
-            $profile = MemberProfile::where('user_id', $memberId)->first();
-            if ($profile && $profile->expiry_date) {
-                $profile->expiry_date = \Carbon\Carbon::parse($profile->expiry_date)->addDays($daysFrozen)->toDateString();
-                if ($type !== 'extension') {
-                    $profile->status = 'Frozen (Paused)';
-                }
-                $profile->save();
+        // 3. Update member plan validity: add days_frozen to current valid plan expiry date
+        $newExpiryDate = null;
+        if ($profile) {
+            // If member currently has a valid future/today expiry date, add days to it.
+            // If expiry date is missing or already expired in the past, add days from today.
+            if ($profile->expiry_date && \Carbon\Carbon::parse($profile->expiry_date)->gte(now()->startOfDay())) {
+                $baseExpiry = \Carbon\Carbon::parse($profile->expiry_date);
+            } else {
+                $baseExpiry = now()->startOfDay();
             }
+
+            $newExpiryDate = $baseExpiry->copy()->addDays($daysFrozen)->toDateString();
+            $profile->expiry_date = $newExpiryDate;
+
+            if ($type !== 'extension') {
+                $profile->status = 'Frozen';
+            } else {
+                $profile->status = MemberController::computeMemberStatus($newExpiryDate, 'Active');
+            }
+            $profile->save();
         }
 
         // Auto-generate official Invoice and Cash Inflow
@@ -610,41 +665,112 @@ class OperationsController extends Controller
     public function storeTransfer(Request $request)
     {
         $gymId = $this->resolveGymId($request);
+        $cleanDigits = function($raw) {
+            if (!$raw) return null;
+            preg_match('/\d+/', (string)$raw, $matches);
+            return !empty($matches[0]) ? (int)$matches[0] : null;
+        };
+
         $fromMemberIdRaw = $request->fromMemberId ?? $request->from_member_id;
-        $fromMemberId = $fromMemberIdRaw ? (int)str_replace('mem-', '', $fromMemberIdRaw) : null;
+        $fromMemberId = $cleanDigits($fromMemberIdRaw);
         $toMemberIdRaw = $request->toMemberId ?? $request->to_member_id;
-        $toMemberId = $toMemberIdRaw ? (int)str_replace('mem-', '', $toMemberIdRaw) : null;
+        $toMemberId = $cleanDigits($toMemberIdRaw);
 
         $transferDate = $request->transferDate ?? $request->transfer_date ?? now()->toDateString();
-        $membershipStartDate = $request->membershipStartDate ?? $request->membership_start_date ?? $request->startDate ?? $transferDate;
-        $daysRemaining = (int)($request->daysRemaining ?? $request->days_remaining ?? 30);
         $transferFee = (float)($request->transferFee ?? $request->transfer_fee ?? ($request->transferCharge ?? 0));
         $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
         $reason = $request->reason ?? 'Membership Transfer';
 
+        $fromProfile = null;
+        if ($fromMemberId) {
+            $fromProfile = MemberProfile::where('user_id', $fromMemberId)->first()
+                ?? MemberProfile::where('id', $fromMemberId)->first()
+                ?? MemberProfile::where('qr_pass_code', 'LIKE', "%{$fromMemberId}%")->first();
+        }
+
+        if (!$fromProfile && !empty($request->fromMemberName)) {
+            $matchedUser = User::where('name', $request->fromMemberName)
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->first();
+            if ($matchedUser) {
+                $fromMemberId = $matchedUser->id;
+                $fromProfile = MemberProfile::where('user_id', $matchedUser->id)->first()
+                    ?? MemberProfile::find($matchedUser->id);
+            }
+        }
+
+        if (!$fromProfile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Source member profile not found.'
+            ], 404);
+        }
+
+        // Calculate source member's exact remaining days from today
+        $daysRemaining = (int)($request->daysRemaining ?? $request->days_remaining ?? 0);
+        if ($daysRemaining <= 0 && $fromProfile->expiry_date) {
+            $fromExp = \Carbon\Carbon::parse($fromProfile->expiry_date)->startOfDay();
+            $today = now()->startOfDay();
+            $daysRemaining = max(0, (int)$today->diffInDays($fromExp, false));
+        }
+
+        if ($daysRemaining <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Source member has 0 days remaining on their plan to transfer.'
+            ], 422);
+        }
+
+        // Determine destination profile if existing member
+        $toProfile = null;
+        if ($toMemberId) {
+            $toProfile = MemberProfile::where('user_id', $toMemberId)->first()
+                ?? MemberProfile::where('id', $toMemberId)->first()
+                ?? MemberProfile::where('qr_pass_code', 'LIKE', "%{$toMemberId}%")->first();
+        } elseif (!empty($request->toMemberPhone)) {
+            $existingUser = User::where('phone', $request->toMemberPhone)
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->first();
+            if ($existingUser) {
+                $toMemberId = $existingUser->id;
+                $toProfile = MemberProfile::where('user_id', $existingUser->id)->first()
+                    ?? MemberProfile::find($existingUser->id);
+            }
+        } elseif (!empty($request->toMemberName)) {
+            $existingUser = User::where('name', $request->toMemberName)
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->first();
+            if ($existingUser) {
+                $toMemberId = $existingUser->id;
+                $toProfile = MemberProfile::where('user_id', $existingUser->id)->first()
+                    ?? MemberProfile::find($existingUser->id);
+            }
+        }
+
+        // Destination transferee's current plan expiry check:
+        // The membership start date should be at least the date at which the current plan of the destination transferee expires
+        $minStartDate = now()->toDateString();
+        if ($toProfile && $toProfile->expiry_date && \Carbon\Carbon::parse($toProfile->expiry_date)->gte(now()->startOfDay())) {
+            $minStartDate = \Carbon\Carbon::parse($toProfile->expiry_date)->toDateString();
+        }
+
+        $membershipStartDate = $request->membershipStartDate ?? $request->membership_start_date ?? $request->startDate ?? $minStartDate;
+        if ($membershipStartDate < $minStartDate) {
+            $membershipStartDate = $minStartDate;
+        }
+
         // Calculate recipient expiry date: membershipStartDate + daysRemaining
         $recipientExpiryDate = \Carbon\Carbon::parse($membershipStartDate)->addDays($daysRemaining)->toDateString();
 
-        // 1. Source Member: Status is set to Expired and expiry date set to transfer date (marked Expired)
-        $fromProfile = null;
-        if ($fromMemberId) {
-            $fromProfile = MemberProfile::where('user_id', $fromMemberId)->first();
-            if ($fromProfile) {
-                $fromProfile->status = 'Expired';
-                $fromProfile->expiry_date = \Carbon\Carbon::parse($transferDate)->subDay()->toDateString();
-                $fromProfile->notes = trim(($fromProfile->notes ? $fromProfile->notes . ' | ' : '') . "Membership transferred to " . ($request->toMemberName ?? 'Recipient') . " on {$transferDate}. Status set to Expired.");
-                $fromProfile->save();
-            }
+        // 1. Source Member: Status is set to Expired and expiry date set to yesterday (marked Expired)
+        $fromProfile->status = 'Expired';
+        $fromProfile->expiry_date = \Carbon\Carbon::parse($transferDate)->subDay()->toDateString();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('member_profiles', 'notes')) {
+            $fromProfile->notes = trim(($fromProfile->notes ? $fromProfile->notes . ' | ' : '') . "Transferred {$daysRemaining} remaining days to " . ($request->toMemberName ?? 'Recipient') . " on {$transferDate}. Status set to Expired.");
         }
+        $fromProfile->save();
 
         // 2. Destination Member: Existing user or create new user/profile
-        if (!$toMemberId && !empty($request->toMemberPhone)) {
-            $existingUser = User::where('gym_id', $gymId)->where('phone', $request->toMemberPhone)->first();
-            if ($existingUser) {
-                $toMemberId = $existingUser->id;
-            }
-        }
-
         if (!$toMemberId && !empty($request->toMemberName)) {
             $newUser = User::create([
                 'gym_id' => $gymId,
@@ -652,36 +778,30 @@ class OperationsController extends Controller
                 'phone' => $request->toMemberPhone ?: null,
                 'email' => strtolower(str_replace(' ', '', $request->toMemberName)) . rand(100, 999) . '@gym.local',
                 'password' => bcrypt('password123'),
-                'plain_password' => 'password123',
                 'role' => 'member',
             ]);
             $toMemberId = $newUser->id;
             MemberProfile::create([
                 'user_id' => $newUser->id,
-                'gym_id' => $gymId,
-                'member_id' => 'MEM' . rand(1000, 9999),
-                'start_date' => $membershipStartDate,
+                'join_date' => $membershipStartDate,
                 'expiry_date' => $recipientExpiryDate,
                 'plan_id' => $fromProfile?->plan_id,
-                'plan_name' => $fromProfile?->plan_name ?: ($request->planName ?? 'Transferred Membership'),
                 'status' => 'Active',
-                'notes' => "Transferred from " . ($request->fromMemberName ?? 'Source Member') . " on {$transferDate}. Valid from {$membershipStartDate} to {$recipientExpiryDate} ({$daysRemaining} days).",
+                'qr_pass_code' => 'PF-M-' . $newUser->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $newUser->name), 0, 6)),
             ]);
-        } elseif ($toMemberId) {
-            $toProfile = MemberProfile::where('user_id', $toMemberId)->first();
-            if ($toProfile) {
-                $toProfile->start_date = $membershipStartDate;
-                $toProfile->expiry_date = $recipientExpiryDate;
-                $toProfile->status = 'Active';
-                if ($fromProfile && $fromProfile->plan_id) {
-                    $toProfile->plan_id = $fromProfile->plan_id;
-                }
-                if ($fromProfile && $fromProfile->plan_name) {
-                    $toProfile->plan_name = $fromProfile->plan_name;
-                }
-                $toProfile->notes = trim(($toProfile->notes ? $toProfile->notes . ' | ' : '') . "Transferred from " . ($request->fromMemberName ?? 'Source Member') . " on {$transferDate}. Valid from {$membershipStartDate} to {$recipientExpiryDate} ({$daysRemaining} days).");
-                $toProfile->save();
+        } elseif ($toProfile) {
+            $toProfile->expiry_date = $recipientExpiryDate;
+            $toProfile->status = 'Active';
+            if (!$toProfile->join_date) {
+                $toProfile->join_date = $membershipStartDate;
             }
+            if ($fromProfile && $fromProfile->plan_id && !$toProfile->plan_id) {
+                $toProfile->plan_id = $fromProfile->plan_id;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('member_profiles', 'notes')) {
+                $toProfile->notes = trim(($toProfile->notes ? $toProfile->notes . ' | ' : '') . "Transferred +{$daysRemaining} days from " . ($request->fromMemberName ?? 'Source Member') . " on {$transferDate}. Valid from {$membershipStartDate} to {$recipientExpiryDate}.");
+            }
+            $toProfile->save();
         }
 
         // 3. Create Transfer record in database
@@ -785,9 +905,10 @@ class OperationsController extends Controller
         $freeze->update(['status' => 'Completed']);
 
         if ($freeze->member_id) {
-            $profile = MemberProfile::where('user_id', $freeze->member_id)->first();
+            $profile = MemberProfile::where('user_id', $freeze->member_id)->first()
+                ?? MemberProfile::find($freeze->member_id);
             if ($profile) {
-                $profile->status = 'Active';
+                $profile->status = MemberController::computeMemberStatus($profile->expiry_date, 'Active');
                 $profile->save();
             }
         }

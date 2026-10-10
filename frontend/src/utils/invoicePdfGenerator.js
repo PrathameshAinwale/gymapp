@@ -164,10 +164,17 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
       : 0)
   );
   const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
-  const taxableBase = Math.round(totalAmount / 1.18);
-  const totalGst = totalAmount - taxableBase;
-  const cgst = Math.round(totalGst / 2);
-  const sgst = totalGst - cgst;
+  const hasGst = Boolean(
+    invoice.isGstIncluded ??
+    invoice.hasGst ??
+    invoice.gstIncluded ??
+    invoice.is_gst_included ??
+    (invoice.taxable_amount !== undefined && Number(invoice.taxable_amount) < totalAmount)
+  );
+  const taxableBase = hasGst ? Math.round(totalAmount / 1.18) : totalAmount;
+  const totalGst = hasGst ? Math.max(0, totalAmount - taxableBase) : 0;
+  const cgst = hasGst ? Math.round(totalGst / 2) : 0;
+  const sgst = hasGst ? (totalGst - cgst) : 0;
   const amountWords = numberToWordsINR(totalAmount);
 
   // Background subtle canvas
@@ -421,8 +428,13 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Payment Gateway: Instant Settlement • Verified in Bank Records', margin + 5, curY + 27);
-  doc.text('Valid for Corporate Wellness Reimbursement & Tax Records', margin + 5, curY + 32);
+  doc.text(
+    hasGst
+      ? 'Valid for Corporate Wellness Reimbursement & Tax Records'
+      : 'Official Payment Receipt • Non-GST Payment Record',
+    margin + 5,
+    curY + 32
+  );
 
   // Right Box: Clean Transparent Financial Breakdown
   doc.setFillColor(255, 255, 255);
@@ -433,16 +445,26 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('Plan Base Fee:', sumBoxX + 5, rY);
-  doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
-  rY += 5.5;
-  doc.text('CGST (9%):', sumBoxX + 5, rY);
-  doc.text(`Rs. ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+  if (hasGst) {
+    doc.text('Plan Base Fee:', sumBoxX + 5, rY);
+    doc.text(`Rs. ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
-  rY += 5;
-  doc.text('SGST (9%):', sumBoxX + 5, rY);
-  doc.text(`Rs. ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    rY += 5.5;
+    doc.text('CGST (9%):', sumBoxX + 5, rY);
+    doc.text(`Rs. ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+    rY += 5;
+    doc.text('SGST (9%):', sumBoxX + 5, rY);
+    doc.text(`Rs. ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+  } else {
+    doc.text('Plan Fee:', sumBoxX + 5, rY);
+    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+    rY += 5.5;
+    doc.text('Tax Applied:', sumBoxX + 5, rY);
+    doc.text('None (Non-GST Payment)', pageWidth - margin - 5, rY, { align: 'right' });
+  }
 
   if (isPending && pendingAmount > 0) {
     rY += 5;
@@ -533,7 +555,14 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('Thank you for choosing ArchFit Athletic Club • Official Tax Invoice & Payment Receipt', pageWidth / 2, pageHeight - margin + 2, { align: 'center' });
+  doc.text(
+    hasGst
+      ? 'Thank you for choosing ArchFit Athletic Club • Official Tax Invoice & Payment Receipt'
+      : 'Thank you for choosing ArchFit Athletic Club • Official Payment Receipt',
+    pageWidth / 2,
+    pageHeight - margin + 2,
+    { align: 'center' }
+  );
 
   const blob = doc.output('blob');
   const fileName = `Receipt_${invoiceId}_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
