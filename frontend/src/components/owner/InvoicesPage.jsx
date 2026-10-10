@@ -43,7 +43,11 @@ import {
   Edit2
 } from 'lucide-react';
 
-export const InvoicesPage = () => {
+export const InvoicesPage = ({
+  setActiveTab,
+  onNavigateTab,
+  onNavigateToCreateInvoice
+}) => {
   const {
     invoices = [],
     members = [],
@@ -55,6 +59,18 @@ export const InvoicesPage = () => {
     addToast
   } = useGymData();
   const { currentUser } = useAuth();
+
+  const handleOpenCreateInvoice = (member = null) => {
+    if (onNavigateToCreateInvoice) {
+      onNavigateToCreateInvoice(member);
+    } else if (onNavigateTab) {
+      onNavigateTab('create-invoice');
+    } else if (setActiveTab) {
+      setActiveTab('create-invoice');
+    } else {
+      setIsRecordPaymentOpen(true);
+    }
+  };
 
   const resolveCreatorName = (name, inv = null) => {
     const raw = name || inv?.createdByName || inv?.created_by_name || inv?.executive || inv?.creator?.name;
@@ -773,7 +789,7 @@ export const InvoicesPage = () => {
 
           <button
             type="button"
-            onClick={() => setIsRecordPaymentOpen(true)}
+            onClick={() => handleOpenCreateInvoice()}
             className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1424,7 +1440,7 @@ export const InvoicesPage = () => {
                   : "Track member billing transactions, issue GST invoices, and record fee collections."
               }
               actionText="Create Invoice"
-              onAction={() => setIsRecordPaymentOpen(true)}
+              onAction={() => handleOpenCreateInvoice()}
               secondaryActionText={searchTerm || activeFilter !== 'ALL' ? "Clear Filters" : undefined}
               onSecondaryAction={searchTerm || activeFilter !== 'ALL' ? () => { setSearchTerm(''); setActiveFilter('ALL'); } : undefined}
               color="emerald"

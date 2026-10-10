@@ -38,7 +38,13 @@ import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { compareInvoicesDesc } from '../../utils/searchUtils';
 
-export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNavigateTab, onNavigateToUpgradeRenew }) => {
+export const MemberProfilePage = ({
+  initialMemberId,
+  onBackToDashboard,
+  onNavigateTab,
+  onNavigateToUpgradeRenew,
+  onNavigateToCreateInvoice
+}) => {
   const {
     members = [],
     invoices = [],
@@ -347,11 +353,19 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
               ) : (
                 <button
                   type="button"
-                  onClick={() => setIsRecordPaymentOpen(true)}
+                  onClick={() => {
+                    if (onNavigateToCreateInvoice) {
+                      onNavigateToCreateInvoice(currentMember);
+                    } else if (onNavigateTab) {
+                      onNavigateTab('create-invoice');
+                    } else {
+                      setIsRecordPaymentOpen(true);
+                    }
+                  }}
                   className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
                 >
                   <Plus className="w-4 h-4 text-emerald-600" />
-                  <span>Record Fee</span>
+                  <span>Record Fee / Create Invoice</span>
                 </button>
               )}
             </div>

@@ -67,6 +67,7 @@ const ShiftManager = lazy(() => import('./components/owner/ShiftManager').then(m
 const MemberProfilePage = lazy(() => import('./components/owner/MemberProfilePage').then(m => ({ default: m.MemberProfilePage })));
 const AddMemberPage = lazy(() => import('./components/owner/AddMemberPage').then(m => ({ default: m.AddMemberPage })));
 const MemberUpgradeRenewPage = lazy(() => import('./components/owner/MemberUpgradeRenewPage').then(m => ({ default: m.MemberUpgradeRenewPage })));
+const CreateInvoicePage = lazy(() => import('./components/owner/CreateInvoicePage').then(m => ({ default: m.CreateInvoicePage })));
 
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
@@ -74,6 +75,7 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
   const [selectedUpgradeRenewMember, setSelectedUpgradeRenewMember] = useState(null);
+  const [createInvoiceInitialMember, setCreateInvoiceInitialMember] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -296,6 +298,10 @@ function MainApp() {
               setAddMemberInitialData(null);
               handleNavigateTab('add-member');
             }}
+            onNavigateToCreateInvoice={(member) => {
+              setCreateInvoiceInitialMember(member || null);
+              handleNavigateTab('create-invoice');
+            }}
             onOpenMemberProfile={(memberId) => {
               setSelectedMemberProfileId(memberId);
               handleNavigateTab('member-profile');
@@ -317,6 +323,10 @@ function MainApp() {
             onNavigateToUpgradeRenew={(member) => {
               setSelectedUpgradeRenewMember(member);
               handleNavigateTab('upgrade-renew');
+            }}
+            onNavigateToCreateInvoice={(member) => {
+              setCreateInvoiceInitialMember(member || null);
+              handleNavigateTab('create-invoice');
             }}
           />
         );
@@ -403,6 +413,10 @@ function MainApp() {
               setSelectedMemberProfileId(memberId);
               handleNavigateTab('member-profile');
             }}
+            onNavigateToCreateInvoice={(member) => {
+              setCreateInvoiceInitialMember(member || null);
+              handleNavigateTab('create-invoice');
+            }}
           />
         );
       case 'classes':
@@ -443,10 +457,39 @@ function MainApp() {
         return <AnalyticsPage />;
       case 'reports':
         return <ReportsManager setActiveTab={handleNavigateTab} />;
+      case 'create-invoice':
+        return (
+          <CreateInvoicePage
+            initialMember={createInvoiceInitialMember}
+            initialMemberId={createInvoiceInitialMember?.id}
+            onBack={() => {
+              setCreateInvoiceInitialMember(null);
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                handleNavigateTab('invoices');
+              }
+            }}
+            onSuccess={() => {
+              setCreateInvoiceInitialMember(null);
+              handleNavigateTab('invoices');
+            }}
+            onNavigateTab={handleNavigateTab}
+          />
+        );
       case 'financials':
         return <Financials />;
       case 'invoices':
-        return <InvoicesPage />;
+        return (
+          <InvoicesPage
+            setActiveTab={handleNavigateTab}
+            onNavigateTab={handleNavigateTab}
+            onNavigateToCreateInvoice={(member) => {
+              setCreateInvoiceInitialMember(member || null);
+              handleNavigateTab('create-invoice');
+            }}
+          />
+        );
       case 'products':
         return <ProductsManager />;
       case 'equipment':
@@ -457,6 +500,14 @@ function MainApp() {
         return (
           <OwnerDashboard
             setActiveTab={handleNavigateTab}
+            onOpenAddMember={() => {
+              setAddMemberInitialData(null);
+              handleNavigateTab('add-member');
+            }}
+            onNavigateToCreateInvoice={(member) => {
+              setCreateInvoiceInitialMember(member || null);
+              handleNavigateTab('create-invoice');
+            }}
             onOpenMemberProfile={(memberId) => {
               setSelectedMemberProfileId(memberId);
               handleNavigateTab('member-profile');

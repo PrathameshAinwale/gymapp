@@ -94,7 +94,12 @@ const StaffAvatar = ({ src, alt, className = "w-8 h-8 rounded-full", iconClassNa
   );
 };
 
-export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProfile }) => {
+export const OwnerDashboard = ({
+  setActiveTab,
+  onOpenAddMember,
+  onOpenMemberProfile,
+  onNavigateToCreateInvoice
+}) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
   const [isCustomizeCardsOpen, setIsCustomizeCardsOpen] = useState(false);
@@ -562,7 +567,15 @@ export const OwnerDashboard = ({ setActiveTab, onOpenAddMember, onOpenMemberProf
 
           <button
             type="button"
-            onClick={() => setIsCreateInvoiceOpen(true)}
+            onClick={() => {
+              if (onNavigateToCreateInvoice) {
+                onNavigateToCreateInvoice();
+              } else if (setActiveTab) {
+                setActiveTab('create-invoice');
+              } else {
+                setIsCreateInvoiceOpen(true);
+              }
+            }}
             className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
