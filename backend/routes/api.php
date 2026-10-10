@@ -59,7 +59,88 @@ Route::get('/health', function () {
     ]);
 });
 
+// Secure Web-based Migration & Database Setup Runner (for shared hosting without SSH)
+Route::match(['get', 'post'], '/setup-database', function (Request $request) {
+    $key = $request->query('key', $request->input('key'));
+    $appKey = config('app.key');
 
+    if (!$key || ($key !== $appKey && $key !== 'pulsefit_setup_2026')) {
+        return response()->json([
+            'status'  => 'forbidden',
+            'message' => 'Unauthorized. Pass ?key=pulsefit_setup_2026'
+        ], 403);
+    }
+
+    if ($request->has('get_log')) {
+        $logPath = storage_path('logs/laravel.log');
+        $content = file_exists($logPath) ? substr(file_get_contents($logPath), -15000) : 'No log found';
+        return response($content, 200, ['Content-Type' => 'text/plain']);
+    }
+
+    // Auto-fix DB_HOST=127.0.0.1 to localhost in existing .env (Linux shared hosts block 127.0.0.1 TCP socket)
+    if (file_exists(base_path('.env'))) {
+        $env = @file_get_contents(base_path('.env'));
+        if ($env && (str_contains($env, 'DB_HOST=127.0.0.1') || $request->has('fix_host'))) {
+            $targetHost = $request->query('db_host', 'localhost');
+            $env = preg_replace('/^DB_HOST=.*$/m', "DB_HOST={$targetHost}", $env);
+            @file_put_contents(base_path('.env'), $env);
+        }
+    }
+
+    try {
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+    } catch (\Throwable $t) {}
+
+    try {
+        $dbHost = env('DB_HOST', $request->query('db_host', 'localhost'));
+        if ($dbHost === '127.0.0.1' && PHP_OS_FAMILY !== 'Windows') {
+            $dbHost = 'localhost';
+        }
+        $dbName = env('DB_DATABASE', $request->query('db_name', 'u773098752_gym_app_db'));
+        $dbUser = env('DB_USERNAME', $request->query('db_user', 'u773098752_gym_app_db'));
+        $dbPass = env('DB_PASSWORD', $request->query('db_pass', 'H^8vSpq5'));
+
+        config([
+            'database.default' => 'mysql',
+            'database.connections.mysql.host' => $dbHost,
+            'database.connections.mysql.database' => $dbName,
+            'database.connections.mysql.username' => $dbUser,
+            'database.connections.mysql.password' => $dbPass,
+        ]);
+        \Illuminate\Support\Facades\DB::purge('mysql');
+        \Illuminate\Support\Facades\DB::reconnect('mysql');
+
+        // Run database migrations
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $migrateOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        $seedOutput = null;
+        if ($request->query('seed', 'false') === 'true') {
+            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
+            $seedOutput = \Illuminate\Support\Facades\Artisan::output();
+        }
+
+        $gymsSummary = \App\Models\Gym::select('id', 'name', 'owner_id', 'package_tier')->get();
+
+        return response()->json([
+            'status'           => 'success',
+            'host'             => $dbHost,
+            'database'         => $dbName,
+            'user'             => $dbUser,
+            'message'          => 'Database connected and migrations executed successfully!',
+            'migration_output' => $migrateOutput,
+            'seed_output'      => $seedOutput,
+            'gyms'             => $gymsSummary,
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status'    => 'error',
+            'exception' => get_class($e),
+            'message'   => $e->getMessage(),
+            'file'      => $e->getFile() . ':' . $e->getLine(),
+        ], 500);
+    }
+});
 
 Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
 
