@@ -326,17 +326,27 @@ export const CreateInvoicePage = ({
     if (plans.length > 0 && selectedPackages.length > 0 && !selectedPackages[0].packageId) {
       const firstPlan = plans[0];
       const pkgType = normalizePackageType(firstPlan.packageType || firstPlan.package_type || 'Gym-Cardio');
+      const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
+        ? memberCurrentPlan.expiryDate
+        : getTodayDateStr();
+      const computedExp = computeCombinedPlanEndDate(
+        defaultStart,
+        firstPlan,
+        memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null
+      );
       setSelectedPackages([
         {
           id: 'pkg-1',
           packageType: pkgType,
           packageId: String(firstPlan.id),
           price: Number(firstPlan.price || 0),
-          discount: ''
+          discount: '',
+          startDate: defaultStart,
+          expiryDate: computedExp
         }
       ]);
     }
-  }, [plans]);
+  }, [plans, memberCurrentPlan]);
 
   // Package row handlers
   const handlePackageTypeChange = (rowId, newType) => {
@@ -347,16 +357,25 @@ export const CreateInvoicePage = ({
 
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
+    const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
+      ? memberCurrentPlan.expiryDate
+      : getTodayDateStr();
+    const computedExp = firstPlan
+      ? computeCombinedPlanEndDate(defaultStart, firstPlan, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+      : '';
 
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
+        const rowStart = row.startDate || defaultStart;
         return {
           ...row,
           packageType: newType,
           packageId: firstPlan ? String(firstPlan.id) : '',
           price: Number(firstPlan?.price || 0),
-          discount: ''
+          discount: '',
+          startDate: rowStart,
+          expiryDate: computedExp
         };
       })
     );
@@ -380,10 +399,48 @@ export const CreateInvoicePage = ({
       prev.map((row) => {
         if (row.id !== rowId) return row;
         const found = getPackageObject(row.packageType, newPackageId);
+        const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
+          ? memberCurrentPlan.expiryDate
+          : getTodayDateStr();
+        const rowStart = row.startDate || defaultStart;
+        const computedExp = found
+          ? computeCombinedPlanEndDate(rowStart, found, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+          : row.expiryDate;
         return {
           ...row,
           packageId: newPackageId,
-          price: Number(found?.price || 0)
+          price: Number(found?.price || 0),
+          startDate: rowStart,
+          expiryDate: computedExp
+        };
+      })
+    );
+  };
+
+  const handlePackageStartDateChange = (rowId, newStartDate) => {
+    setSelectedPackages((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+        const planObj = getPackageObject(row.packageType, row.packageId);
+        const computedExp = planObj
+          ? computeCombinedPlanEndDate(newStartDate, planObj, null)
+          : row.expiryDate;
+        return {
+          ...row,
+          startDate: newStartDate,
+          expiryDate: computedExp
+        };
+      })
+    );
+  };
+
+  const handlePackageExpiryDateChange = (rowId, newExpiryDate) => {
+    setSelectedPackages((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+        return {
+          ...row,
+          expiryDate: newExpiryDate
         };
       })
     );
@@ -402,6 +459,12 @@ export const CreateInvoicePage = ({
 
     const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
+    const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
+      ? memberCurrentPlan.expiryDate
+      : getTodayDateStr();
+    const computedExp = firstPlan
+      ? computeCombinedPlanEndDate(defaultStart, firstPlan, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+      : '';
 
     setSelectedPackages((prev) => [
       ...prev,
@@ -410,7 +473,9 @@ export const CreateInvoicePage = ({
         packageType: nextType,
         packageId: firstPlan ? String(firstPlan.id) : '',
         price: Number(firstPlan?.price || 0),
-        discount: ''
+        discount: '',
+        startDate: defaultStart,
+        expiryDate: computedExp
       }
     ]);
   };
@@ -708,9 +773,19 @@ export const CreateInvoicePage = ({
 
       const generatedInvoiceNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
-      const targetExpiryDate = hasMembership
-        ? (membershipEndDate || mainMembershipValidityInfo?.newExpiryDate || currentMember?.expiryDate)
-        : currentMember?.expiryDate;
+      const targetExpiryDate = membershipRow?.expiryDate
+        || ptRow?.expiryDate
+        || recoveryRow?.expiryDate
+        || membershipEndDate
+        || mainMembershipValidityInfo?.newExpiryDate
+        || currentMember?.expiryDate;
+
+      const targetStartDate = membershipRow?.startDate
+        || ptRow?.startDate
+        || recoveryRow?.startDate
+        || membershipStartDate
+        || paymentDate
+        || getTodayDateStr();
 
       // 1. Record Invoice directly in Backend Database API
       let backendInvoiceRef = generatedInvoiceNo;
@@ -740,6 +815,8 @@ export const CreateInvoicePage = ({
             dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
             payment_date: paymentDate || getTodayDateStr(),
             date: paymentDate || getTodayDateStr(),
+            start_date: targetStartDate,
+            startDate: targetStartDate,
             payment_method: resolvedPaymentMethodString,
             paymentMethod: resolvedPaymentMethodString,
             status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
@@ -790,6 +867,9 @@ export const CreateInvoicePage = ({
               memberUpdateData.plan_id = membershipPlanObj.id;
               memberUpdateData.plan_name = membershipPlanObj.name;
               memberUpdateData.expiry_date = targetExpiryDate;
+              if (membershipRow?.startDate) {
+                memberUpdateData.start_date = membershipRow.startDate;
+              }
             }
             if (hasPt && ptRow) {
               memberUpdateData.training_type = 'pt';
@@ -820,6 +900,10 @@ export const CreateInvoicePage = ({
             memberPayload.planName = membershipPlanObj.name;
             memberPayload.expiryDate = targetExpiryDate;
             memberPayload.expiry_date = targetExpiryDate;
+            if (membershipRow?.startDate) {
+              memberPayload.startDate = membershipRow.startDate;
+              memberPayload.start_date = membershipRow.startDate;
+            }
             memberPayload.status = 'Active';
           }
           if (hasPt && ptPlanObj) {
@@ -1484,24 +1568,55 @@ export const CreateInvoicePage = ({
                     </div>
                   </div>
 
-                  {/* Validity Info for Membership Row */}
-                  {pkgVal && !isPt && (
-                    <div className="pt-2 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  {/* Start Date & End Date Row */}
+                  <div className="pt-2 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Start Date *</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={pkgRow.startDate || getTodayDateStr()}
+                        onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>End Date / Valid Till *</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={pkgRow.expiryDate || ''}
+                        onChange={(e) => handlePackageExpiryDateChange(pkgRow.id, e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Validity Info for Row */}
+                  {pkgVal && (
+                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5 text-slate-700">
                         <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        {pkgVal.isExtended ? (
+                        {!isPt && pkgVal.isExtended ? (
                           <span>
                             Current Remaining: <strong className="text-slate-900 font-mono">{pkgVal.currentRemainingDays}d</strong> + New Plan: <strong className="text-emerald-700 font-mono">+{pkgVal.newPlanDays}d</strong> = Total Validity: <strong className="text-emerald-800 font-mono">{pkgVal.totalCombinedDays} Days</strong>
                           </span>
                         ) : (
                           <span>
-                            Plan Validity: <strong className="text-emerald-700 font-mono">{pkgVal.newPlanDays} Days</strong>
+                            Plan Duration: <strong className="text-emerald-700 font-mono">{pkgVal.newPlanDays} Days</strong>
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                         <Calendar className="w-3 h-3 text-emerald-600" />
-                        <span>Valid Until: {formatDateDisplay(pkgVal.newExpiryDate)}</span>
+                        <span>Valid Until: {formatDateDisplay(pkgRow.expiryDate || pkgVal.newExpiryDate)}</span>
                       </div>
                     </div>
                   )}
