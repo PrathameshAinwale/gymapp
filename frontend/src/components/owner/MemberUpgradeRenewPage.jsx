@@ -21,8 +21,13 @@ import {
   HeartPulse,
   Tag,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Receipt
 } from 'lucide-react';
+import {
+  preventNonNumericKey,
+  sanitizeDecimal
+} from '../../utils/validation';
 
 export const MemberUpgradeRenewPage = ({
   member: passedMember,
@@ -82,10 +87,12 @@ export const MemberUpgradeRenewPage = ({
     }
   ]);
 
-  // Billing and settlement state
-  const [paymentMethod, setPaymentMethod] = useState('UPI');
-  const [amountPaid, setAmountPaid] = useState('');
+  // Payment Breakdown States (Identical to AddMemberPage)
+  const [cashAmount, setCashAmount] = useState('');
+  const [upiAmount, setUpiAmount] = useState('');
+  const [accountTransferAmount, setAccountTransferAmount] = useState('');
   const [balanceDueDate, setBalanceDueDate] = useState('');
+  const [isGstIncluded, setIsGstIncluded] = useState(true);
   const [paymentNotes, setPaymentNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -292,22 +299,66 @@ export const MemberUpgradeRenewPage = ({
     );
   };
 
-  // Financial calculations
-  const totalGrossAmount = useMemo(
-    () => selectedPackages.reduce((acc, p) => acc + (Number(p.price) || 0), 0),
-    [selectedPackages]
-  );
+  // Financial calculations (Identical to AddMemberPage)
+  const totalGrossPackages = useMemo(() => {
+    return selectedPackages.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+  }, [selectedPackages]);
 
-  const totalDiscount = useMemo(
-    () => selectedPackages.reduce((acc, p) => acc + (Number(p.discount) || 0), 0),
-    [selectedPackages]
-  );
+  const totalDiscountAmount = useMemo(() => {
+    return selectedPackages.reduce((sum, r) => sum + Math.max(0, Number(r.discount) || 0), 0);
+  }, [selectedPackages]);
 
-  const netPayableAmount = Math.max(0, totalGrossAmount - totalDiscount);
+  const numDiscount = totalDiscountAmount;
+  const netPackageAmount = Math.max(0, totalGrossPackages - totalDiscountAmount);
+  // Total bill is the net package fee — disabling GST does not increase the bill
+  const totalCalculatedAmount = netPackageAmount;
 
-  // Default amountPaid to netPayableAmount if not manually modified
-  const effectiveAmountPaid = amountPaid === '' ? netPayableAmount : Math.max(0, Number(amountPaid) || 0);
-  const remainingBalanceDue = Math.max(0, netPayableAmount - effectiveAmountPaid);
+  const parseAmount = (val) => {
+    if (!val) return 0;
+    const clean = String(val).replace(/,/g, '').trim();
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : Math.max(0, num);
+  };
+
+  const numCash = parseAmount(cashAmount);
+  const numUpi = parseAmount(upiAmount);
+  const numTransfer = parseAmount(accountTransferAmount);
+  const isAnyPartialFilled = cashAmount !== '' || upiAmount !== '' || accountTransferAmount !== '';
+  const totalEnteredPaid = Math.round((numCash + numUpi + numTransfer) * 100) / 100;
+  const isPaymentAmountEntered = isAnyPartialFilled || totalEnteredPaid > 0;
+  const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
+  const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
+
+  // Live GST breakdown:
+  // - If GST is ticked: Base amount + CGST (9%) + SGST (9%) = targetAmount
+  // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
+  const gstBreakdown = useMemo(() => {
+    const targetAmount = effectivePaidAmount > 0 ? effectivePaidAmount : totalCalculatedAmount;
+    if (isGstIncluded) {
+      const taxable = Math.round(targetAmount / 1.18);
+      const totalGst = Math.max(0, targetAmount - taxable);
+      const cgst = Math.round(totalGst / 2);
+      const sgst = totalGst - cgst;
+      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount };
+    } else {
+      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount };
+    }
+  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount]);
+
+  const getResolvedPaymentMethod = () => {
+    const parts = [];
+    if (numCash > 0) parts.push(`Cash (₹${numCash.toLocaleString('en-IN')})`);
+    if (numUpi > 0) parts.push(`UPI (₹${numUpi.toLocaleString('en-IN')})`);
+    if (numTransfer > 0) parts.push(`Bank Transfer (₹${numTransfer.toLocaleString('en-IN')})`);
+
+    if (parts.length > 1) {
+      return `Split: ${parts.join(' + ')}`;
+    }
+    if (numCash > 0) return 'Cash';
+    if (numUpi > 0) return 'UPI';
+    if (numTransfer > 0) return 'Account Transfer';
+    return 'UPI';
+  };
 
   // Check if member is expired
   const isMemberExpired = useMemo(() => {
@@ -343,10 +394,12 @@ export const MemberUpgradeRenewPage = ({
       }
     }
 
-    if (remainingBalanceDue > 0 && !balanceDueDate) {
+    if (calculatedBalanceDue > 0 && !balanceDueDate) {
       addToast('Please specify a balance due date for partial payment.', 'error');
       return;
     }
+
+    const finalPaymentMethod = getResolvedPaymentMethod();
 
     setIsSubmitting(true);
     try {
@@ -360,7 +413,29 @@ export const MemberUpgradeRenewPage = ({
       // Determine updated membership fields
       const updatedMemberPayload = {
         ...currentMember,
-        status: 'Active'
+        status: 'Active',
+        amount: effectivePaidAmount,
+        paid_amount: effectivePaidAmount,
+        paidAmount: effectivePaidAmount,
+        total_amount: totalCalculatedAmount,
+        totalAmount: totalCalculatedAmount,
+        discount: numDiscount,
+        discount_amount: numDiscount,
+        discountAmount: numDiscount,
+        dues_amount: calculatedBalanceDue,
+        duesAmount: calculatedBalanceDue,
+        due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        payment_method: finalPaymentMethod,
+        paymentMethod: finalPaymentMethod,
+        is_gst_included: isGstIncluded,
+        gst_included: isGstIncluded,
+        gst_rate: 18,
+        gstRate: 18,
+        gst_amount: gstBreakdown.totalGst,
+        gstAmount: gstBreakdown.totalGst,
+        taxable_amount: gstBreakdown.taxable,
+        taxableAmount: gstBreakdown.taxable
       };
 
       if (gymPkg) {
@@ -407,15 +482,6 @@ export const MemberUpgradeRenewPage = ({
         packageTitles.push(`Recovery: ${selectedRec?.name || 'Recovery Pass'}`);
       }
 
-      // Update dues
-      const newTotalDues = remainingBalanceDue > 0
-        ? (Number(currentMember.duesAmount) || 0) + remainingBalanceDue
-        : 0;
-      updatedMemberPayload.dues_amount = newTotalDues;
-      updatedMemberPayload.duesAmount = newTotalDues;
-      updatedMemberPayload.due_date = remainingBalanceDue > 0 ? balanceDueDate : null;
-      updatedMemberPayload.dueDate = remainingBalanceDue > 0 ? balanceDueDate : null;
-
       // 2. Commit member update to backend API
       if (api.members?.update) {
         await api.members.update(currentMember.id, {
@@ -424,8 +490,8 @@ export const MemberUpgradeRenewPage = ({
           status: 'Active',
           trainer_id: updatedMemberPayload.trainer_id || updatedMemberPayload.trainerId,
           training_type: updatedMemberPayload.training_type,
-          dues_amount: newTotalDues,
-          due_date: remainingBalanceDue > 0 ? balanceDueDate : null
+          dues_amount: calculatedBalanceDue,
+          due_date: calculatedBalanceDue > 0 ? balanceDueDate : null
         });
       }
 
@@ -440,7 +506,6 @@ export const MemberUpgradeRenewPage = ({
         ? parseInt(rawMemberId.replace(/\D/g, ''), 10)
         : Number(rawMemberId);
 
-      const invNo = 'INV-' + strtoupper(substr(uniqid(), -6));
       if (api.revenueBilling?.addInflow) {
         await api.revenueBilling.addInflow({
           user_id: cleanUserId || 1,
@@ -450,22 +515,25 @@ export const MemberUpgradeRenewPage = ({
           plan_name: packageTitles.join(', '),
           title: `${currentMember.name} - ${invoiceTitle}`,
           category: 'Membership Fee',
-          amount: effectiveAmountPaid,
-          total_amount: netPayableAmount,
-          dues_amount: remainingBalanceDue,
-          due_date: remainingBalanceDue > 0 ? balanceDueDate : null,
-          payment_method: paymentMethod,
+          amount: effectivePaidAmount,
+          total_amount: totalCalculatedAmount,
+          dues_amount: calculatedBalanceDue,
+          due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+          payment_method: finalPaymentMethod,
           date: todayStr,
-          status: remainingBalanceDue > 0 ? 'Pending' : 'Paid',
-          notes: paymentNotes || `Upgraded & renewed: ${invoiceTitle}. Received ₹${effectiveAmountPaid}.`
+          status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+          is_gst_included: isGstIncluded,
+          gst_amount: gstBreakdown.totalGst,
+          taxable_amount: gstBreakdown.taxable,
+          notes: paymentNotes || `Upgraded & renewed: ${invoiceTitle}. Received ₹${effectivePaidAmount}.`
         });
       } else if (api.invoices?.create) {
         await api.invoices.create({
           user_id: cleanUserId || currentMember.id,
           plan_id: gymPkg?.packageId,
-          amount: effectiveAmountPaid,
-          payment_method: paymentMethod,
-          status: remainingBalanceDue > 0 ? 'Pending' : 'Paid'
+          amount: effectivePaidAmount,
+          payment_method: finalPaymentMethod,
+          status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid'
         });
       }
 
@@ -934,136 +1002,303 @@ export const MemberUpgradeRenewPage = ({
           </div>
         </div>
 
-        {/* SECTION 3: Payment Breakdown & Settlement */}
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-4">
-          <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-            <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <CreditCard className="w-4 h-4" />
+        {/* SECTION 3: Fee Calculation, Discounts & Payment Settlement (Exact match with member addition) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
+          {/* Header with Title, Gross Packages & Discounts, and Total Payable Price Badge */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  3. Fee Calculation & Payment Settlement
+                </h2>
+              </div>
+              <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
+                <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
+                {numDiscount > 0 && (
+                  <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
+                )}
+                {isPaymentAmountEntered && (
+                  isGstIncluded ? (
+                    <span className="text-emerald-700 font-medium">GST (18%): <span className="font-semibold">Included in Bill</span></span>
+                  ) : (
+                    <span className="text-slate-500 font-medium">GST: <span className="font-semibold">Disabled (Non-GST)</span></span>
+                  )
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                3. Payment Collection & Settlement
-              </h2>
-              <span className="text-[11px] text-slate-400">
-                Collect membership fees and issue billing receipt
+
+            {/* Total Payable Price Pill */}
+            <div className="sm:self-center shrink-0 bg-emerald-50/90 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2.5 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-emerald-800">Total Payable Price</span>
+              <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
+                ₹{totalCalculatedAmount.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
 
-          {/* Pricing Summary Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Gross Fee
-              </span>
-              <span className="text-sm font-extrabold text-slate-800">
-                ₹{totalGrossAmount.toLocaleString('en-IN')}
-              </span>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Discount
-              </span>
-              <span className="text-sm font-extrabold text-rose-600">
-                - ₹{totalDiscount.toLocaleString('en-IN')}
-              </span>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
-                Final Net Payable
-              </span>
-              <span className="text-lg font-black text-emerald-700">
-                ₹{netPayableAmount.toLocaleString('en-IN')}
-              </span>
-            </div>
-          </div>
-
-          {/* Payment Method & Amount Paid Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Payment Mode *
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="UPI">UPI / QR Code</option>
-                <option value="Cash">Cash</option>
-                <option value="Card">Credit / Debit Card</option>
-                <option value="Net Banking">Net Banking / Transfer</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  Amount Paying Now (₹) *
-                </label>
+          {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact 3-column grid with titles on top) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+            {/* 1. Cash */}
+            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <span className="text-xs font-bold text-slate-800 block">Cash</span>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
+                    placeholder="0"
+                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
+                  />
+                </div>
                 <button
                   type="button"
-                  onClick={() => setAmountPaid(String(netPayableAmount))}
-                  className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                  title="Pay remaining in Cash"
+                  onClick={() => {
+                    const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
+                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    setCashAmount(rem > 0 ? String(rem) : '');
+                  }}
+                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
-                  Full Amount
+                  Full
                 </button>
               </div>
-              <input
-                type="number"
-                min="0"
-                max={netPayableAmount}
-                value={amountPaid === '' ? netPayableAmount : amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-              />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Pending Balance Due (₹)
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={`₹${remainingBalanceDue.toLocaleString('en-IN')}`}
-                className={`w-full px-3 py-2 border rounded-xl text-xs font-bold font-mono ${
-                  remainingBalanceDue > 0
-                    ? 'bg-rose-50 border-rose-200 text-rose-700'
-                    : 'bg-slate-100 border-slate-200 text-slate-700'
-                }`}
-              />
+            {/* 2. UPI */}
+            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <span className="text-xs font-bold text-slate-800 block">UPI</span>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    value={upiAmount}
+                    onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
+                    placeholder="0"
+                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
+                  />
+                </div>
+                <button
+                  type="button"
+                  title="Pay remaining via UPI"
+                  onClick={() => {
+                    const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
+                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    setUpiAmount(rem > 0 ? String(rem) : '');
+                  }}
+                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                >
+                  Full
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Account Transfer */}
+            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    onKeyDown={(e) => preventNonNumericKey(e, true)}
+                    value={accountTransferAmount}
+                    onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
+                    placeholder="0"
+                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
+                  />
+                </div>
+                <button
+                  type="button"
+                  title="Pay remaining via Account Transfer"
+                  onClick={() => {
+                    const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
+                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    setAccountTransferAmount(rem > 0 ? String(rem) : '');
+                  }}
+                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                >
+                  Full
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* If partial payment, prompt for Due Date */}
-          {remainingBalanceDue > 0 && (
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="text-xs font-medium text-amber-800">
-                  Remaining balance of <strong>₹{remainingBalanceDue.toLocaleString('en-IN')}</strong> will be recorded as pending dues.
+          {/* GST TOGGLE BUTTON & TAX BREAKDOWN (Appears when payment amount is entered) */}
+          {isPaymentAmountEntered && (
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/90 border border-slate-200 space-y-3 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <div
+                    className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${
+                      isGstIncluded
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}
+                  >
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-900">GST</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                          isGstIncluded
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-slate-200 text-slate-700 border-slate-300'
+                        }`}
+                      >
+                        {isGstIncluded ? 'GST Included' : 'GST Disabled (Non-GST)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {isGstIncluded
+                        ? `GST included in ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}. Bill will display Base Fee + CGST + SGST = ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}.`
+                        : `Received ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')} flat without GST. Bill will NOT have CGST / SGST bifurcation.`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toggle Button with "GST Included" / "GST Disabled" text */}
+                <label className="inline-flex items-center gap-2.5 cursor-pointer select-none self-start sm:self-center bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+                  <input
+                    type="checkbox"
+                    checked={isGstIncluded}
+                    onChange={(e) => setIsGstIncluded(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 relative"></div>
+                  <span className="text-xs font-bold text-slate-800">
+                    {isGstIncluded ? 'GST Included' : 'GST Disabled'}
+                  </span>
+                </label>
+              </div>
+
+              {/* When GST is Ticked: Show Base Amount + CGST + SGST = Total Bifurcation */}
+              {isGstIncluded ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 text-[11px]">
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">Base Amount</span>
+                    <strong className="text-slate-800 font-mono text-xs">
+                      ₹{gstBreakdown.taxable.toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST (9%)</span>
+                    <strong className="text-slate-800 font-mono text-xs">
+                      ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST (9%)</span>
+                    <strong className="text-slate-800 font-mono text-xs">
+                      ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg border bg-emerald-50/70 border-emerald-200 text-emerald-900">
+                    <span className="block text-[10px] font-semibold uppercase">
+                      Total (Base + Taxes)
+                    </span>
+                    <strong className="font-mono text-xs">
+                      ₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                /* When GST is Disabled: Non-Tax Banner, NO CGST / SGST Bifurcation */
+                <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
+                  <span className="font-medium">
+                    Non-Tax Bill: Flat <strong>₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}</strong> received without GST.
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
+                    No GST Bifurcation on Bill
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
+          {calculatedBalanceDue > 0 ? (
+            <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                {/* Balance Due Display */}
+                <div>
+                  <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                    Remaining Balance Due (Pending)
+                  </label>
+                  <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
+                    <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
+                    <span className="text-sm font-black font-mono text-rose-600">
+                      ₹{calculatedBalanceDue.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Date Option for Remaining Payment */}
+                <div>
+                  <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                    <span>Promised Due Date *</span>
+                    <span className="text-[10px] font-normal text-amber-800">When remaining will be paid</span>
+                  </label>
+                  <div className="relative">
+                    <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="date"
+                      required
+                      value={balanceDueDate}
+                      min={todayStr}
+                      onChange={(e) => setBalanceDueDate(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Settlement Summary */}
+              <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+                <span className="text-slate-600">
+                  Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
+                </span>
+                <span className="text-emerald-700 font-semibold">
+                  Paid Now: <strong className="font-mono">₹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
+                </span>
+                <span className="text-rose-700 font-bold">
+                  Balance Due: <strong className="font-mono">₹{calculatedBalanceDue.toLocaleString('en-IN')}</strong>
                 </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <label className="text-[11px] font-bold text-amber-900 whitespace-nowrap">
-                  Due Date:
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={balanceDueDate}
-                  onChange={(e) => setBalanceDueDate(e.target.value)}
-                  className="px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
-                />
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  {totalCalculatedAmount > 0 ? (
+                    <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
+                  ) : (
+                    <>Payment settled. <strong>No balance remaining.</strong></>
+                  )}
+                </span>
               </div>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">
+                No Balance Remaining
+              </span>
             </div>
           )}
 
           {/* Notes / Remarks */}
-          <div>
+          <div className="pt-1">
             <label className="block text-[11px] font-bold text-slate-700 mb-1">
               Invoice Remarks / Notes (Optional)
             </label>
