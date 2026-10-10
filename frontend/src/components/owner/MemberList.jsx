@@ -56,7 +56,7 @@ import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { matchesMemberUniversal } from '../../utils/searchUtils';
 
-export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddMember, onOpenAddMember, setActiveTab }) => {
+export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddMember, onNavigateToUpgradeRenew, onOpenAddMember, setActiveTab, onOpenMemberProfile }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
   const {
     members = [],
@@ -782,7 +782,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
       {/* Member Count & Quick Summary */}
       <div className="flex items-center justify-between text-xs text-slate-500 px-0.5 font-medium">
         <span>
-          Showing <strong className="text-emerald-700">{filteredMembers.length}</strong> of {members.length} Athletes
+          Showing <strong className="text-emerald-700">{filteredMembers.length}</strong> / {members.length}
         </span>
         {searchTerm && (
           <span className="text-[11px] text-slate-400">
@@ -828,7 +828,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
             } else if (isExpired) {
               statusBadge = (
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
-                  <ShieldAlert className="w-2.5 h-2.5" /> Expired {diffDays !== null ? `(${Math.abs(diffDays)}d ago)` : ''}
+                  <ShieldAlert className="w-2.5 h-2.5" /> Expired
                 </span>
               );
             }
@@ -841,7 +841,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedMember(member)}
+                    onClick={() => {
+                      if (onOpenMemberProfile) {
+                        onOpenMemberProfile(member.id);
+                      } else {
+                        setSelectedMember(member);
+                      }
+                    }}
                     className="flex items-center gap-2.5 min-w-0 text-left focus:outline-none cursor-pointer"
                   >
                     <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
@@ -878,16 +884,27 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[10px]">
-                  <div>
-                    <span className="text-slate-400 font-medium block">Plan</span>
-                    <span className="font-bold text-slate-800 truncate block">{member.planName}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium block">Expires</span>
-                    <span className="font-bold text-slate-700 flex items-center gap-1">
-                      <Calendar className="w-2.5 h-2.5 text-amber-500" /> {member.expiryDate}
-                    </span>
-                  </div>
+                  {isExpired ? (
+                    <div className="col-span-2">
+                      <span className="text-slate-400 font-medium block">Plan & Validity</span>
+                      <span className="font-bold text-slate-500 text-xs block mt-0.5">
+                        Expired
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <span className="text-slate-400 font-medium block">Plan</span>
+                        <span className="font-bold text-slate-800 truncate block">{member.planName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-medium block">Expires</span>
+                        <span className="font-bold text-slate-700 flex items-center gap-1">
+                          <Calendar className="w-2.5 h-2.5 text-amber-500" /> {member.expiryDate}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <span className="text-slate-400 font-medium block">Coach</span>
                     <span className="font-semibold text-emerald-700 truncate block">{member.trainerName || 'None'}</span>
@@ -924,23 +941,18 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => setUpgradingMember(member)}
-                      className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-                      title="Upgrade / Add Top-ups"
+                      onClick={() => {
+                        if (onNavigateToUpgradeRenew) {
+                          onNavigateToUpgradeRenew(member);
+                        } else if (onNavigateToAddMember) {
+                          onNavigateToAddMember({ ...member, isUpgrade: true });
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-700 hover:to-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                      title="Upgrade / Renew Membership"
                     >
                       <Zap className="w-3 h-3" />
-                      <span>Upgrade</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenewingMember(member);
-                        setSelectedPlanForRenewal(member.planId);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Renew</span>
+                      <span>Upgrade / Renew</span>
                     </button>
                     {canEditDelete && (
                       <>
@@ -1031,8 +1043,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                     );
                   } else if (isExpired) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expired ${Math.abs(diffDays)} days ago` : 'Expired'}>
-                        <ShieldAlert className="w-3 h-3" /> Expired {diffDays !== null ? `(${Math.abs(diffDays)}d ago)` : ''}
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" /> Expired
                       </span>
                     );
                   }
@@ -1046,7 +1058,13 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                       <td className="py-3 px-4">
                         <button
                           type="button"
-                          onClick={() => setSelectedMember(member)}
+                          onClick={() => {
+                            if (onOpenMemberProfile) {
+                              onOpenMemberProfile(member.id);
+                            } else {
+                              setSelectedMember(member);
+                            }
+                          }}
                           className="text-left group/name focus:outline-none flex items-center gap-3 cursor-pointer"
                         >
                           <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center shadow-sm">
@@ -1094,15 +1112,23 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
 
                       {/* Plan & Validity */}
                       <td className="py-3 px-4">
-                        <div>
-                          <span className="font-bold text-slate-900 text-xs block">
-                            {member.planName}
-                          </span>
-                          <span className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <Calendar className="w-3 h-3 text-amber-500" />
-                            Valid until: <strong className="text-slate-700">{member.expiryDate}</strong>
-                          </span>
-                        </div>
+                        {isExpired ? (
+                          <div>
+                            <span className="font-bold text-slate-500 text-xs block">
+                              Expired
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="font-bold text-slate-900 text-xs block">
+                              {member.planName}
+                            </span>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                              <Calendar className="w-3 h-3 text-amber-500" />
+                              Valid until: <strong className="text-slate-700">{member.expiryDate}</strong>
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Assigned Coach */}
@@ -1165,30 +1191,17 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                           <button
                             type="button"
                             onClick={() => {
-                              if (onNavigateToAddMember) {
+                              if (onNavigateToUpgradeRenew) {
+                                onNavigateToUpgradeRenew(member);
+                              } else if (onNavigateToAddMember) {
                                 onNavigateToAddMember({ ...member, isUpgrade: true });
-                              } else {
-                                setUpgradingMember(member);
                               }
                             }}
-                            title="Upgrade / Add Top-ups (PT, Recovery, Membership Upgrade)"
-                            className="px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Upgrade or Renew Membership Plan"
+                            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-50 to-emerald-50 hover:from-violet-100 hover:to-emerald-100 border border-violet-200 text-violet-800 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                           >
                             <Zap className="w-3 h-3 text-violet-600" />
-                            <span>Upgrade</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRenewingMember(member);
-                              setSelectedPlanForRenewal(member.planId);
-                            }}
-                            title="Renew Membership Plan"
-                            className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            <span>Renew</span>
+                            <span>Upgrade / Renew</span>
                           </button>
 
                           {canEditDelete && (
@@ -1526,15 +1539,16 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                     onClick={() => {
                       const m = selectedMember;
                       setSelectedMember(null);
-                      setTimeout(() => {
-                        setRenewingMember(m);
-                        setSelectedPlanForRenewal(m.planId);
-                      }, 50);
+                      if (onNavigateToUpgradeRenew) {
+                        onNavigateToUpgradeRenew(m);
+                      } else if (onNavigateToAddMember) {
+                        onNavigateToAddMember({ ...m, isUpgrade: true });
+                      }
                     }}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Renew Membership</span>
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Upgrade / Renew Membership</span>
                   </button>
 
                   <button

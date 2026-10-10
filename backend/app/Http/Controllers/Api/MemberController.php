@@ -176,7 +176,7 @@ class MemberController extends Controller
                 'trainerName' => $profile?->trainer?->name ?? 'None / Self Guided',
                 'executive' => $profile?->executive ?? '',
                 'trainingType' => $profile?->training_type ?? 'self',
-                'gender' => $profile?->gender ?? 'Unspecified',
+                'gender' => $profile?->gender ?? null,
                 'age' => $profile?->age,
                 'dob' => $profile?->dob ? $profile->dob->format('Y-m-d') : null,
                 'weight' => $profile?->weight,
@@ -184,7 +184,7 @@ class MemberController extends Controller
                 'height' => $profile?->height,
                 'goal' => $profile?->goal,
                 'medicalNotes' => $profile?->medical_notes ?? '',
-                'emergencyContact' => $profile?->emergency_contact ?? 'N/A',
+                'emergencyContact' => $profile?->emergency_contact ?? null,
                 'kycDocType' => $profile?->kyc_doc_type ?? 'Aadhaar Card',
                 'kycDocNumber' => $profile?->kyc_doc_number ?? '',
                 'kycStatus' => $profile?->kyc_status ?? 'Verified',
@@ -434,6 +434,8 @@ class MemberController extends Controller
         $cleanCreatorName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
         $creatorName = trim($cleanCreatorName) ?: ($authCreator?->name ?: 'Staff');
 
+        $emailVal = !empty($request->email) ? trim(strtolower($request->email)) : null;
+
         // 3. Perform all database writes atomically inside a transaction
         [$user, $profile, $qrCode] = DB::transaction(function () use (
             $numTargetId, $request, $emailVal, $plainPassword, $gymId, $plan,
@@ -507,15 +509,15 @@ class MemberController extends Controller
                 'status' => $computedStatus,
                 'join_date' => $joinDate,
                 'expiry_date' => $expiryDate,
-                'gender' => $request->gender ?? $profile->gender ?? 'Male',
+                'gender' => $request->gender ?? $profile->gender ?? null,
                 'age' => $computedAge,
                 'dob' => $dob,
-                'weight' => $request->weight ?? $profile->weight ?? 70,
-                'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? 65,
-                'height' => $request->height ?? $profile->height ?? 175,
-                'goal' => $request->goal ?? $profile->goal ?? 'Fitness & Conditioning',
+                'weight' => $request->weight ?? $profile->weight ?? null,
+                'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? null,
+                'height' => $request->height ?? $profile->height ?? null,
+                'goal' => $request->goal ?? $profile->goal ?? null,
                 'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
-                'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? 'N/A',
+                'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? null,
                 'kyc_doc_type' => $rawKycDocType,
                 'kyc_doc_number' => $rawKycDocNumber,
                 'kyc_status' => $rawKycStatus,

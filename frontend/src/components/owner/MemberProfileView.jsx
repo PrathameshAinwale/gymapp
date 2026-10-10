@@ -293,12 +293,12 @@ export const MemberProfileView = ({
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Valid Until</span>
-                <strong className={`font-bold text-xs block ${effectiveStatus === 'Expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-slate-900'}`}>
-                  {formatDate(member.expiryDate || member.expiry_date)}
+                <strong className={`font-bold text-xs block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-slate-900'}`}>
+                  {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'Expired' : formatDate(member.expiryDate || member.expiry_date)}
                 </strong>
-                <span className={`text-[10px] font-semibold mt-0.5 block ${effectiveStatus === 'Expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-emerald-700'}`}>
-                  {effectiveStatus === 'Expired'
-                    ? (expiryDiffDays !== null ? `Expired ${Math.abs(expiryDiffDays)}d ago` : 'Plan Expired')
+                <span className={`text-[10px] font-semibold mt-0.5 block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-emerald-700'}`}>
+                  {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired'
+                    ? 'Expired'
                     : effectiveStatus === 'Expiring Soon'
                     ? (expiryDiffDays !== null ? `Expires in ${expiryDiffDays}d` : 'Expiring Soon')
                     : (expiryDiffDays !== null ? `${expiryDiffDays} Days Left` : 'Active')}

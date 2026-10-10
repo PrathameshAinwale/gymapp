@@ -139,7 +139,7 @@ export const MemberInvoices = () => {
           />
         </div>
         <div className="text-[11px] font-bold text-slate-500 self-end sm:self-center">
-          Showing {filteredInvoices.length} of {myInvoices.length} records
+          Showing {filteredInvoices.length} / {myInvoices.length}
         </div>
       </div>
 

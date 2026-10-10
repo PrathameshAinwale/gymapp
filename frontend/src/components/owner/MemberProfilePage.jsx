@@ -28,7 +28,8 @@ import {
   Heart,
   Droplets,
   Flame,
-  Award
+  Award,
+  Zap
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { PayDueModal } from './PayDueModal';
@@ -37,7 +38,7 @@ import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { compareInvoicesDesc } from '../../utils/searchUtils';
 
-export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNavigateTab }) => {
+export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNavigateTab, onNavigateToUpgradeRenew }) => {
   const {
     members = [],
     invoices = [],
@@ -290,7 +291,7 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
               {currentMember.name}
             </h2>
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              Age: {currentMember.age ? `${currentMember.age}` : 'Not specified'} • {currentMember.gender || 'Member'}
+              {[currentMember.age ? `Age: ${currentMember.age}` : null, (currentMember.gender && currentMember.gender !== 'Unspecified' && currentMember.gender !== 'Not specified') ? currentMember.gender : null].filter(Boolean).join(' • ')}
             </p>
 
             {/* Member Status Badge */}
@@ -321,6 +322,17 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp Chat</span>
                 </a>
+              )}
+
+              {onNavigateToUpgradeRenew && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToUpgradeRenew(currentMember)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Upgrade / Renew Membership</span>
+                </button>
               )}
 
               {duesAmount > 0 ? (
@@ -354,53 +366,73 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Gender:</span>
-                <span className="font-bold text-slate-800">{currentMember.gender || 'Not specified'}</span>
-              </div>
-
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <span className="text-slate-400 font-medium">Plan:</span>
-                <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/70">
-                  {currentMember.planName || 'General Plan'}
+                <span className="font-bold text-slate-800">
+                  {currentMember.gender && currentMember.gender !== 'Unspecified' && currentMember.gender !== 'Not specified' ? currentMember.gender : ''}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <span className="text-slate-400 font-medium">Plan:</span>
+                {currentMember.planName && currentMember.planName !== 'Unassigned' && currentMember.planName !== 'General Plan' ? (
+                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/70">
+                    {currentMember.planName}
+                  </span>
+                ) : (
+                  <span className="font-bold text-slate-800"></span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Assigned Coach:</span>
-                <span className="font-bold text-slate-800">{currentMember.trainerName || 'Self Guided'}</span>
+                <span className="font-bold text-slate-800">
+                  {currentMember.trainerName && currentMember.trainerName !== 'None / Self Guided' && currentMember.trainerName !== 'Self Guided' && currentMember.trainerName !== 'None' ? currentMember.trainerName : ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Height:</span>
-                <span className="font-bold text-slate-800">{currentMember.height ? `${currentMember.height} cm` : '--'}</span>
+                <span className="font-bold text-slate-800">
+                  {currentMember.height ? `${currentMember.height} cm` : ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Weight:</span>
-                <span className="font-bold text-slate-800">{currentMember.weight ? `${currentMember.weight} kg` : '--'}</span>
+                <span className="font-bold text-slate-800">
+                  {currentMember.weight ? `${currentMember.weight} kg` : ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">BMI Score:</span>
-                <span className="font-bold text-emerald-700 font-mono">{bmi || '--'}</span>
+                <span className="font-bold text-emerald-700 font-mono">
+                  {currentMember.height && currentMember.weight && bmi ? bmi : ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Member ID:</span>
-                <span className="font-mono font-bold text-slate-800">{currentMember.id || currentMember.memberId || 'MEM-001'}</span>
+                <span className="font-mono font-bold text-slate-800">
+                  {currentMember.id || currentMember.memberId || ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Joined Date:</span>
                 <span className="font-bold text-slate-800">
-                  {formatDate(currentMember.joinDate || currentMember.join_date || currentMember.joiningDate || currentMember.joining_date || currentMember.createdAt)}
+                  {currentMember.joinDate || currentMember.join_date ? formatDate(currentMember.joinDate || currentMember.join_date) : ''}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Expiry Date:</span>
-                <span className={`font-bold ${effectiveStatus === 'Expired' ? 'text-rose-600' : 'text-slate-800'}`}>
-                  {formatDate(currentMember.expiryDate || currentMember.expiry_date)}
-                </span>
+                {effectiveStatus === 'Expired' || String(currentMember.status || '').toLowerCase() === 'expired' ? (
+                  <span className="font-bold text-rose-600">Expired</span>
+                ) : (
+                  <span className="font-bold text-slate-800">
+                    {formatDate(currentMember.expiryDate || currentMember.expiry_date)}
+                  </span>
+                )}
               </div>
 
               {/* Real-time Dues Amount from Backend */}
@@ -421,17 +453,21 @@ export const MemberProfilePage = ({ initialMemberId, onBackToDashboard, onNaviga
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Phone:</span>
-                <span className="font-bold text-slate-800">{currentMember.phone || 'Not provided'}</span>
+                <span className="font-bold text-slate-800">{currentMember.phone || ''}</span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-slate-400 font-medium">Email:</span>
-                <span className="font-bold text-slate-800 truncate max-w-[160px]">{currentMember.email || 'Not provided'}</span>
+                <span className="font-bold text-slate-800 truncate max-w-[160px]">
+                  {currentMember.email && !currentMember.email.endsWith('@gym.local') && currentMember.email !== 'Not provided' ? currentMember.email : ''}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Emergency:</span>
-                <span className="font-bold text-slate-800">{currentMember.emergencyContact || 'None reported'}</span>
+                <span className="font-bold text-slate-800">
+                  {currentMember.emergencyContact && currentMember.emergencyContact !== 'N/A' && currentMember.emergencyContact !== 'None' && currentMember.emergencyContact !== 'None reported' ? currentMember.emergencyContact : ''}
+                </span>
               </div>
             </div>
           </div>

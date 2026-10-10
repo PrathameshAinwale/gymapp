@@ -66,12 +66,14 @@ const WhatsAppAutomation = lazy(() => import('./components/owner/WhatsAppAutomat
 const ShiftManager = lazy(() => import('./components/owner/ShiftManager').then(m => ({ default: m.ShiftManager })));
 const MemberProfilePage = lazy(() => import('./components/owner/MemberProfilePage').then(m => ({ default: m.MemberProfilePage })));
 const AddMemberPage = lazy(() => import('./components/owner/AddMemberPage').then(m => ({ default: m.AddMemberPage })));
+const MemberUpgradeRenewPage = lazy(() => import('./components/owner/MemberUpgradeRenewPage').then(m => ({ default: m.MemberUpgradeRenewPage })));
 
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
   const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
+  const [selectedUpgradeRenewMember, setSelectedUpgradeRenewMember] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -304,18 +306,65 @@ function MainApp() {
         return (
           <MemberProfilePage
             initialMemberId={selectedMemberProfileId}
-            onBackToDashboard={() => handleNavigateTab('dashboard')}
+            onBackToDashboard={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                handleNavigateTab('members');
+              }
+            }}
+            onNavigateTab={handleNavigateTab}
+            onNavigateToUpgradeRenew={(member) => {
+              setSelectedUpgradeRenewMember(member);
+              handleNavigateTab('upgrade-renew');
+            }}
+          />
+        );
+      case 'upgrade-renew':
+        return (
+          <MemberUpgradeRenewPage
+            member={selectedUpgradeRenewMember}
+            onBack={() => {
+              setSelectedUpgradeRenewMember(null);
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                handleNavigateTab('members');
+              }
+            }}
+            onSuccess={() => {
+              setSelectedUpgradeRenewMember(null);
+              handleNavigateTab('members');
+            }}
             onNavigateTab={handleNavigateTab}
           />
         );
       case 'add-member':
+        if (addMemberInitialData?.isUpgrade) {
+          return (
+            <MemberUpgradeRenewPage
+              member={addMemberInitialData}
+              onBack={() => {
+                setAddMemberInitialData(null);
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  handleNavigateTab('members');
+                }
+              }}
+              onSuccess={() => {
+                setAddMemberInitialData(null);
+                handleNavigateTab('members');
+              }}
+              onNavigateTab={handleNavigateTab}
+            />
+          );
+        }
         return (
           <AddMemberPage
             initialData={addMemberInitialData}
             isEdit={Boolean(addMemberInitialData?.isEdit || addMemberInitialData?.isEditMode)}
             editMember={addMemberInitialData?.isEdit ? addMemberInitialData : null}
-            isUpgrade={Boolean(addMemberInitialData?.isUpgrade)}
-            upgradeMember={addMemberInitialData?.isUpgrade ? addMemberInitialData : null}
             onBack={() => {
               setAddMemberInitialData(null);
               handleNavigateTab('members');
@@ -338,8 +387,21 @@ function MainApp() {
               handleNavigateTab('add-member');
             }}
             onNavigateToAddMember={(data) => {
+              if (data?.isUpgrade) {
+                setSelectedUpgradeRenewMember(data);
+                handleNavigateTab('upgrade-renew');
+                return;
+              }
               setAddMemberInitialData(data || null);
               handleNavigateTab('add-member');
+            }}
+            onNavigateToUpgradeRenew={(member) => {
+              setSelectedUpgradeRenewMember(member);
+              handleNavigateTab('upgrade-renew');
+            }}
+            onOpenMemberProfile={(memberId) => {
+              setSelectedMemberProfileId(memberId);
+              handleNavigateTab('member-profile');
             }}
           />
         );
