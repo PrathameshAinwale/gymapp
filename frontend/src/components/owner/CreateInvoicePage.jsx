@@ -5,7 +5,7 @@ import MemberSearchSelect from '../common/MemberSearchSelect';
 import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
-import { calculatePlanExpiryDate } from '../../utils/dateUtils';
+import { calculatePlanExpiryDate, formatDateDisplay } from '../../utils/dateUtils';
 import {
   hasSqlInjection,
   sanitizeDecimal,
@@ -195,6 +195,115 @@ export const CreateInvoicePage = ({
     return trainers.find((t) => String(t.id) === String(selectedTrainerId)) || null;
   }, [trainers, selectedTrainerId]);
 
+  // Current Plan of the selected member
+  const memberCurrentPlan = useMemo(() => {
+    if (!currentMember) return null;
+    const planId = currentMember.planId || currentMember.plan_id;
+    const foundPlan = plans.find((p) => String(p.id) === String(planId));
+    const rawExpiry = currentMember.expiryDate || currentMember.expiry_date || '';
+    const cleanExpiry = rawExpiry ? String(rawExpiry).split('T')[0] : '';
+    const today = getTodayDateStr();
+    const isExpired = currentMember.status === 'Expired' || (cleanExpiry && cleanExpiry < today);
+
+    let remainingDays = 0;
+    if (!isExpired && cleanExpiry && cleanExpiry >= today) {
+      const d1 = new Date(today);
+      const d2 = new Date(cleanExpiry);
+      const diffMs = d2.getTime() - d1.getTime();
+      remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    const hasPlan = Boolean(currentMember.planName || foundPlan || cleanExpiry);
+
+    return {
+      hasPlan,
+      planName: currentMember.planName || foundPlan?.name || (hasPlan ? 'Active Membership Plan' : null),
+      planObj: foundPlan,
+      startDate: currentMember.startDate || currentMember.joiningDate || currentMember.created_at || '',
+      expiryDate: cleanExpiry,
+      isExpired,
+      remainingDays,
+      status: isExpired ? 'Expired' : (currentMember.status || 'Active')
+    };
+  }, [currentMember, plans]);
+
+  // Plan duration in days helper
+  const getPlanDurationDays = (plan) => {
+    if (!plan) return 0;
+    const period = (plan.period || (plan.validityDays ? `${plan.validityDays} Days` : '')).toLowerCase();
+    const matchDays = period.match(/(\d+)\s*days?/i);
+    if (matchDays) {
+      return parseInt(matchDays[1], 10);
+    }
+    const matchMonths = period.match(/(\d+)\s*months?/i);
+    const months = Number(plan.durationMonths || plan.duration_months) || (matchMonths ? parseInt(matchMonths[1], 10) : 1);
+    const bonus = Number(plan.offerDays || plan.offer_days) || 0;
+    return (months * 30) + bonus;
+  };
+
+  // Compute validity for any package row
+  const computePackageValidity = (pkgRow) => {
+    if (!pkgRow?.packageId) return null;
+    const planObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
+    if (!planObj) return null;
+
+    const newPlanDays = getPlanDurationDays(planObj);
+    const currentRemainingDays = memberCurrentPlan?.remainingDays || 0;
+    const isExtended = currentRemainingDays > 0 && memberCurrentPlan?.expiryDate;
+    const todayStr = getTodayDateStr();
+
+    // Start date: extend from current plan's expiryDate if active; else start from today / membershipStartDate
+    const effectiveBaseStart = isExtended ? memberCurrentPlan.expiryDate : (membershipStartDate || todayStr);
+    const newExpiry = computeCombinedPlanEndDate(
+      effectiveBaseStart,
+      planObj,
+      isExtended ? memberCurrentPlan?.expiryDate : null
+    );
+    const totalCombinedDays = currentRemainingDays + newPlanDays;
+
+    return {
+      planObj,
+      newPlanDays,
+      currentRemainingDays,
+      totalCombinedDays,
+      effectiveStartDate: effectiveBaseStart,
+      newExpiryDate: newExpiry,
+      isExtended,
+      currentExpiryFormatted: memberCurrentPlan?.expiryDate || 'N/A'
+    };
+  };
+
+  // Top membership validity info (for the main gym membership plan in the bill)
+  const mainMembershipValidityInfo = useMemo(() => {
+    const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt');
+    const isRecRow = (r) => (r.packageType === 'Massage' || r.packageType === 'Activities' || r.packageType === 'recovery');
+    const memRow = selectedPackages.find((r) => !isPtRow(r) && !isRecRow(r) && r.packageId);
+    if (!memRow) return null;
+    return computePackageValidity(memRow);
+  }, [selectedPackages, memberCurrentPlan, membershipStartDate, plans, ptPlans, recoveryPlans]);
+
+  // Keep membershipEndDate synchronized with the validity calculation
+  useEffect(() => {
+    if (mainMembershipValidityInfo?.newExpiryDate) {
+      setMembershipEndDate(mainMembershipValidityInfo.newExpiryDate);
+    }
+  }, [mainMembershipValidityInfo]);
+
+  // Synchronize start date whenever member changes
+  useEffect(() => {
+    if (currentMember) {
+      const todayStr = getTodayDateStr();
+      const rawExpiry = currentMember.expiryDate || currentMember.expiry_date || '';
+      const cleanExpiry = rawExpiry ? String(rawExpiry).split('T')[0] : '';
+      const effectiveStart = cleanExpiry && cleanExpiry >= todayStr ? cleanExpiry : todayStr;
+      setMembershipStartDate(effectiveStart);
+
+      if (currentMember.trainerId) {
+        setSelectedTrainerId(currentMember.trainerId);
+      }
+    }
+  }, [currentMember]);
+
   // Handle Member Change
   const handleMemberChange = (newMemberId) => {
     setSelectedMemberId(newMemberId);
@@ -228,24 +337,6 @@ export const CreateInvoicePage = ({
       ]);
     }
   }, [plans]);
-
-  // Recalculate end date whenever membershipStartDate or plan changes
-  useEffect(() => {
-    const membershipRow = selectedPackages.find((r) => r.packageType !== 'pt' && r.packageType !== 'Personal Training' && r.packageId);
-    if (membershipRow) {
-      const planObj = getPackageObject(membershipRow.packageType, membershipRow.packageId);
-      if (planObj) {
-        const calculated = computeCombinedPlanEndDate(
-          membershipStartDate,
-          planObj,
-          currentMember?.expiryDate
-        );
-        if (calculated) {
-          setMembershipEndDate(calculated);
-        }
-      }
-    }
-  }, [selectedPackages, membershipStartDate, currentMember]);
 
   // Package row handlers
   const handlePackageTypeChange = (rowId, newType) => {
@@ -577,14 +668,6 @@ export const CreateInvoicePage = ({
       return;
     }
 
-    if (duplicateActivePlanInvoice) {
-      addToast(
-        `Duplicate invoice detected: An identical invoice of ₹${effectivePaidAmount.toLocaleString('en-IN')} already exists on ${paymentDate} for this member's active plan. If this is a separate transaction, please select a different invoice date or modify bill contents.`,
-        'error'
-      );
-      return;
-    }
-
     // Check discount ceiling across all selected packages
     for (const r of selectedPackages) {
       const pObj = getPackageObject(r.packageType, r.packageId);
@@ -625,98 +708,135 @@ export const CreateInvoicePage = ({
 
       const generatedInvoiceNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
+      const targetExpiryDate = hasMembership
+        ? (membershipEndDate || mainMembershipValidityInfo?.newExpiryDate || currentMember?.expiryDate)
+        : currentMember?.expiryDate;
 
-      // 1. Record Revenue Inflow in Database
+      // 1. Record Invoice directly in Backend Database API
       let backendInvoiceRef = generatedInvoiceNo;
+
       try {
-        if (api.revenueBilling?.addInflow) {
-          const inflowRes = await api.revenueBilling.addInflow({
+        if (api.invoices?.create) {
+          const invPayload = {
             user_id: cleanUserId,
+            member_id: currentMember?.id,
             memberId: currentMember?.id,
             member_name: memberName,
+            memberName: memberName,
             plan_id: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
+            planId: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
             plan_name: invoiceTitle,
+            planName: invoiceTitle,
             title: `${memberName} - ${invoiceTitle}`,
             category: mainCategory,
             amount: effectivePaidAmount,
             total_amount: totalCalculatedAmount,
+            totalAmount: totalCalculatedAmount,
             dues_amount: calculatedBalanceDue,
+            duesAmount: calculatedBalanceDue,
+            pending_amount: calculatedBalanceDue,
+            pendingAmount: calculatedBalanceDue,
             due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
             dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
-            payment_method: resolvedPaymentMethodString,
-            date: paymentDate || getTodayDateStr(),
-            invoice_date: paymentDate || getTodayDateStr(),
-            invoiceDate: paymentDate || getTodayDateStr(),
             payment_date: paymentDate || getTodayDateStr(),
-            paymentDate: paymentDate || getTodayDateStr(),
+            date: paymentDate || getTodayDateStr(),
+            payment_method: resolvedPaymentMethodString,
+            paymentMethod: resolvedPaymentMethodString,
+            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+            expiry_date: targetExpiryDate,
+            expiryDate: targetExpiryDate,
             is_gst_included: isGstIncluded,
             gst_amount: gstBreakdown.totalGst,
             taxable_amount: gstBreakdown.taxable,
             notes: notes || `Recorded invoice: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
-            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
             created_by: currentUser?.userId || currentUser?.id,
             created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
-          });
+          };
 
-          if (inflowRes?.data?.invoiceNumber || inflowRes?.data?.id) {
-            backendInvoiceRef = inflowRes.data.invoiceNumber || inflowRes.data.id;
+          const invRes = await api.invoices.create(invPayload);
+          if (invRes?.data?.invoiceNumber || invRes?.data?.id) {
+            backendInvoiceRef = invRes.data.invoiceNumber || invRes.data.id;
           }
-        } else if (recordPayment) {
+        }
+      } catch (invErr) {
+        console.warn('Backend invoice create note:', invErr);
+        if (recordPayment) {
           await recordPayment({
             memberId: currentMember?.id,
             memberName: memberName,
             planId: membershipPlanObj?.id || null,
             planName: invoiceTitle,
             amount: effectivePaidAmount,
-            dues_amount: calculatedBalanceDue,
-            due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+            totalAmount: totalCalculatedAmount,
+            duesAmount: calculatedBalanceDue,
             dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
             paymentDate,
-            expiryDate: hasMembership ? membershipEndDate : currentMember?.expiryDate,
-            paymentMethod: resolvedPaymentMethodString,
-            created_by: currentUser?.userId || currentUser?.id,
-            created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
+            expiryDate: targetExpiryDate,
+            paymentMethod: resolvedPaymentMethodString
           });
         }
-      } catch (err) {
-        console.warn('Backend inflow note:', err);
       }
 
-      // 2. Update Member Record
-      if (updateMember && currentMember) {
-        const updatedDues = (Number(currentMember.duesAmount || 0) + calculatedBalanceDue);
-        const memberPayload = {
-          ...currentMember,
-          duesAmount: updatedDues,
-          dues_amount: updatedDues,
-          due_date: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
-          dueDate: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
-        };
-
-        if (hasMembership && membershipPlanObj) {
-          memberPayload.planId = membershipPlanObj.id;
-          memberPayload.planName = membershipPlanObj.name;
-          memberPayload.expiryDate = membershipEndDate;
-          memberPayload.expiry_date = membershipEndDate;
-          memberPayload.status = 'Active';
+      // 2. Synchronize Member Status & Expiry in Backend
+      if (currentMember?.id) {
+        try {
+          if (api.members?.update) {
+            const memberUpdateData = {
+              status: 'Active',
+              dues_amount: calculatedBalanceDue,
+              due_date: calculatedBalanceDue > 0 ? balanceDueDate : null
+            };
+            if (hasMembership && membershipPlanObj) {
+              memberUpdateData.plan_id = membershipPlanObj.id;
+              memberUpdateData.plan_name = membershipPlanObj.name;
+              memberUpdateData.expiry_date = targetExpiryDate;
+            }
+            if (hasPt && ptRow) {
+              memberUpdateData.training_type = 'pt';
+              if (currentTrainer) {
+                memberUpdateData.trainer_id = currentTrainer.id;
+              }
+              const sessionsToAdd = Number(ptPlanObj?.sessions) || ptCustomSessions || 12;
+              memberUpdateData.pt_sessions = (Number(currentMember.ptSessions) || 0) + sessionsToAdd;
+            }
+            await api.members.update(currentMember.id, memberUpdateData);
+          }
+        } catch (memErr) {
+          console.warn('Member update API note:', memErr);
         }
 
-        if (hasPt && ptPlanObj) {
-          const sessionsToAdd = Number(ptPlanObj.sessions) || ptCustomSessions || 12;
-          memberPayload.trainingType = 'pt';
-          memberPayload.trainerId = currentTrainer?.id || currentMember.trainerId;
-          memberPayload.trainerName = currentTrainer ? `${currentTrainer.name} (PT Coach)` : currentMember.trainerName;
-          memberPayload.ptPlanId = ptRow.packageId;
-          memberPayload.ptPlanName = ptPlanObj.name;
-          memberPayload.ptSessions = (Number(currentMember.ptSessions) || 0) + sessionsToAdd;
+        // Also update local context
+        if (updateMember) {
+          const updatedDues = calculatedBalanceDue;
+          const memberPayload = {
+            ...currentMember,
+            duesAmount: updatedDues,
+            dues_amount: updatedDues,
+            due_date: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
+            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
+          };
+          if (hasMembership && membershipPlanObj) {
+            memberPayload.planId = membershipPlanObj.id;
+            memberPayload.planName = membershipPlanObj.name;
+            memberPayload.expiryDate = targetExpiryDate;
+            memberPayload.expiry_date = targetExpiryDate;
+            memberPayload.status = 'Active';
+          }
+          if (hasPt && ptPlanObj) {
+            const sessionsToAdd = Number(ptPlanObj.sessions) || ptCustomSessions || 12;
+            memberPayload.trainingType = 'pt';
+            memberPayload.trainerId = currentTrainer?.id || currentMember.trainerId;
+            memberPayload.trainerName = currentTrainer ? `${currentTrainer.name} (PT Coach)` : currentMember.trainerName;
+            memberPayload.ptPlanId = ptRow.packageId;
+            memberPayload.ptPlanName = ptPlanObj.name;
+            memberPayload.ptSessions = (Number(currentMember.ptSessions) || 0) + sessionsToAdd;
+          }
+          if (recoveryRow && recoveryPlanObj) {
+            memberPayload.recoveryPlanId = recoveryPlanObj.id;
+            memberPayload.recoveryPlanName = recoveryPlanObj.name;
+          }
+          await updateMember(currentMember.id, memberPayload);
         }
-
-        if (recoveryRow && recoveryPlanObj) {
-          memberPayload.recoveryPlanId = recoveryPlanObj.id;
-          memberPayload.recoveryPlanName = recoveryPlanObj.name;
-        }
-
-        await updateMember(currentMember.id, memberPayload);
       }
 
       // 3. Log Trainer Commission if PT Coach is included
@@ -770,7 +890,7 @@ export const CreateInvoicePage = ({
         paymentMethod: resolvedPaymentMethodString,
         isGstIncluded,
         status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
-        expiryDate: hasMembership ? membershipEndDate : currentMember?.expiryDate,
+        expiryDate: targetExpiryDate,
         createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
       });
     } catch (err) {
@@ -1052,16 +1172,16 @@ export const CreateInvoicePage = ({
               <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 block font-medium">Current Active Plan</span>
                 <span className="font-bold text-slate-900 truncate block mt-0.5">
-                  {currentMember.planName || 'Standard Plan'}
+                  {memberCurrentPlan?.planName || currentMember.planName || 'Standard Plan'}
                 </span>
               </div>
               <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 block font-medium">Plan Validity</span>
                 <span className="font-bold block mt-0.5">
-                  {currentMember.status === 'Expired' || (currentMember.expiryDate && String(currentMember.expiryDate).split('T')[0] < getTodayDateStr()) ? (
+                  {memberCurrentPlan?.isExpired ? (
                     <span className="text-rose-600 font-extrabold uppercase">Expired</span>
                   ) : (
-                    <span className="text-emerald-700">{currentMember.expiryDate || 'N/A'}</span>
+                    <span className="text-emerald-700">{formatDateDisplay(memberCurrentPlan?.expiryDate || currentMember.expiryDate) || 'N/A'}</span>
                   )}
                 </span>
               </div>
@@ -1074,6 +1194,96 @@ export const CreateInvoicePage = ({
                     <span className="text-emerald-700">₹0 Settled</span>
                   )}
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* DEDICATED CURRENT PLAN DETAILS & REMAINING DAYS CARD */}
+          {currentMember && memberCurrentPlan?.hasPlan && (
+            <div className="mt-3 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-200 shadow-2xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-emerald-200/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                      Member Current Plan Details
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-slate-900">
+                        {memberCurrentPlan.planName}
+                      </span>
+                      {memberCurrentPlan.isExpired ? (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold border border-rose-200 uppercase">
+                          Expired • 0 Days Remaining
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                          Active • {memberCurrentPlan.remainingDays} Days Remaining
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {memberCurrentPlan.remainingDays > 0 ? (
+                    <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-200 text-center shadow-2xs">
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Days Left</span>
+                      <span className="text-sm font-black text-emerald-700 font-mono">
+                        {memberCurrentPlan.remainingDays} Days
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-white px-3 py-1.5 rounded-xl border border-rose-200 text-center shadow-2xs">
+                      <span className="text-[9px] uppercase font-bold text-rose-400 block">Status</span>
+                      <span className="text-sm font-black text-rose-600 uppercase">
+                        Expired
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Plan Specs Breakdown */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Joined / Started</span>
+                  <span className="font-semibold text-slate-800 truncate block mt-0.5">
+                    {memberCurrentPlan.startDate ? formatDateDisplay(memberCurrentPlan.startDate) : 'N/A'}
+                  </span>
+                </div>
+                <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Current Expiry</span>
+                  <span className="font-semibold text-slate-800 truncate block mt-0.5">
+                    {memberCurrentPlan.isExpired ? (
+                      <span className="text-rose-600 font-bold">Expired</span>
+                    ) : (
+                      memberCurrentPlan.expiryDate ? formatDateDisplay(memberCurrentPlan.expiryDate) : 'N/A'
+                    )}
+                  </span>
+                </div>
+                <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Remaining Days</span>
+                  <span className="font-black font-mono block mt-0.5">
+                    {memberCurrentPlan.remainingDays > 0 ? (
+                      <span className="text-emerald-700">{memberCurrentPlan.remainingDays} Days</span>
+                    ) : (
+                      <span className="text-rose-600">0 Days (Expired)</span>
+                    )}
+                  </span>
+                </div>
+                <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Membership Dues</span>
+                  <span className="font-semibold font-mono block mt-0.5">
+                    {Number(currentMember.duesAmount || 0) > 0 ? (
+                      <span className="text-rose-600 font-bold">₹{Number(currentMember.duesAmount).toLocaleString('en-IN')}</span>
+                    ) : (
+                      <span className="text-emerald-700">₹0 Settled</span>
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -1100,6 +1310,64 @@ export const CreateInvoicePage = ({
             </button>
           </div>
 
+          {/* DYNAMIC VALIDITY ACCUMULATION & EXTENSION BANNER */}
+          {mainMembershipValidityInfo && (
+            <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/40 to-slate-50 border border-emerald-200 shadow-2xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Plan Validity & Extension Calculation</span>
+                </div>
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200 self-start sm:self-auto shadow-2xs">
+                  {mainMembershipValidityInfo.isExtended ? '⚡ Extended on Top of Current Active Plan' : '⚡ Fresh Plan Validity'}
+                </span>
+              </div>
+
+              {/* 4 Cards: Current Remaining | New Plan Duration | Total Accumulated Validity | Resulting Expiry Date */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs text-center">
+                  <span className="text-[10px] text-slate-400 block uppercase font-medium">Current Remaining</span>
+                  <span className="font-black text-slate-800 font-mono text-sm sm:text-base block mt-0.5">
+                    {mainMembershipValidityInfo.currentRemainingDays} Days
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
+                    {mainMembershipValidityInfo.currentRemainingDays > 0 ? `Till ${formatDateDisplay(mainMembershipValidityInfo.currentExpiryFormatted)}` : 'Plan Expired'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs text-center">
+                  <span className="text-[10px] text-slate-400 block uppercase font-medium">+ New Plan Duration</span>
+                  <span className="font-black text-emerald-700 font-mono text-sm sm:text-base block mt-0.5">
+                    +{mainMembershipValidityInfo.newPlanDays} Days
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
+                    {mainMembershipValidityInfo.planObj?.name}
+                  </span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-2xs text-center">
+                  <span className="text-[10px] text-emerald-800 block uppercase font-bold">= Total Validity</span>
+                  <span className="font-black text-emerald-800 font-mono text-sm sm:text-base block mt-0.5">
+                    {mainMembershipValidityInfo.totalCombinedDays} Days
+                  </span>
+                  <span className="text-[10px] text-emerald-700 block mt-0.5 font-semibold">
+                    Combined Active Days
+                  </span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-2xs text-center">
+                  <span className="text-[10px] text-slate-400 block uppercase font-medium">New Valid Till</span>
+                  <span className="font-black text-emerald-700 text-sm sm:text-base block mt-0.5">
+                    {formatDateDisplay(mainMembershipValidityInfo.newExpiryDate)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
+                    {mainMembershipValidityInfo.isExtended ? `From ${formatDateDisplay(mainMembershipValidityInfo.effectiveStartDate)}` : `Starts ${formatDateDisplay(mainMembershipValidityInfo.effectiveStartDate)}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
             {selectedPackages.map((pkgRow, idx) => {
               const currentPkgObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
@@ -1109,6 +1377,8 @@ export const CreateInvoicePage = ({
               const maxPlanDiscount = currentPkgObj
                 ? Number(currentPkgObj.maxDiscount ?? currentPkgObj.max_discount ?? 0)
                 : 0;
+
+              const pkgVal = computePackageValidity(pkgRow);
 
               return (
                 <div
@@ -1213,6 +1483,28 @@ export const CreateInvoicePage = ({
                       />
                     </div>
                   </div>
+
+                  {/* Validity Info for Membership Row */}
+                  {pkgVal && !isPt && (
+                    <div className="pt-2 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        {pkgVal.isExtended ? (
+                          <span>
+                            Current Remaining: <strong className="text-slate-900 font-mono">{pkgVal.currentRemainingDays}d</strong> + New Plan: <strong className="text-emerald-700 font-mono">+{pkgVal.newPlanDays}d</strong> = Total Validity: <strong className="text-emerald-800 font-mono">{pkgVal.totalCombinedDays} Days</strong>
+                          </span>
+                        ) : (
+                          <span>
+                            Plan Validity: <strong className="text-emerald-700 font-mono">{pkgVal.newPlanDays} Days</strong>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <Calendar className="w-3 h-3 text-emerald-600" />
+                        <span>Valid Until: {formatDateDisplay(pkgVal.newExpiryDate)}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Coach Assignment if PT */}
                   {isPt && (
