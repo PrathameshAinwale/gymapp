@@ -9,7 +9,7 @@ const GymDataContext = createContext(null);
 
 export const calculateMemberStatus = (expiryDate, currentStatus = 'Active') => {
   if (currentStatus === 'Frozen' || currentStatus === 'Frozen (Paused)' || currentStatus === 'On Hold' || currentStatus === 'Expired') return currentStatus;
-  if (!expiryDate) return currentStatus || 'Active';
+  if (!expiryDate) return (currentStatus && currentStatus !== 'Active') ? currentStatus : 'Unassigned';
 
   try {
     const today = new Date();

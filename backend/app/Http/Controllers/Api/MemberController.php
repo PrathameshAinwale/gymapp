@@ -10,6 +10,7 @@ use App\Models\Enquiry;
 use App\Models\Invoice;
 use App\Models\RevenueBilling;
 use App\Models\PtSession;
+use App\Models\Gym;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class MemberController extends Controller
             return $currentStatus;
         }
         if (!$expiryDate) {
-            return $currentStatus ?: 'Active';
+            return ($currentStatus && $currentStatus !== 'Active') ? $currentStatus : 'Unassigned';
         }
 
         try {
@@ -285,9 +286,29 @@ class MemberController extends Controller
             'emergencyContact' => 'nullable|string',
             'enquiry_id' => 'nullable',
             'enquiryId' => 'nullable',
+            'amount' => 'nullable|numeric|min:0',
+            'paid_amount' => 'nullable|numeric|min:0',
+            'paidAmount' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric|min:0',
+            'totalAmount' => 'nullable|numeric|min:0',
+            'dues_amount' => 'nullable|numeric|min:0',
+            'duesAmount' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'discountAmount' => 'nullable|numeric|min:0',
         ], [
             'phone.required' => 'Mobile number is mandatory to register a member.',
             'phone.min' => 'Please enter a valid mobile number.',
+            'amount.min' => 'Payment amount cannot be negative.',
+            'paid_amount.min' => 'Paid amount cannot be negative.',
+            'paidAmount.min' => 'Paid amount cannot be negative.',
+            'total_amount.min' => 'Total bill amount cannot be negative.',
+            'totalAmount.min' => 'Total bill amount cannot be negative.',
+            'dues_amount.min' => 'Dues amount cannot be negative.',
+            'duesAmount.min' => 'Dues amount cannot be negative.',
+            'discount.min' => 'Discount cannot be negative.',
+            'discount_amount.min' => 'Discount cannot be negative.',
+            'discountAmount.min' => 'Discount cannot be negative.',
         ]);
 
         if ($validator->fails()) {
@@ -385,12 +406,8 @@ class MemberController extends Controller
         if ($rawExpiry) {
             $expiryDate = \Illuminate\Support\Carbon::parse($rawExpiry)->toDateString();
         } else {
-            $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
-            $expiryDate = $startCarbon->day === 1 
-                ? $startCarbon->copy()->endOfMonth()->toDateString() 
-                : $startCarbon->copy()->addDays(30)->toDateString();
-
             if ($plan) {
+                $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
                 $durationMonths = (int)($plan->duration_months ?? 1);
                 $offerDays = (int)($plan->offer_days ?? 0);
                 if ($startCarbon->day === 1) {
@@ -402,10 +419,12 @@ class MemberController extends Controller
                     $expiry = $expiry->addDays($offerDays);
                 }
                 $expiryDate = $expiry->toDateString();
+            } else {
+                $expiryDate = null;
             }
         }
 
-        $computedStatus = self::computeMemberStatus($expiryDate, $request->status ?? 'Active');
+        $computedStatus = self::computeMemberStatus($expiryDate, $request->status ?? ($expiryDate ? 'Active' : 'Unassigned'));
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', 0)));
         $totalBill = (float)($request->input('total_amount', $request->input('totalAmount', $plan?->price ?? 0)));
         $paidAmountInput = $request->input('paid_amount', $request->input('paidAmount'));
@@ -675,6 +694,22 @@ class MemberController extends Controller
         $numericId = str_replace('mem-', '', $id);
         $user = User::where('role', 'member')->findOrFail($numericId);
         $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
+
+        $validator = Validator::make($request->all(), [
+            'dues_amount' => 'nullable|numeric|min:0',
+            'duesAmount' => 'nullable|numeric|min:0',
+        ], [
+            'dues_amount.min' => 'Dues amount cannot be negative.',
+            'duesAmount.min' => 'Dues amount cannot be negative.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         if ($request->has('name')) $user->name = $request->name;
         if ($request->has('email')) $user->email = !empty($request->email) ? trim($request->email) : null;

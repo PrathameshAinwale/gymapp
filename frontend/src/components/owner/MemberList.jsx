@@ -973,6 +973,7 @@ export const MemberList = ({
             const effectiveStatus = getMemberEffectiveStatus(member);
             const isExpiring = effectiveStatus === 'Expiring Soon';
             const isExpired = effectiveStatus === 'Expired';
+            const isUnassigned = effectiveStatus === 'Unassigned' || !member.expiryDate;
             const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
             let statusBadge = (
@@ -981,7 +982,13 @@ export const MemberList = ({
               </span>
             );
 
-            if (isExpiring) {
+            if (isUnassigned) {
+              statusBadge = (
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" /> Unassigned
+                </span>
+              );
+            } else if (isExpiring) {
               statusBadge = (
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
                   <AlertCircle className="w-2.5 h-2.5" /> Expiring {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : 'Soon'}
@@ -1051,6 +1058,13 @@ export const MemberList = ({
                       <span className="text-slate-400 font-medium block">Plan & Validity</span>
                       <span className="font-bold text-slate-500 text-xs block mt-0.5">
                         Expired
+                      </span>
+                    </div>
+                  ) : isUnassigned ? (
+                    <div className="col-span-2">
+                      <span className="text-slate-400 font-medium block">Plan & Validity</span>
+                      <span className="font-semibold text-slate-500 text-xs block mt-0.5">
+                        No Active Plan
                       </span>
                     </div>
                   ) : (
@@ -1174,6 +1188,7 @@ export const MemberList = ({
                   const effectiveStatus = getMemberEffectiveStatus(member);
                   const isExpiring = effectiveStatus === 'Expiring Soon';
                   const isExpired = effectiveStatus === 'Expired';
+                  const isUnassigned = effectiveStatus === 'Unassigned' || !member.expiryDate;
                   const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
                   let statusBadge = (
@@ -1182,7 +1197,13 @@ export const MemberList = ({
                     </span>
                   );
 
-                  if (isExpiring) {
+                  if (isUnassigned) {
+                    statusBadge = (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Unassigned
+                      </span>
+                    );
+                  } else if (isExpiring) {
                     statusBadge = (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expires in ${diffDays} days` : 'Expiring soon'}>
                         <AlertCircle className="w-3 h-3" /> Expiring Soon {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : ''}
@@ -1242,7 +1263,7 @@ export const MemberList = ({
                               )}
                               {member.phone && (
                                 <a
-                                  href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`)}
+                                  href={getWhatsAppUrl(member.phone, member.expiryDate ? `Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName || 'membership'} plan is active until ${member.expiryDate}. Reach out anytime for assistance!` : `Hi ${member.name}, greetings from Pulse Fitness! Welcome to the gym. Reach out anytime for assistance!`)}
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -1263,6 +1284,16 @@ export const MemberList = ({
                           <div>
                             <span className="font-bold text-slate-500 text-xs block">
                               Expired
+                            </span>
+                          </div>
+                        ) : isUnassigned ? (
+                          <div>
+                            <span className="font-bold text-slate-900 text-xs block">
+                              {member.planName || 'No Active Plan'}
+                            </span>
+                            <span className="text-[11px] text-slate-400 italic flex items-center gap-1.5 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              Unassigned (No expiry)
                             </span>
                           </div>
                         ) : (
@@ -1456,11 +1487,11 @@ export const MemberList = ({
                       const drawerDiffDays = getExpiryDaysDiff ? getExpiryDaysDiff(selectedMember.expiryDate) : null;
                       return (
                         <>
-                          <div className={`font-bold mt-0.5 text-sm ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-slate-900'}`}>
-                            {formatDate(selectedMember.expiryDate)}
+                          <div className={`font-bold mt-0.5 text-sm ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'text-slate-500' : 'text-slate-900'}`}>
+                            {drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'No Active Plan' : formatDate(selectedMember.expiryDate)}
                           </div>
-                          <div className={`text-[10px] font-medium mt-0.5 ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-emerald-700'}`}>
-                            {drawerEffectiveStatus === 'Expired' ? (drawerDiffDays !== null ? `Expired ${Math.abs(drawerDiffDays)}d ago` : 'Plan Expired') : drawerEffectiveStatus === 'Expiring Soon' ? (drawerDiffDays !== null ? `Expires in ${drawerDiffDays}d` : 'Expiring Soon') : 'Plan Active'}
+                          <div className={`text-[10px] font-medium mt-0.5 ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
+                            {drawerEffectiveStatus === 'Expired' ? (drawerDiffDays !== null ? `Expired ${Math.abs(drawerDiffDays)}d ago` : 'Plan Expired') : drawerEffectiveStatus === 'Expiring Soon' ? (drawerDiffDays !== null ? `Expires in ${drawerDiffDays}d` : 'Expiring Soon') : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'Unassigned' : 'Plan Active'}
                           </div>
                         </>
                       );
@@ -2590,13 +2621,14 @@ export const MemberList = ({
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Membership Status
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {[
                     { id: 'ALL', label: 'All Statuses' },
                     { id: 'Active', label: 'Active' },
                     { id: 'Expiring Soon', label: 'Expiring' },
                     { id: 'Expired', label: 'Expired' },
-                    { id: 'Frozen', label: 'Frozen' }
+                    { id: 'Frozen', label: 'Frozen' },
+                    { id: 'Unassigned', label: 'Unassigned' },
                   ].map((st) => (
                     <button
                       key={st.id}

@@ -307,10 +307,12 @@ export const MemberProfilePage = ({
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : effectiveStatus === 'Expiring Soon'
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : effectiveStatus === 'Unassigned'
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
                     : 'bg-rose-50 text-rose-700 border-rose-200'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${effectiveStatus === 'Active' ? 'bg-emerald-500 animate-pulse' : effectiveStatus === 'Expiring Soon' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${effectiveStatus === 'Active' ? 'bg-emerald-500 animate-pulse' : effectiveStatus === 'Expiring Soon' ? 'bg-amber-500' : effectiveStatus === 'Unassigned' ? 'bg-slate-400' : 'bg-rose-500'}`} />
                 <span>{effectiveStatus}</span>
               </span>
             </div>
@@ -430,6 +432,8 @@ export const MemberProfilePage = ({
                 <span className="text-slate-400 font-medium">Expiry Date:</span>
                 {effectiveStatus === 'Expired' || String(currentMember.status || '').toLowerCase() === 'expired' ? (
                   <span className="font-bold text-rose-600">Expired</span>
+                ) : effectiveStatus === 'Unassigned' || (!currentMember.expiryDate && !currentMember.expiry_date) ? (
+                  <span className="font-medium text-slate-400 italic">No Active Plan</span>
                 ) : (
                   <span className="font-bold text-slate-800">
                     {formatDate(currentMember.expiryDate || currentMember.expiry_date)}

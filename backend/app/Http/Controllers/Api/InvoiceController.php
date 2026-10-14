@@ -137,6 +137,37 @@ class InvoiceController extends Controller
 
     public function store(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric|min:0',
+            'totalAmount' => 'nullable|numeric|min:0',
+            'pending_amount' => 'nullable|numeric|min:0',
+            'pendingAmount' => 'nullable|numeric|min:0',
+            'dues_amount' => 'nullable|numeric|min:0',
+            'duesAmount' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+        ], [
+            'amount.min' => 'Invoice amount cannot be negative.',
+            'amount.numeric' => 'Invoice amount must be a valid number.',
+            'total_amount.min' => 'Total amount cannot be negative.',
+            'total_amount.numeric' => 'Total amount must be a valid number.',
+            'totalAmount.min' => 'Total amount cannot be negative.',
+            'totalAmount.numeric' => 'Total amount must be a valid number.',
+            'pending_amount.min' => 'Pending amount cannot be negative.',
+            'pendingAmount.min' => 'Pending amount cannot be negative.',
+            'dues_amount.min' => 'Dues amount cannot be negative.',
+            'duesAmount.min' => 'Dues amount cannot be negative.',
+            'discount.min' => 'Discount cannot be negative.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
         $userIdInput = $request->user_id ?? $request->member_id ?? $request->memberId;
         $planIdInput = $request->plan_id ?? $request->planId;
 
@@ -325,6 +356,37 @@ class InvoiceController extends Controller
                 'success' => false,
                 'message' => "Invoice '{$id}' not found.",
             ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric|min:0',
+            'totalAmount' => 'nullable|numeric|min:0',
+            'pending_amount' => 'nullable|numeric|min:0',
+            'pendingAmount' => 'nullable|numeric|min:0',
+            'dues_amount' => 'nullable|numeric|min:0',
+            'duesAmount' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+        ], [
+            'amount.min' => 'Invoice amount cannot be negative.',
+            'amount.numeric' => 'Invoice amount must be a valid number.',
+            'total_amount.min' => 'Total amount cannot be negative.',
+            'total_amount.numeric' => 'Total amount must be a valid number.',
+            'totalAmount.min' => 'Total amount cannot be negative.',
+            'totalAmount.numeric' => 'Total amount must be a valid number.',
+            'pending_amount.min' => 'Pending amount cannot be negative.',
+            'pendingAmount.min' => 'Pending amount cannot be negative.',
+            'dues_amount.min' => 'Dues amount cannot be negative.',
+            'duesAmount.min' => 'Dues amount cannot be negative.',
+            'discount.min' => 'Discount cannot be negative.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         $amount = $request->has('amount') ? (float)$request->amount : (float)$invoice->amount;

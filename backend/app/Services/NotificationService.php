@@ -214,6 +214,12 @@ class NotificationService
             ->where('expiry_date', '>=', $today)
             ->where('expiry_date', '<=', $maxExpiringDate)
             ->whereNotIn('status', ['Inactive', 'Deleted'])
+            ->where(function ($q) {
+                $q->whereNotNull('plan_id')
+                    ->orWhereHas('user.invoices', function ($qi) {
+                        $qi->whereNotIn('status', ['Cancelled', 'Refunded']);
+                    });
+            })
             ->whereHas('user', function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId)
                     ->where('role', 'member');

@@ -217,6 +217,8 @@ export const MemberProfileView = ({
                         ? 'bg-amber-50 text-amber-700 border-amber-200'
                         : effectiveStatus === 'Expired'
                         ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : effectiveStatus === 'Unassigned'
+                        ? 'bg-slate-100 text-slate-700 border-slate-300'
                         : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     }`}
                   >
@@ -314,14 +316,16 @@ export const MemberProfileView = ({
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Valid Until</span>
-                <strong className={`font-bold text-xs block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-slate-900'}`}>
-                  {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'Expired' : formatDate(member.expiryDate || member.expiry_date)}
+                <strong className={`font-bold text-xs block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : effectiveStatus === 'Unassigned' || !member.expiryDate ? 'text-slate-500' : 'text-slate-900'}`}>
+                  {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'Expired' : (!member.expiryDate || effectiveStatus === 'Unassigned') ? 'No Active Plan' : formatDate(member.expiryDate || member.expiry_date)}
                 </strong>
-                <span className={`text-[10px] font-semibold mt-0.5 block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : 'text-emerald-700'}`}>
+                <span className={`text-[10px] font-semibold mt-0.5 block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : effectiveStatus === 'Unassigned' || !member.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
                   {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired'
                     ? 'Expired'
                     : effectiveStatus === 'Expiring Soon'
                     ? (expiryDiffDays !== null ? `Expires in ${expiryDiffDays}d` : 'Expiring Soon')
+                    : effectiveStatus === 'Unassigned' || !member.expiryDate
+                    ? 'Unassigned'
                     : (expiryDiffDays !== null ? `${expiryDiffDays} Days Left` : 'Active')}
                 </span>
               </div>

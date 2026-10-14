@@ -104,20 +104,24 @@ class PlanChainingService
         }
 
         // 2. Legacy fallback: Check member_profiles.expiry_date if no invoice end_date found or if profile is further ahead
+        // Layer 2: Ignore orphan profile expiry when plan_id is null and there are no uncancelled invoices
         $profile = MemberProfile::with('plan')->where('user_id', $userId)->first();
         if ($profile && $profile->expiry_date) {
-            $profDateStr = $profile->expiry_date instanceof \DateTimeInterface
-                ? $profile->expiry_date->format('Y-m-d')
-                : substr((string)$profile->expiry_date, 0, 10);
-            $profileExpiry = Carbon::createFromFormat('Y-m-d', $profDateStr, self::TIMEZONE)->startOfDay();
-            if ($profileExpiry->toDateString() >= $today->toDateString()) {
-                $profileType = self::normalizePackageType(
-                    $profile->plan?->package_type ?? ($profile->training_type === 'pt' ? 'Personal Training' : 'Gym-Cardio')
-                );
+            $hasLegitimatePlan = ($profile->plan_id !== null) || Invoice::where('user_id', $userId)->where('status', '!=', 'Cancelled')->exists();
+            if ($hasLegitimatePlan) {
+                $profDateStr = $profile->expiry_date instanceof \DateTimeInterface
+                    ? $profile->expiry_date->format('Y-m-d')
+                    : substr((string)$profile->expiry_date, 0, 10);
+                $profileExpiry = Carbon::createFromFormat('Y-m-d', $profDateStr, self::TIMEZONE)->startOfDay();
+                if ($profileExpiry->toDateString() >= $today->toDateString()) {
+                    $profileType = self::normalizePackageType(
+                        $profile->plan?->package_type ?? ($profile->training_type === 'pt' ? 'Personal Training' : 'Gym-Cardio')
+                    );
 
-                if ($profileType === $normalizedType) {
-                    if (!$latestEndDate || $profileExpiry->toDateString() > $latestEndDate->toDateString()) {
-                        $latestEndDate = $profileExpiry;
+                    if ($profileType === $normalizedType) {
+                        if (!$latestEndDate || $profileExpiry->toDateString() > $latestEndDate->toDateString()) {
+                            $latestEndDate = $profileExpiry;
+                        }
                     }
                 }
             }
@@ -312,12 +316,17 @@ class PlanChainingService
 
         $finalExpiry = $furthestInvoiceEndDate ?: $currentProfileExpiry;
 
-        if ($currentProfileExpiry && (!$finalExpiry || $currentProfileExpiry > $finalExpiry)) {
+        $hasLegitimatePriorPlan = ($profile->plan_id !== null) || Invoice::where('user_id', $userId)->where('status', '!=', 'Cancelled')->whereNotNull('end_date')->exists();
+        if ($currentProfileExpiry && $hasLegitimatePriorPlan && (!$finalExpiry || $currentProfileExpiry > $finalExpiry)) {
             $finalExpiry = $currentProfileExpiry;
         }
 
         if ($finalExpiry && $finalExpiry !== $currentProfileExpiry) {
-            $profile->update(['expiry_date' => $finalExpiry]);
+            $newStatus = \App\Http\Controllers\Api\MemberController::computeMemberStatus($finalExpiry, $profile->status);
+            $profile->update([
+                'expiry_date' => $finalExpiry,
+                'status' => $newStatus,
+            ]);
         }
 
         return $finalExpiry;

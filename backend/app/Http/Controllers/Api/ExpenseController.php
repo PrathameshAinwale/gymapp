@@ -74,7 +74,7 @@ class ExpenseController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'required|string|max:100',
-            'amount' => 'required|numeric|min:1',
+            'amount' => 'required|numeric|min:0',
             'date' => 'required|date',
             'vendor' => 'nullable|string|max:255',
             'payment_mode' => 'nullable|string',
@@ -83,11 +83,15 @@ class ExpenseController extends Controller
             'refNo' => 'nullable|string|max:100',
             'receiptRef' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+        ], [
+            'amount.min' => 'Expense amount cannot be negative.',
+            'amount.numeric' => 'Expense amount must be a valid number.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -144,19 +148,22 @@ class ExpenseController extends Controller
             'title' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
             'vendor' => 'nullable|string|max:255',
-            'amount' => 'nullable|numeric|min:1',
+            'amount' => 'nullable|numeric|min:0',
             'date' => 'nullable|date',
             'paymentMode' => 'nullable|string',
             'payment_mode' => 'nullable|string',
             'refNo' => 'nullable|string|max:100',
             'ref_no' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+        ], [
+            'amount.min' => 'Expense amount cannot be negative.',
+            'amount.numeric' => 'Expense amount must be a valid number.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first() ?: 'Validation error',
                 'errors' => $validator->errors()
             ], 422);
         }

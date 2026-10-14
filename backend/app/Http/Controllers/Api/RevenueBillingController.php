@@ -186,6 +186,11 @@ class RevenueBillingController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:1',
+            'total_amount' => 'nullable|numeric|min:0',
+            'totalAmount' => 'nullable|numeric|min:0',
+            'dues_amount' => 'nullable|numeric|min:0',
+            'duesAmount' => 'nullable|numeric|min:0',
+            'pending_amount' => 'nullable|numeric|min:0',
             'member_name' => 'nullable|string',
             'memberName' => 'nullable|string',
             'user_id' => 'nullable',
@@ -198,11 +203,20 @@ class RevenueBillingController extends Controller
             'paymentMethod' => 'nullable|string',
             'date' => 'nullable|date',
             'status' => 'nullable|string',
+        ], [
+            'amount.min' => 'Inflow amount must be at least 1.',
+            'amount.numeric' => 'Inflow amount must be a valid number.',
+            'total_amount.min' => 'Total amount cannot be negative.',
+            'totalAmount.min' => 'Total amount cannot be negative.',
+            'dues_amount.min' => 'Dues amount cannot be negative.',
+            'duesAmount.min' => 'Dues amount cannot be negative.',
+            'pending_amount.min' => 'Pending amount cannot be negative.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -380,11 +394,15 @@ class RevenueBillingController extends Controller
             'ref_no' => 'nullable|string|max:100',
             'refNo' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+        ], [
+            'amount.min' => 'Expense outflow amount must be at least 1.',
+            'amount.numeric' => 'Expense outflow amount must be a valid number.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -452,6 +470,21 @@ class RevenueBillingController extends Controller
                 'success' => false,
                 'message' => 'Revenue / Billing record not found.',
             ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0',
+        ], [
+            'amount.min' => 'Amount cannot be negative.',
+            'amount.numeric' => 'Amount must be a valid number.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         $amount = $request->has('amount') ? (float)$request->amount : (float)$record->amount;
