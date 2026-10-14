@@ -42,7 +42,6 @@ export const MemberProfilePage = ({
   initialMemberId,
   onBackToDashboard,
   onNavigateTab,
-  onNavigateToUpgradeRenew,
   onNavigateToCreateInvoice
 }) => {
   const {
@@ -328,17 +327,6 @@ export const MemberProfilePage = ({
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp Chat</span>
                 </a>
-              )}
-
-              {onNavigateToUpgradeRenew && (
-                <button
-                  type="button"
-                  onClick={() => onNavigateToUpgradeRenew(currentMember)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>Upgrade / Renew Membership</span>
-                </button>
               )}
 
               {duesAmount > 0 ? (

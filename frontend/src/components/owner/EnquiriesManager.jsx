@@ -1211,9 +1211,6 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                 ))}
               </datalist>
             </div>
-            <p className="text-[9px] text-slate-400 mt-0.5">
-              Identifies which staff member, coach, or receptionist received and registered this lead.
-            </p>
           </div>
 
           <div>

@@ -1643,9 +1643,6 @@ export const InvoicesPage = ({
                                         <span className="font-semibold text-slate-800 text-xs block truncate max-w-[130px]">
                                           {resolveCreatorName(inv.createdByName || inv.created_by_name, inv)}
                                         </span>
-                                        <span className="text-[9px] text-slate-400 capitalize block leading-none">
-                                          {resolveCreatorRole(inv)}
-                                        </span>
                                       </div>
                                     </div>
                                   </td>
@@ -1671,7 +1668,11 @@ export const InvoicesPage = ({
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setEditingInvoice(inv);
+                                          setEditingInvoice({
+                                            ...inv,
+                                            member,
+                                            currentMember: member
+                                          });
                                         }}
                                         className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title="Edit Invoice Details, Amount, or Payment Method"

@@ -40,8 +40,7 @@ export const MemberProfileView = ({
   member,
   isOpen,
   onClose,
-  onEditMember,
-  onRenewMember
+  onEditMember
 }) => {
   const {
     invoices = [],
@@ -93,6 +92,28 @@ export const MemberProfileView = ({
   }).sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
 
   const totalPaidTillDate = memberInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+
+  // Active Packages Breakdown across different package types
+  const activePackagesByType = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const map = {};
+    (memberInvoices || []).forEach((inv) => {
+      if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+      const type = inv.packageType || inv.package_type || inv.category || 'Gym-Cardio';
+      const endStr = (inv.endDate || inv.end_date || inv.expiryDate || inv.expiry_date || '').split('T')[0];
+      if (endStr && endStr >= todayStr) {
+        if (!map[type] || endStr > map[type].endDate) {
+          map[type] = {
+            packageType: type,
+            planName: inv.planName || inv.plan_name || inv.title || type,
+            startDate: (inv.startDate || inv.start_date || inv.date || '').split('T')[0],
+            endDate: endStr
+          };
+        }
+      }
+    });
+    return Object.values(map);
+  }, [memberInvoices]);
 
   // Calculate Dues
   const duesAmount = (() => {
@@ -315,6 +336,30 @@ export const MemberProfileView = ({
                 </span>
               </div>
             </div>
+
+            {/* Active Service Packages Breakdown (When member has multiple packages) */}
+            {activePackagesByType.length > 0 && (
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Active Packages ({activePackagesByType.length})</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {activePackagesByType.map((pkg) => (
+                    <div key={pkg.packageType} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                      <div className="min-w-0 pr-2">
+                        <span className="font-bold text-slate-900 block truncate">{pkg.packageType}</span>
+                        <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] text-emerald-700 font-semibold block">Valid Till</span>
+                        <span className="font-bold font-mono text-emerald-800 text-[11px]">{formatDate(pkg.endDate)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 3. INVOICES & BILLING HISTORY TABLE */}
@@ -393,7 +438,11 @@ export const MemberProfileView = ({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingInvoice(inv);
+                                  setEditingInvoice({
+                                    ...inv,
+                                    member,
+                                    currentMember: member
+                                  });
                                 }}
                                 className="px-2 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1"
                                 title="Edit invoice details and amount"
@@ -513,20 +562,6 @@ export const MemberProfileView = ({
                 >
                   <CreditCard className="w-3.5 h-3.5" />
                   <span>Pay Balance (₹{Number(duesAmount).toLocaleString('en-IN')})</span>
-                </button>
-              )}
-
-              {onRenewMember && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onRenewMember(member);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Renew Membership</span>
                 </button>
               )}
 

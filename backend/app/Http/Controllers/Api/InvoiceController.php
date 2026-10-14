@@ -74,12 +74,17 @@ class InvoiceController extends Controller
                 'memberName' => $inv->user?->name ?? 'Unknown',
                 'memberPhone' => $inv->user?->phone,
                 'memberEmail' => $inv->user?->email,
+                'planId' => $inv->plan_id ? ('plan-' . $inv->plan_id) : ($inv->plan?->id ? ('plan-' . $inv->plan->id) : null),
                 'planName' => $matchingInflow?->plan_name ?: ($inv->plan?->name ?? 'Fitness Package'),
                 'amount' => (float)$inv->amount,
                 'totalAmount' => (float)($inv->total_amount ?? ($inv->amount + $pendingAmount)),
                 'pendingAmount' => $pendingAmount,
                 'duesAmount' => $pendingAmount,
                 'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
+                'packageType' => $inv->package_type ?? ($inv->plan?->package_type ?? 'Gym-Cardio'),
+                'startDate' => $inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : ($inv->start_date ? (string)$inv->start_date : null),
+                'expiryDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
+                'endDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
                 'dueDate' => $inv->due_date instanceof \DateTimeInterface ? $inv->due_date->format('Y-m-d') : ($inv->due_date ? (string)$inv->due_date : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null)),
                 'paymentMethod' => $inv->payment_method,
                 'status' => $status,
@@ -94,6 +99,39 @@ class InvoiceController extends Controller
             'success' => true,
             'data' => $invoices,
             'totalRevenue' => (float)$invoices->where('status', 'Paid')->sum('amount'),
+        ]);
+    }
+
+    /**
+     * Get plan chaining metadata for member + package type (default start date, min date, status message).
+     */
+    public function chainingInfo(Request $request)
+    {
+        $userIdInput = $request->user_id ?? $request->member_id ?? $request->memberId ?? $request->userId;
+        if (!$userIdInput) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Member ID is required.',
+            ], 422);
+        }
+
+        $numericId = (int)preg_replace('/[^0-9]/', '', (string)$userIdInput);
+        $user = User::find($numericId);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Member not found.',
+            ], 404);
+        }
+
+        $packageType = $request->package_type ?? $request->packageType ?? $request->category ?? 'Gym-Cardio';
+        $gymId = $this->resolveGymId($request) ?? $user->gym_id;
+
+        $chainingData = \App\Services\PlanChainingService::calculatePlanDates($user->id, $packageType, $gymId);
+
+        return response()->json([
+            'success' => true,
+            'data' => $chainingData,
         ]);
     }
 
@@ -164,11 +202,16 @@ class InvoiceController extends Controller
             $creatorName = User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff / Admin';
         }
 
+        $rawPackageType = $request->package_type ?? $request->packageType ?? $request->category ?? $plan?->package_type ?? 'Gym-Cardio';
+        $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPackageType);
+        $startDate = $request->start_date ?? $request->startDate ?? $date;
+
         $invoiceData = [
             'gym_id' => $gymId,
             'invoice_number' => 'INV-' . date('Y') . '-' . rand(1000, 9999),
             'user_id' => $user->id,
             'plan_id' => $plan?->id,
+            'package_type' => $packageType,
             'amount' => $amount,
             'date' => $date,
             'payment_method' => $method,
@@ -187,11 +230,26 @@ class InvoiceController extends Controller
             $invoiceData['due_date'] = $dueDate;
         }
 
-        $invoice = DB::transaction(function () use ($invoiceData, $user, $duesAmount, $dueDate, $plan, $request) {
+        $invoice = DB::transaction(function () use ($invoiceData, $user, $duesAmount, $dueDate, $plan, $request, $packageType, $startDate, $gymId) {
+            // 1. Concurrency Safety: Lock user row to prevent overlapping simultaneous invoices
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+
+            // 2. Strict Backend Validation: Enforce start date business rules
+            \App\Services\PlanChainingService::validateStartDate($user->id, $packageType, $startDate, $gymId);
+
+            // 3. Compute clean end date (preserves plan's own duration without doubling days)
+            $endDate = $request->expiry_date ?? $request->expiryDate ?? $request->end_date ?? $request->endDate;
+            if (!$endDate) {
+                $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $plan);
+            }
+
+            $invoiceData['start_date'] = $startDate;
+            $invoiceData['end_date'] = $endDate;
+
             $createdInvoice = Invoice::create($invoiceData);
 
-            // Automatically update member profile status & expiry date in database
-            if ($user->memberProfile) {
+            // 4. Synchronize member profile status & master access expiry date
+            if ($lockedUser && $lockedUser->memberProfile) {
                 $updateData = [
                     'status' => 'Active',
                 ];
@@ -207,23 +265,11 @@ class InvoiceController extends Controller
                 if ($plan) {
                     $updateData['plan_id'] = $plan->id;
                 }
-                if ($request->expiry_date || $request->expiryDate) {
-                    $updateData['expiry_date'] = $request->expiry_date ?? $request->expiryDate;
-                } elseif ($plan) {
-                    $months = (int)($plan->duration_months ?? 1);
-                    $offerDays = (int)($plan->offer_days ?? 0);
-                    $startCarbon = now();
-                    if ($startCarbon->day === 1) {
-                        $expiry = $startCarbon->copy()->addMonths($months - 1)->endOfMonth();
-                    } else {
-                        $expiry = $startCarbon->copy()->addDays($months * 30);
-                    }
-                    if ($offerDays > 0) {
-                        $expiry = $expiry->addDays($offerDays);
-                    }
-                    $updateData['expiry_date'] = $expiry->toDateString();
-                }
-                $user->memberProfile->update($updateData);
+
+                $lockedUser->memberProfile->update($updateData);
+
+                // Synchronize master facility check-in access expiry date with furthest active plan
+                \App\Services\PlanChainingService::syncMemberProfileExpiry($lockedUser->id);
             }
 
             return $createdInvoice;
@@ -238,6 +284,10 @@ class InvoiceController extends Controller
                 'memberId' => 'mem-' . $user->id,
                 'memberName' => $user->name,
                 'planName' => $plan?->name ?? ($request->plan_name ?? $request->planName ?? 'Membership Package'),
+                'packageType' => $invoice->package_type,
+                'startDate' => $invoice->start_date ? $invoice->start_date->format('Y-m-d') : null,
+                'expiryDate' => $invoice->end_date ? $invoice->end_date->format('Y-m-d') : null,
+                'endDate' => $invoice->end_date ? $invoice->end_date->format('Y-m-d') : null,
                 'amount' => (float)$invoice->amount,
                 'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
                 'pendingAmount' => $duesAmount,
@@ -285,11 +335,32 @@ class InvoiceController extends Controller
             ? (float)($request->total_amount ?? $request->totalAmount)
             : ($amount + $duesAmount);
 
+        $startDateInput = $request->start_date ?? $request->startDate;
+        $endDateInput = $request->expiry_date ?? $request->expiryDate ?? $request->end_date ?? $request->endDate;
+
+        if ($startDateInput && $endDateInput) {
+            $s = substr((string)$startDateInput, 0, 10);
+            $e = substr((string)$endDateInput, 0, 10);
+            if ($e < $s) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The expiry date cannot be earlier than the start date.',
+                ], 422);
+            }
+        }
+
         $invoiceUpdate = [
             'amount' => $amount,
             'total_amount' => $totalAmount,
             'pending_amount' => $duesAmount,
         ];
+
+        if ($request->has('start_date') || $request->has('startDate')) {
+            $invoiceUpdate['start_date'] = $startDateInput;
+        }
+        if ($request->has('expiry_date') || $request->has('expiryDate') || $request->has('end_date') || $request->has('endDate')) {
+            $invoiceUpdate['end_date'] = $endDateInput;
+        }
 
         if ($request->has('date') || $request->has('payment_date') || $request->has('paymentDate')) {
             $invoiceUpdate['date'] = $request->date ?? $request->payment_date ?? $request->paymentDate;
@@ -302,6 +373,15 @@ class InvoiceController extends Controller
         }
         if ($request->has('status')) {
             $status = $request->status;
+            if (strtolower((string)$status) === 'cancelled') {
+                $cancelCheck = \App\Services\PlanChainingService::checkCanCancelOrDeleteInvoice($invoice);
+                if (!$cancelCheck['can_cancel']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $cancelCheck['message'],
+                    ], 422);
+                }
+            }
             if ($duesAmount > 0 && strtolower($status) === 'paid') {
                 $status = 'Partial';
             }
@@ -325,15 +405,16 @@ class InvoiceController extends Controller
             $invoiceUpdate['created_by_name'] = $request->created_by_name ?? $request->createdByName;
         }
 
-        DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount) {
+        $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
+        $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
+
+        DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount, $planName, $memberName) {
             $invoice->update($invoiceUpdate);
 
             // ══════════════════════════════════════════════════════════════
             // SYNCHRONIZE WITH REVENUE & BILLING (INFLOW & OUTFLOW)
             // ══════════════════════════════════════════════════════════════
             $matchingInflow = \App\Models\RevenueBilling::where('reference_no', $invoice->invoice_number)->first();
-            $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
-            $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
 
             $inflowData = [
                 'amount' => $amount,
@@ -392,9 +473,19 @@ class InvoiceController extends Controller
                             $profileUpdate['due_date'] = null;
                         }
                     }
+                    if (isset($invoiceUpdate['plan_id']) && $invoiceUpdate['plan_id'] > 0) {
+                        $profileUpdate['plan_id'] = $invoiceUpdate['plan_id'];
+                    }
+                    if ($request->filled('start_date') || $request->filled('startDate')) {
+                        $profileUpdate['join_date'] = $request->start_date ?? $request->startDate;
+                    }
                     if (!empty($profileUpdate)) {
                         $user->memberProfile->update($profileUpdate);
                     }
+
+                    // Protect member_profiles.expiry_date from moving backwards:
+                    // Synchronize with the furthest end_date across all non-cancelled invoices
+                    \App\Services\PlanChainingService::syncMemberProfileExpiry($user->id);
                 }
             }
         });
@@ -416,7 +507,12 @@ class InvoiceController extends Controller
                 'memberName' => $invoice->user?->name ?? $memberName,
                 'memberPhone' => $invoice->user?->phone,
                 'memberEmail' => $invoice->user?->email,
+                'planId' => $invoice->plan_id ? ('plan-' . $invoice->plan_id) : ($invoice->plan?->id ? ('plan-' . $invoice->plan->id) : null),
                 'planName' => $planName,
+                'packageType' => $invoice->package_type,
+                'startDate' => $invoice->start_date instanceof \DateTimeInterface ? $invoice->start_date->format('Y-m-d') : ($invoice->start_date ? (string)$invoice->start_date : null),
+                'expiryDate' => $invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : ($invoice->end_date ? (string)$invoice->end_date : null),
+                'endDate' => $invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : ($invoice->end_date ? (string)$invoice->end_date : null),
                 'amount' => (float)$invoice->amount,
                 'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
                 'pendingAmount' => $duesAmount,

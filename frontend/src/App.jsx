@@ -66,7 +66,6 @@ const WhatsAppAutomation = lazy(() => import('./components/owner/WhatsAppAutomat
 const ShiftManager = lazy(() => import('./components/owner/ShiftManager').then(m => ({ default: m.ShiftManager })));
 const MemberProfilePage = lazy(() => import('./components/owner/MemberProfilePage').then(m => ({ default: m.MemberProfilePage })));
 const AddMemberPage = lazy(() => import('./components/owner/AddMemberPage').then(m => ({ default: m.AddMemberPage })));
-const MemberUpgradeRenewPage = lazy(() => import('./components/owner/MemberUpgradeRenewPage').then(m => ({ default: m.MemberUpgradeRenewPage })));
 const CreateInvoicePage = lazy(() => import('./components/owner/CreateInvoicePage').then(m => ({ default: m.CreateInvoicePage })));
 
 function MainApp() {
@@ -74,10 +73,20 @@ function MainApp() {
   const { isOwnerTabLoading, gymInfo } = useGymData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
-  const [selectedUpgradeRenewMember, setSelectedUpgradeRenewMember] = useState(null);
   const [createInvoiceInitialMember, setCreateInvoiceInitialMember] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState(null);
+
+  const handleNavigateToMembersWithNotification = (filterType, item = null) => {
+    setNotificationFilter({
+      type: filterType,
+      memberId: item ? (item.member_id || item.reference_id) : null,
+      memberName: item?.member_name || null,
+      timestamp: Date.now()
+    });
+    handleNavigateTab('members');
+  };
 
   const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Bronze';
 
@@ -320,56 +329,13 @@ function MainApp() {
               }
             }}
             onNavigateTab={handleNavigateTab}
-            onNavigateToUpgradeRenew={(member) => {
-              setSelectedUpgradeRenewMember(member);
-              handleNavigateTab('upgrade-renew');
-            }}
             onNavigateToCreateInvoice={(member) => {
               setCreateInvoiceInitialMember(member || null);
               handleNavigateTab('create-invoice');
             }}
           />
         );
-      case 'upgrade-renew':
-        return (
-          <MemberUpgradeRenewPage
-            member={selectedUpgradeRenewMember}
-            onBack={() => {
-              setSelectedUpgradeRenewMember(null);
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                handleNavigateTab('members');
-              }
-            }}
-            onSuccess={() => {
-              setSelectedUpgradeRenewMember(null);
-              handleNavigateTab('members');
-            }}
-            onNavigateTab={handleNavigateTab}
-          />
-        );
       case 'add-member':
-        if (addMemberInitialData?.isUpgrade) {
-          return (
-            <MemberUpgradeRenewPage
-              member={addMemberInitialData}
-              onBack={() => {
-                setAddMemberInitialData(null);
-                if (window.history.length > 1) {
-                  window.history.back();
-                } else {
-                  handleNavigateTab('members');
-                }
-              }}
-              onSuccess={() => {
-                setAddMemberInitialData(null);
-                handleNavigateTab('members');
-              }}
-              onNavigateTab={handleNavigateTab}
-            />
-          );
-        }
         return (
           <AddMemberPage
             initialData={addMemberInitialData}
@@ -392,22 +358,15 @@ function MainApp() {
         return (
           <MemberList
             setActiveTab={handleNavigateTab}
+            notificationFilter={notificationFilter}
+            onClearNotificationFilter={() => setNotificationFilter(null)}
             onOpenAddMember={() => {
               setAddMemberInitialData(null);
               handleNavigateTab('add-member');
             }}
             onNavigateToAddMember={(data) => {
-              if (data?.isUpgrade) {
-                setSelectedUpgradeRenewMember(data);
-                handleNavigateTab('upgrade-renew');
-                return;
-              }
               setAddMemberInitialData(data || null);
               handleNavigateTab('add-member');
-            }}
-            onNavigateToUpgradeRenew={(member) => {
-              setSelectedUpgradeRenewMember(member);
-              handleNavigateTab('upgrade-renew');
             }}
             onOpenMemberProfile={(memberId) => {
               setSelectedMemberProfileId(memberId);
@@ -536,6 +495,7 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={handleNavigateTab}
         onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+        onNavigateToMembersWithFilter={handleNavigateToMembersWithNotification}
       />
 
       <div className="flex-1 flex w-full min-h-0 overflow-hidden relative">

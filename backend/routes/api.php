@@ -92,13 +92,21 @@ Route::match(['get', 'post'], '/setup-database', function (Request $request) {
     } catch (\Throwable $t) {}
 
     try {
-        $dbHost = env('DB_HOST', $request->query('db_host', 'localhost'));
+        $dbHost = env('DB_HOST', config('database.connections.mysql.host', 'localhost'));
         if ($dbHost === '127.0.0.1' && PHP_OS_FAMILY !== 'Windows') {
             $dbHost = 'localhost';
         }
-        $dbName = env('DB_DATABASE', $request->query('db_name', 'u773098752_gym_app_db'));
-        $dbUser = env('DB_USERNAME', $request->query('db_user', 'u773098752_gym_app_db'));
-        $dbPass = env('DB_PASSWORD', $request->query('db_pass', 'H^8vSpq5'));
+        $dbName = env('DB_DATABASE', config('database.connections.mysql.database', 'gym_app_db'));
+        $dbUser = env('DB_USERNAME', config('database.connections.mysql.username', 'root'));
+        $dbPass = env('DB_PASSWORD', config('database.connections.mysql.password', ''));
+
+        // Local environment safety: refuse external hosts
+        if (app()->environment('local') && !in_array(strtolower($dbHost), ['localhost', '127.0.0.1', '::1'], true)) {
+            return response()->json([
+                'status'  => 'forbidden',
+                'message' => "Security guard: Refusing to connect to remote DB host '{$dbHost}' in local environment."
+            ], 403);
+        }
 
         config([
             'database.default' => 'mysql',
@@ -191,6 +199,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         // Dashboard & Analytics
         Route::get('/dashboard/owner-stats', [DashboardController::class, 'getOwnerStats']);
 
+        // Notification Bell & Alerts
+        Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+        Route::post('/notifications/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Api\NotificationController::class, 'markAllRead']);
+        Route::get('/notifications/member-ids', [\App\Http\Controllers\Api\NotificationController::class, 'memberIds']);
+
         // Plans & Offers
         Route::apiResource('plans', PlanController::class);
         Route::apiResource('offers', OfferController::class);
@@ -226,6 +240,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
 
         // Invoices & Billing
         Route::get('/invoices', [InvoiceController::class, 'index']);
+        Route::get('/invoices/chaining-info', [InvoiceController::class, 'chainingInfo']);
         Route::post('/invoices', [InvoiceController::class, 'store']);
         Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
         Route::patch('/invoices/{id}', [InvoiceController::class, 'update']);

@@ -7,7 +7,8 @@ import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 export const ToastContainer = () => {
   const toastCtx = useToast();
   const gymCtx = useGymData();
-  const toasts = (toastCtx && toastCtx.toasts && toastCtx.toasts.length > 0) ? toastCtx.toasts : (gymCtx?.toasts || []);
+  const rawToasts = (toastCtx && toastCtx.toasts && toastCtx.toasts.length > 0) ? toastCtx.toasts : (gymCtx?.toasts || []);
+  const toasts = (rawToasts || []).slice(-2);
   const removeToast = toastCtx?.removeToast || gymCtx?.removeToast || (() => {});
 
   if (!toasts || toasts.length === 0 || typeof document === 'undefined') return null;
@@ -15,7 +16,7 @@ export const ToastContainer = () => {
   return createPortal(
     <div
       style={{ zIndex: 999999 }}
-      className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-[999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-3 sm:px-0"
+      className="fixed top-4 sm:top-6 right-4 sm:right-6 z-[999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-3 sm:px-0"
     >
       {toasts.map((toast) => {
         let Icon = CheckCircle2;
@@ -35,7 +36,7 @@ export const ToastContainer = () => {
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all animate-slideUp ${borderColor} ${glow}`}
+            className={`pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all animate-slideDown ${borderColor} ${glow}`}
           >
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <Icon className="w-5 h-5 shrink-0" />

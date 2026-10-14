@@ -13,8 +13,9 @@ import {
   Check
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { NotificationBell } from './NotificationBell';
 
-export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
+export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigateToMembersWithFilter }) => {
   const { currentRole, currentUser, logout } = useAuth();
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef(null);
@@ -170,6 +171,11 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu }) => {
 
         {/* Right: Profile + Sign Out */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Action Alerts & Notification Bell (Staff/Owner only) */}
+          <div className="mr-2 sm:mr-3.5">
+            <NotificationBell onNavigateToMembersWithFilter={onNavigateToMembersWithFilter} />
+          </div>
+
           {/* Multi-Gym Platinum Branch Switcher */}
           {currentRole === 'owner' && branches && branches.length > 1 && (
             <div className="relative" ref={branchDropdownRef}>

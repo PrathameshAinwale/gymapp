@@ -603,7 +603,7 @@ export const PayrollManager = () => {
                     title="Generate formatted salary slip"
                   >
                     <Printer className="w-3 h-3 text-emerald-600" />
-                    <span>Generate Slip</span>
+                    <span>Slip</span>
                   </button>
 
                   {!isPaid ? (
@@ -765,7 +765,7 @@ export const PayrollManager = () => {
                           title="Generate formatted salary slip"
                         >
                           <Printer className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Generate Slip</span>
+                          <span>Slip</span>
                         </button>
 
                         {!isPaid ? (

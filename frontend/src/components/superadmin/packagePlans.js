@@ -397,7 +397,6 @@ export const isTabAllowedForGym = (tabId, packageTier, customFeatures = null) =>
     'dashboard',
     'member-profile',
     'add-member',
-    'upgrade-renew',
     'create-invoice',
     'privacy-policy',
     'terms-conditions',

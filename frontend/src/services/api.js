@@ -1,6 +1,9 @@
 // API Service Client for Laravel REST API Backend
 
-const LIVE_PRODUCTION_API_URL = 'https://archfit.archenterprises.co.in/api/v1';
+const FALLBACK_PRODUCTION_API_URL = 'https://archfit.archenterprises.co.in/api/v1';
+const LIVE_PRODUCTION_API_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_BASE_URL || FALLBACK_PRODUCTION_API_URL)
+  : null;
 const CURRENT_LAN_IP = '192.168.1.40';
 
 const isRunningInCapacitor = () => {
@@ -20,6 +23,7 @@ const isLocalHost = (hostname) => {
   return (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
+    hostname === '::1' ||
     /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)
   );
 };
@@ -36,6 +40,23 @@ const getDefaultHosts = () => {
   const originApiUrl = getOriginApiUrl();
   const inCapacitor = isRunningInCapacitor();
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  // Local development mode: strictly candidate local endpoints only
+  if (import.meta.env.DEV) {
+    const hosts = [];
+    if (envApiUrl) {
+      try {
+        const parsed = new URL(envApiUrl, 'http://127.0.0.1:8000');
+        if (isLocalHost(parsed.hostname)) hosts.push(envApiUrl);
+      } catch {}
+    }
+    hosts.push('http://127.0.0.1:8000/api/v1');
+    hosts.push('http://localhost:8000/api/v1');
+    if (currentHost && isLocalHost(currentHost)) {
+      hosts.push(`http://${currentHost}:8000/api/v1`);
+    }
+    return Array.from(new Set(hosts.filter(Boolean)));
+  }
 
   if (inCapacitor) {
     return Array.from(
@@ -84,11 +105,11 @@ let activeBaseUrl = (function () {
     const currentHost = window.location.hostname;
     const isLive = currentHost && !isLocalHost(currentHost);
 
-    // If on localhost / LAN development: strictly lock to local Laravel backend
-    if (!isLive) {
+    // If on localhost / LAN development or in DEV mode: strictly lock to local Laravel backend
+    if (!isLive || import.meta.env.DEV) {
       localStorage.removeItem('archfit_api_url');
       localStorage.removeItem('pulsefit_api_url');
-      return 'http://127.0.0.1:8000/api/v1';
+      return import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : 'http://127.0.0.1:8000/api/v1');
     }
 
     const inCapacitor = isRunningInCapacitor();
@@ -108,7 +129,7 @@ let activeBaseUrl = (function () {
       } else if (saved && saved.startsWith('https://')) {
         return saved;
       }
-      return originApiUrl || LIVE_PRODUCTION_API_URL;
+      return originApiUrl || LIVE_PRODUCTION_API_URL || FALLBACK_PRODUCTION_API_URL;
     }
 
     if (inCapacitor) {
@@ -120,10 +141,10 @@ let activeBaseUrl = (function () {
       ) {
         return saved;
       }
-      return LIVE_PRODUCTION_API_URL;
+      return LIVE_PRODUCTION_API_URL || FALLBACK_PRODUCTION_API_URL;
     }
   }
-  return 'http://127.0.0.1:8000/api/v1';
+  return import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : 'http://127.0.0.1:8000/api/v1');
 })();
 
 export const getActiveApiUrl = () => activeBaseUrl;
@@ -135,7 +156,11 @@ export const setActiveApiUrl = (url) => {
   }
 };
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
+  import.meta.env.PROD
+    ? FALLBACK_PRODUCTION_API_URL
+    : 'http://127.0.0.1:8000/api/v1'
+);
 
 // Fast fetch helper with timeout to avoid browser hangs
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
@@ -257,6 +282,21 @@ const apiFetch = async (urlOrPath, options = {}) => {
     }
 
     const hostsToTry = Array.from(new Set(rawHosts));
+
+    // SAFETY GUARD: In development mode, strictly forbid calling remote/production hosts
+    if (import.meta.env.DEV) {
+      for (const host of hostsToTry) {
+        try {
+          const parsed = new URL(host, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+          if (!isLocalHost(parsed.hostname)) {
+            console.error(`[SECURITY GUARD] Blocked connection to remote API host '${parsed.hostname}' in local development mode.`);
+            throw new Error(`[SECURITY GUARD] Local development mode refuses to connect to remote host '${parsed.hostname}'. Ensure local backend is running at http://127.0.0.1:8000.`);
+          }
+        } catch (guardErr) {
+          if (guardErr.message?.includes('[SECURITY GUARD]')) throw guardErr;
+        }
+      }
+    }
 
     let lastError = null;
     const timeoutMs = 8000;
@@ -937,6 +977,11 @@ export const api = {
     getAll: async (params = {}) => {
       const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/invoices${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    getChainingInfo: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/invoices/chaining-info${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
     create: async (invoiceData) => {
@@ -1841,6 +1886,38 @@ export const api = {
     getSummary: async (params = {}) => {
       const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/reports/summary${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+  },
+
+  // Notification Bell & Alerts
+  notifications: {
+    getSummary: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const res = await apiFetch(`${API_BASE_URL}/notifications${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    markRead: async (type, referenceId) => {
+      const payload = withGymParam({ type, reference_id: referenceId });
+      const res = await apiFetch(`${API_BASE_URL}/notifications/read`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    markAllRead: async () => {
+      const payload = withGymParam({});
+      const res = await apiFetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    getMemberIds: async (type) => {
+      const query = new URLSearchParams(withGymParam({ type })).toString();
+      const res = await apiFetch(`${API_BASE_URL}/notifications/member-ids${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
   },

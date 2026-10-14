@@ -898,7 +898,7 @@ export const AddMemberPage = ({
         };
 
         if (updateMember) {
-          await updateMember(targetMember.id, payload);
+          await updateMember(targetMember.id, payload, { silent: true });
         }
         addToast(`Member "${formData.name}" details updated successfully!`, 'success');
         fetchMembers?.();
@@ -967,7 +967,7 @@ export const AddMemberPage = ({
         };
 
         if (updateMember) {
-          await updateMember(targetMember.id, updatedPayload);
+          await updateMember(targetMember.id, updatedPayload, { silent: true });
         }
 
         if (hasPtPackage && allocatePTSessions) {
@@ -996,7 +996,7 @@ export const AddMemberPage = ({
             commissionEarned: ptCommissionAmount,
             date: todayStr,
             status: 'Pending'
-          });
+          }, { silent: true });
         }
 
         addToast(`Top-up applied successfully for ${targetMember.name}!`, 'success');
@@ -1219,7 +1219,7 @@ export const AddMemberPage = ({
 
       const linkedEnquiryId = initialData?.enquiryId || formData.enquiryId;
       if (linkedEnquiryId && deleteEnquiry) {
-        deleteEnquiry(linkedEnquiryId);
+        deleteEnquiry(linkedEnquiryId, { silent: true });
       }
 
       await registerAccount({
@@ -1244,7 +1244,7 @@ export const AddMemberPage = ({
         medicalNotes: formData.medicalNotes,
         status: 'Signed',
         signedDate: todayStr
-      });
+      }, { silent: true });
 
       if (resolvedTrainer && (trainingType === 'pt' || hasPtPackage) && ptCommissionAmount > 0) {
         await addCommissionRecord({
@@ -1261,13 +1261,16 @@ export const AddMemberPage = ({
           commissionEarned: ptCommissionAmount,
           date: todayStr,
           status: 'Pending'
-        });
+        }, { silent: true });
       }
 
       fetchMembers?.();
       fetchInvoices?.();
       fetchDashboardStats?.();
-      addToast(`Athlete "${formData.name}" added to Member Directory!`, 'success');
+
+      if (createdMember?.whatsapp_welcome?.success) {
+        addToast(`WhatsApp welcome pass sent to ${formData.phone}`, 'info');
+      }
 
       setNewlyCreatedCredentials({
         name: formData.name,
@@ -1462,9 +1465,6 @@ export const AddMemberPage = ({
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <div>
-                <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 inline-block mb-1">
-                  Enrolled & Added to Directory
-                </span>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   {newlyCreatedCredentials.isUpgrade ? 'Top-up Upgraded Successfully!' : 'Member Registered Successfully!'}
                 </h1>
@@ -1778,11 +1778,6 @@ export const AddMemberPage = ({
                 1. Member Profile & Portal Access
               </h2>
             </div>
-            {!isUpgradeMode && !isEditMode && (
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
-                Login with mobile or email
-              </span>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">

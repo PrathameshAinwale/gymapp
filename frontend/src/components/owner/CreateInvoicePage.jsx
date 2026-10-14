@@ -124,23 +124,16 @@ export const CreateInvoicePage = ({
       packageType: 'Gym-Cardio',
       packageId: '',
       price: 0,
-      discount: ''
+      discount: '',
+      startDate: getTodayDateStr(),
+      expiryDate: '',
+      isCustomStartDate: false
     }
   ]);
 
   // Quick Plan Creation State
   const [quickAddPlanType, setQuickAddPlanType] = useState(null);
   const [quickAddTargetRowId, setQuickAddTargetRowId] = useState(null);
-  const [isSavingQuickPlan, setIsSavingQuickPlan] = useState(false);
-  const [quickPlanForm, setQuickPlanForm] = useState({
-    name: '',
-    price: 1999,
-    sessions: 12,
-    validityDays: 30,
-    duration: '30 Mins',
-    instructorOrType: 'Therapy',
-    description: ''
-  });
 
   // Billing and Payment Settlement (Exact mirror of AddMemberPage)
   const [paymentDate, setPaymentDate] = useState(getTodayDateStr());
@@ -159,11 +152,29 @@ export const CreateInvoicePage = ({
     return getPackageObjectFromLists(type, id, plans, ptPlans, recoveryPlans);
   };
 
-  // Helper to compute combined end date
-  const computeCombinedPlanEndDate = (baseStartDateStr, plan, currentExpiryStr = null) => {
+  // Helper to add days to ISO date string (YYYY-MM-DD)
+  const addDaysIso = (dateStr, days) => {
+    if (!dateStr) return '';
+    try {
+      const clean = String(dateStr).split('T')[0];
+      const parts = clean.split('-');
+      if (parts.length !== 3) return '';
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      d.setDate(d.getDate() + Number(days));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // Helper to compute combined end date (calculates duration strictly from start date)
+  const computeCombinedPlanEndDate = (baseStartDateStr, plan) => {
     if (!plan) return '';
     const todayStr = getTodayDateStr();
-    const effectiveBaseStr = baseStartDateStr || (currentExpiryStr && String(currentExpiryStr).split('T')[0] >= todayStr ? String(currentExpiryStr).split('T')[0] : todayStr);
+    const effectiveBaseStr = baseStartDateStr || todayStr;
 
     try {
       const name = (plan.name || '').toLowerCase();
@@ -227,6 +238,92 @@ export const CreateInvoicePage = ({
     };
   }, [currentMember, plans]);
 
+  // Find the latest active/upcoming end date for a member + specific package type
+  const getLatestEndDateForPackageType = (memberId, rawPkgType, currentRowId = null) => {
+    if (!memberId) return null;
+    const todayStr = getTodayDateStr();
+    const targetType = normalizePackageType(rawPkgType);
+    const cleanId = String(memberId).replace(/[^0-9]/g, '');
+
+    let latestEnd = null;
+
+    // 1. Existing uncancelled invoices
+    if (Array.isArray(invoices)) {
+      invoices.forEach((inv) => {
+        const invMemId = String(inv.userId || inv.user_id || inv.memberId || inv.member_id || '').replace(/[^0-9]/g, '');
+        if (invMemId !== cleanId) return;
+        if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+
+        const invType = normalizePackageType(inv.package_type || inv.packageType || inv.category || 'Gym-Cardio');
+        if (invType !== targetType) return;
+
+        const endStr = (inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate || '').split('T')[0];
+        if (endStr && endStr >= todayStr) {
+          if (!latestEnd || endStr > latestEnd) {
+            latestEnd = endStr;
+          }
+        }
+      });
+    }
+
+    // 2. Legacy fallback to member profile (if matching package type)
+    if (currentMember && String(currentMember.id).replace(/[^0-9]/g, '') === cleanId) {
+      const rawExp = (currentMember.expiryDate || currentMember.expiry_date || '').split('T')[0];
+      if (rawExp && rawExp >= todayStr && currentMember.status !== 'Expired') {
+        const profilePlan = plans.find((p) => String(p.id) === String(currentMember.planId || currentMember.plan_id));
+        const profileType = normalizePackageType(
+          profilePlan?.packageType || profilePlan?.package_type || (currentMember.trainingType === 'pt' ? 'Personal Training' : 'Gym-Cardio')
+        );
+        if (profileType === targetType) {
+          if (!latestEnd || rawExp > latestEnd) {
+            latestEnd = rawExp;
+          }
+        }
+      }
+    }
+
+    // 3. Preceding rows of the SAME package type in the current invoice
+    if (Array.isArray(selectedPackages)) {
+      for (const r of selectedPackages) {
+        if (r.id === currentRowId) break;
+        const rType = normalizePackageType(r.packageType);
+        if (rType === targetType && r.expiryDate && r.expiryDate >= todayStr) {
+          if (!latestEnd || r.expiryDate > latestEnd) {
+            latestEnd = r.expiryDate;
+          }
+        }
+      }
+    }
+
+    return latestEnd;
+  };
+
+  // Compute row-level chaining parameters (default start date = day after previous plan, min start = day after)
+  const getRowChainingInfo = (pkgRow) => {
+    const todayStr = getTodayDateStr();
+    const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
+    const latestEnd = getLatestEndDateForPackageType(selectedMemberId, pkgType, pkgRow?.id);
+
+    if (latestEnd && latestEnd >= todayStr) {
+      const chainedStart = addDaysIso(latestEnd, 1);
+      return {
+        isChained: true,
+        latestEnd,
+        minStartDate: chainedStart,
+        defaultStartDate: chainedStart,
+        message: `Current ${pkgType} ends on ${formatDateDisplay(latestEnd)}. Chains from ${formatDateDisplay(chainedStart)}.`
+      };
+    }
+
+    return {
+      isChained: false,
+      latestEnd: null,
+      minStartDate: todayStr,
+      defaultStartDate: todayStr,
+      message: `No active ${pkgType} plan found. Starts ${formatDateDisplay(todayStr)} by default.`
+    };
+  };
+
   // Plan duration in days helper
   const getPlanDurationDays = (plan) => {
     if (!plan) return 0;
@@ -248,28 +345,41 @@ export const CreateInvoicePage = ({
     if (!planObj) return null;
 
     const newPlanDays = getPlanDurationDays(planObj);
-    const currentRemainingDays = memberCurrentPlan?.remainingDays || 0;
-    const isExtended = currentRemainingDays > 0 && memberCurrentPlan?.expiryDate;
-    const todayStr = getTodayDateStr();
-
-    // Start date: extend from current plan's expiryDate if active; else start from today / membershipStartDate
-    const effectiveBaseStart = isExtended ? memberCurrentPlan.expiryDate : (membershipStartDate || todayStr);
-    const newExpiry = computeCombinedPlanEndDate(
+    const chaining = getRowChainingInfo(pkgRow);
+    const effectiveBaseStart = pkgRow.startDate || chaining.defaultStartDate;
+    const newExpiry = pkgRow.expiryDate || computeCombinedPlanEndDate(
       effectiveBaseStart,
-      planObj,
-      isExtended ? memberCurrentPlan?.expiryDate : null
+      planObj
     );
-    const totalCombinedDays = currentRemainingDays + newPlanDays;
+
+    const todayStr = getTodayDateStr();
+    const activeExpiry = chaining.latestEnd || (!memberCurrentPlan?.isExpired ? memberCurrentPlan?.expiryDate : null);
+    let currentRemainingDays = 0;
+
+    if (activeExpiry && activeExpiry >= todayStr) {
+      const [y1, m1, d1] = todayStr.split('-').map(Number);
+      const [y2, m2, d2] = activeExpiry.split('-').map(Number);
+      const date1 = new Date(y1, m1 - 1, d1);
+      const date2 = new Date(y2, m2 - 1, d2);
+      const diffMs = date2.getTime() - date1.getTime();
+      currentRemainingDays = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    const isExtended = Boolean(chaining.isChained);
+    const totalCombinedDays = isExtended ? (currentRemainingDays + newPlanDays) : newPlanDays;
 
     return {
       planObj,
       newPlanDays,
+      isChained: chaining.isChained,
+      isExtended,
+      latestEnd: chaining.latestEnd,
+      currentExpiryFormatted: activeExpiry,
       currentRemainingDays,
       totalCombinedDays,
+      chainingMessage: chaining.message,
       effectiveStartDate: effectiveBaseStart,
       newExpiryDate: newExpiry,
-      isExtended,
-      currentExpiryFormatted: memberCurrentPlan?.expiryDate || 'N/A'
     };
   };
 
@@ -277,10 +387,11 @@ export const CreateInvoicePage = ({
   const mainMembershipValidityInfo = useMemo(() => {
     const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt');
     const isRecRow = (r) => (r.packageType === 'Massage' || r.packageType === 'Activities' || r.packageType === 'recovery');
-    const memRow = selectedPackages.find((r) => !isPtRow(r) && !isRecRow(r) && r.packageId);
+    const memRow = selectedPackages.find((r) => !isPtRow(r) && !isRecRow(r) && r.packageId)
+      || selectedPackages.find((r) => r.packageId);
     if (!memRow) return null;
     return computePackageValidity(memRow);
-  }, [selectedPackages, memberCurrentPlan, membershipStartDate, plans, ptPlans, recoveryPlans]);
+  }, [selectedPackages, memberCurrentPlan, membershipStartDate, plans, ptPlans, recoveryPlans, invoices, currentMember]);
 
   // Keep membershipEndDate synchronized with the validity calculation
   useEffect(() => {
@@ -292,15 +403,27 @@ export const CreateInvoicePage = ({
   // Synchronize start date whenever member changes
   useEffect(() => {
     if (currentMember) {
-      const todayStr = getTodayDateStr();
-      const rawExpiry = currentMember.expiryDate || currentMember.expiry_date || '';
-      const cleanExpiry = rawExpiry ? String(rawExpiry).split('T')[0] : '';
-      const effectiveStart = cleanExpiry && cleanExpiry >= todayStr ? cleanExpiry : todayStr;
-      setMembershipStartDate(effectiveStart);
-
       if (currentMember.trainerId) {
         setSelectedTrainerId(currentMember.trainerId);
       }
+
+      // Automatically default package rows according to each row's own package type chaining info
+      setSelectedPackages((prev) =>
+        prev.map((row) => {
+          if (row.isCustomStartDate) return row;
+          const planObj = getPackageObject(row.packageType, row.packageId);
+          const chaining = getRowChainingInfo(row);
+          const rowStart = chaining.defaultStartDate;
+          const computedExp = planObj
+            ? computeCombinedPlanEndDate(rowStart, planObj)
+            : row.expiryDate;
+          return {
+            ...row,
+            startDate: rowStart,
+            expiryDate: computedExp
+          };
+        })
+      );
     }
   }, [currentMember]);
 
@@ -308,17 +431,28 @@ export const CreateInvoicePage = ({
   const handleMemberChange = (newMemberId) => {
     setSelectedMemberId(newMemberId);
     const m = members.find((item) => String(item.id) === String(newMemberId));
-    if (m) {
-      const todayStr = getTodayDateStr();
-      const rawExpiry = m.expiryDate || m.expiry_date || '';
-      const cleanExpiry = rawExpiry ? String(rawExpiry).split('T')[0] : '';
-      const effectiveStart = cleanExpiry && cleanExpiry >= todayStr ? cleanExpiry : todayStr;
-      setMembershipStartDate(effectiveStart);
-
-      if (m.trainerId) {
-        setSelectedTrainerId(m.trainerId);
-      }
+    if (m?.trainerId) {
+      setSelectedTrainerId(m.trainerId);
     }
+
+    const todayStr = getTodayDateStr();
+    setSelectedPackages((prev) =>
+      prev.map((row) => {
+        const planObj = getPackageObject(row.packageType, row.packageId);
+        const pkgType = normalizePackageType(row.packageType || 'Gym-Cardio');
+        const latestEnd = getLatestEndDateForPackageType(newMemberId, pkgType, row.id);
+        const rowStart = (latestEnd && latestEnd >= todayStr) ? addDaysIso(latestEnd, 1) : todayStr;
+        const computedExp = planObj
+          ? computeCombinedPlanEndDate(rowStart, planObj)
+          : row.expiryDate;
+        return {
+          ...row,
+          startDate: rowStart,
+          expiryDate: computedExp,
+          isCustomStartDate: false
+        };
+      })
+    );
   };
 
   // Sync first package row when plans load
@@ -326,14 +460,10 @@ export const CreateInvoicePage = ({
     if (plans.length > 0 && selectedPackages.length > 0 && !selectedPackages[0].packageId) {
       const firstPlan = plans[0];
       const pkgType = normalizePackageType(firstPlan.packageType || firstPlan.package_type || 'Gym-Cardio');
-      const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
-        ? memberCurrentPlan.expiryDate
-        : getTodayDateStr();
-      const computedExp = computeCombinedPlanEndDate(
-        defaultStart,
-        firstPlan,
-        memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null
-      );
+      const dummyRow = { id: 'pkg-1', packageType: pkgType, packageId: firstPlan.id };
+      const chaining = getRowChainingInfo(dummyRow);
+      const defaultStart = chaining.defaultStartDate;
+      const computedExp = computeCombinedPlanEndDate(defaultStart, firstPlan);
       setSelectedPackages([
         {
           id: 'pkg-1',
@@ -342,11 +472,12 @@ export const CreateInvoicePage = ({
           price: Number(firstPlan.price || 0),
           discount: '',
           startDate: defaultStart,
-          expiryDate: computedExp
+          expiryDate: computedExp,
+          isCustomStartDate: false
         }
       ]);
     }
-  }, [plans, memberCurrentPlan]);
+  }, [plans, selectedMemberId]);
 
   // Package row handlers
   const handlePackageTypeChange = (rowId, newType) => {
@@ -357,17 +488,16 @@ export const CreateInvoicePage = ({
 
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
-    const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
-      ? memberCurrentPlan.expiryDate
-      : getTodayDateStr();
+    const dummyRow = { id: rowId, packageType: newType, packageId: firstPlan?.id };
+    const chaining = getRowChainingInfo(dummyRow);
+    const rowStart = chaining.defaultStartDate;
     const computedExp = firstPlan
-      ? computeCombinedPlanEndDate(defaultStart, firstPlan, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+      ? computeCombinedPlanEndDate(rowStart, firstPlan)
       : '';
 
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
-        const rowStart = row.startDate || defaultStart;
         return {
           ...row,
           packageType: newType,
@@ -375,7 +505,8 @@ export const CreateInvoicePage = ({
           price: Number(firstPlan?.price || 0),
           discount: '',
           startDate: rowStart,
-          expiryDate: computedExp
+          expiryDate: computedExp,
+          isCustomStartDate: false
         };
       })
     );
@@ -385,12 +516,7 @@ export const CreateInvoicePage = ({
     if (newPackageId === '__ADD_NEW__') {
       const row = selectedPackages.find((r) => r.id === rowId);
       const rowType = row?.packageType || 'Gym-Cardio';
-      const norm = String(rowType).toLowerCase();
-      let modalType = 'membership';
-      if (norm.includes('pt') || norm.includes('training')) modalType = 'pt';
-      else if (norm.includes('massage') || norm.includes('activities') || norm.includes('recovery')) modalType = 'recovery';
-
-      setQuickAddPlanType(modalType);
+      setQuickAddPlanType(normalizePackageType(rowType));
       setQuickAddTargetRowId(rowId);
       return;
     }
@@ -399,12 +525,10 @@ export const CreateInvoicePage = ({
       prev.map((row) => {
         if (row.id !== rowId) return row;
         const found = getPackageObject(row.packageType, newPackageId);
-        const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
-          ? memberCurrentPlan.expiryDate
-          : getTodayDateStr();
-        const rowStart = row.startDate || defaultStart;
+        const chaining = getRowChainingInfo(row);
+        const rowStart = row.isCustomStartDate ? (row.startDate || chaining.defaultStartDate) : chaining.defaultStartDate;
         const computedExp = found
-          ? computeCombinedPlanEndDate(rowStart, found, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+          ? computeCombinedPlanEndDate(rowStart, found)
           : row.expiryDate;
         return {
           ...row,
@@ -421,14 +545,18 @@ export const CreateInvoicePage = ({
     setSelectedPackages((prev) =>
       prev.map((row) => {
         if (row.id !== rowId) return row;
+        const chaining = getRowChainingInfo(row);
+        // Prevent selecting dates earlier than the minimum allowable start date (chained day after or today)
+        const safeStart = newStartDate && newStartDate < chaining.minStartDate ? chaining.minStartDate : newStartDate;
         const planObj = getPackageObject(row.packageType, row.packageId);
         const computedExp = planObj
-          ? computeCombinedPlanEndDate(newStartDate, planObj, null)
+          ? computeCombinedPlanEndDate(safeStart, planObj)
           : row.expiryDate;
         return {
           ...row,
-          startDate: newStartDate,
-          expiryDate: computedExp
+          startDate: safeStart,
+          expiryDate: computedExp,
+          isCustomStartDate: true
         };
       })
     );
@@ -459,23 +587,25 @@ export const CreateInvoicePage = ({
 
     const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
-    const defaultStart = (memberCurrentPlan?.remainingDays > 0 && memberCurrentPlan?.expiryDate)
-      ? memberCurrentPlan.expiryDate
-      : getTodayDateStr();
+    const newRowId = `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const dummyRow = { id: newRowId, packageType: nextType, packageId: firstPlan?.id };
+    const chaining = getRowChainingInfo(dummyRow);
+    const defaultStart = chaining.defaultStartDate;
     const computedExp = firstPlan
-      ? computeCombinedPlanEndDate(defaultStart, firstPlan, memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null)
+      ? computeCombinedPlanEndDate(defaultStart, firstPlan)
       : '';
 
     setSelectedPackages((prev) => [
       ...prev,
       {
-        id: `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: newRowId,
         packageType: nextType,
         packageId: firstPlan ? String(firstPlan.id) : '',
         price: Number(firstPlan?.price || 0),
         discount: '',
         startDate: defaultStart,
-        expiryDate: computedExp
+        expiryDate: computedExp,
+        isCustomStartDate: false
       }
     ]);
   };
@@ -488,80 +618,6 @@ export const CreateInvoicePage = ({
     setSelectedPackages((prev) => prev.filter((r) => r.id !== rowId));
   };
 
-  // Quick Plan Creation modal submission
-  const handleSaveQuickPlan = async () => {
-    if (!quickPlanForm.name || !quickPlanForm.name.trim()) {
-      addToast('Please enter a plan name', 'error');
-      return;
-    }
-
-    setIsSavingQuickPlan(true);
-    try {
-      if (quickAddPlanType === 'membership') {
-        const created = await addPlan({
-          name: quickPlanForm.name.trim(),
-          price: Number(quickPlanForm.price) || 0,
-          period: quickPlanForm.validityDays ? `${quickPlanForm.validityDays} Days` : '30 Days',
-          packageType: 'Gym-Cardio',
-          validityDays: Number(quickPlanForm.validityDays) || 30,
-          description: quickPlanForm.description || ''
-        });
-        if (created) {
-          setSelectedPackages((prev) =>
-            prev.map((r) =>
-              r.id === quickAddTargetRowId
-                ? { ...r, packageId: String(created.id), price: Number(created.price) || 0 }
-                : r
-            )
-          );
-        }
-        addToast(`Plan "${quickPlanForm.name}" created and applied!`, 'success');
-      } else if (quickAddPlanType === 'recovery') {
-        const created = await addRecoveryPlan({
-          name: quickPlanForm.name.trim(),
-          price: Number(quickPlanForm.price) || 0,
-          serviceType: 'Recovery',
-          duration: quickPlanForm.duration || '30 Mins',
-          description: quickPlanForm.description || ''
-        });
-        if (created) {
-          setSelectedPackages((prev) =>
-            prev.map((r) =>
-              r.id === quickAddTargetRowId
-                ? { ...r, packageId: String(created.id), price: Number(created.price) || 0 }
-                : r
-            )
-          );
-        }
-        addToast(`Pass "${quickPlanForm.name}" created and applied!`, 'success');
-      } else if (quickAddPlanType === 'pt') {
-        const created = await addPTPlan({
-          name: quickPlanForm.name.trim(),
-          price: Number(quickPlanForm.price) || 0,
-          sessions: Number(quickPlanForm.sessions) || 12,
-          packageType: 'Personal Training',
-          validityDays: Number(quickPlanForm.validityDays) || 30,
-          description: quickPlanForm.description || ''
-        });
-        if (created) {
-          setSelectedPackages((prev) =>
-            prev.map((r) =>
-              r.id === quickAddTargetRowId
-                ? { ...r, packageId: String(created.id), price: Number(created.price) || 0 }
-                : r
-            )
-          );
-        }
-        addToast(`PT package "${quickPlanForm.name}" created and applied!`, 'success');
-      }
-      setQuickAddPlanType(null);
-    } catch (err) {
-      console.error('Error saving quick plan:', err);
-      addToast(`Failed to save plan: ${err.message}`, 'error');
-    } finally {
-      setIsSavingQuickPlan(false);
-    }
-  };
 
   // Financial Calculations (Exact mirror of AddMemberPage)
   const totalGrossPackages = useMemo(() => {
@@ -804,6 +860,8 @@ export const CreateInvoicePage = ({
             planName: invoiceTitle,
             title: `${memberName} - ${invoiceTitle}`,
             category: mainCategory,
+            package_type: mainCategory,
+            packageType: mainCategory,
             amount: effectivePaidAmount,
             total_amount: totalCalculatedAmount,
             totalAmount: totalCalculatedAmount,
@@ -817,6 +875,8 @@ export const CreateInvoicePage = ({
             date: paymentDate || getTodayDateStr(),
             start_date: targetStartDate,
             startDate: targetStartDate,
+            end_date: targetExpiryDate,
+            endDate: targetExpiryDate,
             payment_method: resolvedPaymentMethodString,
             paymentMethod: resolvedPaymentMethodString,
             status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
@@ -1311,23 +1371,6 @@ export const CreateInvoicePage = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  {memberCurrentPlan.remainingDays > 0 ? (
-                    <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-200 text-center shadow-2xs">
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Days Left</span>
-                      <span className="text-sm font-black text-emerald-700 font-mono">
-                        {memberCurrentPlan.remainingDays} Days
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="bg-white px-3 py-1.5 rounded-xl border border-rose-200 text-center shadow-2xs">
-                      <span className="text-[9px] uppercase font-bold text-rose-400 block">Status</span>
-                      <span className="text-sm font-black text-rose-600 uppercase">
-                        Expired
-                      </span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Plan Specs Breakdown */}
@@ -1402,9 +1445,6 @@ export const CreateInvoicePage = ({
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Plan Validity & Extension Calculation</span>
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200 self-start sm:self-auto shadow-2xs">
-                  {mainMembershipValidityInfo.isExtended ? '⚡ Extended on Top of Current Active Plan' : '⚡ Fresh Plan Validity'}
-                </span>
               </div>
 
               {/* 4 Cards: Current Remaining | New Plan Duration | Total Accumulated Validity | Resulting Expiry Date */}
@@ -1412,30 +1452,34 @@ export const CreateInvoicePage = ({
                 <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs text-center">
                   <span className="text-[10px] text-slate-400 block uppercase font-medium">Current Remaining</span>
                   <span className="font-black text-slate-800 font-mono text-sm sm:text-base block mt-0.5">
-                    {mainMembershipValidityInfo.currentRemainingDays} Days
+                    {mainMembershipValidityInfo.currentRemainingDays ?? 0} Days
                   </span>
                   <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
-                    {mainMembershipValidityInfo.currentRemainingDays > 0 ? `Till ${formatDateDisplay(mainMembershipValidityInfo.currentExpiryFormatted)}` : 'Plan Expired'}
+                    {mainMembershipValidityInfo.currentRemainingDays > 0
+                      ? `Till ${formatDateDisplay(mainMembershipValidityInfo.currentExpiryFormatted)}`
+                      : (mainMembershipValidityInfo.currentExpiryFormatted === getTodayDateStr()
+                        ? 'Expires Today'
+                        : (currentMember?.expiryDate || currentMember?.expiry_date ? 'Plan Expired' : 'No Previous Plan'))}
                   </span>
                 </div>
 
                 <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs text-center">
                   <span className="text-[10px] text-slate-400 block uppercase font-medium">+ New Plan Duration</span>
                   <span className="font-black text-emerald-700 font-mono text-sm sm:text-base block mt-0.5">
-                    +{mainMembershipValidityInfo.newPlanDays} Days
+                    +{mainMembershipValidityInfo.newPlanDays ?? 0} Days
                   </span>
                   <span className="text-[10px] text-slate-500 block mt-0.5 truncate">
-                    {mainMembershipValidityInfo.planObj?.name}
+                    {mainMembershipValidityInfo.planObj?.name || 'Selected Plan'}
                   </span>
                 </div>
 
                 <div className="bg-white p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-2xs text-center">
                   <span className="text-[10px] text-emerald-800 block uppercase font-bold">= Total Validity</span>
                   <span className="font-black text-emerald-800 font-mono text-sm sm:text-base block mt-0.5">
-                    {mainMembershipValidityInfo.totalCombinedDays} Days
+                    {mainMembershipValidityInfo.totalCombinedDays ?? mainMembershipValidityInfo.newPlanDays ?? 0} Days
                   </span>
                   <span className="text-[10px] text-emerald-700 block mt-0.5 font-semibold">
-                    Combined Active Days
+                    {mainMembershipValidityInfo.isExtended ? 'Combined Active Days' : 'Plan Duration'}
                   </span>
                 </div>
 
@@ -1463,6 +1507,7 @@ export const CreateInvoicePage = ({
                 : 0;
 
               const pkgVal = computePackageValidity(pkgRow);
+              const rowChaining = getRowChainingInfo(pkgRow);
 
               return (
                 <div
@@ -1578,7 +1623,8 @@ export const CreateInvoicePage = ({
                       <input
                         type="date"
                         required
-                        value={pkgRow.startDate || getTodayDateStr()}
+                        min={rowChaining.minStartDate}
+                        value={pkgRow.startDate || rowChaining.defaultStartDate}
                         onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
                       />
@@ -1592,6 +1638,7 @@ export const CreateInvoicePage = ({
                       <input
                         type="date"
                         required
+                        min={pkgRow.startDate || rowChaining.minStartDate}
                         value={pkgRow.expiryDate || ''}
                         onChange={(e) => handlePackageExpiryDateChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
@@ -1599,27 +1646,24 @@ export const CreateInvoicePage = ({
                     </div>
                   </div>
 
-                  {/* Validity Info for Row */}
-                  {pkgVal && (
-                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                      <div className="flex items-center gap-1.5 text-slate-700">
-                        <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        {!isPt && pkgVal.isExtended ? (
-                          <span>
-                            Current Remaining: <strong className="text-slate-900 font-mono">{pkgVal.currentRemainingDays}d</strong> + New Plan: <strong className="text-emerald-700 font-mono">+{pkgVal.newPlanDays}d</strong> = Total Validity: <strong className="text-emerald-800 font-mono">{pkgVal.totalCombinedDays} Days</strong>
-                          </span>
-                        ) : (
-                          <span>
-                            Plan Duration: <strong className="text-emerald-700 font-mono">{pkgVal.newPlanDays} Days</strong>
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        <Calendar className="w-3 h-3 text-emerald-600" />
-                        <span>Valid Until: {formatDateDisplay(pkgRow.expiryDate || pkgVal.newExpiryDate)}</span>
-                      </div>
+                  {/* Plan Chaining Status Message & Indicator */}
+                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2 shadow-2xs ${
+                    rowChaining.isChained
+                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${rowChaining.isChained ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <span>{rowChaining.message}</span>
                     </div>
-                  )}
+                    <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${
+                      rowChaining.isChained
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}>
+                      {rowChaining.isChained ? '⚡ Chained (Day After)' : 'Fresh Plan'}
+                    </span>
+                  </div>
 
                   {/* Coach Assignment if PT */}
                   {isPt && (
@@ -1682,7 +1726,6 @@ export const CreateInvoicePage = ({
                 </h2>
               </div>
               <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
-                <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
                 {numDiscount > 0 && (
                   <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
                 )}
@@ -2012,19 +2055,39 @@ export const CreateInvoicePage = ({
       {quickAddPlanType && (
         <MembershipPlanModal
           isOpen={Boolean(quickAddPlanType)}
-          onClose={() => setQuickAddPlanType(null)}
-          title={
-            quickAddPlanType === 'membership'
-              ? 'Quick Add Membership Plan'
-              : quickAddPlanType === 'pt'
-              ? 'Quick Add Personal Training Plan'
-              : 'Quick Add Recovery / Wellness Pass'
-          }
-          planType={quickAddPlanType}
-          formData={quickPlanForm}
-          setFormData={setQuickPlanForm}
-          onSave={handleSaveQuickPlan}
-          isSubmitting={isSavingQuickPlan}
+          onClose={() => {
+            setQuickAddPlanType(null);
+            setQuickAddTargetRowId(null);
+          }}
+          defaultPackageType={normalizePackageType(quickAddPlanType)}
+          isNested={true}
+          onSuccess={(created) => {
+            if (created?.id) {
+              const createdType = normalizePackageType(created.package_type || created.packageType || quickAddPlanType);
+              setSelectedPackages((prev) =>
+                prev.map((r) => {
+                  if (r.id === quickAddTargetRowId) {
+                    const rowStart = r.startDate || getTodayDateStr();
+                    const computedExp = computeCombinedPlanEndDate(
+                      rowStart,
+                      created,
+                      memberCurrentPlan?.remainingDays > 0 ? memberCurrentPlan.expiryDate : null
+                    );
+                    return {
+                      ...r,
+                      packageType: createdType,
+                      packageId: String(created.id),
+                      price: Number(created.price || 0),
+                      expiryDate: computedExp
+                    };
+                  }
+                  return r;
+                })
+              );
+            }
+            setQuickAddPlanType(null);
+            setQuickAddTargetRowId(null);
+          }}
         />
       )}
     </div>

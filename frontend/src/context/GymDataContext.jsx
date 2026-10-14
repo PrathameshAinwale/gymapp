@@ -784,8 +784,13 @@ export const GymDataProvider = ({ children }) => {
   }, []);
 
   const localAddToast = useCallback((message, type = 'success') => {
+    if (!message) return;
     const id = Date.now() + Math.random().toString(36).substring(2, 7);
-    setLocalToasts((prev) => [...prev, { id, message, type }]);
+    setLocalToasts((prev) => {
+      if (prev.some((t) => t.message === message)) return prev;
+      const next = [...prev, { id, message, type }];
+      return next.slice(-2);
+    });
     setTimeout(() => {
       localRemoveToast(id);
     }, 4000);
@@ -1743,7 +1748,7 @@ export const GymDataProvider = ({ children }) => {
   }, [currentUser?.gymId, currentUser?.gym_id, currentUser?.userId]);
 
   // MEMBER ACTIONS (Direct Backend Sync)
-  const addMember = useCallback(async (newMemberData) => {
+  const addMember = useCallback(async (newMemberData, options = {}) => {
     try {
       const res = await api.members.create(newMemberData);
       if (res.success && res.data) {
@@ -1757,7 +1762,9 @@ export const GymDataProvider = ({ children }) => {
         await fetchPtSessions?.();
         fetchWhatsAppTriggers?.();
         fetchWhatsAppStats?.();
-        addToast(`New member "${res.data.name}" registered successfully & saved to database!`, 'success');
+        if (!options?.silent) {
+          addToast(`Member "${res.data.name}" registered successfully!`, 'success');
+        }
         return res.data;
       }
       throw new Error(res?.message || 'Failed to register member on backend server');
@@ -1769,7 +1776,7 @@ export const GymDataProvider = ({ children }) => {
     }
   }, [fetchMembers, fetchInvoices, fetchDashboardStats, fetchPtSessions, fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
-  const updateMember = useCallback(async (id, updatedData) => {
+  const updateMember = useCallback(async (id, updatedData, options = {}) => {
     try {
       await api.members.update(id, updatedData);
       await fetchPtSessions?.();
@@ -1786,7 +1793,9 @@ export const GymDataProvider = ({ children }) => {
     setMembers((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updatedData, ...(calculatedStatus ? { status: calculatedStatus } : {}) } : m))
     );
-    addToast('Member details updated successfully');
+    if (!options?.silent) {
+      addToast('Member details updated successfully');
+    }
   }, [fetchPtSessions, fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
   const deleteMember = useCallback(async (id) => {
@@ -2619,14 +2628,18 @@ export const GymDataProvider = ({ children }) => {
     }
   };
 
-  const deleteEnquiry = async (id) => {
+  const deleteEnquiry = async (id, options = {}) => {
     try {
       await api.enquiries.delete(id);
       setEnquiries((prev) => prev.filter((e) => e.id !== id));
-      addToast('Enquiry removed from database', 'info');
+      if (!options?.silent) {
+        addToast('Enquiry removed from database', 'info');
+      }
     } catch (err) {
       console.warn('Enquiry delete sync error:', err.message);
-      addToast(`Error deleting enquiry: ${err.message}`, 'error');
+      if (!options?.silent) {
+        addToast(`Error deleting enquiry: ${err.message}`, 'error');
+      }
     }
   };
 
@@ -2977,7 +2990,7 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // Commissions Handlers
-  const addCommissionRecord = async (data) => {
+  const addCommissionRecord = async (data, options = {}) => {
     const tempId = `com-${Date.now()}`;
     const newRecord = {
       id: tempId,
@@ -2997,7 +3010,9 @@ export const GymDataProvider = ({ children }) => {
     } catch (err) {
       console.warn('Commission create sync error:', err.message);
     }
-    addToast(`Commission logged for ${data.trainerName}`);
+    if (!options?.silent) {
+      addToast(`Commission logged for ${data.trainerName}`);
+    }
   };
 
   const markCommissionPaid = async (id) => {
@@ -3013,7 +3028,7 @@ export const GymDataProvider = ({ children }) => {
   };
 
   // Consent Forms Handlers
-  const addConsentForm = async ({ memberId, memberName, phone, planName, formType, emergencyContact, emergencyPhone, medicalNotes, status, signedDate }) => {
+  const addConsentForm = async ({ memberId, memberName, phone, planName, formType, emergencyContact, emergencyPhone, medicalNotes, status, signedDate }, options = {}) => {
     const tempId = `cs-${Date.now()}`;
     const newForm = {
       id: tempId,
@@ -3053,7 +3068,9 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Consent form creation sync error:', err.message);
     }
 
-    addToast(`Consent form registered for ${memberName}!`);
+    if (!options?.silent) {
+      addToast(`Consent form registered for ${memberName}!`);
+    }
     return newForm;
   };
 

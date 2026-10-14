@@ -1813,9 +1813,6 @@ export const OwnerDashboard = ({
                               </span>
                             </div>
                           </div>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white text-emerald-800 border border-emerald-200 shrink-0">
-                            {inv.creatorRole || 'Staff'}
-                          </span>
                         </div>
 
                         <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px] text-slate-400">
@@ -2026,9 +2023,6 @@ export const OwnerDashboard = ({
                   Recent Invoices & Staff Creation Audit
                 </h3>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Audit trail displaying newly generated member invoices and the staff or owner who billed them
-              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2093,10 +2087,7 @@ export const OwnerDashboard = ({
                       <td className="py-3">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px]">
                           <User className="w-3 h-3 text-emerald-700 shrink-0" />
-                          <span className="font-bold">{inv.createdByName || 'Staff / Owner'}</span>
-                          <span className="text-[9px] uppercase font-bold text-emerald-600 bg-white px-1.5 py-0.2 rounded border border-emerald-100">
-                            {inv.creatorRole || 'Staff'}
-                          </span>
+                          <span className="font-bold">{inv.createdByName}</span>
                         </div>
                       </td>
                       <td className="py-3 text-right text-slate-500 font-mono text-[11px]">
@@ -2306,10 +2297,6 @@ export const OwnerDashboard = ({
         member={selectedProfileMember}
         isOpen={!!selectedProfileMember}
         onClose={() => setSelectedProfileMember(null)}
-        onRenewMember={(m) => {
-          setSelectedProfileMember(null);
-          setActiveTab?.('members');
-        }}
         onEditMember={(m) => {
           setSelectedProfileMember(null);
           setActiveTab?.('members');

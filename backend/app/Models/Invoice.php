@@ -14,6 +14,9 @@ class Invoice extends Model
         'invoice_number',
         'user_id',
         'plan_id',
+        'package_type',
+        'start_date',
+        'end_date',
         'amount',
         'pending_amount',
         'total_amount',
@@ -37,6 +40,8 @@ class Invoice extends Model
         'total_amount' => 'float',
         'date' => 'date',
         'due_date' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function user()

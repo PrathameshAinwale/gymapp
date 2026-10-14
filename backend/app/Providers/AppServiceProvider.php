@@ -43,5 +43,21 @@ class AppServiceProvider extends ServiceProvider
                 ], 429, $headers);
             });
         });
+
+        // Local Environment Database Safety Guard:
+        // Refuse to connect if local dev environment points to an external/hosted database
+        if ($this->app->environment('local')) {
+            $defaultConn = config('database.default');
+            if (in_array($defaultConn, ['mysql', 'mariadb', 'pgsql'], true)) {
+                $dbHost = config("database.connections.{$defaultConn}.host");
+                $allowedLocalHosts = ['127.0.0.1', 'localhost', '::1'];
+                if ($dbHost && !in_array(strtolower($dbHost), $allowedLocalHosts, true)) {
+                    throw new \RuntimeException(
+                        "SECURITY GUARD TRIGGERED: Local environment (APP_ENV=local) is configured with remote DB_HOST '{$dbHost}'. " .
+                        "To protect live production data, local development is strictly restricted to localhost (127.0.0.1)."
+                    );
+                }
+            }
+        }
     }
 }

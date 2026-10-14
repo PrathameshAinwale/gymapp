@@ -42,7 +42,6 @@ import {
   Cake
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
-import { RecordPaymentModal } from './RecordPaymentModal';
 import { PayDueModal } from './PayDueModal';
 import {
   hasSqlInjection,
@@ -55,8 +54,18 @@ import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '..
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { matchesMemberUniversal } from '../../utils/searchUtils';
+import { api } from '../../services/api';
 
-export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddMember, onNavigateToUpgradeRenew, onOpenAddMember, setActiveTab, onOpenMemberProfile }) => {
+export const MemberList = ({
+  isOpenAddModal,
+  setIsOpenAddModal,
+  onNavigateToAddMember,
+  onOpenAddMember,
+  setActiveTab,
+  onOpenMemberProfile,
+  notificationFilter,
+  onClearNotificationFilter
+}) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
   const {
     members = [],
@@ -106,6 +115,44 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
 
+  // Notification Presets State
+  const [notificationMemberIds, setNotificationMemberIds] = useState(null);
+  const [isNotificationLoading, setIsNotificationLoading] = useState(false);
+  const [singleMemberOverride, setSingleMemberOverride] = useState(null);
+
+  useEffect(() => {
+    setSingleMemberOverride(notificationFilter?.memberId || null);
+  }, [notificationFilter?.memberId, notificationFilter?.timestamp]);
+
+  useEffect(() => {
+    if (!notificationFilter?.type) {
+      setNotificationMemberIds(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsNotificationLoading(true);
+
+    api.notifications
+      .getMemberIds(notificationFilter.type)
+      .then((res) => {
+        if (isMounted && res?.member_ids) {
+          setNotificationMemberIds(res.member_ids);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load notification member IDs:', err);
+        if (isMounted) setNotificationMemberIds([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsNotificationLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [notificationFilter?.type, notificationFilter?.timestamp]);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
@@ -118,10 +165,7 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
 
   const [selectedMember, setSelectedMember] = useState(null);
   const [editingMember, setEditingMember] = useState(null);
-  const [renewingMember, setRenewingMember] = useState(null);
-  const [upgradingMember, setUpgradingMember] = useState(null);
   const [payingDueMember, setPayingDueMember] = useState(null);
-  const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -452,6 +496,8 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
     setBalanceFilter('ALL');
     setGenderFilter('ALL');
     setSearchTerm('');
+    setSingleMemberOverride(null);
+    onClearNotificationFilter?.();
   };
 
   const searchSuggestions = useMemo(() => {
@@ -481,6 +527,26 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
         });
 
       if (!matchSearch) return false;
+
+      // Notification Preset Filter (Payments due within 3 days or overdue / Plans expiring within 5 days)
+      if (notificationFilter?.type) {
+        if (singleMemberOverride) {
+          const targetId = String(singleMemberOverride);
+          const matchesThis =
+            String(m.id) === targetId ||
+            String(m.userId || '') === targetId ||
+            String(m.user_id || '') === targetId;
+          if (!matchesThis) return false;
+        } else if (Array.isArray(notificationMemberIds)) {
+          const idNum = Number(m.id);
+          const userIdNum = Number(m.userId || m.user_id);
+          const inList =
+            notificationMemberIds.includes(idNum) ||
+            notificationMemberIds.includes(m.id) ||
+            (userIdNum && notificationMemberIds.includes(userIdNum));
+          if (!inList) return false;
+        }
+      }
 
       // Status Filter
       if (statusFilter !== 'ALL' && statusFilter) {
@@ -545,6 +611,9 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
     trainerFilter,
     balanceFilter,
     genderFilter,
+    notificationFilter,
+    notificationMemberIds,
+    singleMemberOverride,
     calculateMemberStatus,
     getMemberDues
   ]);
@@ -603,6 +672,99 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
           </button>
         </div>
       </div>
+
+      {/* 2. Distinct Notification Preset Filter Banner (Payments due within 3 days or overdue / Plans expiring within 5 days) */}
+      {notificationFilter?.type && (
+        <div
+          className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs ${
+            notificationFilter.type === 'payment_due'
+              ? 'bg-rose-50/90 border-rose-200 text-rose-950'
+              : 'bg-amber-50/90 border-amber-200 text-amber-950'
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div
+              className={`p-2 rounded-xl shrink-0 ${
+                notificationFilter.type === 'payment_due'
+                  ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+              }`}
+            >
+              {notificationFilter.type === 'payment_due' ? (
+                <CreditCard className="w-5 h-5" />
+              ) : (
+                <Calendar className="w-5 h-5" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-extrabold tracking-tight">
+                  {notificationFilter.type === 'payment_due'
+                    ? 'Payments due within 3 days or overdue'
+                    : 'Plans expiring within 5 days'}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    notificationFilter.type === 'payment_due'
+                      ? 'bg-rose-200/80 text-rose-900'
+                      : 'bg-amber-200/80 text-amber-900'
+                  }`}
+                >
+                  Notification Filter Active
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 leading-snug">
+                {isNotificationLoading ? (
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Fetching matching members from database...
+                  </span>
+                ) : singleMemberOverride ? (
+                  <span>
+                    Viewing action alert for{' '}
+                    <strong className="text-slate-900">
+                      {notificationFilter.memberName || 'Selected Member'}
+                    </strong>
+                    .
+                  </span>
+                ) : (
+                  <span>
+                    Showing <strong className="text-slate-900">{filteredMembers.length} member{filteredMembers.length === 1 ? '' : 's'}</strong>{' '}
+                    matching this notification alert.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            {singleMemberOverride && (
+              <button
+                type="button"
+                onClick={() => setSingleMemberOverride(null)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                  notificationFilter.type === 'payment_due'
+                    ? 'bg-white hover:bg-rose-100 text-rose-800 border-rose-200'
+                    : 'bg-white hover:bg-amber-100 text-amber-900 border-amber-200'
+                }`}
+              >
+                View all in category
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSingleMemberOverride(null);
+                onClearNotificationFilter?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 shadow-2xs transition-colors cursor-pointer active:scale-95"
+              title="Clear Notification Filter"
+            >
+              <X className="w-3.5 h-3.5 text-slate-500" />
+              <span>Clear Filter</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 3. SEARCH BAR, DATE & ADVANCED FILTERS (Matches Invoices & Reports pages) */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
@@ -939,21 +1101,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onNavigateToUpgradeRenew) {
-                          onNavigateToUpgradeRenew(member);
-                        } else if (onNavigateToAddMember) {
-                          onNavigateToAddMember({ ...member, isUpgrade: true });
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-700 hover:to-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-                      title="Upgrade / Renew Membership"
-                    >
-                      <Zap className="w-3 h-3" />
-                      <span>Upgrade / Renew</span>
-                    </button>
                     {canEditDelete && (
                       <>
                         <button
@@ -1187,22 +1334,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                             </button>
                           )}
 
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onNavigateToUpgradeRenew) {
-                                onNavigateToUpgradeRenew(member);
-                              } else if (onNavigateToAddMember) {
-                                onNavigateToAddMember({ ...member, isUpgrade: true });
-                              }
-                            }}
-                            title="Upgrade or Renew Membership Plan"
-                            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-50 to-emerald-50 hover:from-violet-100 hover:to-emerald-100 border border-violet-200 text-violet-800 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                          >
-                            <Zap className="w-3 h-3 text-violet-600" />
-                            <span>Upgrade / Renew</span>
-                          </button>
 
                           {canEditDelete && (
                             <>
@@ -1539,23 +1670,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
                     onClick={() => {
                       const m = selectedMember;
                       setSelectedMember(null);
-                      if (onNavigateToUpgradeRenew) {
-                        onNavigateToUpgradeRenew(m);
-                      } else if (onNavigateToAddMember) {
-                        onNavigateToAddMember({ ...m, isUpgrade: true });
-                      }
-                    }}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-emerald-600 hover:from-violet-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Upgrade / Renew Membership</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const m = selectedMember;
-                      setSelectedMember(null);
                       setTimeout(() => {
                         openEditModal(m);
                       }, 50);
@@ -1853,13 +1967,6 @@ export const MemberList = ({ isOpenAddModal, setIsOpenAddModal, onNavigateToAddM
           </div>
         )}
       </Modal>
-
-      {/* RENEW MEMBERSHIP MODAL (Full Payment & Automated Validity Engine) */}
-      <RecordPaymentModal
-        isOpen={!!renewingMember}
-        onClose={() => setRenewingMember(null)}
-        initialMember={renewingMember}
-      />
 
       {/* PAY REMAINING BALANCE MODAL */}
       <PayDueModal
