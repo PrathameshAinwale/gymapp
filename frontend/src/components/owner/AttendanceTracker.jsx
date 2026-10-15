@@ -7,6 +7,7 @@ import {
   Plus,
   Award,
   CheckCircle2,
+  XCircle,
   Clock,
   QrCode,
   Calendar,
