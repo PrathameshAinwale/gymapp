@@ -105,6 +105,12 @@ class GymSettingController extends Controller
                     'max_branches' => $gym->max_branches ?? 1,
                     'payrollAttendanceSettings' => !empty($gym->payroll_attendance_settings) ? (is_string($gym->payroll_attendance_settings) ? json_decode($gym->payroll_attendance_settings, true) : $gym->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
                     'payroll_attendance_settings' => !empty($gym->payroll_attendance_settings) ? (is_string($gym->payroll_attendance_settings) ? json_decode($gym->payroll_attendance_settings, true) : $gym->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'deviceIp' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
+                    'device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
+                    'essl_device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
+                    'devicePort' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
+                    'device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
+                    'essl_device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
                 ];
             });
 
@@ -137,6 +143,12 @@ class GymSettingController extends Controller
                     'max_branches' => 1,
                     'payrollAttendanceSettings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
                     'payroll_attendance_settings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'deviceIp' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'essl_device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'devicePort' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
+                    'device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
+                    'essl_device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
                 ]
             ]);
         }
@@ -461,6 +473,37 @@ class GymSettingController extends Controller
                 'address' => $targetGym->address,
                 'package_tier' => $targetGym->package_tier ?? $targetGym->package ?? 'Platinum'
             ]
+        ]);
+    }
+    /**
+     * Test TCP socket connectivity to the specified eSSL machine IP and port.
+     */
+    public function testDeviceConnection(Request $request)
+    {
+        $ip = trim($request->input('ip') ?? $request->input('deviceIp') ?? $request->input('device_ip') ?? $request->input('essl_device_ip') ?: '192.168.1.201');
+        $port = (int)($request->input('port') ?? $request->input('devicePort') ?? $request->input('essl_device_port') ?: 4370);
+
+        $start = microtime(true);
+        $errno = 0;
+        $errstr = '';
+        $fp = @fsockopen($ip, $port, $errno, $errstr, 2);
+        $latency = round((microtime(true) - $start) * 1000, 1);
+
+        if ($fp) {
+            fclose($fp);
+            return response()->json([
+                'success' => true,
+                'connected' => true,
+                'latency_ms' => $latency,
+                'message' => "Successfully connected to eSSL terminal at {$ip}:{$port} ({$latency} ms)!",
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'connected' => false,
+            'latency_ms' => $latency,
+            'message' => "Could not reach {$ip}:{$port}. " . ($errstr ? "({$errstr})" : 'Connection timed out') . ". Please verify terminal power and local network connection.",
         ]);
     }
 }

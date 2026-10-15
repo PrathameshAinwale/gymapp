@@ -1701,6 +1701,14 @@ export const api = {
       });
       return handleResponse(res);
     },
+    testDeviceConnection: async (ip, port = 4370) => {
+      const res = await apiFetch(`${API_BASE_URL}/gym-info/test-device-ip`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ ip, port }),
+      });
+      return handleResponse(res);
+    },
     getBranches: async (params = {}) => {
       const query = new URLSearchParams(withGymParam(params)).toString();
       const res = await apiFetch(`${API_BASE_URL}/owner/branches${query ? `?${query}` : ''}`, { headers: getHeaders() });
