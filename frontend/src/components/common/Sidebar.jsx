@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
-import { isTabAllowedForGym } from '../superadmin/packagePlans';
+import { isTabAllowedForGym, resolveGymTier } from '../superadmin/packagePlans';
 import { PulseFitLogo } from './PulseFitLogo';
 import {
   LayoutDashboard,
@@ -244,7 +244,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const { currentUser, currentRole } = useAuth();
   const { gymInfo } = useGymData();
 
-  const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Bronze';
+  const currentTier = resolveGymTier(gymInfo, currentUser);
   const customFeatures = gymInfo?.features || [];
 
   const rawSections = getNavSectionsForRole(currentRole);
@@ -254,6 +254,11 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const sections = useMemo(() => {
     // If superadmin in standalone mode without gym scope, allow full access
     if (currentRole === 'superadmin' && !gymInfo?.id && !gymInfo?.name) {
+      return rawSections;
+    }
+
+    // While tier is still loading or unknown, do not hide navigation sections
+    if (!currentTier) {
       return rawSections;
     }
 

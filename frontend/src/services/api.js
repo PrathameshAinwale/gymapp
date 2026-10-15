@@ -472,6 +472,18 @@ const handleResponse = async (response) => {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      const isAuthEndpoint = response.url?.includes('/auth/login') || response.url?.includes('/auth/register');
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('pulsefit_token');
+        localStorage.removeItem('pulsefit_isAuth');
+        localStorage.removeItem('pulsefit_currentUser_v2');
+        localStorage.removeItem('pulsefit_gym_id');
+        getResponseCache.clear();
+        inflightGetRequests.clear();
+        window.dispatchEvent(new CustomEvent('pulsefit:unauthorized'));
+      }
+    }
     const errorMsg = data?.message || (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
     const error = new Error(errorMsg);
     error.status = response.status;

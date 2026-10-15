@@ -99,6 +99,8 @@ class GymSettingController extends Controller
                     'signatory_text' => $gym->signatory_text ?? '',
                     'taxRate' => (int)($gym->tax_rate ?? 18),
                     'tax_rate' => (int)($gym->tax_rate ?? 18),
+                    'is_fallback' => false,
+                    'isFallback' => false,
                     'package' => $packageTier,
                     'packageTier' => $packageTier,
                     'package_tier' => $packageTier,
@@ -127,9 +129,9 @@ class GymSettingController extends Controller
                     'deviceIp' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
                     'device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
                     'essl_device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
-                    'devicePort' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
-                    'device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
-                    'essl_device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($gym->essl_device_port ?? 4370)),
+                    'devicePort' => (int)($gym->essl_device_port ?? 4370),
+                    'device_port' => (int)($gym->essl_device_port ?? 4370),
+                    'essl_device_port' => (int)($gym->essl_device_port ?? 4370),
                 ];
             });
 
@@ -150,24 +152,17 @@ class GymSettingController extends Controller
                     'phone' => $setting->phone ?? '',
                     'email' => $setting->email ?? '',
                     'operatingHours' => $setting->operating_hours ?? '',
-                    'currency' => $setting->currency ?? 'â‚¹',
-                    'package' => 'Bronze',
-                    'packageTier' => 'Bronze',
-                    'features' => [],
-                    'maxMembers' => 200,
-                    'max_members' => 200,
-                    'maxTrainers' => 0,
-                    'max_trainers' => 0,
-                    'maxBranches' => 1,
-                    'max_branches' => 1,
-                    'payrollAttendanceSettings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
-                    'payroll_attendance_settings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
-                    'deviceIp' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
-                    'device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
-                    'essl_device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201'),
-                    'devicePort' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
-                    'device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
-                    'essl_device_port' => (int)(\Illuminate\Support\Facades\DB::table('biometric_devices')->value('port') ?: ($setting->essl_device_port ?? 4370)),
+                    'currency' => $setting->currency ?? '₹',
+                    'is_fallback' => true,
+                    'isFallback' => true,
+                    'payrollAttendanceSettings' => self::getDefaultPayrollAttendanceSettings(),
+                    'payroll_attendance_settings' => self::getDefaultPayrollAttendanceSettings(),
+                    'deviceIp' => '192.168.1.201',
+                    'device_ip' => '192.168.1.201',
+                    'essl_device_ip' => '192.168.1.201',
+                    'devicePort' => 4370,
+                    'device_port' => 4370,
+                    'essl_device_port' => 4370,
                 ]
             ]);
         }
@@ -182,7 +177,17 @@ class GymSettingController extends Controller
                 'phone' => '',
                 'email' => '',
                 'operatingHours' => '',
-                'currency' => 'â‚¹',
+                'currency' => '₹',
+                'is_fallback' => true,
+                'isFallback' => true,
+                'payrollAttendanceSettings' => self::getDefaultPayrollAttendanceSettings(),
+                'payroll_attendance_settings' => self::getDefaultPayrollAttendanceSettings(),
+                'deviceIp' => '192.168.1.201',
+                'device_ip' => '192.168.1.201',
+                'essl_device_ip' => '192.168.1.201',
+                'devicePort' => 4370,
+                'device_port' => 4370,
+                'essl_device_port' => 4370,
             ]
         ]);
     }
@@ -462,6 +467,9 @@ class GymSettingController extends Controller
             'features' => $primaryGym->features,
         ]);
 
+        Cache::forget("gym_setting_v1_{$primaryGym->id}");
+        Cache::forget("gym_setting_v1_{$newGym->id}");
+
         return response()->json([
             'success' => true,
             'message' => "Gym branch \"{$newGym->name}\" added successfully!",
@@ -501,6 +509,7 @@ class GymSettingController extends Controller
         // Update user's active gym
         $user->gym_id = $gymId;
         $user->save();
+        Cache::forget("gym_setting_v1_{$gymId}");
 
         return response()->json([
             'success' => true,

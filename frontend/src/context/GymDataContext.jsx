@@ -1051,43 +1051,77 @@ export const GymDataProvider = ({ children }) => {
         const targetGymId = explicitGymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
         const res = await api.gymInfo.get(targetGymId ? { gym_id: targetGymId } : {});
         if (res?.data) {
-          const cleanInfo = {
-            id: res.data.id || null,
-            name: res.data.name || '',
-            tagline: res.data.tagline || '',
-            logo: res.data.logo || '',
-            address: res.data.address || '',
-            city: res.data.city || '',
-            state: res.data.state || '',
-            pincode: res.data.pincode || '',
-            phone: res.data.phone || '',
-            email: res.data.email || '',
-            website: res.data.website || '',
-            operatingHours: res.data.operatingHours || res.data.operating_hours || '',
-            currency: res.data.currency || '₹',
-            gstNumber: res.data.gstNumber || res.data.gst_number || '',
-            packageTier: res.data.packageTier || res.data.package || 'Bronze',
-            package: res.data.packageTier || res.data.package || 'Bronze',
-            features: Array.isArray(res.data.features) ? res.data.features : [],
-            packageName: res.data.packageName || res.data.package_name || (res.data.packageTier ? `${res.data.packageTier} Plan` : 'Bronze Plan'),
-            billingCycle: res.data.billingCycle || res.data.billing_cycle || 'Annual',
-            packageAmount: res.data.packageAmount ?? res.data.package_amount ?? null,
-            subscriptionStartsAt: res.data.subscriptionStartsAt || res.data.subscription_starts_at || res.data.createdAt || res.data.created_at || '',
-            subscriptionExpiresAt: res.data.subscriptionExpiresAt || res.data.subscription_expires_at || '',
-            createdAt: res.data.createdAt || res.data.created_at || '',
-            status: res.data.status || 'Active',
-            maxMembers: res.data.maxMembers ?? res.data.max_members ?? null,
-            maxTrainers: res.data.maxTrainers ?? res.data.max_trainers ?? null,
-            maxBranches: res.data.maxBranches ?? res.data.max_branches ?? 1,
-            ownerName: res.data.ownerName || res.data.owner_name || '',
-            owner_name: res.data.owner_name || res.data.ownerName || '',
-          };
-          setGymInfo(cleanInfo);
-          return cleanInfo;
+          const isFallback = Boolean(res.data.is_fallback || res.data.isFallback);
+          let cleanInfo = null;
+          setGymInfo((prev) => {
+            const incomingTier = !isFallback
+              ? (res.data.packageTier || res.data.package_tier || res.data.package || null)
+              : null;
+
+            const resolvedTier = incomingTier
+              || prev?.packageTier
+              || prev?.package_tier
+              || prev?.package
+              || currentUser?.gym?.package_tier
+              || currentUser?.gym?.package
+              || null;
+
+            const resolvedPackageName = (!isFallback && (res.data.packageName || res.data.package_name))
+              ? (res.data.packageName || res.data.package_name)
+              : (resolvedTier ? `${resolvedTier} Plan` : (prev?.packageName || ''));
+
+            const resolvedFeatures = (!isFallback && Array.isArray(res.data.features) && res.data.features.length > 0)
+              ? res.data.features
+              : (Array.isArray(prev?.features) && prev.features.length > 0
+                  ? prev.features
+                  : (Array.isArray(currentUser?.gym?.features) ? currentUser.gym.features : []));
+
+            const resolvedMaxBranches = (!isFallback && res.data.maxBranches !== undefined)
+              ? res.data.maxBranches
+              : (prev?.maxBranches ?? currentUser?.gym?.max_branches ?? 1);
+
+            cleanInfo = {
+              ...prev,
+              id: res.data.id || prev?.id || currentUser?.gym?.id || null,
+              name: (!isFallback && res.data.name) ? res.data.name : (prev?.name || currentUser?.gym?.name || ''),
+              tagline: (!isFallback && res.data.tagline !== undefined) ? res.data.tagline : (prev?.tagline || ''),
+              logo: (!isFallback && res.data.logo !== undefined) ? res.data.logo : (prev?.logo || currentUser?.gym?.logo || ''),
+              address: (!isFallback && res.data.address !== undefined) ? res.data.address : (prev?.address || ''),
+              city: (!isFallback && res.data.city !== undefined) ? res.data.city : (prev?.city || ''),
+              state: (!isFallback && res.data.state !== undefined) ? res.data.state : (prev?.state || ''),
+              pincode: (!isFallback && res.data.pincode !== undefined) ? res.data.pincode : (prev?.pincode || ''),
+              phone: (!isFallback && res.data.phone !== undefined) ? res.data.phone : (prev?.phone || ''),
+              email: (!isFallback && res.data.email !== undefined) ? res.data.email : (prev?.email || ''),
+              website: (!isFallback && res.data.website !== undefined) ? res.data.website : (prev?.website || ''),
+              operatingHours: res.data.operatingHours || res.data.operating_hours || prev?.operatingHours || '',
+              currency: res.data.currency || prev?.currency || '₹',
+              gstNumber: res.data.gstNumber || res.data.gst_number || prev?.gstNumber || '',
+              packageTier: resolvedTier,
+              package: resolvedTier,
+              features: resolvedFeatures,
+              packageName: resolvedPackageName,
+              billingCycle: res.data.billingCycle || res.data.billing_cycle || prev?.billingCycle || 'Annual',
+              packageAmount: res.data.packageAmount ?? res.data.package_amount ?? prev?.packageAmount ?? null,
+              subscriptionStartsAt: res.data.subscriptionStartsAt || res.data.subscription_starts_at || res.data.createdAt || res.data.created_at || prev?.subscriptionStartsAt || '',
+              subscriptionExpiresAt: res.data.subscriptionExpiresAt || res.data.subscription_expires_at || prev?.subscriptionExpiresAt || '',
+              createdAt: res.data.createdAt || res.data.created_at || prev?.createdAt || '',
+              status: res.data.status || prev?.status || 'Active',
+              maxMembers: res.data.maxMembers ?? res.data.max_members ?? prev?.maxMembers ?? null,
+              maxTrainers: res.data.maxTrainers ?? res.data.max_trainers ?? prev?.maxTrainers ?? null,
+              maxBranches: resolvedMaxBranches,
+              ownerName: res.data.ownerName || res.data.owner_name || prev?.ownerName || '',
+              owner_name: res.data.owner_name || res.data.ownerName || prev?.owner_name || '',
+              deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || prev?.deviceIp || '192.168.1.201',
+              devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || prev?.devicePort || 4370,
+              payrollAttendanceSettings: res.data.payrollAttendanceSettings || res.data.payroll_attendance_settings || prev?.payrollAttendanceSettings || null,
+            };
+            return cleanInfo;
+          });
+          return cleanInfo || res.data;
         }
       }
     } catch (e) { console.warn('Fetch gym info error:', e.message); }
-  }, [currentUser?.gymId, currentUser?.gym_id]);
+  }, [currentUser?.gymId, currentUser?.gym_id, currentUser?.gym]);
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -1636,9 +1670,10 @@ export const GymDataProvider = ({ children }) => {
         website: '',
         operatingHours: '',
         currency: '₹',
-        packageTier: 'Bronze',
-        package: 'Bronze',
-        packageName: 'Bronze Plan',
+        packageTier: null,
+        package: null,
+        packageName: '',
+        features: [],
         billingCycle: 'Annual',
         status: 'Active',
       });
@@ -1666,6 +1701,7 @@ export const GymDataProvider = ({ children }) => {
     // Immediately hydrate gymInfo from currentUser.gym if available to avoid flashing stale gym branding
     if (currentUser?.gym) {
       const g = currentUser.gym;
+      const tier = g.package_tier || g.package || null;
       setGymInfo((prev) => ({
         ...prev,
         id: g.id || null,
@@ -1681,9 +1717,10 @@ export const GymDataProvider = ({ children }) => {
         website: g.website || '',
         operatingHours: g.operating_hours || '',
         currency: g.currency || '₹',
-        packageTier: g.package_tier || g.package || 'Bronze',
-        package: g.package_tier || g.package || 'Bronze',
-        packageName: g.package_name || (g.package_tier ? `${g.package_tier} Plan` : 'Bronze Plan'),
+        packageTier: tier || prev?.packageTier,
+        package: tier || prev?.package,
+        packageName: g.package_name || (tier ? `${tier} Plan` : prev?.packageName || ''),
+        features: Array.isArray(g.features) && g.features.length > 0 ? g.features : (prev?.features || []),
         billingCycle: g.billing_cycle || 'Annual',
         packageAmount: g.package_amount ?? null,
         subscriptionStartsAt: g.created_at || '',

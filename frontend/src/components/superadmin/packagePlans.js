@@ -389,8 +389,14 @@ export const getPlanByTier = (tierName) => {
   return PACKAGE_PLANS[3]; // Default to full access
 };
 
+import { resolveGymTier } from '../../utils/tierUtils';
+export { resolveGymTier };
+
 export const isTabAllowedForGym = (tabId, packageTier, customFeatures = null) => {
   if (!tabId) return true;
+
+  // While data is still loading or plan is unknown, NEVER prematurely hide pages
+  if (!packageTier) return true;
 
   // Universal core tabs and views always accessible to all gyms
   const universalAllowedTabs = [
@@ -405,7 +411,7 @@ export const isTabAllowedForGym = (tabId, packageTier, customFeatures = null) =>
   if (universalAllowedTabs.includes(tabId)) return true;
 
   // Normalize tier name
-  const norm = (packageTier || 'platinum').toLowerCase().trim();
+  const norm = String(packageTier).toLowerCase().trim();
   let resolvedTier = 'platinum';
   if (norm.includes('bronze') || norm === 'basic') resolvedTier = 'bronze';
   else if (norm.includes('silver') || norm === 'growth') resolvedTier = 'silver';

@@ -4,7 +4,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, FileText, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi } from 'lucide-react';
-import { getPlanByTier } from '../superadmin/packagePlans';
+import { getPlanByTier, resolveGymTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
 import {
@@ -235,8 +235,8 @@ export const SettingsManager = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Purchased Plan & Subscription dates computed from real gymInfo
-  const currentTier = gymInfo?.packageTier || gymInfo?.package || 'Bronze';
+  // Purchased Plan & Subscription dates computed from real gymInfo and currentUser
+  const currentTier = resolveGymTier(gymInfo, currentUser) || 'Platinum';
   const currentPlan = getPlanByTier(currentTier);
   const isPlatinum = Boolean(branchesData?.is_platinum || currentTier?.toLowerCase() === 'platinum');
 
@@ -535,7 +535,19 @@ export const SettingsManager = () => {
       } catch (err) {
         console.warn('Backend gymInfo update note:', err.message);
       }
-      setGymInfo(updatedData);
+      setGymInfo((prev) => ({
+        ...prev,
+        ...updatedData,
+        packageTier: prev?.packageTier,
+        package: prev?.package,
+        packageName: prev?.packageName,
+        features: prev?.features,
+        maxBranches: prev?.maxBranches,
+        maxMembers: prev?.maxMembers,
+        maxTrainers: prev?.maxTrainers,
+        subscriptionStartsAt: prev?.subscriptionStartsAt,
+        subscriptionExpiresAt: prev?.subscriptionExpiresAt,
+      }));
       setFormData(updatedData);
       if (updatedData.deviceIp) setDeviceIp(updatedData.deviceIp);
       if (updatedData.devicePort) setDevicePort(updatedData.devicePort);
@@ -680,7 +692,7 @@ export const SettingsManager = () => {
               <div className="text-sm font-bold text-slate-800 mt-0.5">
                 {gymInfo?.maxMembers ? `${gymInfo.maxMembers} Athletes` : 'Unlimited Athletes'}
                 <span className="text-xs font-normal text-slate-500">
-                  {' '}â€¢ {gymInfo?.maxBranches && gymInfo.maxBranches > 1 ? `${gymInfo.maxBranches} Gyms` : '1 Gym'}
+                  {' '}• {(gymInfo?.maxBranches && gymInfo.maxBranches > 1) ? `${gymInfo.maxBranches} Gyms` : (currentTier?.toLowerCase() === 'platinum' ? '3 Gyms' : '1 Gym')}
                 </span>
               </div>
             </div>

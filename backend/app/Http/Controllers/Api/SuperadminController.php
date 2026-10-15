@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\SaasPlan;
 use App\Models\PlatformPage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -171,12 +172,18 @@ class SuperadminController extends Controller
             ]);
 
             // Determine package details from real request inputs
-            $tier = $request->package_tier ?: ($request->gym_package ?: null);
-            $billingCycle = $request->billing_cycle ?: null;
+            $tier = $request->package_tier ?: ($request->gym_package ?: ($request->package ?: 'Bronze'));
+            $billingCycle = $request->billing_cycle ?: 'Annual';
             $amount = $request->has('package_amount') && $request->package_amount !== null && $request->package_amount !== ''
                 ? (float)$request->package_amount
                 : null;
             $features = is_array($request->features) ? $request->features : [];
+            if (empty($features)) {
+                $saasPlan = \App\Models\SaasPlan::where('tier', $tier)->first();
+                if ($saasPlan && !empty($saasPlan->features)) {
+                    $features = $saasPlan->features;
+                }
+            }
 
             // 2. Create the Gym entity
             // Build core data — ONLY columns from the original gyms table migration
@@ -321,6 +328,16 @@ class SuperadminController extends Controller
             $tier = $request->package_tier ?? $request->package;
             if (Schema::hasColumn('gyms', 'package_tier')) $gym->package_tier = $tier;
             $gym->package = $tier;
+
+            $saasPlan = \App\Models\SaasPlan::where('tier', $tier)->first();
+            if ($saasPlan) {
+                if (!$request->has('features') && Schema::hasColumn('gyms', 'features') && !empty($saasPlan->features)) {
+                    $gym->features = $saasPlan->features;
+                }
+                if (!$request->has('max_branches') && Schema::hasColumn('gyms', 'max_branches') && $saasPlan->max_branches !== null) {
+                    $gym->max_branches = (int)$saasPlan->max_branches;
+                }
+            }
         }
         if ($request->has('billing_cycle') && Schema::hasColumn('gyms', 'billing_cycle')) $gym->billing_cycle = $request->billing_cycle;
         if ($request->has('package_amount') && Schema::hasColumn('gyms', 'package_amount')) {
@@ -415,6 +432,7 @@ class SuperadminController extends Controller
         }
 
         $gym->save();
+        Cache::forget("gym_setting_v1_{$gym->id}");
 
         return response()->json([
             'success' => true,
@@ -502,6 +520,7 @@ class SuperadminController extends Controller
         // 3. Mark Gym status as Suspended
         $gym->status = 'Suspended';
         $gym->save();
+        Cache::forget("gym_setting_v1_{$gym->id}");
 
         return response()->json([
             'success' => true,
@@ -528,6 +547,7 @@ class SuperadminController extends Controller
         // Mark Gym status as Active
         $gym->status = 'Active';
         $gym->save();
+        Cache::forget("gym_setting_v1_{$gym->id}");
 
         return response()->json([
             'success' => true,

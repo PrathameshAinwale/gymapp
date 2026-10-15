@@ -9,7 +9,7 @@ test('1. formatInvoiceDate correctly standardizes various date formats to DD MMM
   // YYYY-MM-DD
   assert.equal(formatInvoiceDate('2026-10-15'), '15 Oct 2026');
   assert.equal(formatInvoiceDate('2026-01-01'), '01 Jan 2026');
-  
+
   // DD-MM-YYYY or DD/MM/YYYY
   assert.equal(formatInvoiceDate('15-10-2026'), '15 Oct 2026');
   assert.equal(formatInvoiceDate('15/10/2026'), '15 Oct 2026');

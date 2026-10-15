@@ -12,7 +12,7 @@ import { ToastContainer } from './components/common/ToastContainer';
 import { LogoutConfirmModal } from './components/common/LogoutConfirmModal';
 import { OwnerPageLoader } from './components/common/OwnerPageLoader';
 import { AboutPages } from './components/common/AboutPages';
-import { isTabAllowedForGym } from './components/superadmin/packagePlans';
+import { isTabAllowedForGym, resolveGymTier } from './components/superadmin/packagePlans';
 
 // Eager landing view for Owner Dashboard
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
@@ -88,14 +88,14 @@ function MainApp() {
     handleNavigateTab('members');
   };
 
-  const currentTier = gymInfo?.packageTier || gymInfo?.package || currentUser?.packageTier || currentUser?.package || 'Bronze';
+  const currentTier = resolveGymTier(gymInfo, currentUser);
 
   // Strict Plan Protection: Redirect to dashboard if trying to view a tab not included in current plan
   useEffect(() => {
-    if (activeTab && currentRole !== 'superadmin' && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
+    if (activeTab && currentRole !== 'superadmin' && currentTier && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
       setActiveTab('dashboard');
     }
-  }, [activeTab, currentTier, gymInfo, currentRole]);
+  }, [activeTab, currentTier, gymInfo?.features, currentRole]);
 
   // Initialize and synchronize history state
   useEffect(() => {
@@ -265,7 +265,7 @@ function MainApp() {
   // 3. Gym Superadmin / Accounts / Manager Operations Content Routing
   const renderOwnerContent = () => {
     // Strict Plan Guard: If tab is not permitted in gym's plan, render dashboard
-    if (activeTab !== 'dashboard' && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
+    if (activeTab !== 'dashboard' && currentTier && !isTabAllowedForGym(activeTab, currentTier, gymInfo?.features)) {
       return (
         <OwnerDashboard
           setActiveTab={handleNavigateTab}

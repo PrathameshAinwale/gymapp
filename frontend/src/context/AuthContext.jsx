@@ -225,6 +225,16 @@ export const AuthProvider = ({ children }) => {
         }
       });
     }
+
+    const handleUnauthorized = () => {
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      api.clearCache?.();
+    };
+    window.addEventListener('pulsefit:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('pulsefit:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   // Hydrate staff accounts from Laravel SQLite backend for the active gym

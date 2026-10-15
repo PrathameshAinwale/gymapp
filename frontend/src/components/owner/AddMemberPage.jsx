@@ -790,7 +790,7 @@ export const AddMemberPage = ({
 
   const chosenPlan = selectedMembershipRow
     ? (getPackageObject(selectedMembershipRow.packageType, selectedMembershipRow.packageId) ||
-       (plans || []).find((p) => String(p.id) === String(selectedMembershipRow.packageId)) || null)
+      (plans || []).find((p) => String(p.id) === String(selectedMembershipRow.packageId)) || null)
     : ((plans || []).find((p) => String(p.id) === String(formData.planId)) || null);
 
   const selectedPtRow = selectedPackages.find(
@@ -1565,8 +1565,8 @@ export const AddMemberPage = ({
 
     const gstSection = isGst
       ? `â€¢ Plan Base Fee: â‚¹${baseFee.toLocaleString('en-IN')}\n` +
-        `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
-        `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
+      `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
+      `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
       : `â€¢ Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to ${gymInfo?.name || 'PulseFit Pro'}!\n\n` +
@@ -1613,8 +1613,8 @@ export const AddMemberPage = ({
 
     const gstSection = isGst
       ? `â€¢ Plan Base Fee: â‚¹${baseFee.toLocaleString('en-IN')}\n` +
-        `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
-        `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
+      `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
+      `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
       : `â€¢ Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to *${gymInfo?.name || 'PulseFit Pro'}*!\n\n` +
@@ -2141,7 +2141,7 @@ export const AddMemberPage = ({
                 className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode && !isEditMode
                   ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                   : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                  }`}
               />
             </div>
 
@@ -2165,13 +2165,12 @@ export const AddMemberPage = ({
                 onKeyDown={preventNonPhoneKey}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
-                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors ${
-                  isUpgradeMode || isEditMode
+                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors ${isUpgradeMode || isEditMode
                     ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed select-none font-medium'
                     : duplicatePhoneMember
                       ? 'bg-rose-50 border-2 border-rose-500 text-slate-900 focus:outline-none'
                       : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
-                }`}
+                  }`}
               />
               {isEditMode ? (
                 <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
@@ -2225,11 +2224,10 @@ export const AddMemberPage = ({
                   setMembershipStartDate(val);
                   setSelectedPackages((prev) => recalculatePackageRows(prev, val));
                 }}
-                className={`w-full px-3 py-2 rounded-xl text-xs ${
-                  isUpgradeMode || isEditMode
+                className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode || isEditMode
                     ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                     : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-                }`}
+                  }`}
               />
             </div>
 
@@ -2525,11 +2523,10 @@ export const AddMemberPage = ({
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-[11px] font-bold text-slate-700">Discount (â‚¹)</label>
                           {maxPlanDiscount > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                              Number(pkgRow.discount) > maxPlanDiscount
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
                                 ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
                                 : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}>
+                              }`}>
                               Max: â‚¹{maxPlanDiscount.toLocaleString('en-IN')}
                             </span>
                           )}
@@ -2539,11 +2536,10 @@ export const AddMemberPage = ({
                           placeholder="0"
                           value={pkgRow.discount}
                           onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
-                          className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${
-                            maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
+                          className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
                               ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
                               : 'border-slate-200 text-slate-900 focus:border-emerald-500'
-                          }`}
+                            }`}
                         />
                         {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
                           <p className="text-[10px] text-rose-600 font-bold mt-1">
@@ -2944,11 +2940,10 @@ export const AddMemberPage = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start sm:items-center gap-2.5">
                     <div
-                      className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${
-                        isGstIncluded
+                      className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${isGstIncluded
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}
+                        }`}
                     >
                       <Receipt className="w-4 h-4" />
                     </div>
@@ -2956,11 +2951,10 @@ export const AddMemberPage = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-slate-900">GST</span>
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
-                            isGstIncluded
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${isGstIncluded
                               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                               : 'bg-slate-200 text-slate-700 border-slate-300'
-                          }`}
+                            }`}
                         >
                           {isGstIncluded ? 'GST Included' : 'GST Disabled (Non-GST)'}
                         </span>
@@ -3344,13 +3338,12 @@ export const AddMemberPage = ({
                   ? totalCalculatedAmount <= 0
                   : (!consentAgreed || (!otpVerified && !signedInPerson)))
             }
-            className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
-              isEditMode
+            className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isEditMode
                 ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
                 : isUpgradeMode
                   ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-            }`}
+              }`}
           >
             {isCreatingMember ? (
               <>

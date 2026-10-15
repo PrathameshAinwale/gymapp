@@ -54,7 +54,7 @@ import {
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
-import { getPlanByTier } from '../superadmin/packagePlans';
+import { getPlanByTier, resolveGymTier } from '../superadmin/packagePlans';
 import { matchesMemberUniversal } from '../../utils/searchUtils';
 import { api } from '../../services/api';
 
