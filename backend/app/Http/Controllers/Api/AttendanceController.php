@@ -273,7 +273,7 @@ class AttendanceController extends Controller
             // 1. Members Auto Check-Out
             $memberSettings = $settings['member'] ?? ['auto_checkout' => true, 'auto_checkout_hours' => 2];
             if (!empty($memberSettings['auto_checkout'])) {
-                $isShiftBased = (($memberSettings['auto_checkout_hours'] ?? null) === 'shift' || ($memberSettings['auto_checkout_hours'] ?? null) === 'shifts');
+                $isShiftBased = false; // Members do not use shifts; they use workout duration hours (default 2 hrs)
                 $maxHours = (float)($memberSettings['auto_checkout_hours'] ?? 2);
                 $maxMinutes = (int)($maxHours * 60);
 

@@ -14,7 +14,7 @@ class GymSettingController extends Controller
         return [
             'member' => [
                 'auto_checkout' => true,
-                'auto_checkout_hours' => 'shift',
+                'auto_checkout_hours' => 2,
                 'late_mark_minutes' => 0,
             ],
             'trainer' => [
