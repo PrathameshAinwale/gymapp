@@ -365,9 +365,19 @@ export const AuthProvider = ({ children }) => {
       };
     } catch (apiErr) {
       console.warn('Backend API login error:', apiErr.message);
+      const isConnectionError =
+        apiErr.name === 'TimeoutError' ||
+        apiErr.message?.toLowerCase().includes('timed out') ||
+        apiErr.message?.toLowerCase().includes('aborted') ||
+        apiErr.message?.toLowerCase().includes('failed to fetch') ||
+        apiErr.message?.toLowerCase().includes('network error') ||
+        apiErr.message?.toLowerCase().includes('unable to connect');
+
       return {
         success: false,
-        error: apiErr.message || 'Invalid Credentials. Please check your mobile number or email, and password.'
+        error: isConnectionError
+          ? 'Unable to reach the backend server (127.0.0.1:8000). Please ensure your Laravel server is running: php artisan serve'
+          : (apiErr.message || 'Invalid Credentials. Please check your mobile number or email, and password.')
       };
     }
   };

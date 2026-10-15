@@ -9,12 +9,10 @@ const CURRENT_LAN_IP = '192.168.1.40';
 const isRunningInCapacitor = () => {
   if (typeof window === 'undefined') return false;
   return Boolean(
-    window.Capacitor !== undefined ||
+    (typeof window.Capacitor !== 'undefined' &&
+      (typeof window.Capacitor.isNativePlatform === 'function' ? window.Capacitor.isNativePlatform() : true)) ||
     window.location.protocol === 'capacitor:' ||
-    window.location.protocol === 'ionic:' ||
-    (window.location.protocol === 'https:' && window.location.hostname === 'localhost' && window.navigator?.userAgent?.includes('Android')) ||
-    (window.location.protocol === 'http:' && window.location.hostname === 'localhost' && window.navigator?.userAgent?.includes('Android')) ||
-    window.navigator?.userAgent?.includes('Capacitor')
+    window.location.protocol === 'ionic:'
   );
 };
 
@@ -165,13 +163,29 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
 // Fast fetch helper with timeout to avoid browser hangs
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    try {
+      controller.abort(new Error(`Request timed out after ${timeoutMs}ms`));
+    } catch {
+      controller.abort();
+    }
+  }, timeoutMs);
+
   try {
     const res = await fetch(url, {
       ...options,
       signal: options.signal || controller.signal,
     });
     return res;
+  } catch (err) {
+    if (timedOut || err.name === 'AbortError' || controller.signal.aborted) {
+      const timeoutErr = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+      timeoutErr.name = 'TimeoutError';
+      throw timeoutErr;
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -272,8 +286,9 @@ const apiFetch = async (urlOrPath, options = {}) => {
         getOriginApiUrl(),
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
-        `http://${currentHost}:8000/api/v1`,
-        `http://${CURRENT_LAN_IP}:8000/api/v1`,
+        currentHost && isLocalHost(currentHost) && currentHost !== 'localhost' && currentHost !== '127.0.0.1'
+          ? `http://${currentHost}:8000/api/v1`
+          : null,
       ].filter(Boolean);
     }
 

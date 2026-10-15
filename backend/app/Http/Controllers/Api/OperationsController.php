@@ -861,7 +861,7 @@ class OperationsController extends Controller
             'reference_no' => $invNum,
             'user_id' => $billedUserId,
             'member_name' => ($transfer->to_member_name ?? 'Recipient') . " (Transfer from " . ($transfer->from_member_name ?? 'Source') . ")",
-            'plan_name' => "Transfer Fee: " . ($transfer->from_member_name ?? 'Source') . " → " . ($transfer->to_member_name ?? 'Recipient'),
+            'plan_name' => "Transfer Fee: " . ($transfer->from_member_name ?? 'Source') . " â†’ " . ($transfer->to_member_name ?? 'Recipient'),
             'title' => "Membership Transfer Fee - " . ($transfer->to_member_name ?? 'Recipient'),
             'category' => 'Membership Transfer',
             'amount' => $transferFee,
@@ -1006,6 +1006,11 @@ class OperationsController extends Controller
     {
         $gymId = $this->resolveGymId($request);
         $currentMonth = $request->query('month') ?? now()->format('F Y');
+
+        // Check for unexcused staff absence (0 remaining leaves & no check-in) -> Mark Unpaid Leave & Deduct Salary
+        try {
+            \App\Http\Controllers\Api\LeaveController::processUnpaidLeavesForAbsentStaff();
+        } catch (\Throwable $e) {}
 
         // Auto-provision or update current month's payroll for all staff and trainers if gymId is available
         if ($gymId) {
@@ -1178,7 +1183,7 @@ class OperationsController extends Controller
         // Deduct from employee's advance taken balance if active advance exists
         if ($request->has('deductions') && (float)$request->deductions > 0) {
             $deductionToApply = (float)$request->deductions;
-            
+
             $advQuery = AdvanceRequest::query();
             if ($p->employee_id) {
                 $advQuery->where(function ($q) use ($p) {
@@ -1207,7 +1212,7 @@ class OperationsController extends Controller
 
                 $advNotes = $adv->notes ? $adv->notes . ' | ' : '';
                 $remarkNote = !empty($request->notes) ? " ({$request->notes})" : (!empty($request->remarks) ? " ({$request->remarks})" : '');
-                $advNotes .= "Payroll deduction ₹" . number_format($portionToDeduct, 2) . " applied{$remarkNote} on " . now()->toDateString();
+                $advNotes .= "Payroll deduction â‚¹" . number_format($portionToDeduct, 2) . " applied{$remarkNote} on " . now()->toDateString();
 
                 $newStatus = ($newRepaid >= (float)$adv->amount) ? 'Repaid' : 'Partially Repaid';
 

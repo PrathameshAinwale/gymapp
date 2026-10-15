@@ -9,6 +9,34 @@ use Illuminate\Support\Facades\Cache;
 
 class GymSettingController extends Controller
 {
+    public static function getDefaultPayrollAttendanceSettings(): array
+    {
+        return [
+            'member' => [
+                'auto_checkout' => true,
+                'auto_checkout_hours' => 'shift',
+                'late_mark_minutes' => 0,
+            ],
+            'trainer' => [
+                'auto_checkout' => true,
+                'auto_checkout_hours' => 'shift',
+                'late_mark_minutes' => 15,
+                'half_day_hours' => 4,
+            ],
+            'manager' => [
+                'auto_checkout' => true,
+                'auto_checkout_hours' => 'shift',
+                'late_mark_minutes' => 15,
+                'half_day_hours' => 4.5,
+            ],
+            'accounts' => [
+                'auto_checkout' => true,
+                'auto_checkout_hours' => 'shift',
+                'late_mark_minutes' => 15,
+                'half_day_hours' => 4,
+            ],
+        ];
+    }
     public function show(Request $request)
     {
         $gymId = $this->resolveGymId($request);
@@ -50,7 +78,7 @@ class GymSettingController extends Controller
                     'email' => $gym->email ?? '',
                     'website' => $gym->website ?? '',
                     'operatingHours' => $gym->operating_hours ?? '',
-                    'currency' => $gym->currency ?? '₹',
+                    'currency' => $gym->currency ?? 'â‚¹',
                     'gstNumber' => $gym->gst_number ?? '',
                     'package' => $packageTier,
                     'packageTier' => $packageTier,
@@ -75,6 +103,8 @@ class GymSettingController extends Controller
                     'max_trainers' => $gym->max_trainers ?? $saasPlan?->max_trainers,
                     'maxBranches' => $gym->max_branches ?? 1,
                     'max_branches' => $gym->max_branches ?? 1,
+                    'payrollAttendanceSettings' => !empty($gym->payroll_attendance_settings) ? (is_string($gym->payroll_attendance_settings) ? json_decode($gym->payroll_attendance_settings, true) : $gym->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'payroll_attendance_settings' => !empty($gym->payroll_attendance_settings) ? (is_string($gym->payroll_attendance_settings) ? json_decode($gym->payroll_attendance_settings, true) : $gym->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
                 ];
             });
 
@@ -95,7 +125,7 @@ class GymSettingController extends Controller
                     'phone' => $setting->phone ?? '',
                     'email' => $setting->email ?? '',
                     'operatingHours' => $setting->operating_hours ?? '',
-                    'currency' => $setting->currency ?? '₹',
+                    'currency' => $setting->currency ?? 'â‚¹',
                     'package' => 'Bronze',
                     'packageTier' => 'Bronze',
                     'features' => [],
@@ -105,6 +135,8 @@ class GymSettingController extends Controller
                     'max_trainers' => 0,
                     'maxBranches' => 1,
                     'max_branches' => 1,
+                    'payrollAttendanceSettings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'payroll_attendance_settings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
                 ]
             ]);
         }
@@ -119,7 +151,7 @@ class GymSettingController extends Controller
                 'phone' => '',
                 'email' => '',
                 'operatingHours' => '',
-                'currency' => '₹',
+                'currency' => 'â‚¹',
             ]
         ]);
     }
@@ -139,7 +171,11 @@ class GymSettingController extends Controller
             if (($request->has('operatingHours') || $request->has('operating_hours')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'operating_hours')) {
                 $gym->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
             }
-            if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: '₹';
+            if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: 'â‚¹';
+            if (($request->has('payrollAttendanceSettings') || $request->has('payroll_attendance_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'payroll_attendance_settings')) {
+                $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
+                $gym->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
+            }
             $gym->save();
             Cache::forget("gym_setting_v1_{$gymId}");
         }
@@ -159,7 +195,11 @@ class GymSettingController extends Controller
             if ($request->has('operatingHours') || $request->has('operating_hours')) {
                 $setting->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
             }
-            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
+            if (($request->has('payrollAttendanceSettings') || $request->has('payroll_attendance_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gym_settings', 'payroll_attendance_settings')) {
+                $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
+                $setting->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
+            }
+            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: 'â‚¹';
             $setting->save();
         }
 
@@ -360,7 +400,7 @@ class GymSettingController extends Controller
             'billing_cycle' => $primaryGym->billing_cycle ?? 'Annual',
             'subscription_expires_at' => $primaryGym->subscription_expires_at,
             'status' => 'Active',
-            'currency' => $primaryGym->currency ?? '₹',
+            'currency' => $primaryGym->currency ?? 'â‚¹',
             'operating_hours' => $request->operating_hours ?: ($primaryGym->operating_hours ?? 'Mon-Sat: 6:00 AM - 10:30 PM'),
             'logo' => $request->logo ?: ($primaryGym->logo ?? null),
             'max_members' => $primaryGym->max_members,

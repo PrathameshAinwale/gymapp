@@ -36,6 +36,9 @@ class MemberProfile extends Model
         'dues_amount',
         'due_date',
         'last_check_in',
+        'biometric_user_id',
+        'synced_to_device',
+        'device_synced_at',
     ];
 
     protected $casts = [

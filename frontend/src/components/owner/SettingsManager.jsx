@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle } from 'lucide-react';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare } from 'lucide-react';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
@@ -37,6 +37,90 @@ export const SettingsManager = () => {
 
   // Active Settings Sub-Tab: 'general' | 'consent'
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
+
+  // Payroll & Attendance Policy Configuration State
+  const DEFAULT_PAYROLL_ATTENDANCE = {
+    member: {
+      auto_checkout: true,
+      auto_checkout_hours: 'shift',
+      late_mark_minutes: 0,
+      workout_window_alert: true,
+    },
+    trainer: {
+      auto_checkout: true,
+      auto_checkout_hours: 'shift',
+      late_mark_minutes: 15,
+      half_day_hours: 4,
+      late_penalty_enabled: true,
+    },
+    manager: {
+      auto_checkout: true,
+      auto_checkout_hours: 'shift',
+      late_mark_minutes: 15,
+      half_day_hours: 4.5,
+      late_penalty_enabled: false,
+    },
+    accounts: {
+      auto_checkout: true,
+      auto_checkout_hours: 'shift',
+      late_mark_minutes: 15,
+      half_day_hours: 4,
+      late_penalty_enabled: true,
+    },
+  };
+
+  const [payrollConfig, setPayrollConfig] = useState(() => {
+    return gymInfo?.payrollAttendanceSettings || gymInfo?.payroll_attendance_settings || DEFAULT_PAYROLL_ATTENDANCE;
+  });
+  const [isSavingPayroll, setIsSavingPayroll] = useState(false);
+
+  useEffect(() => {
+    if (gymInfo?.payrollAttendanceSettings || gymInfo?.payroll_attendance_settings) {
+      setPayrollConfig((prev) => ({
+        ...DEFAULT_PAYROLL_ATTENDANCE,
+        ...(gymInfo.payrollAttendanceSettings || gymInfo.payroll_attendance_settings),
+      }));
+    }
+  }, [gymInfo]);
+
+  const handleUpdateRoleSetting = (role, key, value) => {
+    setPayrollConfig((prev) => ({
+      ...prev,
+      [role]: {
+        ...(prev[role] || DEFAULT_PAYROLL_ATTENDANCE[role] || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleSavePayrollConfig = async () => {
+    setIsSavingPayroll(true);
+    try {
+      await api.gym.updateInfo({
+        payrollAttendanceSettings: payrollConfig,
+        payroll_attendance_settings: payrollConfig,
+      });
+      if (setGymInfo) {
+        setGymInfo((prev) => ({
+          ...prev,
+          payrollAttendanceSettings: payrollConfig,
+          payroll_attendance_settings: payrollConfig,
+        }));
+      }
+      addToast('Payroll & Attendance policies saved and applied successfully!', 'success');
+    } catch (err) {
+      addToast('Failed to save settings: ' + (err.message || 'Error'), 'error');
+    } finally {
+      setIsSavingPayroll(false);
+    }
+  };
+
+  const handleResetPayrollConfig = () => {
+    if (window.confirm('Reset all roles to standard gym attendance & payroll defaults?')) {
+      setPayrollConfig(DEFAULT_PAYROLL_ATTENDANCE);
+      addToast('Reset to standard recommended policies. Click "Save Policies" to confirm.', 'info');
+    }
+  };
 
   // Dynamic Consent Form Builder State
   const [consentFormConfig, setConsentFormConfig] = useState(() => getGymConsentForm(gymInfo?.id));
@@ -133,7 +217,7 @@ export const SettingsManager = () => {
     phone: gymInfo?.phone || '',
     email: gymInfo?.email || '',
     operatingHours: gymInfo?.operatingHours || '',
-    currency: gymInfo?.currency || '₹',
+    currency: gymInfo?.currency || 'â‚¹',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -166,7 +250,7 @@ export const SettingsManager = () => {
         phone: gymInfo.phone || '',
         email: gymInfo.email || '',
         operatingHours: gymInfo.operatingHours || '',
-        currency: gymInfo.currency || '₹',
+        currency: gymInfo.currency || 'â‚¹',
       });
     }
   }, [gymInfo]);
@@ -355,7 +439,7 @@ export const SettingsManager = () => {
         phone: formData.phone,
         email: sanitizeText(formData.email),
         operatingHours: sanitizeText(formData.operatingHours),
-        currency: formData.currency || '₹',
+        currency: formData.currency || 'â‚¹',
       };
       let updatedData = { ...sanitizedPayload };
       try {
@@ -370,7 +454,7 @@ export const SettingsManager = () => {
             phone: res.data.phone || '',
             email: res.data.email || '',
             operatingHours: res.data.operatingHours || res.data.operating_hours || '',
-            currency: res.data.currency || '₹',
+            currency: res.data.currency || 'â‚¹',
           };
         }
       } catch (err) {
@@ -429,6 +513,19 @@ export const SettingsManager = () => {
         >
           <ShieldCheck className="w-4 h-4" />
           <span>Member Registration Consent Form</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('payroll_attendance')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'payroll_attendance'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Payroll & Attendance</span>
         </button>
       </div>
 
@@ -506,14 +603,14 @@ export const SettingsManager = () => {
               <div className="text-sm font-bold text-slate-800 mt-0.5">
                 {gymInfo?.maxMembers ? `${gymInfo.maxMembers} Athletes` : 'Unlimited Athletes'}
                 <span className="text-xs font-normal text-slate-500">
-                  {' '}• {gymInfo?.maxBranches && gymInfo.maxBranches > 1 ? `${gymInfo.maxBranches} Gyms` : '1 Gym'}
+                  {' '}â€¢ {gymInfo?.maxBranches && gymInfo.maxBranches > 1 ? `${gymInfo.maxBranches} Gyms` : '1 Gym'}
                 </span>
               </div>
             </div>
           </div>
         </div>
-      </div>      
-      
+      </div>
+
       <form onSubmit={handleSave} className="space-y-3 sm:space-y-6">
         {/* General Business Profile */}
         <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
@@ -721,7 +818,7 @@ export const SettingsManager = () => {
               <input
                 type="text"
                 readOnly
-                value="Indian Rupee (₹ / INR)"
+                value="Indian Rupee (â‚¹ / INR)"
                 className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold"
               />
             </div>
@@ -749,9 +846,9 @@ export const SettingsManager = () => {
         </div>
       </form>
 
-      {/* ══════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {/* OWNER ACCOUNT & PASSWORD SECURITY                         */}
-      {/* ══════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -1051,7 +1148,7 @@ export const SettingsManager = () => {
                             <span>Switching Workspace...</span>
                           </>
                         ) : (
-                          <span>Switch to this Gym →</span>
+                          <span>Switch to this Gym â†’</span>
                         )}
                       </button>
                     )}
@@ -1080,10 +1177,10 @@ export const SettingsManager = () => {
         )}
       </div>
       </div>
-      ) : (
-        /* ══════════════════════════════════════════════════════════ */
+      ) : activeSettingsTab === 'consent' ? (
+        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
         /* TAB 2: DIGITAL CONSENT & WAIVER BUILDER                   */
-        /* ══════════════════════════════════════════════════════════ */
+        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
         <div className="space-y-4 sm:space-y-6">
           {/* Top Info & Action Card */}
           <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1333,6 +1430,448 @@ export const SettingsManager = () => {
                 <span className="text-[11px] text-slate-600">
                   {consentFormConfig.declarationSubtext || 'By checking this box, the athlete confirms full agreement and understanding of the above clauses.'}
                 </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        /* TAB 3: PAYROLL & ATTENDANCE POLICY RULES                   */
+        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        <div className="space-y-5 animate-fadeIn">
+          {/* Header Action Bar */}
+          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                    Payroll & Attendance Policy Rules
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Set role-specific late mark grace periods, auto check-out toggles, and work duration cutoffs.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleResetPayrollConfig}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Reset Defaults</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSavingPayroll}
+                onClick={handleSavePayrollConfig}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSavingPayroll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSavingPayroll ? 'Saving...' : 'Save All Policies'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* 1. MEMBER ATTENDANCE & AUTO CHECK-OUT SECTION             */}
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-emerald-100/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold border border-emerald-200 shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Gym Member Settings</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Member Role
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Turnstile gate check-in duration rules and automatic session completion.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Auto Check-Out Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Auto Check-Out</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Auto-close workouts if member doesn't punch out at turnstile
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!!payrollConfig.member?.auto_checkout}
+                      onChange={(e) => handleUpdateRoleSetting('member', 'auto_checkout', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {payrollConfig.member?.auto_checkout && (
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Auto Check-Out Time:
+                      </label>
+                      <select
+                        value={payrollConfig.member?.auto_checkout_hours ?? 'shift'}
+                        onChange={(e) => handleUpdateRoleSetting('member', 'auto_checkout_hours', e.target.value === 'shift' ? 'shift' : Number(e.target.value))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
+                      >
+                        <option value="shift">As per Assigned Shift (End Time in Profile)</option>
+                        <option value={1}>1.0 Hour (60 mins)</option>
+                        <option value={1.5}>1.5 Hours (90 mins)</option>
+                        <option value={2}>2.0 Hours (120 mins - Standard)</option>
+                        <option value={2.5}>2.5 Hours (150 mins)</option>
+                        <option value={3}>3.0 Hours (180 mins)</option>
+                        <option value={4}>4.0 Hours (240 mins)</option>
+                      </select>
+                    </div>
+                    {payrollConfig.member?.auto_checkout_hours === 'shift' && (
+                      <p className="text-[10px] text-emerald-600 font-medium text-right">
+                        Auto check-out triggers at shift end time in user profile.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Late Mark Setting Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Late Mark Tracking</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Arrival time grace rules for workouts
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-200/80 text-slate-600">
+                    Not Applicable
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-slate-200/60 text-[11px] text-slate-500 flex items-start gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                  <span>Members enjoy open flexible workout hours within facility timings. Late mark tracking only applies to staff shifts.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* 2. TRAINER & FITNESS COACH SECTION                        */}
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          <div className="bg-white border border-purple-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-purple-100/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold border border-purple-200 shrink-0">
+                  <Dumbbell className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Trainer & Coach Settings</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                      Trainer Role
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Shift punctuality, late mark grace window, and auto-clock out for coaches.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Late Mark Grace Period Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Late Mark Grace Period</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Allowed grace buffer after shift start time
+                    </span>
+                  </div>
+                  <select
+                    value={payrollConfig.trainer?.late_mark_minutes ?? 15}
+                    onChange={(e) => handleUpdateRoleSetting('trainer', 'late_mark_minutes', Number(e.target.value))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-purple-900 focus:outline-none focus:border-purple-500 cursor-pointer shadow-xs"
+                  >
+                    <option value={0}>0 mins (Strict start)</option>
+                    <option value={5}>5 mins Grace</option>
+                    <option value={10}>10 mins Grace</option>
+                    <option value={15}>15 mins Grace (Standard)</option>
+                    <option value={20}>20 mins Grace</option>
+                    <option value={30}>30 mins Grace</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  Punches recorded after shift start + {payrollConfig.trainer?.late_mark_minutes ?? 15} mins will be logged as <strong>Late Mark</strong>.
+                </p>
+              </div>
+
+              {/* Auto Check-Out Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Auto Check-Out</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Auto-close shift if trainer forgets to punch out
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!!payrollConfig.trainer?.auto_checkout}
+                      onChange={(e) => handleUpdateRoleSetting('trainer', 'auto_checkout', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
+                {payrollConfig.trainer?.auto_checkout && (
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Auto Clock-Out After:
+                      </label>
+                      <select
+                        value={payrollConfig.trainer?.auto_checkout_hours ?? 'shift'}
+                        onChange={(e) => handleUpdateRoleSetting('trainer', 'auto_checkout_hours', e.target.value === 'shift' ? 'shift' : Number(e.target.value))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-purple-900 focus:outline-none focus:border-purple-500 cursor-pointer shadow-xs"
+                      >
+                        <option value="shift">As per Assigned Shift (End Time in Profile)</option>
+                        <option value={6}>6.0 Hours</option>
+                        <option value={7}>7.0 Hours</option>
+                        <option value={8}>8.0 Hours (Standard Shift)</option>
+                        <option value={9}>9.0 Hours</option>
+                        <option value={10}>10.0 Hours</option>
+                        <option value={12}>12.0 Hours</option>
+                      </select>
+                    </div>
+                    {payrollConfig.trainer?.auto_checkout_hours === 'shift' && (
+                      <p className="text-[10px] text-purple-600 font-medium text-right">
+                        Auto clock-out triggers at shift end time in user profile (e.g. 02:00 PM).
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* 3. FACILITY MANAGER SECTION                               */}
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          <div className="bg-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-blue-100/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold border border-blue-200 shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Manager Settings</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                      Manager Role
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Late mark threshold and auto-closing shift rules for club managers.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Late Mark Grace Period Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Late Mark Grace Period</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Allowed grace buffer after shift start time
+                    </span>
+                  </div>
+                  <select
+                    value={payrollConfig.manager?.late_mark_minutes ?? 15}
+                    onChange={(e) => handleUpdateRoleSetting('manager', 'late_mark_minutes', Number(e.target.value))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-blue-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
+                  >
+                    <option value={0}>0 mins (Strict start)</option>
+                    <option value={5}>5 mins Grace</option>
+                    <option value={10}>10 mins Grace</option>
+                    <option value={15}>15 mins Grace (Standard)</option>
+                    <option value={20}>20 mins Grace</option>
+                    <option value={30}>30 mins Grace</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  Manager arrivals after {payrollConfig.manager?.late_mark_minutes ?? 15} mins grace are flagged for review.
+                </p>
+              </div>
+
+              {/* Auto Check-Out Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Auto Check-Out</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Auto-close shift when punch out is missed
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!!payrollConfig.manager?.auto_checkout}
+                      onChange={(e) => handleUpdateRoleSetting('manager', 'auto_checkout', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {payrollConfig.manager?.auto_checkout && (
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Auto Clock-Out After:
+                      </label>
+                      <select
+                        value={payrollConfig.manager?.auto_checkout_hours ?? 'shift'}
+                        onChange={(e) => handleUpdateRoleSetting('manager', 'auto_checkout_hours', e.target.value === 'shift' ? 'shift' : Number(e.target.value))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-blue-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
+                      >
+                        <option value="shift">As per Assigned Shift (End Time in Profile)</option>
+                        <option value={8}>8.0 Hours</option>
+                        <option value={9}>9.0 Hours (Standard Manager Shift)</option>
+                        <option value={10}>10.0 Hours</option>
+                        <option value={12}>12.0 Hours</option>
+                      </select>
+                    </div>
+                    {payrollConfig.manager?.auto_checkout_hours === 'shift' && (
+                      <p className="text-[10px] text-blue-600 font-medium text-right">
+                        Auto clock-out triggers at shift end time in user profile (e.g. 02:00 PM).
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* 4. ACCOUNTANT & FRONT-DESK SECTION                        */}
+          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          <div className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold border border-amber-200 shrink-0">
+                  <Calculator className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Accountant & Desk Staff Settings</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      Accounts Role
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Late grace buffer, daily working hour thresholds, and automatic punch-out.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Late Mark Grace Period Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Late Mark Grace Period</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Allowed grace buffer after shift start time
+                    </span>
+                  </div>
+                  <select
+                    value={payrollConfig.accounts?.late_mark_minutes ?? 15}
+                    onChange={(e) => handleUpdateRoleSetting('accounts', 'late_mark_minutes', Number(e.target.value))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-amber-900 focus:outline-none focus:border-amber-500 cursor-pointer shadow-xs"
+                  >
+                    <option value={0}>0 mins (Strict start)</option>
+                    <option value={5}>5 mins Grace</option>
+                    <option value={10}>10 mins Grace</option>
+                    <option value={15}>15 mins Grace (Standard)</option>
+                    <option value={20}>20 mins Grace</option>
+                    <option value={30}>30 mins Grace</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  Desk arrivals after {payrollConfig.accounts?.late_mark_minutes ?? 15} mins grace will be flagged for payroll.
+                </p>
+              </div>
+
+              {/* Auto Check-Out Card */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Auto Check-Out</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Auto-close shift when punch out is missed
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!!payrollConfig.accounts?.auto_checkout}
+                      onChange={(e) => handleUpdateRoleSetting('accounts', 'auto_checkout', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                  </label>
+                </div>
+
+                {payrollConfig.accounts?.auto_checkout && (
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Auto Clock-Out After:
+                      </label>
+                      <select
+                        value={payrollConfig.accounts?.auto_checkout_hours ?? 'shift'}
+                        onChange={(e) => handleUpdateRoleSetting('accounts', 'auto_checkout_hours', e.target.value === 'shift' ? 'shift' : Number(e.target.value))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-amber-900 focus:outline-none focus:border-amber-500 cursor-pointer shadow-xs"
+                      >
+                        <option value="shift">As per Assigned Shift (End Time in Profile)</option>
+                        <option value={6}>6.0 Hours</option>
+                        <option value={7}>7.0 Hours</option>
+                        <option value={8}>8.0 Hours (Standard Shift)</option>
+                        <option value={9}>9.0 Hours</option>
+                        <option value={10}>10.0 Hours</option>
+                      </select>
+                    </div>
+                    {payrollConfig.accounts?.auto_checkout_hours === 'shift' && (
+                      <p className="text-[10px] text-amber-600 font-medium text-right">
+                        Auto clock-out triggers at shift end time in user profile (e.g. 02:00 PM).
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

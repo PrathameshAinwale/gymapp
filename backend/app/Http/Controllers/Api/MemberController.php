@@ -257,12 +257,14 @@ class MemberController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+      public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'nullable|email',
             'phone' => 'required|string|min:7|max:20',
+            'biometric_user_id' => 'nullable|string|max:50',
+            'biometricUserId' => 'nullable|string|max:50',
             'plan_id' => 'nullable',
             'planId' => 'nullable',
             'trainer_id' => 'nullable',
@@ -378,9 +380,9 @@ class MemberController extends Controller
                 if ($enteredDisc > $maxDisc) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'message' => "Discount of â‚¹" . number_format($enteredDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . " for plan {$plan->name}.",
                         'errors' => [
-                            'discount' => ["Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
+                            'discount' => ["Discount of â‚¹" . number_format($enteredDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . "."]
                         ]
                     ], 422);
                 }
@@ -390,9 +392,9 @@ class MemberController extends Controller
                     $implicitDisc = (float)($plan->price - $totalBillInput);
                     return response()->json([
                         'success' => false,
-                        'message' => "Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'message' => "Discount of â‚¹" . number_format($implicitDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . " for plan {$plan->name}.",
                         'errors' => [
-                            'discount' => ["Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
+                            'discount' => ["Discount of â‚¹" . number_format($implicitDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . "."]
                         ]
                     ], 422);
                 }
@@ -428,8 +430,8 @@ class MemberController extends Controller
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', 0)));
         $totalBill = (float)($request->input('total_amount', $request->input('totalAmount', $plan?->price ?? 0)));
         $paidAmountInput = $request->input('paid_amount', $request->input('paidAmount'));
-        $receivedAmount = $paidAmountInput !== null 
-            ? (float)$paidAmountInput 
+        $receivedAmount = $paidAmountInput !== null
+            ? (float)$paidAmountInput
             : (float)($request->input('amount', $totalBill));
 
         $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
@@ -519,7 +521,11 @@ class MemberController extends Controller
                 $user->save();
             }
 
+            // eSSL Biometric User ID (defaults to user ID if not provided)
+            $biometricId = $request->input('biometric_user_id', $request->input('biometricUserId', (string)$user->id));
+
             $profile->fill([
+                'biometric_user_id' => $biometricId,
                 'plan_id' => $planId,
                 'trainer_id' => $trainerId,
                 'executive' => $rawExecutive,
@@ -552,7 +558,7 @@ class MemberController extends Controller
                 $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
                 $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
                 if ($duesAmount > 0) {
-                    $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
+                    $invoiceTitle .= " (Pending Balance Due: â‚¹" . number_format($duesAmount) . ")";
                 }
 
                 $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
@@ -594,7 +600,7 @@ class MemberController extends Controller
                     'date' => now()->toDateString(),
                     'payment_method' => $paymentMethod,
                     'status' => $invStatus,
-                    'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
+                    'notes' => $duesAmount > 0 ? "Initial payment of â‚¹{$finalAmount} received. Balance pending: â‚¹{$duesAmount}" : 'Full payment received upon registration',
                     'created_by' => $creatorId,
                     'created_by_name' => $creatorName,
                 ]);
@@ -639,6 +645,9 @@ class MemberController extends Controller
             return [$user, $profile, $qrCode];
         });
 
+        // 4. Automatically register new member into eSSL Biometric Terminal over LAN
+        $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'push');
+
         // Automatically dispatch WhatsApp Welcome Notification to the new member
         $whatsappResult = null;
         try {
@@ -656,6 +665,7 @@ class MemberController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
+                'biometricUserId' => $profile->biometric_user_id,
                 'planId' => $plan ? 'plan-' . $plan->id : null,
                 'planName' => $plan?->name ?? 'Unassigned',
                 'status' => $computedStatus,
@@ -684,10 +694,12 @@ class MemberController extends Controller
                 'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
                 'qrPassCode' => $qrCode,
                 'avatar' => $user->avatar,
+                'device_sync' => $deviceSyncResult,
                 'whatsapp_welcome' => $whatsappResult,
             ],
         ], 201);
     }
+
 
     public function update(Request $request, $id)
     {
@@ -739,6 +751,7 @@ class MemberController extends Controller
             }
             $user->phone = $request->phone;
         }
+        $oldBioId = (string)($profile->biometric_user_id ?: $user->id);
         DB::transaction(function () use ($request, $user, $profile) {
             if ($request->has('avatar')) $user->avatar = $request->avatar;
             if ($request->filled('password')) $user->password = Hash::make($request->password);
@@ -833,6 +846,10 @@ class MemberController extends Controller
                         ->update(['pending_amount' => $duesVal]);
                 }
             }
+            if ($request->has('biometric_user_id') || $request->has('biometricUserId')) {
+                $rawBioId = $request->input('biometric_user_id', $request->input('biometricUserId'));
+                $profile->biometric_user_id = !empty($rawBioId) ? trim((string)$rawBioId) : null;
+            }
             if ($request->has('due_date') || $request->has('dueDate')) {
                 $rawUpDueDate = $request->due_date ?? $request->dueDate;
                 $profile->due_date = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
@@ -873,10 +890,16 @@ class MemberController extends Controller
             }
         });
 
+        // Synchronize member update with eSSL Biometric Terminal over LAN
+        $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'push', $oldBioId ?? null);
+
+        $responseData = $this->show('mem-' . $user->id)->original['data'];
+        $responseData['device_sync'] = $deviceSyncResult;
+
         return response()->json([
             'success' => true,
             'message' => 'Member updated successfully',
-            'data' => $this->show('mem-' . $user->id)->original['data'],
+            'data' => $responseData,
         ]);
     }
 
@@ -884,11 +907,86 @@ class MemberController extends Controller
     {
         $numericId = str_replace('mem-', '', $id);
         $user = User::where('role', 'member')->findOrFail($numericId);
+        $profile = MemberProfile::where('user_id', $user->id)->first();
+
+        // Automatically delete member from eSSL Biometric Terminal over LAN
+        $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'delete');
+
         $user->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Member removed successfully'
+            'message' => 'Member removed successfully from system and biometric machine',
+            'device_sync' => $deviceSyncResult
         ]);
+    }
+
+    /**
+     * Synchronize gym member registration, update, or deletion with eSSL Biometric Terminal over LAN.
+     */
+    protected function syncMemberToEsslDevice(User $user, ?MemberProfile $profile, string $action = 'push', ?string $oldBioId = null): ?array
+    {
+        try {
+            $bioUserId = (string)($profile?->biometric_user_id ?: $user->id);
+            if ($profile && empty($profile->biometric_user_id)) {
+                $profile->update(['biometric_user_id' => $bioUserId]);
+            }
+
+            $candidatePaths = [
+                base_path('../device-sync-service/device_user_sync.py'),
+                'C:\\Users\\ARCH\\Desktop\\gymapp\\device-sync-service\\device_user_sync.py',
+                'C:\\Users\\ARCH\\Desktop\\essl\\device-sync-service\\device_user_sync.py',
+            ];
+            $scriptPath = null;
+            foreach ($candidatePaths as $p) {
+                if (file_exists($p)) {
+                    $scriptPath = $p;
+                    break;
+                }
+            }
+
+            if (!$scriptPath) {
+                return null;
+            }
+
+            $device = \Illuminate\Support\Facades\DB::table('biometric_devices')
+                ->where('status', 'online')
+                ->orWhere('is_active', 1)
+                ->first();
+            $deviceIp = $device?->ip_address ?: '192.168.1.201';
+            $devicePort = $device?->port ?: 4370;
+
+            if ($action === 'delete') {
+                $targetId = escapeshellarg($bioUserId);
+                $cmd = "python \"{$scriptPath}\" --delete --user-id {$targetId} --ip {$deviceIp} --port {$devicePort}";
+                $output = shell_exec($cmd);
+                return json_decode($output, true);
+            }
+
+            // Action: push / update
+            // If biometric user ID changed, delete old user from device first
+            if ($oldBioId && $oldBioId !== $bioUserId) {
+                $oldTargetId = escapeshellarg($oldBioId);
+                shell_exec("python \"{$scriptPath}\" --delete --user-id {$oldTargetId} --ip {$deviceIp} --port {$devicePort}");
+            }
+
+            $cleanMemberName = escapeshellarg(substr($user->name, 0, 24));
+            $targetId = escapeshellarg($bioUserId);
+            $cmd = "python \"{$scriptPath}\" --push --user-id {$targetId} --name {$cleanMemberName} --ip {$deviceIp} --port {$devicePort}";
+            $output = shell_exec($cmd);
+            $result = json_decode($output, true);
+
+            if (!empty($result['success']) && $profile) {
+                $profile->update([
+                    'synced_to_device' => true,
+                    'device_synced_at' => now(),
+                ]);
+            }
+
+            return $result;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("eSSL device sync failed ({$action}) for user {$user->id}: " . $e->getMessage());
+            return null;
+        }
     }
 }

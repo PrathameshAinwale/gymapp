@@ -21,7 +21,7 @@ class StaffController extends Controller
         $gymId = $this->resolveGymId($request);
 
         $selectCols = [
-            'id', 'name', 'email', 'role', 'phone', 'avatar', 'gym_id', 
+            'id', 'name', 'email', 'role', 'phone', 'avatar', 'gym_id',
             'must_change_password', 'created_at',
             'dob', 'joining_date', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts'
         ];
@@ -46,8 +46,8 @@ class StaffController extends Controller
         // Staff records with masked passwords
         $data = $staff->map(function ($u) {
             $arr = $u->toArray();
-            $arr['plain_password'] = '••••••••';
-            $arr['password'] = '••••••••';
+            $arr['plain_password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
+            $arr['password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {
@@ -250,7 +250,7 @@ class StaffController extends Controller
             $responseData['activeClientsCount'] = 0;
         }
 
-        return response()->json([
+                return response()->json([
             'success' => true,
             'message' => "Staff account created for {$user->name} as {$user->role}.",
             'data'    => $responseData,
@@ -316,8 +316,8 @@ class StaffController extends Controller
         $user->save();
 
         $responseData = $user->toArray();
-        $responseData['plain_password'] = '••••••••';
-        $responseData['password'] = '••••••••';
+        $responseData['plain_password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
+        $responseData['password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
 
         // If user is a trainer or trainer fields provided, update / create TrainerProfile
         if ($user->role === 'trainer' || ($validated['role'] ?? '') === 'trainer' || $request->has('specialty')) {
@@ -388,5 +388,5 @@ class StaffController extends Controller
 
         return response()->json(['success' => true, 'message' => "Staff account for {$userName} deleted."]);
     }
-}
 
+    }
