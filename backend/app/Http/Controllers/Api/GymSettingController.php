@@ -83,7 +83,7 @@ class GymSettingController extends Controller
                     'email' => $gym->email ?? '',
                     'website' => $gym->website ?? '',
                     'operatingHours' => $gym->operating_hours ?? '',
-                    'currency' => $gym->currency ?? 'â‚¹',
+                    'currency' => $gym->currency ?? '₹',
                     'gstNumber' => $gym->gst_number ?? '',
                     'gstin' => $gym->gst_number ?? '',
                     'gst_number' => $gym->gst_number ?? '',
@@ -150,7 +150,7 @@ class GymSettingController extends Controller
                     'phone' => $setting->phone ?? '',
                     'email' => $setting->email ?? '',
                     'operatingHours' => $setting->operating_hours ?? '',
-                    'currency' => $setting->currency ?? 'â‚¹',
+                    'currency' => $setting->currency ?? '₹',
                     'package' => 'Bronze',
                     'packageTier' => 'Bronze',
                     'features' => [],
@@ -182,7 +182,7 @@ class GymSettingController extends Controller
                 'phone' => '',
                 'email' => '',
                 'operatingHours' => '',
-                'currency' => 'â‚¹',
+                'currency' => '₹',
             ]
         ]);
     }
@@ -252,7 +252,7 @@ class GymSettingController extends Controller
                 $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
                 $setting->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
             }
-            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: 'â‚¹';
+            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
             $setting->save();
         }
 
@@ -453,7 +453,7 @@ class GymSettingController extends Controller
             'billing_cycle' => $primaryGym->billing_cycle ?? 'Annual',
             'subscription_expires_at' => $primaryGym->subscription_expires_at,
             'status' => 'Active',
-            'currency' => $primaryGym->currency ?? 'â‚¹',
+            'currency' => $primaryGym->currency ?? '₹',
             'operating_hours' => $request->operating_hours ?: ($primaryGym->operating_hours ?? 'Mon-Sat: 6:00 AM - 10:30 PM'),
             'logo' => $request->logo ?: ($primaryGym->logo ?? null),
             'max_members' => $primaryGym->max_members,

@@ -46,8 +46,8 @@ class StaffController extends Controller
         // Staff records with masked passwords
         $data = $staff->map(function ($u) {
             $arr = $u->toArray();
-            $arr['plain_password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
-            $arr['password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
+            $arr['plain_password'] = '••••••••';
+            $arr['password'] = '••••••••';
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {
@@ -316,8 +316,8 @@ class StaffController extends Controller
         $user->save();
 
         $responseData = $user->toArray();
-        $responseData['plain_password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
-        $responseData['password'] = 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢';
+        $responseData['plain_password'] = '••••••••';
+        $responseData['password'] = '••••••••';
 
         // If user is a trainer or trainer fields provided, update / create TrainerProfile
         if ($user->role === 'trainer' || ($validated['role'] ?? '') === 'trainer' || $request->has('specialty')) {

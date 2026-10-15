@@ -72,7 +72,7 @@ export const CreateInvoicePage = ({
   } = useGymData();
   const { currentUser } = useAuth();
 
-  const defaultHandledBy = currentUser?.name || '';
+  const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : 'Prathamesh';
 
   // Selected Member
   const [selectedMemberId, setSelectedMemberId] = useState(

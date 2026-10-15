@@ -133,9 +133,12 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
 
-  const defaultStaffName = currentUser?.name
-    ? `${currentUser.name} (${currentUser.role === 'owner' ? 'Owner' : 'Staff'})`
-    : 'Pooja Sharma (Front Desk)';
+  const resolveStaffName = () => {
+    const raw = currentUser?.name;
+    const name = raw && !raw.toLowerCase().includes('arch devops') ? raw : 'Prathamesh';
+    return `${name} (${currentUser?.role === 'owner' || currentUser?.role === 'superadmin' ? 'Owner' : 'Staff'})`;
+  };
+  const defaultStaffName = resolveStaffName();
 
   // Helper: Format today's date as DD-MM-YYYY
   const getTodayFormatted = () => {
@@ -993,7 +996,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                         <div className="flex items-center gap-2">
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900 text-xs truncate max-w-[135px]" title={enq.staffName}>
-                              {enq.staffName || 'Front Desk Staff'}
+                              {enq.staffName && !enq.staffName.toLowerCase().includes('arch devops') ? enq.staffName : 'Prathamesh (Owner)'}
                             </div>
                           </div>
                         </div>
@@ -1203,9 +1206,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
               <datalist id="staff-name-datalist">
-                <option value={`${currentUser?.name || 'Vikramaditya Singhania'} (Owner)`} />
-                <option value="Pooja Sharma (Front Desk)" />
-                <option value="Rohan Deshmukh (Front Desk)" />
+                <option value={defaultStaffName} />
+                <option value="Prathamesh (Owner)" />
                 {trainers?.map((t) => (
                   <option key={t.id} value={`${t.name} (Coach)`} />
                 ))}
@@ -1515,9 +1517,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
                 <datalist id="edit-staff-name-datalist">
-                  <option value={`${currentUser?.name || 'Vikramaditya Singhania'} (Owner)`} />
-                  <option value="Pooja Sharma (Front Desk)" />
-                  <option value="Rohan Deshmukh (Front Desk)" />
+                  <option value={defaultStaffName} />
+                  <option value="Prathamesh (Owner)" />
                   {trainers?.map((t) => (
                     <option key={t.id} value={`${t.name} (Coach)`} />
                   ))}

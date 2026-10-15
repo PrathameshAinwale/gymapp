@@ -404,9 +404,9 @@ class MemberController extends Controller
                 if ($enteredDisc > $maxDisc) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Discount of â‚¹" . number_format($enteredDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'message' => "Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
                         'errors' => [
-                            'discount' => ["Discount of â‚¹" . number_format($enteredDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . "."]
+                            'discount' => ["Discount of ₹" . number_format($enteredDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
                         ]
                     ], 422);
                 }
@@ -416,9 +416,9 @@ class MemberController extends Controller
                     $implicitDisc = (float)($plan->price - $totalBillInput);
                     return response()->json([
                         'success' => false,
-                        'message' => "Discount of â‚¹" . number_format($implicitDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . " for plan {$plan->name}.",
+                        'message' => "Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . " for plan {$plan->name}.",
                         'errors' => [
-                            'discount' => ["Discount of â‚¹" . number_format($implicitDisc) . " exceeds maximum allowed discount of â‚¹" . number_format($maxDisc) . "."]
+                            'discount' => ["Discount of ₹" . number_format($implicitDisc) . " exceeds maximum allowed discount of ₹" . number_format($maxDisc) . "."]
                         ]
                     ], 422);
                 }
@@ -763,7 +763,7 @@ class MemberController extends Controller
                 $finalAmount = $receivedAmount;
                 $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
                 if ($duesAmount > 0) {
-                    $invoiceTitle .= " (Pending Balance Due: â‚¹" . number_format($duesAmount) . ")";
+                    $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
                 }
 
                 $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
@@ -815,7 +815,7 @@ class MemberController extends Controller
                     'date' => now()->toDateString(),
                     'payment_method' => $paymentMethod,
                     'status' => $invStatus,
-                    'notes' => $duesAmount > 0 ? "Initial payment of â‚¹{$finalAmount} received. Balance pending: â‚¹{$duesAmount}" : 'Full payment received upon registration',
+                    'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
                     'created_by' => $creatorId,
                     'created_by_name' => $creatorName,
                 ]);

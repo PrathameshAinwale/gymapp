@@ -581,7 +581,7 @@ class LeaveController extends Controller
                             'reason'       => 'Automated: Absent with no check-in and 0 remaining leave balance.',
                             'status'       => 'Approved',
                             'action_by'    => 'System Automated',
-                            'action_notes' => "Full day salary (â‚¹{$perDaySalary}) deducted for unexcused absence.",
+                            'action_notes' => "Full day salary (₹{$perDaySalary}) deducted for unexcused absence.",
                             'action_date'  => $now,
                         ]
                     );
@@ -599,7 +599,7 @@ class LeaveController extends Controller
                         if ($payroll) {
                             $payroll->deductions = (float)$payroll->deductions + $perDaySalary;
                             $payroll->net_pay = max(0, (float)$payroll->base_salary + (float)$payroll->bonus + (float)$payroll->commission_earned - (float)$payroll->deductions);
-                            $noteMsg = "Unpaid leave: -â‚¹{$perDaySalary} ({$date})";
+                            $noteMsg = "Unpaid leave: -₹{$perDaySalary} ({$date})";
                             $payroll->notes = $payroll->notes ? ($payroll->notes . ' | ' . $noteMsg) : $noteMsg;
                             $payroll->save();
                         }
