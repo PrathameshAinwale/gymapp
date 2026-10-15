@@ -27,3 +27,13 @@ Artisan::command('members:sync-status', function () {
 // Run status sync once daily shortly after midnight
 Schedule::command('members:sync-status')->dailyAt('00:05');
 
+
+
+Artisan::command('attendance:auto-checkout', function () {
+    $this->info('Running 2-hour auto-checkout scan for gym members...');
+    $count = (new \App\Http\Controllers\Api\AttendanceController())->autoCheckOutOverdueMembers();
+    $this->info("Completed: {$count} member(s) automatically checked out after 2 hours.");
+})->purpose('Auto check out gym members after 2 hours from check in');
+
+// Automatically check database every 5 minutes for members who have exceeded 2 hours
+Schedule::command('attendance:auto-checkout')->everyFiveMinutes();

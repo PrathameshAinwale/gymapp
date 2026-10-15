@@ -31,6 +31,14 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\WhatsAppController;
 use App\Http\Controllers\Api\ShiftController;
 
+//essl connection
+use App\Http\Controllers\Api\AttendanceSyncController;
+
+// eSSL Machine Sync endpoint (Authenticated with API Token)
+Route::post('/attendance/sync', [AttendanceSyncController::class, 'sync']);
+
+
+
 // API Health Check with live DB connectivity check
 Route::get('/health', function () {
     $envExists = file_exists(base_path('.env'));
@@ -160,13 +168,13 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         ]);
     });
 
-    // ── Public Auth ───────────────────────────────
+    // â”€â”€ Public Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     });
 
-    // ── Public Branding & Platform Catalog ─────────
+    // â”€â”€ Public Branding & Platform Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Route::get('/gym-info', [GymSettingController::class, 'show']);
 
     Route::prefix('platform')->group(function () {
@@ -175,12 +183,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         Route::get('/plans', [SuperadminController::class, 'indexPlans']);
     });
 
-    // ── Biometric ADMS Turnstile Hardware Push (Standalone) ──
+    // â”€â”€ Biometric ADMS Turnstile Hardware Push (Standalone) â”€â”€
     Route::any('/iclock/cdata', [AdmsController::class, 'cdata']);
     Route::any('/iclock/getrequest', [AdmsController::class, 'getrequest']);
     Route::any('/iclock/devicecmd', [AdmsController::class, 'devicecmd']);
 
-    // ── Protected Operations (Sanctum Authenticated) ─────────
+    // â”€â”€ Protected Operations (Sanctum Authenticated) â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Route::middleware('auth:sanctum')->group(function () {
         // Authenticated Auth Endpoints
         Route::prefix('auth')->group(function () {

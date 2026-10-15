@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { preventNonNumericKey, sanitizeDecimal } from '../../utils/validation';
 const StaffAvatar = ({ src, alt, className = "w-9 h-9 rounded-full", iconClassName = "w-4 h-4 text-indigo-600" }) => {
   const [hasError, setHasError] = useState(false);
   if (!src || hasError) {
@@ -734,7 +735,7 @@ export const LeaveManagement = () => {
                             </div>
                             <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                               <span>{req.startDate}</span>
-                              <span className="text-slate-300">→</span>
+                              <span className="text-slate-300">â†’</span>
                               <span>{req.endDate}</span>
                             </div>
                           </td>
@@ -914,7 +915,7 @@ export const LeaveManagement = () => {
                                   {cl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 block">
-                                  Quota: {cl.allocated} • Used: {cl.used}
+                                  Quota: {cl.allocated} â€¢ Used: {cl.used}
                                 </span>
                               </div>
                             </div>
@@ -931,7 +932,7 @@ export const LeaveManagement = () => {
                                   {sl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 block">
-                                  Quota: {sl.allocated} • Used: {sl.used}
+                                  Quota: {sl.allocated} â€¢ Used: {sl.used}
                                 </span>
                               </div>
                             </div>
@@ -948,7 +949,7 @@ export const LeaveManagement = () => {
                                   {pl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 block">
-                                  Quota: {pl.allocated} • Used: {pl.used}
+                                  Quota: {pl.allocated} â€¢ Used: {pl.used}
                                 </span>
                               </div>
                             </div>
@@ -1224,7 +1225,7 @@ export const LeaveManagement = () => {
                   {selectedEmployeeBalance.user?.name}
                 </h3>
                 <span className="text-xs text-slate-500 capitalize block">
-                  {selectedEmployeeBalance.user?.role || 'Fitness Staff'} • {selectedEmployeeBalance.user?.email}
+                  {selectedEmployeeBalance.user?.role || 'Fitness Staff'} â€¢ {selectedEmployeeBalance.user?.email}
                 </span>
                 {selectedEmployeeBalance.user?.phone && (
                   <span className="text-[11px] text-slate-400 block">
@@ -1291,7 +1292,7 @@ export const LeaveManagement = () => {
                             </span>
                           </div>
                           <span className="text-[11px] text-slate-500 block">
-                            {h.start_date || h.startDate} → {h.end_date || h.endDate}
+                            {h.start_date || h.startDate} â†’ {h.end_date || h.endDate}
                           </span>
                           <span className="text-[11px] text-slate-600 italic block mt-0.5">
                             "{h.reason}"

@@ -58,7 +58,8 @@ import {
   User,
   Phone,
   Mail,
-  Save
+  Save,
+  Fingerprint
 } from 'lucide-react';
 
 export const AddMemberPage = ({
@@ -136,7 +137,8 @@ export const AddMemberPage = ({
     executive: defaultStaffExecutive,
     kycDocType: 'Aadhaar Card',
     kycDocNumber: '',
-    kycStatus: 'Verified'
+    kycStatus: 'Verified',
+    biometricUserId: ''
   });
 
   // Membership Start and End Date States
@@ -642,7 +644,8 @@ export const AddMemberPage = ({
         kycStatus: targetMember.kycStatus || targetMember.kyc_status || 'Verified',
         status: targetMember.status || 'Active',
         expiryDate: targetMember.expiryDate || targetMember.expiry_date || targetMember.planExpiry || '',
-        joinDate: targetMember.joinDate || targetMember.joining_date || getTodayDateStr()
+        joinDate: targetMember.joinDate || targetMember.joining_date || getTodayDateStr(),
+        biometricUserId: targetMember.biometricUserId || targetMember.biometric_user_id || targetMember.biometricId || ''
       });
 
       setSelectedTrainerId(targetMember.trainerId || targetMember.trainer_id || '');
@@ -817,7 +820,7 @@ export const AddMemberPage = ({
   }, [selectedPackages]);
 
   const netPackageAmount = Math.max(0, totalGrossPackages - totalDiscountAmount);
-  // Total bill is the net package fee — disabling GST does not increase the bill
+  // Total bill is the net package fee â€” disabling GST does not increase the bill
   const totalCalculatedAmount = netPackageAmount;
 
   const parseAmount = (val) => {
@@ -891,9 +894,9 @@ export const AddMemberPage = ({
 
   const getResolvedPaymentMethod = () => {
     const parts = [];
-    if (numCash > 0) parts.push(`Cash (₹${numCash.toLocaleString('en-IN')})`);
-    if (numUpi > 0) parts.push(`UPI (₹${numUpi.toLocaleString('en-IN')})`);
-    if (numTransfer > 0) parts.push(`Bank Transfer (₹${numTransfer.toLocaleString('en-IN')})`);
+    if (numCash > 0) parts.push(`Cash (â‚¹${numCash.toLocaleString('en-IN')})`);
+    if (numUpi > 0) parts.push(`UPI (â‚¹${numUpi.toLocaleString('en-IN')})`);
+    if (numTransfer > 0) parts.push(`Bank Transfer (â‚¹${numTransfer.toLocaleString('en-IN')})`);
 
     if (parts.length > 1) {
       return `Split: ${parts.join(' + ')}`;
@@ -991,7 +994,8 @@ export const AddMemberPage = ({
       executive: defaultStaffExecutive,
       kycDocType: 'Aadhaar Card',
       kycDocNumber: '',
-      kycStatus: 'Verified'
+      kycStatus: 'Verified',
+      biometricUserId: ''
     });
     setMembershipStartDate(getTodayDateStr());
     setMembershipEndDate('');
@@ -1075,6 +1079,8 @@ export const AddMemberPage = ({
           trainerName: chosenTrainer ? chosenTrainer.name : (formData.trainerId ? targetMember.trainerName : null),
           status: autoStatus,
           expiryDate: effectiveExpiry || null,
+          biometric_user_id: formData.biometricUserId ? String(formData.biometricUserId).trim() : null,
+          biometricUserId: formData.biometricUserId ? String(formData.biometricUserId).trim() : null,
         };
 
         if (updateMember) {
@@ -1188,7 +1194,7 @@ export const AddMemberPage = ({
           name: targetMember.name,
           email: targetMember.email,
           phone: targetMember.phone,
-          password: '••••••••',
+          password: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
           id: targetMember.id,
           qrPassCode: targetMember.qrPassCode,
           planName: invoiceTitle,
@@ -1285,12 +1291,12 @@ export const AddMemberPage = ({
         const pkgPrice = Number(pkgRow.price) || (pObj ? Number(pObj.price) : 0);
 
         if (maxDisc > 0 && enteredDisc > maxDisc) {
-          addToast(`Discount ₹${enteredDisc.toLocaleString('en-IN')} on "${pObj?.name || pkgRow.packageType}" exceeds maximum allowed discount of ₹${maxDisc.toLocaleString('en-IN')}.`, 'error');
+          addToast(`Discount â‚¹${enteredDisc.toLocaleString('en-IN')} on "${pObj?.name || pkgRow.packageType}" exceeds maximum allowed discount of â‚¹${maxDisc.toLocaleString('en-IN')}.`, 'error');
           return;
         }
 
         if (enteredDisc > pkgPrice && pkgPrice > 0) {
-          addToast(`Discount ₹${enteredDisc.toLocaleString('en-IN')} cannot exceed plan fee of ₹${pkgPrice.toLocaleString('en-IN')}.`, 'error');
+          addToast(`Discount â‚¹${enteredDisc.toLocaleString('en-IN')} cannot exceed plan fee of â‚¹${pkgPrice.toLocaleString('en-IN')}.`, 'error');
           return;
         }
       }
@@ -1428,9 +1434,19 @@ export const AddMemberPage = ({
         kycDocType: formData.kycDocType || 'Aadhaar Card',
         kycDocNumber: formData.kycDocNumber || 'Not provided',
         kycStatus: formData.kycStatus || 'Verified',
+        biometric_user_id: formData.biometricUserId ? formData.biometricUserId.trim() : null,
+        biometricUserId: formData.biometricUserId ? formData.biometricUserId.trim() : null,
         consentSigned: true,
         consentSignedDate: todayStr
       });
+
+      if (createdMember?.device_sync) {
+        if (createdMember.device_sync.success) {
+          addToast(`Member registered & synced to eSSL machine (ID: ${createdMember.biometricUserId || createdMember.id})!`, 'success');
+        } else if (createdMember.device_sync.message) {
+          addToast(`Member created! eSSL machine sync note: ${createdMember.device_sync.message}`, 'warning');
+        }
+      }
 
       const linkedEnquiryId = initialData?.enquiryId || formData.enquiryId;
       if (linkedEnquiryId && deleteEnquiry) {
@@ -1548,24 +1564,24 @@ export const AddMemberPage = ({
     const sgst = totalGst - cgst;
 
     const gstSection = isGst
-      ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
-        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
-        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
-      : `• Tax Applied: None (Non-GST Payment)\n`;
+      ? `â€¢ Plan Base Fee: â‚¹${baseFee.toLocaleString('en-IN')}\n` +
+        `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
+        `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
+      : `â€¢ Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to ${gymInfo?.name || 'PulseFit Pro'}!\n\n` +
       `Here are your Member Login Credentials:\n` +
-      `• Member ID: ${newlyCreatedCredentials.id}\n` +
-      `• Password: ${newlyCreatedCredentials.password}\n` +
-      (newlyCreatedCredentials.email ? `• Login Email: ${newlyCreatedCredentials.email}\n` : '') +
-      `• Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
+      `â€¢ Member ID: ${newlyCreatedCredentials.id}\n` +
+      `â€¢ Password: ${newlyCreatedCredentials.password}\n` +
+      (newlyCreatedCredentials.email ? `â€¢ Login Email: ${newlyCreatedCredentials.email}\n` : '') +
+      `â€¢ Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
       `Bill Breakdown:\n` +
-      `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
-      (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
+      `â€¢ Package Amount: â‚¹${gross.toLocaleString('en-IN')}\n` +
+      (disc > 0 ? `â€¢ Discount Offered: -â‚¹${disc.toLocaleString('en-IN')}\n` : '') +
       gstSection +
-      `• Total Bill: ₹${net.toLocaleString('en-IN')}\n` +
-      `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
-      (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
+      `â€¢ Total Bill: â‚¹${net.toLocaleString('en-IN')}\n` +
+      `â€¢ Amount Paid: â‚¹${paid.toLocaleString('en-IN')}\n` +
+      (dues > 0 ? `â€¢ Balance Due: â‚¹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `â€¢ Payment Status: Paid in Full\n`);
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -1596,24 +1612,24 @@ export const AddMemberPage = ({
     const sgst = totalGst - cgst;
 
     const gstSection = isGst
-      ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
-        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
-        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
-      : `• Tax Applied: None (Non-GST Payment)\n`;
+      ? `â€¢ Plan Base Fee: â‚¹${baseFee.toLocaleString('en-IN')}\n` +
+        `â€¢ CGST (9%): â‚¹${cgst.toLocaleString('en-IN')}\n` +
+        `â€¢ SGST (9%): â‚¹${sgst.toLocaleString('en-IN')}\n`
+      : `â€¢ Tax Applied: None (Non-GST Payment)\n`;
 
     const text = `Welcome to *${gymInfo?.name || 'PulseFit Pro'}*!\n\n` +
       `Here are your Member Login Credentials:\n` +
-      `• Member ID: *${newlyCreatedCredentials.id}*\n` +
-      `• Password: *${newlyCreatedCredentials.password}*\n` +
-      (newlyCreatedCredentials.email ? `• Login Email: ${newlyCreatedCredentials.email}\n` : '') +
-      `• Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
+      `â€¢ Member ID: *${newlyCreatedCredentials.id}*\n` +
+      `â€¢ Password: *${newlyCreatedCredentials.password}*\n` +
+      (newlyCreatedCredentials.email ? `â€¢ Login Email: ${newlyCreatedCredentials.email}\n` : '') +
+      `â€¢ Membership Plan: ${newlyCreatedCredentials.planName}\n\n` +
       `*Bill Breakdown:*\n` +
-      `• Package Amount: ₹${gross.toLocaleString('en-IN')}\n` +
-      (disc > 0 ? `• Discount Offered: -₹${disc.toLocaleString('en-IN')}\n` : '') +
+      `â€¢ Package Amount: â‚¹${gross.toLocaleString('en-IN')}\n` +
+      (disc > 0 ? `â€¢ Discount Offered: -â‚¹${disc.toLocaleString('en-IN')}\n` : '') +
       gstSection +
-      `• Total Bill: ₹${net.toLocaleString('en-IN')}\n` +
-      `• Amount Paid: ₹${paid.toLocaleString('en-IN')}\n` +
-      (dues > 0 ? `• Balance Due: ₹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `• Payment Status: Paid in Full\n`);
+      `â€¢ Total Bill: â‚¹${net.toLocaleString('en-IN')}\n` +
+      `â€¢ Amount Paid: â‚¹${paid.toLocaleString('en-IN')}\n` +
+      (dues > 0 ? `â€¢ Balance Due: â‚¹${dues.toLocaleString('en-IN')}${newlyCreatedCredentials.dueDate ? ` (Due: ${newlyCreatedCredentials.dueDate})` : ''}\n` : `â€¢ Payment Status: Paid in Full\n`);
 
     const url = getWhatsAppUrl(newlyCreatedCredentials.phone, text);
     if (url) {
@@ -1805,7 +1821,7 @@ export const AddMemberPage = ({
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-between text-xs">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Login Phone / Email</span>
-                    <span className="font-medium text-slate-200">{newlyCreatedCredentials.phone} {newlyCreatedCredentials.email ? `• ${newlyCreatedCredentials.email}` : ''}</span>
+                    <span className="font-medium text-slate-200">{newlyCreatedCredentials.phone} {newlyCreatedCredentials.email ? `â€¢ ${newlyCreatedCredentials.email}` : ''}</span>
                   </div>
                 </div>
               </div>
@@ -1849,22 +1865,22 @@ export const AddMemberPage = ({
                 </div>
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Gross Package Amount:</span>
-                  <span className="font-mono font-medium text-slate-700">₹{Number(newlyCreatedCredentials.packageAmount || 0).toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-medium text-slate-700">â‚¹{Number(newlyCreatedCredentials.packageAmount || 0).toLocaleString('en-IN')}</span>
                 </div>
                 {Number(newlyCreatedCredentials.discountAmount) > 0 && (
                   <div className="flex items-center justify-between py-1 border-b border-slate-50 text-emerald-600 font-semibold">
                     <span>Discount Applied:</span>
-                    <span className="font-mono">-₹{Number(newlyCreatedCredentials.discountAmount).toLocaleString('en-IN')}</span>
+                    <span className="font-mono">-â‚¹{Number(newlyCreatedCredentials.discountAmount).toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Amount Paid ({newlyCreatedCredentials.paymentMethod}):</span>
-                  <span className="font-mono font-bold text-slate-900">₹{Number(newlyCreatedCredentials.paidAmount || 0).toLocaleString('en-IN')}</span>
+                  <span className="font-mono font-bold text-slate-900">â‚¹{Number(newlyCreatedCredentials.paidAmount || 0).toLocaleString('en-IN')}</span>
                 </div>
                 {Number(newlyCreatedCredentials.duesAmount) > 0 && (
                   <div className="flex items-center justify-between py-1 text-rose-600 font-bold bg-rose-50 px-2.5 rounded-lg border border-rose-200">
                     <span>Balance Due {newlyCreatedCredentials.dueDate ? `(Due: ${newlyCreatedCredentials.dueDate})` : ''}:</span>
-                    <span className="font-mono">₹{Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')}</span>
+                    <span className="font-mono">â‚¹{Number(newlyCreatedCredentials.duesAmount).toLocaleString('en-IN')}</span>
                   </div>
                 )}
               </div>
@@ -2267,6 +2283,29 @@ export const AddMemberPage = ({
               </select>
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
+                  <span>eSSL Biometric User ID</span>
+                </label>
+                <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                  Auto Sync
+                </span>
+              </div>
+              <input
+                type="text"
+                disabled={isUpgradeMode && !isEditMode}
+                placeholder="Auto (or custom machine ID)"
+                value={formData.biometricUserId || ''}
+                onChange={(e) => setFormData({ ...formData, biometricUserId: e.target.value.replace(/\D/g, '') })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs font-mono focus:bg-white focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Auto-registers member into eSSL X2008 terminal over LAN on Save.
+              </p>
+            </div>
+
             {isEditMode && (
               <>
                 <div>
@@ -2388,7 +2427,7 @@ export const AddMemberPage = ({
               </div>
 
               <p className="text-[11px] text-slate-500 pt-1">
-                ℹ️ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
+                â„¹ï¸ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
               </p>
             </div>
           ) : (
@@ -2463,7 +2502,7 @@ export const AddMemberPage = ({
                           </option>
                           {availablePackages.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths} Month)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                              {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths} Month)` : ''))} â€” â‚¹{Number(p.price || 0).toLocaleString('en-IN')}
                             </option>
                           ))}
                           <option value="__ADD_NEW__">+ Create New Plan...</option>
@@ -2474,24 +2513,24 @@ export const AddMemberPage = ({
                     {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (â‚¹)</label>
                         <input
                           type="text"
                           readOnly
-                          value={`₹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
+                          value={`â‚¹${(Number(pkgRow.price) || 0).toLocaleString('en-IN')}`}
                           className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700"
                         />
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700">Discount (₹)</label>
+                          <label className="block text-[11px] font-bold text-slate-700">Discount (â‚¹)</label>
                           {maxPlanDiscount > 0 && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
                               Number(pkgRow.discount) > maxPlanDiscount
                                 ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
                                 : 'bg-amber-50 text-amber-700 border-amber-200'
                             }`}>
-                              Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                              Max: â‚¹{maxPlanDiscount.toLocaleString('en-IN')}
                             </span>
                           )}
                         </div>
@@ -2508,7 +2547,7 @@ export const AddMemberPage = ({
                         />
                         {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
                           <p className="text-[10px] text-rose-600 font-bold mt-1">
-                            ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                            âš ï¸ Discount cannot exceed â‚¹{maxPlanDiscount.toLocaleString('en-IN')}
                           </p>
                         )}
                       </div>
@@ -2595,7 +2634,7 @@ export const AddMemberPage = ({
                               {trainers && trainers.length > 0 ? (
                                 trainers.map((t) => (
                                   <option key={t.id} value={t.id}>
-                                    {t.name} ({t.specialty}) — {t.experience}
+                                    {t.name} ({t.specialty}) â€” {t.experience}
                                   </option>
                                 ))
                               ) : (
@@ -2611,7 +2650,7 @@ export const AddMemberPage = ({
                                 <span>Commission</span>
                               </span>
                               <span className="font-mono font-bold text-indigo-700 text-xs">
-                                ₹{ptCommissionAmount.toLocaleString('en-IN')}
+                                â‚¹{ptCommissionAmount.toLocaleString('en-IN')}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -2623,12 +2662,12 @@ export const AddMemberPage = ({
                                 >
                                   %
                                 </button>
-                                <button 
+                                <button
                                   type="button"
                                   onClick={() => setCommissionType('fixed')}
                                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
                                 >
-                                  ₹
+                                  â‚¹
                                 </button>
                               </div>
                               {commissionType === 'percent' ? (
@@ -2780,9 +2819,9 @@ export const AddMemberPage = ({
                   </h2>
                 </div>
                 <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
-                  <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
+                  <span>Total Packages: <strong className="text-slate-700 font-mono">â‚¹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
                   {numDiscount > 0 && (
-                    <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-â‚¹{numDiscount.toLocaleString('en-IN')}</strong></span>
                   )}
                   {isPaymentAmountEntered && (
                     isGstIncluded ? (
@@ -2798,7 +2837,7 @@ export const AddMemberPage = ({
               <div className="sm:self-center shrink-0 bg-emerald-50/90 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2.5 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-emerald-800">Total Payable Price</span>
                 <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-                  ₹{totalCalculatedAmount.toLocaleString('en-IN')}
+                  â‚¹{totalCalculatedAmount.toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
@@ -2810,7 +2849,7 @@ export const AddMemberPage = ({
                 <span className="text-xs font-bold text-slate-800 block">Cash</span>
                 <div className="flex items-center gap-1.5">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">â‚¹</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -2841,7 +2880,7 @@ export const AddMemberPage = ({
                 <span className="text-xs font-bold text-slate-800 block">UPI</span>
                 <div className="flex items-center gap-1.5">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">â‚¹</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -2872,7 +2911,7 @@ export const AddMemberPage = ({
                 <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
                 <div className="flex items-center gap-1.5">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">â‚¹</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -2928,8 +2967,8 @@ export const AddMemberPage = ({
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         {isGstIncluded
-                          ? `GST included in ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}. Bill will display Base Fee + CGST + SGST = ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}.`
-                          : `Received ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')} flat without GST. Bill will NOT have CGST / SGST bifurcation.`}
+                          ? `GST included in â‚¹${gstBreakdown.targetAmount.toLocaleString('en-IN')}. Bill will display Base Fee + CGST + SGST = â‚¹${gstBreakdown.targetAmount.toLocaleString('en-IN')}.`
+                          : `Received â‚¹${gstBreakdown.targetAmount.toLocaleString('en-IN')} flat without GST. Bill will NOT have CGST / SGST bifurcation.`}
                       </p>
                     </div>
                   </div>
@@ -2955,19 +2994,19 @@ export const AddMemberPage = ({
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
                       <span className="text-slate-500 block text-[10px] font-semibold uppercase">Base Amount</span>
                       <strong className="text-slate-800 font-mono text-xs">
-                        ₹{gstBreakdown.taxable.toLocaleString('en-IN')}
+                        â‚¹{gstBreakdown.taxable.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
                       <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST (9%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
-                        ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
+                        â‚¹{gstBreakdown.cgst.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
                       <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST (9%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
-                        ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
+                        â‚¹{gstBreakdown.sgst.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg border bg-emerald-50/70 border-emerald-200 text-emerald-900">
@@ -2975,7 +3014,7 @@ export const AddMemberPage = ({
                         Total (Base + Taxes)
                       </span>
                       <strong className="font-mono text-xs">
-                        ₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}
+                        â‚¹{gstBreakdown.targetAmount.toLocaleString('en-IN')}
                       </strong>
                     </div>
                   </div>
@@ -2983,7 +3022,7 @@ export const AddMemberPage = ({
                   /* When GST is Disabled: Non-Tax Banner, NO CGST / SGST Bifurcation */
                   <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
                     <span className="font-medium">
-                      Non-Tax Bill: Flat <strong>₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}</strong> received without GST.
+                      Non-Tax Bill: Flat <strong>â‚¹{gstBreakdown.targetAmount.toLocaleString('en-IN')}</strong> received without GST.
                     </span>
                     <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
                       No GST Bifurcation on Bill
@@ -3005,7 +3044,7 @@ export const AddMemberPage = ({
                     <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
                       <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
                       <span className="text-sm font-black font-mono text-rose-600">
-                        ₹{calculatedBalanceDue.toLocaleString('en-IN')}
+                        â‚¹{calculatedBalanceDue.toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
@@ -3033,13 +3072,13 @@ export const AddMemberPage = ({
                 {/* Settlement Summary */}
                 <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
                   <span className="text-slate-600">
-                    Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
+                    Total Bill: <strong className="text-slate-900 font-mono">â‚¹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
                   </span>
                   <span className="text-emerald-700 font-semibold">
-                    Paid Now: <strong className="font-mono">₹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
+                    Paid Now: <strong className="font-mono">â‚¹{effectivePaidAmount.toLocaleString('en-IN')}</strong>
                   </span>
                   <span className="text-rose-700 font-bold">
-                    Balance Due: <strong className="font-mono">₹{calculatedBalanceDue.toLocaleString('en-IN')}</strong>
+                    Balance Due: <strong className="font-mono">â‚¹{calculatedBalanceDue.toLocaleString('en-IN')}</strong>
                   </span>
                 </div>
               </div>
@@ -3049,7 +3088,7 @@ export const AddMemberPage = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
                     {totalCalculatedAmount > 0 ? (
-                      <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
+                      <>Full payment of <strong>â‚¹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
                     ) : (
                       <>Payment settled. <strong>No balance remaining.</strong></>
                     )}

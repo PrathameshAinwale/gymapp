@@ -13,23 +13,25 @@ use Illuminate\Support\Facades\DB;
 class LeaveController extends Controller
 {
     /**
-     * Standard default leave quotas per year (in days)
+     * Standard leave types (Casual, Sick, Privilege) with 0 static days by default.
+     * Actual quotas are allocated dynamically by the owner.
      */
-    const DEFAULT_LEAVE_TYPES = [
-        'Privilege Leave' => 12.0,
-        'Sick Leave'      => 10.0,
-        'Casual Leave'    => 8.0,
+    const LEAVE_TYPES = [
+        'Casual Leave',
+        'Sick Leave',
+        'Privilege Leave',
     ];
 
     /**
-     * Auto-seed/ensure default balances for staff if not yet initialized
+     * Initialize balances with 0 allocated days for staff if not yet initialized.
+     * Excludes gym owner, superadmin, and members.
      */
     protected function ensureUserBalances($userId, $gymId, $year = 2026)
     {
         $user = User::find($userId);
-        if (!$user) return;
+        if (!$user || in_array($user->role, ['owner', 'superadmin', 'member'])) return;
 
-        foreach (self::DEFAULT_LEAVE_TYPES as $type => $days) {
+        foreach (self::LEAVE_TYPES as $type) {
             $bal = LeaveBalance::firstOrNew([
                 'user_id'    => $userId,
                 'leave_type' => $type,
@@ -40,13 +42,9 @@ class LeaveController extends Controller
                 $bal->gym_id         = $gymId ?: ($user->gym_id ?: 1);
                 $bal->user_name      = $user->name;
                 $bal->role           = $user->role;
-                $bal->allocated_days = $days;
-                $bal->used_days      = 0;
-                $bal->remaining_days = $days;
-                $bal->save();
-            } elseif ($bal->allocated_days <= 0 && $days > 0) {
-                $bal->allocated_days = $days;
-                $bal->remaining_days = max(0, $days - (float) $bal->used_days);
+                $bal->allocated_days = 0.0;
+                $bal->used_days      = 0.0;
+                $bal->remaining_days = 0.0;
                 $bal->save();
             }
         }
@@ -235,10 +233,13 @@ class LeaveController extends Controller
         $gymId = $this->resolveGymId($request);
         $year  = (int) ($request->query('year') ?: 2026);
 
-        // Fetch all staff and trainers (exclude members)
-        $staffQuery = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff', 'owner']);
+        // Run unexcused absence check for unpaid leave & salary deductions
+        self::processUnpaidLeavesForAbsentStaff();
+
+        // Fetch all staff and trainers (strictly exclude members and owners)
+        $staffQuery = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff']);
         if ($gymId && $gymId > 0) {
-            $hasGymStaff = (clone $staffQuery)->where('gym_id', $gymId)->where('role', '!=', 'owner')->exists();
+            $hasGymStaff = (clone $staffQuery)->where('gym_id', $gymId)->exists();
             if ($hasGymStaff) {
                 $staffQuery->where('gym_id', $gymId);
             }
@@ -367,24 +368,24 @@ class LeaveController extends Controller
 
         $typesToSet = [];
         if ($hasMultiTypes) {
-            $typesToSet['Casual Leave']    = (float) ($input['casual_leave'] ?? $input['casual_days'] ?? $input['casualLeave'] ?? 8);
-            $typesToSet['Sick Leave']      = (float) ($input['sick_leave'] ?? $input['sick_days'] ?? $input['sickLeave'] ?? 10);
-            $typesToSet['Privilege Leave'] = (float) ($input['privilege_leave'] ?? $input['privilege_days'] ?? $input['privilegeLeave'] ?? 12);
+            $typesToSet['Casual Leave']    = (float) ($input['casual_leave'] ?? $input['casual_days'] ?? $input['casualLeave'] ?? 0);
+            $typesToSet['Sick Leave']      = (float) ($input['sick_leave'] ?? $input['sick_days'] ?? $input['sickLeave'] ?? 0);
+            $typesToSet['Privilege Leave'] = (float) ($input['privilege_leave'] ?? $input['privilege_days'] ?? $input['privilegeLeave'] ?? 0);
         } else {
             $leaveType = trim($input['leave_type'] ?? 'Privilege Leave');
-            $allocatedDays = (float) ($input['allocated_days'] ?? 12);
+            $allocatedDays = (float) ($input['allocated_days'] ?? 0);
             $typesToSet[$leaveType] = $allocatedDays;
         }
 
-        // Fetch eligible employees ONLY (Trainers and Staff, strictly NO members)
+        // Fetch eligible employees ONLY (Trainers and Staff, strictly NO members or owners)
         $targetUserIds = [];
         if ($applyAll) {
-            $staffUsers = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff', 'owner'])
+            $staffUsers = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff'])
                 ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
                 ->get();
             $targetUserIds = $staffUsers->pluck('id')->toArray();
         } else {
-            $user = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff', 'owner'])
+            $user = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff'])
                 ->findOrFail($input['user_id']);
             $staffUsers = collect([$user]);
             $targetUserIds = [$user->id];
@@ -464,5 +465,159 @@ class LeaveController extends Controller
                 'total_employees'      => $staffCount,
             ],
         ]);
+    }
+    /**
+     * Process unexcused staff absences:
+     * If user does NOT have leaves (remaining_days <= 0) and did NOT check in,
+     * then mark it as Unpaid Leave and deduct salary for a full day.
+     */
+    public static function processUnpaidLeavesForAbsentStaff(?string $targetDate = null): array
+    {
+        try {
+            $tz = 'Asia/Kolkata';
+            $now = Carbon::now($tz);
+            $date = $targetDate ? Carbon::parse($targetDate, $tz)->toDateString() : $now->toDateString();
+            $year = (int) Carbon::parse($date, $tz)->year;
+            $currentMonth = Carbon::parse($date, $tz)->format('F Y');
+            $daysInMonth = Carbon::parse($date, $tz)->daysInMonth ?: 30;
+
+            $isToday = ($date === $now->toDateString());
+            $processed = [];
+
+            // Eligible staff and trainers
+            $staffUsers = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff'])
+                ->with('trainerProfile')
+                ->get();
+
+            foreach ($staffUsers as $stf) {
+                // If today, check if their shift timing has passed
+                if ($isToday && !empty($stf->shifts)) {
+                    $shiftTimings = \App\Http\Controllers\Api\AttendanceController::parseShiftTimings($stf->shifts);
+                    if ($shiftTimings && !empty($shiftTimings['end'])) {
+                        $shiftEnd = Carbon::parse($date . ' ' . $shiftTimings['end'], $tz);
+                        if ($now->lessThan($shiftEnd)) {
+                            // Staff's shift has not finished yet today
+                            continue;
+                        }
+                    }
+                }
+
+                // Check if staff member checked in on this date
+                $checkedIn = \App\Models\Attendance::where('user_id', $stf->id)
+                    ->whereDate('date', $date)
+                    ->whereNotNull('check_in_time')
+                    ->exists();
+
+                if ($checkedIn) {
+                    continue; // Present, not absent
+                }
+
+                // Check if an approved leave already covers this date
+                $approvedLeave = LeaveRequest::where('user_id', $stf->id)
+                    ->where('status', 'Approved')
+                    ->whereDate('start_date', '<=', $date)
+                    ->whereDate('end_date', '>=', $date)
+                    ->first();
+
+                if ($approvedLeave && $approvedLeave->leave_type !== 'Unpaid Leave') {
+                    continue; // Excused paid leave
+                }
+
+                // Check if attendance is already recorded for this date
+                $existingAtt = \App\Models\Attendance::where('user_id', $stf->id)
+                    ->whereDate('date', $date)
+                    ->first();
+
+                if ($existingAtt && $existingAtt->status === 'Unpaid Leave') {
+                    continue; // Already processed
+                }
+
+                // Check if staff has any remaining paid leave balance
+                $totalRemaining = (float) LeaveBalance::where('user_id', $stf->id)
+                    ->where('year', $year)
+                    ->sum('remaining_days');
+
+                // If user does NOT have leaves (remaining <= 0) and did not check in:
+                if ($totalRemaining <= 0) {
+                    // Calculate 1 full day salary
+                    $monthlySalary = (float)($stf->salary ?: ($stf->trainerProfile?->monthly_salary ?: 0));
+                    if ($monthlySalary <= 0) {
+                        $monthlySalary = $stf->role === 'manager' ? 30000 : ($stf->role === 'trainer' ? 22000 : 20000);
+                    }
+                    $perDaySalary = round($monthlySalary / $daysInMonth, 2);
+
+                    // 1. Mark Attendance as 'Unpaid Leave'
+                    \App\Models\Attendance::updateOrCreate(
+                        [
+                            'user_id' => $stf->id,
+                            'date'    => $date,
+                        ],
+                        [
+                            'member_name'    => $stf->name,
+                            'plan_name'      => ucfirst($stf->role),
+                            'member_avatar'  => $stf->avatar,
+                            'status'         => 'Unpaid Leave',
+                            'check_in_time'  => null,
+                            'check_out_time' => null,
+                            'duration'       => '0h 0m',
+                            'gate'           => 'Auto-Absence System',
+                        ]
+                    );
+
+                    // 2. Create Unpaid Leave record in leave_requests
+                    LeaveRequest::updateOrCreate(
+                        [
+                            'user_id'    => $stf->id,
+                            'start_date' => $date,
+                            'end_date'   => $date,
+                            'leave_type' => 'Unpaid Leave',
+                        ],
+                        [
+                            'gym_id'       => $stf->gym_id ?: 1,
+                            'user_name'    => $stf->name,
+                            'user_avatar'  => $stf->avatar,
+                            'role'         => $stf->role,
+                            'days_count'   => 1.0,
+                            'reason'       => 'Automated: Absent with no check-in and 0 remaining leave balance.',
+                            'status'       => 'Approved',
+                            'action_by'    => 'System Automated',
+                            'action_notes' => "Full day salary (â‚¹{$perDaySalary}) deducted for unexcused absence.",
+                            'action_date'  => $now,
+                        ]
+                    );
+
+                    // 3. Deduct salary for full day
+                    if ($perDaySalary > 0) {
+                        // Increment persistent deductions on user
+                        $stf->increment('deductions', $perDaySalary);
+
+                        // Update current month Payroll record if exists
+                        $payroll = \App\Models\Payroll::where('employee_id', $stf->id)
+                            ->where('month', $currentMonth)
+                            ->first();
+
+                        if ($payroll) {
+                            $payroll->deductions = (float)$payroll->deductions + $perDaySalary;
+                            $payroll->net_pay = max(0, (float)$payroll->base_salary + (float)$payroll->bonus + (float)$payroll->commission_earned - (float)$payroll->deductions);
+                            $noteMsg = "Unpaid leave: -â‚¹{$perDaySalary} ({$date})";
+                            $payroll->notes = $payroll->notes ? ($payroll->notes . ' | ' . $noteMsg) : $noteMsg;
+                            $payroll->save();
+                        }
+                    }
+
+                    $processed[] = [
+                        'user_id'   => $stf->id,
+                        'name'      => $stf->name,
+                        'date'      => $date,
+                        'deduction' => $perDaySalary,
+                    ];
+                }
+            }
+
+            return $processed;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("processUnpaidLeavesForAbsentStaff error: " . $e->getMessage());
+            return [];
+        }
     }
 }

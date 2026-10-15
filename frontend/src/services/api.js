@@ -8,12 +8,10 @@ const LIVE_PRODUCTION_API_URL = import.meta.env.PROD
 const isRunningInCapacitor = () => {
   if (typeof window === 'undefined') return false;
   return Boolean(
-    window.Capacitor !== undefined ||
+    (typeof window.Capacitor !== 'undefined' &&
+      (typeof window.Capacitor.isNativePlatform === 'function' ? window.Capacitor.isNativePlatform() : true)) ||
     window.location.protocol === 'capacitor:' ||
-    window.location.protocol === 'ionic:' ||
-    (window.location.protocol === 'https:' && window.location.hostname === 'localhost' && window.navigator?.userAgent?.includes('Android')) ||
-    (window.location.protocol === 'http:' && window.location.hostname === 'localhost' && window.navigator?.userAgent?.includes('Android')) ||
-    window.navigator?.userAgent?.includes('Capacitor')
+    window.location.protocol === 'ionic:'
   );
 };
 

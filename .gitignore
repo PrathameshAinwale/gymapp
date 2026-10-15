@@ -50,3 +50,19 @@ Thumbs.db
 
 # Deploy keys (never commit these)
 hostinger_deploy_key*
+
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Local attendance and synchronization databases
+device-sync-service/*.db
+device-sync-service/*.sqlite
+device-sync-service/*.sqlite3
+
+# Local device configuration
+device-sync-service/config.json
+
+# Biometric sync service logs
+device-sync-service/logs/

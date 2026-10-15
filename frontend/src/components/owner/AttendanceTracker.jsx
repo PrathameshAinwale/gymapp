@@ -7,6 +7,7 @@ import {
   Plus,
   Award,
   CheckCircle2,
+  XCircle,
   Clock,
   QrCode,
   Calendar,
@@ -152,13 +153,45 @@ export const AttendanceTracker = () => {
   };
 
   // Filter records strictly by selectedDate
-  const dayMemberAttendance = attendance.filter((a) =>
-    recordMatchesDate(a, selectedDate)
-  );
+  // 1. Members tab: Filter only gym members
+  const dayMemberAttendance = useMemo(() => {
+    return attendance.filter((a) =>
+      recordMatchesDate(a, selectedDate) && (!a.role || a.role === 'member')
+    );
+  }, [attendance, selectedDate]);
 
-  const dayStaffAttendance = staffAttendanceLogs.filter((s) =>
-    recordMatchesDate(s, selectedDate)
-  );
+  // 2. Trainer Shifts tab: Automatically map all staff (Trainer, Manager, Accountant) punches
+  const staffAttendanceFromDb = useMemo(() => {
+    return attendance
+      .filter((a) => recordMatchesDate(a, selectedDate) && a.role && a.role !== 'member')
+      .map((a) => ({
+        id: a.id,
+        staffId: a.userId ? `trn-${a.userId}` : a.id,
+        staffName: a.memberName,
+        role: a.role ? (a.role.charAt(0).toUpperCase() + a.role.slice(1)) : 'Staff Coach',
+        date: a.date,
+        rawDate: a.rawDate,
+        displayDate: a.displayDate,
+        checkInTime: a.checkInTime,
+        checkOutTime: a.checkOutTime !== '--' ? a.checkOutTime : null,
+        status: a.status === 'Inside Gym' ? 'On Duty' : (a.status === 'Completed' ? 'Completed Shift' : a.status),
+        totalHours: a.duration !== '--' ? a.duration : 'In progress',
+        avatar: a.avatar,
+      }));
+  }, [attendance, selectedDate]);
+
+  // Merge database records with any manual UI check-ins
+  const dayStaffAttendance = useMemo(() => {
+    const combined = [...staffAttendanceFromDb];
+    staffAttendanceLogs
+      .filter((s) => recordMatchesDate(s, selectedDate))
+      .forEach((manual) => {
+        if (!combined.some((c) => c.staffName === manual.staffName || c.staffId === manual.staffId)) {
+          combined.push(manual);
+        }
+      });
+    return combined;
+  }, [staffAttendanceFromDb, staffAttendanceLogs, selectedDate]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -372,7 +405,7 @@ export const AttendanceTracker = () => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-300 mt-0.5">
-                Active Receiver: <code className="text-blue-300 bg-blue-950/60 px-1 py-0.5 rounded text-[10px]">/iclock/cdata</code> · Machine Mode: <strong className="text-amber-300">ADMS Cloud Push</strong> · Live attendance punches sync directly to database.
+                Active Receiver: <code className="text-blue-300 bg-blue-950/60 px-1 py-0.5 rounded text-[10px]">/iclock/cdata</code> Â· Machine Mode: <strong className="text-amber-300">ADMS Cloud Push</strong> Â· Live attendance punches sync directly to database.
               </p>
             </div>
           </div>
@@ -872,27 +905,44 @@ export const AttendanceTracker = () => {
                         <div className="text-[10px] text-slate-500 mt-0.5 truncate">{stf.role}</div>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${isOnDuty
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : isPunchedOut
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border border-slate-200'
-                          }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${
+                          stf.status === 'Unpaid Leave'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : isOnDuty
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : isPunchedOut
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
                       >
-                        {isOnDuty ? <Clock className="w-2.5 h-2.5" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
-                        <span>{isOnDuty ? 'On Duty' : isPunchedOut ? 'Shift Completed' : 'Completed'}</span>
+                        {stf.status === 'Unpaid Leave' ? (
+                          <XCircle className="w-2.5 h-2.5 text-rose-600" />
+                        ) : isOnDuty ? (
+                          <Clock className="w-2.5 h-2.5" />
+                        ) : (
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                        )}
+                        <span>
+                          {stf.status === 'Unpaid Leave'
+                            ? 'Unpaid Leave'
+                            : isOnDuty
+                              ? 'On Duty'
+                              : isPunchedOut
+                                ? 'Shift Completed'
+                                : 'Completed'}
+                        </span>
                       </span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
                       <div>
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch In</span>
-                        <span className="font-semibold text-slate-800">{stf.checkInTime || '—'}</span>
+                        <span className="font-semibold text-slate-800">{stf.checkInTime || 'â€”'}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch Out</span>
                         <span className="font-semibold text-slate-800">
-                          {stf.checkOutTime || (isOnDuty ? 'In Progress' : '—')}
+                          {stf.checkOutTime || (isOnDuty ? 'In Progress' : 'â€”')}
                         </span>
                       </div>
                       <div className="text-right">
@@ -989,16 +1039,21 @@ export const AttendanceTracker = () => {
                             </div>
                           </td>
                           <td className="py-3.5 px-5 text-emerald-700 font-semibold">
-                            {stf.checkInTime || '—'}
+                            {stf.checkInTime || 'â€”'}
                           </td>
                           <td className="py-3.5 px-5 text-slate-700 font-semibold">
-                            {stf.checkOutTime || (isOnDuty ? '--' : '—')}
+                            {stf.checkOutTime || (isOnDuty ? '--' : 'â€”')}
                           </td>
                           <td className="py-3.5 px-5 text-slate-600">
                             {stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}
                           </td>
                           <td className="py-3.5 px-5">
-                            {isOnDuty ? (
+                            {stf.status === 'Unpaid Leave' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <XCircle className="w-3 h-3 text-rose-600" />
+                                <span>Unpaid Leave (Absent)</span>
+                              </span>
+                            ) : isOnDuty ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                 <span>On Duty</span>
@@ -1015,7 +1070,12 @@ export const AttendanceTracker = () => {
                             )}
                           </td>
                           <td className="py-3.5 px-5 text-right">
-                            {isToday ? (
+                            {stf.status === 'Unpaid Leave' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Salary Deducted</span>
+                              </span>
+                            ) : isToday ? (
                               isOnDuty ? (
                                 <button
                                   type="button"
@@ -1074,7 +1134,7 @@ export const AttendanceTracker = () => {
             >
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({m.planName || 'Member'} • ID: {m.id})
+                  {m.name} ({m.planName || 'Member'} â€¢ ID: {m.id})
                 </option>
               ))}
             </select>
@@ -1458,7 +1518,7 @@ export const AttendanceTracker = () => {
             >
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} (Member ID: {String(m.id).replace('mem-', '')} · {m.planName || 'Active Plan'})
+                  {m.name} (Member ID: {String(m.id).replace('mem-', '')} Â· {m.planName || 'Active Plan'})
                 </option>
               ))}
             </select>
