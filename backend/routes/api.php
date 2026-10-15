@@ -200,6 +200,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
 
         // Gym Business Information & Multi-branch
         Route::put('/gym-info', [GymSettingController::class, 'update']);
+Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDeviceConnection']);
         Route::get('/owner/branches', [GymSettingController::class, 'getBranches']);
         Route::post('/owner/branches', [GymSettingController::class, 'createBranch']);
         Route::post('/owner/switch-branch', [GymSettingController::class, 'switchBranch']);

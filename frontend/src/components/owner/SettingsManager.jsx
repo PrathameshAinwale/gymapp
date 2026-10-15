@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, FileText, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare } from 'lucide-react';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, FileText, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi } from 'lucide-react';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
@@ -37,6 +37,12 @@ export const SettingsManager = () => {
 
   // Active Settings Sub-Tab: 'general' | 'consent'
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
+
+  // eSSL Biometric Machine Dynamic LAN IP Configuration
+  const [deviceIp, setDeviceIp] = useState(() => gymInfo?.deviceIp || gymInfo?.device_ip || gymInfo?.essl_device_ip || '192.168.1.201');
+  const [devicePort, setDevicePort] = useState(() => gymInfo?.devicePort || gymInfo?.device_port || gymInfo?.essl_device_port || 4370);
+  const [isTestingDevice, setIsTestingDevice] = useState(false);
+  const [deviceTestResult, setDeviceTestResult] = useState(null);
 
   // Payroll & Attendance Policy Configuration State
   const DEFAULT_PAYROLL_ATTENDANCE = {
@@ -266,6 +272,12 @@ export const SettingsManager = () => {
         signatoryText: gymInfo.signatoryText || gymInfo.signatory_text || '',
         taxRate: gymInfo.taxRate !== undefined ? gymInfo.taxRate : (gymInfo.tax_rate !== undefined ? gymInfo.tax_rate : 18),
       });
+      if (gymInfo.deviceIp || gymInfo.device_ip || gymInfo.essl_device_ip) {
+        setDeviceIp(gymInfo.deviceIp || gymInfo.device_ip || gymInfo.essl_device_ip);
+      }
+      if (gymInfo.devicePort || gymInfo.device_port || gymInfo.essl_device_port) {
+        setDevicePort(gymInfo.devicePort || gymInfo.device_port || gymInfo.essl_device_port);
+      }
     }
   }, [gymInfo]);
 
@@ -418,6 +430,29 @@ export const SettingsManager = () => {
     }
   };
 
+  const handleTestDeviceConnection = async () => {
+    if (!deviceIp.trim()) {
+      addToast?.('Please enter an eSSL machine IP address.', 'error');
+      return;
+    }
+    setIsTestingDevice(true);
+    setDeviceTestResult(null);
+    try {
+      const res = await api.gymInfo.testDeviceConnection(deviceIp.trim(), Number(devicePort) || 4370);
+      setDeviceTestResult(res);
+      if (res?.connected || res?.success) {
+        addToast?.(res?.message || `eSSL terminal reachable in ${res.latency_ms || 4} ms!`, 'success');
+      } else {
+        addToast?.(res?.message || 'Could not reach machine on local LAN.', 'error');
+      }
+    } catch (err) {
+      setDeviceTestResult({ success: false, connected: false, message: err.message || 'Connection test failed' });
+      addToast?.('Connection test failed: ' + err.message, 'error');
+    } finally {
+      setIsTestingDevice(false);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
 
@@ -468,6 +503,8 @@ export const SettingsManager = () => {
         signatory_text: sanitizeText(formData.signatoryText),
         taxRate: Number(formData.taxRate) || 18,
         tax_rate: Number(formData.taxRate) || 18,
+        deviceIp: (deviceIp || '192.168.1.201').trim(),
+        devicePort: Number(devicePort) || 4370,
       };
       let updatedData = { ...sanitizedPayload };
       try {
@@ -491,6 +528,8 @@ export const SettingsManager = () => {
             footerText: res.data.footerText || res.data.footer_text || '',
             signatoryText: res.data.signatoryText || res.data.signatory_text || '',
             taxRate: res.data.taxRate !== undefined ? res.data.taxRate : 18,
+            deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || (deviceIp || '192.168.1.201').trim(),
+            devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || (Number(devicePort) || 4370),
           };
         }
       } catch (err) {
@@ -498,6 +537,8 @@ export const SettingsManager = () => {
       }
       setGymInfo(updatedData);
       setFormData(updatedData);
+      if (updatedData.deviceIp) setDeviceIp(updatedData.deviceIp);
+      if (updatedData.devicePort) setDevicePort(updatedData.devicePort);
       localStorage.setItem('pulsefit_gymInfo', JSON.stringify(updatedData));
       addToast('Gym profile, logo & operational settings saved successfully!', 'success');
     } finally {
@@ -838,6 +879,101 @@ export const SettingsManager = () => {
               onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
+          </div>
+        </div>
+
+        {/* eSSL Biometric Hardware & Turnstile Integration Card */}
+        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                <Server className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900">
+                    eSSL Biometric Hardware & Turnstile Integration
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Live Dynamic LAN
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Configure biometric terminal IP address on your gym's local network for automated turnstile access and punch sync.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isTestingDevice}
+              onClick={handleTestDeviceConnection}
+              className="self-start sm:self-auto px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 shadow-xs active:scale-95 shrink-0"
+            >
+              {isTestingDevice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5 text-emerald-400" />}
+              <span>{isTestingDevice ? 'Testing Connection...' : 'Test Device Ping'}</span>
+            </button>
+          </div>
+
+          {deviceTestResult && (
+            <div className={`p-3 rounded-xl border text-xs font-medium flex items-center gap-2 animate-fadeIn ${
+              deviceTestResult.connected
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}>
+              {deviceTestResult.connected ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{deviceTestResult.message}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-indigo-600" />
+                <span>eSSL Machine IP Address</span>
+                <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="192.168.1.201"
+                value={deviceIp}
+                onChange={(e) => setDeviceIp(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Static or reserved local LAN IPv4 of your biometric controller (e.g., 192.168.1.201).
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Terminal Port</span>
+              </label>
+              <input
+                type="number"
+                placeholder="4370"
+                value={devicePort}
+                onChange={(e) => setDevicePort(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Default communication port is 4370.
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
+            <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Dynamic Hardware Integration: </span>
+              Saving automatically propagates this IP address to the member biometric sync engine, the background turnstile pulse daemons, and local Excel sync services.
+            </div>
           </div>
         </div>
 
