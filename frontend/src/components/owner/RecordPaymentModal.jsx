@@ -849,10 +849,13 @@ export const RecordPaymentModal = ({
         duesAmount: calculatedBalanceDue,
         pendingAmount: calculatedBalanceDue,
         date: paymentDate || new Date().toISOString().split('T')[0],
+        issueDate: paymentDate || new Date().toISOString().split('T')[0],
         invoiceDate: paymentDate || new Date().toISOString().split('T')[0],
         paymentDate: paymentDate || new Date().toISOString().split('T')[0],
         paymentMethod: resolvedPaymentMethodString,
         status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+        startDate: hasMembership ? membershipStartDate : null,
+        endDate: hasMembership ? membershipEndDate : currentMember?.expiryDate,
         expiryDate: hasMembership ? membershipEndDate : currentMember?.expiryDate,
         itemsBreakdown: lineTitles,
         createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'

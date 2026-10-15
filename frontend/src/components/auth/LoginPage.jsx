@@ -19,6 +19,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { isValidEmail, hasSqlInjection, sanitizeText } from '../../utils/validation';
+import { isIntentionalAbort } from '../../services/api';
 
 export const LoginPage = () => {
   const { login } = useAuth();
@@ -57,11 +58,13 @@ export const LoginPage = () => {
 
     try {
       const result = await login(cleanLogin, cleanPassword);
-      if (!result.success) {
+      if (!result.success && !result.cancelled) {
         setErrorMessage(result.error || 'Failed to authenticate');
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Authentication error');
+      if (!isIntentionalAbort(err)) {
+        setErrorMessage(err.message || 'Authentication error');
+      }
     } finally {
       setIsLoading(false);
     }

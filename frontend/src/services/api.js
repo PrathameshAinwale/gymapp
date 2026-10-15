@@ -4,7 +4,6 @@ const FALLBACK_PRODUCTION_API_URL = 'https://archfit.archenterprises.co.in/api/v
 const LIVE_PRODUCTION_API_URL = import.meta.env.PROD
   ? (import.meta.env.VITE_API_BASE_URL || FALLBACK_PRODUCTION_API_URL)
   : null;
-const CURRENT_LAN_IP = '192.168.1.40';
 
 const isRunningInCapacitor = () => {
   if (typeof window === 'undefined') return false;
@@ -18,15 +17,17 @@ const isRunningInCapacitor = () => {
   );
 };
 
-const isLocalHost = (hostname) => {
-  if (!hostname) return true;
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)
-  );
-};
+const isLocalHost = import.meta.env.DEV
+  ? (hostname) => {
+      if (!hostname) return true;
+      return (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)
+      );
+    }
+  : () => false;
 
 const getOriginApiUrl = () => {
   if (typeof window === 'undefined') return null;
@@ -40,6 +41,10 @@ const getDefaultHosts = () => {
   const originApiUrl = getOriginApiUrl();
   const inCapacitor = isRunningInCapacitor();
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  if (import.meta.env.PROD) {
+    return Array.from(new Set([originApiUrl, LIVE_PRODUCTION_API_URL, FALLBACK_PRODUCTION_API_URL].filter(Boolean)));
+  }
 
   // Local development mode: strictly candidate local endpoints only
   if (import.meta.env.DEV) {
@@ -64,7 +69,7 @@ const getDefaultHosts = () => {
         [
           envApiUrl,
           LIVE_PRODUCTION_API_URL,
-          `http://${CURRENT_LAN_IP}:8000/api/v1`,
+          currentHost && isLocalHost(currentHost) ? `http://${currentHost}:8000/api/v1` : null,
           'http://10.0.2.2:8000/api/v1',
         ].filter(Boolean)
       )
@@ -93,7 +98,6 @@ const getDefaultHosts = () => {
   if (currentHost && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(currentHost)) {
     hosts.push(`http://${currentHost}:8000/api/v1`);
   }
-  hosts.push(`http://${CURRENT_LAN_IP}:8000/api/v1`);
 
   return Array.from(new Set(hosts.filter(Boolean)));
 };
@@ -101,6 +105,9 @@ const getDefaultHosts = () => {
 const CANDIDATE_API_HOSTS = getDefaultHosts();
 
 let activeBaseUrl = (function () {
+  if (import.meta.env.PROD) {
+    return FALLBACK_PRODUCTION_API_URL;
+  }
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname;
     const isLive = currentHost && !isLocalHost(currentHost);
@@ -117,28 +124,16 @@ let activeBaseUrl = (function () {
     const saved = localStorage.getItem('archfit_api_url') || localStorage.getItem('pulsefit_api_url');
 
     if (isLive) {
-      if (
-        saved &&
-        (saved.includes('127.0.0.1') ||
-          saved.includes('localhost') ||
-          saved.includes('192.168.') ||
-          saved.includes(':8000'))
-      ) {
-        localStorage.removeItem('archfit_api_url');
-        localStorage.removeItem('pulsefit_api_url');
-      } else if (saved && saved.startsWith('https://')) {
+      if (saved && saved.startsWith('https://') && !saved.includes(':8000')) {
         return saved;
       }
+      localStorage.removeItem('archfit_api_url');
+      localStorage.removeItem('pulsefit_api_url');
       return originApiUrl || LIVE_PRODUCTION_API_URL || FALLBACK_PRODUCTION_API_URL;
     }
 
     if (inCapacitor) {
-      if (
-        saved &&
-        !saved.includes('127.0.0.1') &&
-        !saved.includes('localhost') &&
-        !saved.includes('192.168.1.48')
-      ) {
+      if (saved && saved.startsWith('https://')) {
         return saved;
       }
       return LIVE_PRODUCTION_API_URL || FALLBACK_PRODUCTION_API_URL;
@@ -156,24 +151,115 @@ export const setActiveApiUrl = (url) => {
   }
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.PROD
-    ? FALLBACK_PRODUCTION_API_URL
-    : 'http://127.0.0.1:8000/api/v1'
-);
+const API_BASE_URL = import.meta.env.PROD
+  ? FALLBACK_PRODUCTION_API_URL
+  : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1');
 
-// Fast fetch helper with timeout to avoid browser hangs
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+// Helper to determine if an error is an intentional abort (component unmount, route navigation, superseded request)
+export const isIntentionalAbort = (err) => {
+  if (!err) return false;
+  if (err.isIntentional) return true;
+  if (err.name === 'TimeoutError' || err.isTimeout) return false;
+  const msg = (err.message || '').toLowerCase();
+  if (msg.includes('timed out') || msg.includes('timeout')) return false;
+  if (err.name === 'AbortError' || err.code === 20 || msg.includes('abort') || msg.includes('cancel')) {
+    return true;
+  }
+  return false;
+};
+
+// Sensible tiered timeouts to prevent premature aborts during sequential processing on single-threaded dev servers
+const getTimeoutForRequest = (urlOrPath, options = {}) => {
+  if (options.timeoutMs) return options.timeoutMs;
+  const path = (urlOrPath || '').toLowerCase();
+  const method = (options.method || 'GET').toUpperCase();
+
+  // Heavy operations: reports, invoice exports, full sync, staff provisioning
+  if (path.includes('/reports') || path.includes('/export') || path.includes('/bulk') || path.includes('full_sync') || path.includes('/staff')) {
+    return 45000;
+  }
+  // Mutations: creating/updating members, invoices, plans, authentication
+  if (method !== 'GET') {
+    return 30000;
+  }
+  // Standard GET endpoints
+  return 15000;
+};
+
+// Fetch helper with explicit timeout reason to avoid "signal is aborted without reason"
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    const timeoutError = new DOMException(`Request timed out after ${timeoutMs}ms`, 'TimeoutError');
+    try {
+      controller.abort(timeoutError);
+    } catch {
+      try {
+        controller.abort(new Error(`Request timed out after ${timeoutMs}ms`));
+      } catch {
+        controller.abort();
+      }
+    }
+  }, timeoutMs);
+
+  let detachCallerSignal = null;
+  if (options.signal) {
+    if (options.signal.aborted) {
+      clearTimeout(timeoutId);
+      const abortReason = options.signal.reason || new DOMException('Request cancelled by caller', 'AbortError');
+      try {
+        controller.abort(abortReason);
+      } catch {
+        controller.abort();
+      }
+    } else {
+      const onCallerAbort = () => {
+        clearTimeout(timeoutId);
+        const abortReason = options.signal.reason || new DOMException('Request cancelled by caller', 'AbortError');
+        try {
+          controller.abort(abortReason);
+        } catch {
+          controller.abort();
+        }
+      };
+      options.signal.addEventListener('abort', onCallerAbort, { once: true });
+      detachCallerSignal = () => {
+        try {
+          options.signal.removeEventListener('abort', onCallerAbort);
+        } catch {}
+      };
+    }
+  }
+
   try {
-    const res = await fetch(url, {
+    const fetchOptions = {
       ...options,
-      signal: options.signal || controller.signal,
-    });
+      signal: controller.signal,
+    };
+    const res = await fetch(url, fetchOptions);
     return res;
+  } catch (err) {
+    if (timedOut || err.name === 'TimeoutError' || err.message?.includes('timed out')) {
+      const timeoutErr = new DOMException(
+        `Connection timed out after ${Math.round(timeoutMs / 1000)}s while connecting to backend.`,
+        'TimeoutError'
+      );
+      timeoutErr.isTimeout = true;
+      throw timeoutErr;
+    }
+    if (options.signal?.aborted || isIntentionalAbort(err)) {
+      const abortErr = new DOMException('Request cancelled', 'AbortError');
+      abortErr.isIntentional = true;
+      throw abortErr;
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
+    if (detachCallerSignal) {
+      detachCallerSignal();
+    }
   }
 };
 
@@ -185,15 +271,9 @@ const CACHE_TTL_MS = 6000; // 6s cache for duplicate GET queries
 // Universal smart fetch wrapper that auto-fails over if the endpoint host is unreachable
 const apiFetch = async (urlOrPath, options = {}) => {
   let relativePath = urlOrPath;
-  const allKnownHosts = [
-    activeBaseUrl,
-    LIVE_PRODUCTION_API_URL,
-    getOriginApiUrl(),
-    'http://127.0.0.1:8000/api/v1',
-    'http://localhost:8000/api/v1',
-    `http://${CURRENT_LAN_IP}:8000/api/v1`,
-    ...CANDIDATE_API_HOSTS
-  ].filter(Boolean);
+  const allKnownHosts = import.meta.env.PROD
+    ? [activeBaseUrl, LIVE_PRODUCTION_API_URL, FALLBACK_PRODUCTION_API_URL, getOriginApiUrl(), ...CANDIDATE_API_HOSTS].filter(Boolean)
+    : [activeBaseUrl, 'http://127.0.0.1:8000/api/v1', 'http://localhost:8000/api/v1', getOriginApiUrl(), ...CANDIDATE_API_HOSTS].filter(Boolean);
 
   for (const host of allKnownHosts) {
     if (relativePath.startsWith(host)) {
@@ -242,38 +322,31 @@ const apiFetch = async (urlOrPath, options = {}) => {
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
     let rawHosts = [];
-    if (inCapacitor) {
-      rawHosts = [
-        activeBaseUrl,
-        LIVE_PRODUCTION_API_URL,
-        ...CANDIDATE_API_HOSTS,
-        `http://${CURRENT_LAN_IP}:8000/api/v1`,
-        'http://10.0.2.2:8000/api/v1',
-      ].filter((h) => Boolean(h) && !h.includes('127.0.0.1') && !h.includes('localhost'));
-    } else if (isLive) {
-      // On live production, strictly use live endpoints (no local LAN IPs or insecure http on https)
-      rawHosts = [
-        activeBaseUrl,
-        getOriginApiUrl(),
-        LIVE_PRODUCTION_API_URL,
-        ...CANDIDATE_API_HOSTS,
-      ].filter((h) => {
-        if (!h) return false;
-        try {
-          const urlObj = new URL(h, window.location.origin);
-          return !isLocalHost(urlObj.hostname);
-        } catch {
-          return true;
-        }
-      });
+    if (import.meta.env.PROD) {
+      if (inCapacitor) {
+        rawHosts = [
+          activeBaseUrl,
+          LIVE_PRODUCTION_API_URL,
+          FALLBACK_PRODUCTION_API_URL,
+          ...CANDIDATE_API_HOSTS,
+        ].filter(Boolean);
+      } else {
+        rawHosts = [
+          activeBaseUrl,
+          getOriginApiUrl(),
+          LIVE_PRODUCTION_API_URL,
+          FALLBACK_PRODUCTION_API_URL,
+          ...CANDIDATE_API_HOSTS,
+        ].filter(Boolean);
+      }
     } else {
-      // Local development machine - strictly use local backend server only (via Vite proxy or direct port 8000)
+      // Local development machine - strictly use local backend server only (via direct port 8000 or Vite proxy)
       rawHosts = [
-        getOriginApiUrl(),
+        activeBaseUrl,
         'http://127.0.0.1:8000/api/v1',
         'http://localhost:8000/api/v1',
-        `http://${currentHost}:8000/api/v1`,
-        `http://${CURRENT_LAN_IP}:8000/api/v1`,
+        getOriginApiUrl(),
+        ...(currentHost && isLocalHost(currentHost) && currentHost !== 'localhost' && currentHost !== '127.0.0.1' ? [`http://${currentHost}:8000/api/v1`] : []),
       ].filter(Boolean);
     }
 
@@ -299,7 +372,7 @@ const apiFetch = async (urlOrPath, options = {}) => {
     }
 
     let lastError = null;
-    const timeoutMs = 8000;
+    const timeoutMs = getTimeoutForRequest(relativePath, options);
     for (const host of hostsToTry) {
       try {
         const cleanHost = host.replace(/\/+$/, '');
@@ -316,7 +389,29 @@ const apiFetch = async (urlOrPath, options = {}) => {
         return res;
       } catch (err) {
         lastError = err;
+        // If caller cancelled or unmounted intentionally, DO NOT try fallback hosts
+        if (isIntentionalAbort(err) || options.signal?.aborted) {
+          throw err;
+        }
       }
+    }
+
+    // Classify error for clear user feedback
+    if (lastError && (lastError.isTimeout || lastError.name === 'TimeoutError')) {
+      const friendlyTimeoutErr = new Error('Connection timed out. The server is taking longer than expected to respond.');
+      friendlyTimeoutErr.name = 'TimeoutError';
+      friendlyTimeoutErr.isTimeout = true;
+      throw friendlyTimeoutErr;
+    }
+
+    if (lastError && (lastError.name === 'TypeError' || lastError.message?.includes('Failed to fetch') || lastError.message?.includes('NetworkError'))) {
+      const friendlyNetErr = new Error(
+        import.meta.env.PROD
+          ? 'Unable to connect to the backend server. Please check your internet connection.'
+          : 'Unable to connect to the backend server. Please verify the local server is running on port 8000.'
+      );
+      friendlyNetErr.name = 'NetworkError';
+      throw friendlyNetErr;
     }
 
     throw lastError || new Error('Network error: Unable to connect to backend server');

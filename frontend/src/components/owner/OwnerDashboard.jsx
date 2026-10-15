@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { MemberProfileView } from './MemberProfileView';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import {
@@ -156,6 +157,7 @@ export const OwnerDashboard = ({
   } = useGymData();
 
   const { currentUser, currentRole, canAccessFinancials } = useAuth();
+  const gymName = gymInfo?.name || gymInfo?.gym_name || currentUser?.gymName || 'our gym';
 
   // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, Coach, ID, Status, Dues, KYC, etc.
   const searchResults = useMemo(() => {
@@ -1481,7 +1483,8 @@ export const OwnerDashboard = ({
 
         {/* Left 8 Cols: Clean Segmented Priority Action Hub */}
         <div className="lg:col-span-8 space-y-3 sm:space-y-6">
-          <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
+          <ErrorBoundary title="Today's Priority Actions">
+            <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="min-w-0">
                 <h3 className="text-sm sm:text-base font-bold text-slate-900">Today's Priority Actions</h3>
@@ -1908,7 +1911,8 @@ export const OwnerDashboard = ({
               </div>
             )}
           </div>
-        </div>
+        </ErrorBoundary>
+      </div>
 
         {/* Right 4 Cols: Live Floor Status & Check-ins Stream */}
         <div className="lg:col-span-4 space-y-3 sm:space-y-6">

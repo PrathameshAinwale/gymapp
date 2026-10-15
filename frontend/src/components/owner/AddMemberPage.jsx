@@ -5,7 +5,7 @@ import { Modal } from '../common/Modal';
 import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
-import { calculatePlanExpiryDate } from '../../utils/dateUtils';
+import { calculatePlanExpiryDate, formatDateDisplay, calculateAgeFromDob } from '../../utils/dateUtils';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getGymConsentForm } from '../../utils/consentFormConfig';
 import {
@@ -79,6 +79,7 @@ export const AddMemberPage = ({
     plans = [],
     ptPlans = [],
     recoveryPlans = [],
+    invoices = [],
     fetchRecoveryPlans,
     fetchPtPlans,
     addMember,
@@ -108,38 +109,7 @@ export const AddMemberPage = ({
 
   const getTodayDateStr = () => new Date().toISOString().split('T')[0];
 
-  const calculateAgeFromDob = (dobStr) => {
-    if (!dobStr) return '';
-    try {
-      const parts = String(dobStr).split('-');
-      if (parts.length === 3) {
-        const birthYear = parseInt(parts[0], 10);
-        const birthMonth = parseInt(parts[1], 10) - 1;
-        const birthDay = parseInt(parts[2], 10);
-        if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return '';
 
-        const today = new Date();
-        let age = today.getFullYear() - birthYear;
-        const m = today.getMonth() - birthMonth;
-        if (m < 0 || (m === 0 && today.getDate() < birthDay)) {
-          age--;
-        }
-        return age >= 0 && age <= 125 ? age : '';
-      }
-
-      const birth = new Date(dobStr);
-      if (isNaN(birth.getTime())) return '';
-      const today = new Date();
-      let age = today.getFullYear() - birth.getFullYear();
-      const m = today.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-        age--;
-      }
-      return age >= 0 && age <= 125 ? age : '';
-    } catch {
-      return '';
-    }
-  };
 
   const defaultStaffExecutive = currentUser?.name || '';
 
@@ -191,6 +161,186 @@ export const AddMemberPage = ({
   const [ptCommissionPercent, setPtCommissionPercent] = useState();
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
 
+  const addDaysIso = (dateStr, days) => {
+    if (!dateStr) return '';
+    try {
+      const clean = String(dateStr).split('T')[0];
+      const parts = clean.split('-');
+      if (parts.length !== 3) return '';
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      d.setDate(d.getDate() + Number(days));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const computePlanEndDate = (startDateStr, planObj) => {
+    if (!startDateStr || !planObj) return '';
+    try {
+      const name = (planObj.name || '').toLowerCase();
+      const period = (planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : '')).toLowerCase();
+      let monthsToAdd = Number(planObj.durationMonths || planObj.duration_months) || 0;
+
+      const matchDays = period.match(/(\d+)\s*days?/i) || (planObj.validityDays ? [null, String(planObj.validityDays)] : null);
+      const matchMonths = period.match(/(\d+)\s*months?/i);
+
+      if (matchMonths) {
+        monthsToAdd = parseInt(matchMonths[1], 10);
+      } else if (!monthsToAdd) {
+        if (name.includes('annual') || name.includes('1 year') || name.includes('12 month') || period.includes('12 month') || period.includes('annual')) {
+          monthsToAdd = 12;
+        } else if (name.includes('6 month') || period.includes('6 month') || name.includes('half year')) {
+          monthsToAdd = 6;
+        } else if (name.includes('3 month') || period.includes('3 month') || name.includes('quarter')) {
+          monthsToAdd = 3;
+        } else if (name.includes('1 month') || period.includes('1 month') || name.includes('monthly')) {
+          monthsToAdd = 1;
+        }
+      }
+
+      if (!monthsToAdd && !matchDays) {
+        monthsToAdd = 1;
+      }
+
+      const bonusDays = Number(planObj.offerDays || planObj.offer_days) || 0;
+      const periodParam = matchDays ? `${matchDays[1]} Days` : (planObj.period || '');
+      return calculatePlanExpiryDate(startDateStr, monthsToAdd, periodParam, bonusDays);
+    } catch {
+      return '';
+    }
+  };
+
+  const getPackageObject = (type, id) => {
+    return getPackageObjectFromLists(type, id, plans, ptPlans, recoveryPlans);
+  };
+
+  // Preceding end date calculation for plan chaining
+  const getPrecedingEndDateForType = (packageType, currentRowId, currentRows) => {
+    const targetType = normalizePackageType(packageType);
+    const todayStr = getTodayDateStr();
+    let latestEnd = null;
+
+    // 1. If targetMember (upgrade/edit of existing member), check their active plans/invoices
+    if (targetMember) {
+      const cleanMemberId = String(targetMember.id || targetMember.userId || '').replace(/[^0-9]/g, '');
+      if (Array.isArray(invoices)) {
+        invoices.forEach((inv) => {
+          const invMemId = String(inv.userId || inv.user_id || inv.memberId || inv.member_id || '').replace(/[^0-9]/g, '');
+          if (invMemId !== cleanMemberId) return;
+          if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+
+          const invType = normalizePackageType(inv.package_type || inv.packageType || inv.category || 'Gym-Cardio');
+          if (invType !== targetType) return;
+
+          const endStr = (inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate || '').split('T')[0];
+          if (endStr && endStr >= todayStr) {
+            if (!latestEnd || endStr > latestEnd) {
+              latestEnd = endStr;
+            }
+          }
+        });
+      }
+
+      const rawExp = (targetMember.expiryDate || targetMember.expiry_date || '').split('T')[0];
+      if (rawExp && rawExp >= todayStr && targetMember.status !== 'Expired') {
+        const profilePlan = plans.find((p) => String(p.id) === String(targetMember.planId || targetMember.plan_id));
+        const profileType = normalizePackageType(
+          profilePlan?.packageType || profilePlan?.package_type || (targetMember.trainingType === 'pt' ? 'Personal Training' : 'Gym-Cardio')
+        );
+        if (profileType === targetType) {
+          if (!latestEnd || rawExp > latestEnd) {
+            latestEnd = rawExp;
+          }
+        }
+      }
+    }
+
+    // 2. Preceding rows in the form
+    const rows = currentRows || selectedPackages;
+    if (Array.isArray(rows)) {
+      for (const r of rows) {
+        if (r.id === currentRowId) break;
+        const rType = normalizePackageType(r.packageType);
+        if (rType === targetType && r.endDate && r.endDate >= todayStr) {
+          if (!latestEnd || r.endDate > latestEnd) {
+            latestEnd = r.endDate;
+          }
+        }
+      }
+    }
+
+    return latestEnd;
+  };
+
+  const getRowChainingInfo = (pkgRow, currentRows) => {
+    const todayStr = getTodayDateStr();
+    const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
+    const latestEnd = getPrecedingEndDateForType(pkgType, pkgRow?.id, currentRows);
+
+    if (latestEnd && latestEnd >= todayStr) {
+      const chainedStart = addDaysIso(latestEnd, 1);
+      return {
+        isChained: true,
+        latestEnd,
+        minStartDate: chainedStart,
+        defaultStartDate: chainedStart,
+        message: `Chained from ${formatDateDisplay(chainedStart)} (previous ${pkgType} ends ${formatDateDisplay(latestEnd)})`
+      };
+    }
+
+    const package1Start = currentRows?.[0]?.startDate || membershipStartDate;
+    const baseDate = package1Start || formData.joinDate || todayStr;
+    const freshStart = baseDate >= todayStr ? baseDate : todayStr;
+    return {
+      isChained: false,
+      latestEnd: null,
+      minStartDate: todayStr,
+      defaultStartDate: freshStart,
+      message: `Starts ${formatDateDisplay(freshStart)} by default`
+    };
+  };
+
+  const recalculatePackageRows = (rows, currentJoinDate) => {
+    const todayStr = getTodayDateStr();
+    const baseJoin = currentJoinDate || formData.joinDate || todayStr;
+
+    const updated = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const chaining = getRowChainingInfo(row, updated);
+      const pkgObj = getPackageObject(row.packageType, row.packageId);
+
+      let effectiveStart = '';
+      if (i === 0) {
+        const candidate = row.startDate || membershipStartDate || baseJoin;
+        effectiveStart = (candidate >= chaining.minStartDate) ? candidate : chaining.minStartDate;
+      } else {
+        if (row.isCustomStartDate && row.startDate && row.startDate >= chaining.minStartDate) {
+          effectiveStart = row.startDate;
+        } else {
+          effectiveStart = chaining.defaultStartDate;
+        }
+      }
+
+      const calculatedEnd = pkgObj ? computePlanEndDate(effectiveStart, pkgObj) : '';
+
+      updated.push({
+        ...row,
+        startDate: effectiveStart,
+        endDate: calculatedEnd,
+        minStartDate: chaining.minStartDate,
+        chainingMessage: chaining.message,
+        isChained: chaining.isChained,
+      });
+    }
+
+    return updated;
+  };
+
   // Multi-Package Selection State
   const [selectedPackages, setSelectedPackages] = useState([
     {
@@ -198,12 +348,41 @@ export const AddMemberPage = ({
       packageType: 'Gym-Cardio',
       packageId: '',
       price: 0,
-      discount: ''
+      discount: '',
+      startDate: getTodayDateStr(),
+      endDate: '',
+      isCustomStartDate: false,
+      minStartDate: getTodayDateStr(),
+      chainingMessage: `Starts ${formatDateDisplay(getTodayDateStr())} by default`
     }
   ]);
 
-  const getPackageObject = (type, id) => {
-    return getPackageObjectFromLists(type, id, plans, ptPlans, recoveryPlans);
+  const handlePackageStartDateChange = (rowId, newStart) => {
+    setSelectedPackages((prev) => {
+      const updated = prev.map((r) => {
+        if (r.id === rowId) {
+          return {
+            ...r,
+            startDate: newStart,
+            isCustomStartDate: true
+          };
+        }
+        return r;
+      });
+      const cascaded = recalculatePackageRows(updated, formData.joinDate);
+      if (cascaded[0]?.startDate) {
+        setMembershipStartDate(cascaded[0].startDate);
+      }
+      if (cascaded[0]?.endDate) {
+        setMembershipEndDate(cascaded[0].endDate);
+        setFormData((prevData) => ({
+          ...prevData,
+          expiryDate: cascaded[0].endDate,
+          status: calculateMemberStatus ? calculateMemberStatus(cascaded[0].endDate, prevData.status) : prevData.status
+        }));
+      }
+      return cascaded;
+    });
   };
 
   const handlePackageTypeChange = (rowId, newType) => {
@@ -215,33 +394,34 @@ export const AddMemberPage = ({
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
 
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
+    setSelectedPackages((prev) => {
+      const updated = prev.map((row) => {
         if (row.id !== rowId) return row;
         const newPackageId = firstPlan ? String(firstPlan.id) : '';
         const newPrice = Number(firstPlan?.price) || 0;
-
-        if (firstPlan && membershipStartDate) {
-          const calculated = computePlanEndDate(membershipStartDate, firstPlan);
-          if (calculated) {
-            setMembershipEndDate(calculated);
-            setFormData((prevData) => ({
-              ...prevData,
-              expiryDate: calculated,
-              status: calculateMemberStatus ? calculateMemberStatus(calculated, prevData.status) : prevData.status
-            }));
-          }
-        }
-
         return {
           ...row,
           packageType: newType,
           packageId: newPackageId,
           price: newPrice,
-          discount: ''
+          discount: '',
+          isCustomStartDate: false
         };
-      })
-    );
+      });
+      const cascaded = recalculatePackageRows(updated, formData.joinDate);
+      if (cascaded[0]?.startDate) {
+        setMembershipStartDate(cascaded[0].startDate);
+      }
+      if (cascaded[0]?.endDate) {
+        setMembershipEndDate(cascaded[0].endDate);
+        setFormData((prevData) => ({
+          ...prevData,
+          expiryDate: cascaded[0].endDate,
+          status: calculateMemberStatus ? calculateMemberStatus(cascaded[0].endDate, prevData.status) : prevData.status
+        }));
+      }
+      return cascaded;
+    });
   };
 
   const handlePackageIdChange = (rowId, newPackageId) => {
@@ -250,35 +430,36 @@ export const AddMemberPage = ({
       handleOpenQuickAdd(row?.packageType || 'Gym-Cardio', rowId);
       return;
     }
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
+    setSelectedPackages((prev) => {
+      const updated = prev.map((row) => {
         if (row.id !== rowId) return row;
         const found = getPackageObject(row.packageType, newPackageId);
         const price = Number(found?.price) || 0;
         const isPt = row.packageType === 'Personal Training' || row.packageType === 'pt';
-
-        if (found && membershipStartDate) {
-          const calculated = computePlanEndDate(membershipStartDate, found);
-          if (calculated) {
-            setMembershipEndDate(calculated);
-            setFormData((prevData) => ({
-              ...prevData,
-              expiryDate: calculated,
-              status: calculateMemberStatus ? calculateMemberStatus(calculated, prevData.status) : prevData.status
-            }));
-          }
-        } else if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
+        if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
           setSelectedTrainerId(trainers[0].id);
           setFormData((prevData) => ({ ...prevData, trainerId: trainers[0].id }));
         }
-
         return {
           ...row,
           packageId: newPackageId,
           price: price
         };
-      })
-    );
+      });
+      const cascaded = recalculatePackageRows(updated, formData.joinDate);
+      if (cascaded[0]?.startDate) {
+        setMembershipStartDate(cascaded[0].startDate);
+      }
+      if (cascaded[0]?.endDate) {
+        setMembershipEndDate(cascaded[0].endDate);
+        setFormData((prevData) => ({
+          ...prevData,
+          expiryDate: cascaded[0].endDate,
+          status: calculateMemberStatus ? calculateMemberStatus(cascaded[0].endDate, prevData.status) : prevData.status
+        }));
+      }
+      return cascaded;
+    });
   };
 
   const handlePackageDiscountChange = (rowId, val) => {
@@ -295,35 +476,57 @@ export const AddMemberPage = ({
     const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
 
-    setSelectedPackages((prev) => [
-      ...prev,
-      {
+    setSelectedPackages((prev) => {
+      const newRow = {
         id: `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         packageType: nextType,
         packageId: firstPlan ? String(firstPlan.id) : '',
         price: Number(firstPlan?.price) || 0,
-        discount: ''
-      }
-    ]);
+        discount: '',
+        startDate: '',
+        endDate: '',
+        isCustomStartDate: false
+      };
+      return recalculatePackageRows([...prev, newRow], formData.joinDate);
+    });
   };
 
   const handleRemovePackageRow = (rowId) => {
-    if (selectedPackages.length <= 1) {
-      const defaultType = 'Gym-Cardio';
-      const available = getPackagesForType(defaultType, plans, ptPlans, recoveryPlans);
-      const first = available[0] || plans[0] || null;
-      setSelectedPackages([
-        {
-          id: `pkg-${Date.now()}`,
-          packageType: defaultType,
-          packageId: first ? String(first.id) : '',
-          price: Number(first?.price) || 0,
-          discount: ''
-        }
-      ]);
-      return;
-    }
-    setSelectedPackages((prev) => prev.filter((r) => r.id !== rowId));
+    setSelectedPackages((prev) => {
+      let nextRows;
+      if (prev.length <= 1) {
+        const defaultType = 'Gym-Cardio';
+        const available = getPackagesForType(defaultType, plans, ptPlans, recoveryPlans);
+        const first = available[0] || plans[0] || null;
+        nextRows = [
+          {
+            id: `pkg-${Date.now()}`,
+            packageType: defaultType,
+            packageId: first ? String(first.id) : '',
+            price: Number(first?.price) || 0,
+            discount: '',
+            startDate: '',
+            endDate: '',
+            isCustomStartDate: false
+          }
+        ];
+      } else {
+        nextRows = prev.filter((r) => r.id !== rowId);
+      }
+      const cascaded = recalculatePackageRows(nextRows, formData.joinDate);
+      if (cascaded[0]?.startDate) {
+        setMembershipStartDate(cascaded[0].startDate);
+      }
+      if (cascaded[0]?.endDate) {
+        setMembershipEndDate(cascaded[0].endDate);
+        setFormData((prevData) => ({
+          ...prevData,
+          expiryDate: cascaded[0].endDate,
+          status: calculateMemberStatus ? calculateMemberStatus(cascaded[0].endDate, prevData.status) : prevData.status
+        }));
+      }
+      return cascaded;
+    });
   };
 
   // Sync first package when plans load
@@ -334,11 +537,12 @@ export const AddMemberPage = ({
         if (first && !first.packageId) {
           const available = getPackagesForType(first.packageType, plans, ptPlans, recoveryPlans);
           const p = available[0] || plans[0];
-          return prev.map((row, idx) =>
+          const updated = prev.map((row, idx) =>
             idx === 0
               ? { ...row, packageType: row.packageType || p.packageType || 'Gym-Cardio', packageId: String(p.id), price: Number(p.price) || 0 }
               : row
           );
+          return recalculatePackageRows(updated, formData.joinDate);
         }
         return prev;
       });
@@ -670,30 +874,6 @@ export const AddMemberPage = ({
   const effectiveRecoveryPrice = calculateEffectivePackagePrice(isRecoveryRow, recoveryPrice);
 
   const numDiscount = totalDiscountAmount;
-
-  const computePlanEndDate = (startDateStr, planObj) => {
-    if (!startDateStr || !planObj) return '';
-    try {
-      const name = (planObj.name || '').toLowerCase();
-      const period = (planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : '')).toLowerCase();
-      let monthsToAdd = Number(planObj.durationMonths || planObj.duration_months) || 1;
-
-      if (name.includes('annual') || name.includes('1 year') || name.includes('12 month') || period.includes('12 month') || period.includes('annual')) {
-        monthsToAdd = 12;
-      } else if (name.includes('6 month') || period.includes('6 month') || name.includes('half year')) {
-        monthsToAdd = 6;
-      } else if (name.includes('3 month') || period.includes('3 month') || name.includes('quarter')) {
-        monthsToAdd = 3;
-      } else if (name.includes('1 month') || period.includes('1 month') || name.includes('monthly')) {
-        monthsToAdd = 1;
-      }
-
-      const bonusDays = Number(planObj.offerDays || planObj.offer_days) || 0;
-      return calculatePlanExpiryDate(startDateStr, monthsToAdd, planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : ''), bonusDays);
-    } catch {
-      return '';
-    }
-  };
 
   useEffect(() => {
     if (membershipStartDate && chosenPlan) {
@@ -1029,6 +1209,9 @@ export const AddMemberPage = ({
           recoveryName: chosenRecoveryPlan?.name,
           trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
           trainerName: resolvedTrainerName,
+          createdByName: currentUser?.name || 'Staff',
+          created_by_name: currentUser?.name || 'Staff',
+          executive: currentUser?.name || 'Staff',
           isUpgrade: true
         });
       } catch (err) {
@@ -1077,11 +1260,21 @@ export const AddMemberPage = ({
       return;
     }
 
-    const validPackages = selectedPackages.filter((p) => p.packageId);
-    if (!isUpgradeMode && validPackages.length === 0) {
+    if (!isUpgradeMode && selectedPackages.length === 0) {
       addToast('Please select at least one package for the new member.', 'error');
       return;
     }
+
+    // Validate that every package row has a chosen plan (do not silently omit or save empty packages)
+    for (let i = 0; i < selectedPackages.length; i++) {
+      const pRow = selectedPackages[i];
+      if (!pRow.packageId) {
+        addToast(`Please select a package name for Package #${i + 1} (${pRow.packageType}), or remove the row before saving.`, 'error');
+        return;
+      }
+    }
+
+    const validPackages = selectedPackages;
 
     // Validate max discount ceiling on selected packages
     for (const pkgRow of selectedPackages) {
@@ -1150,11 +1343,33 @@ export const AddMemberPage = ({
         if (obj?.name) additions.push(obj.name);
       });
 
+      const packagesPayload = validPackages.map((pkgRow) => {
+        const obj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
+        const isPt = pkgRow.packageType === 'Personal Training' || pkgRow.packageType === 'pt';
+        const rowPrice = Number(pkgRow.price) || 0;
+        const rowDisc = Number(pkgRow.discount) || 0;
+        const rowStart = pkgRow.startDate || finalStartDate;
+        const rowEnd = pkgRow.endDate || finalExpiryDate;
+
+        return {
+          package_type: normalizePackageType(pkgRow.packageType),
+          plan_id: pkgRow.packageId ? Number(String(pkgRow.packageId).replace(/[^0-9]/g, '')) : null,
+          name: obj?.name || (isPt ? 'Personal Training' : 'Membership Plan'),
+          price: rowPrice,
+          discount: rowDisc,
+          start_date: rowStart,
+          end_date: rowEnd,
+          trainer_id: isPt ? (pkgRow.trainerId || selectedTrainerId || null) : null,
+          pt_sessions: isPt ? (obj?.sessions ? Number(obj.sessions) : Number(ptCustomSessions || 12)) : 0
+        };
+      });
+
       const invoiceTitle = additions.length > 0
         ? additions.join(' + ')
-        : (chosenPlan?.name || 'Gym Membership');
+        : (chosenPlan?.name || (hasPtPackage ? 'PT Membership' : 'Gym Membership'));
 
       const createdMember = await addMember({
+        packages: packagesPayload,
         name: sanitizeText(formData.name),
         email: formData.email ? formData.email.trim().toLowerCase() : null,
         phone: formData.phone,
@@ -1297,10 +1512,15 @@ export const AddMemberPage = ({
         startDate: finalStartDate,
         expiryDate: finalExpiryDate,
         joinDate: finalJoinDate,
+        issueDate: finalJoinDate || todayStr,
+        packages: packagesPayload,
         ptName: trainingType === 'pt' ? `${ptCustomSessions} 1-on-1 PT Sessions` : null,
         recoveryName: chosenRecoveryPlan?.name,
         trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
         trainerName: resolvedTrainerName,
+        createdByName: formData.executive?.trim() || currentUser?.name || 'Staff',
+        created_by_name: formData.executive?.trim() || currentUser?.name || 'Staff',
+        executive: formData.executive?.trim() || currentUser?.name || 'Staff',
         whatsappWelcome: createdMember?.whatsapp_welcome || null
       });
 
@@ -1422,12 +1642,18 @@ export const AddMemberPage = ({
         pendingAmount: newlyCreatedCredentials.duesAmount || 0,
         dueDate: newlyCreatedCredentials.dueDate,
         paymentMethod: newlyCreatedCredentials.paymentMethod || 'UPI',
-        date: newlyCreatedCredentials.startDate || getTodayDateStr(),
+        date: newlyCreatedCredentials.joinDate || getTodayDateStr(),
+        issueDate: newlyCreatedCredentials.joinDate || getTodayDateStr(),
         startDate: newlyCreatedCredentials.startDate,
+        endDate: newlyCreatedCredentials.expiryDate,
         expiryDate: newlyCreatedCredentials.expiryDate,
+        packages: newlyCreatedCredentials.packages || (typeof packagesPayload !== 'undefined' ? packagesPayload : []),
         isGstIncluded: Boolean(newlyCreatedCredentials.isGstIncluded),
         hasGst: Boolean(newlyCreatedCredentials.isGstIncluded),
-        status: Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? 'Pending' : 'Paid'
+        status: Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? 'Pending' : 'Paid',
+        createdByName: newlyCreatedCredentials.createdByName || formData.executive?.trim() || currentUser?.name || 'Staff',
+        created_by_name: newlyCreatedCredentials.created_by_name || formData.executive?.trim() || currentUser?.name || 'Staff',
+        executive: newlyCreatedCredentials.executive || formData.executive?.trim() || currentUser?.name || 'Staff'
       };
       const result = generateInvoicePdf({ invoice: invObj, gymInfo, member: newlyCreatedCredentials });
       if (result && typeof result.download === 'function') {
@@ -1981,6 +2207,7 @@ export const AddMemberPage = ({
                   const val = e.target.value;
                   setFormData((prev) => ({ ...prev, joinDate: val }));
                   setMembershipStartDate(val);
+                  setSelectedPackages((prev) => recalculatePackageRows(prev, val));
                 }}
                 className={`w-full px-3 py-2 rounded-xl text-xs ${
                   isUpgradeMode || isEditMode
@@ -2002,11 +2229,11 @@ export const AddMemberPage = ({
                 onChange={(e) => {
                   const val = e.target.value;
                   const computedAge = calculateAgeFromDob(val);
-                  setFormData({
-                    ...formData,
+                  setFormData((prev) => ({
+                    ...prev,
                     dob: val,
-                    age: computedAge !== '' ? computedAge : formData.age
-                  });
+                    age: computedAge !== '' ? computedAge : (val ? prev.age : '')
+                  }));
                 }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
@@ -2287,9 +2514,9 @@ export const AddMemberPage = ({
                       </div>
                     </div>
 
-                    {/* Date fields for membership start & end date (always shown no matter whatever the package type is) */}
-                    {(idx === 0 || !isPt) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                    {/* Date fields for package start & end date (shown for every row, for every package type) */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
@@ -2298,22 +2525,9 @@ export const AddMemberPage = ({
                           <input
                             type="date"
                             required
-                            value={membershipStartDate}
-                            onChange={(e) => {
-                              const newStart = e.target.value;
-                              setMembershipStartDate(newStart);
-                              if (newStart) {
-                                const calculated = computePlanEndDate(newStart, currentPkgObj || chosenPlan);
-                                if (calculated) {
-                                  setMembershipEndDate(calculated);
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    expiryDate: calculated,
-                                    status: calculateMemberStatus ? calculateMemberStatus(calculated, prev.status) : prev.status
-                                  }));
-                                }
-                              }
-                            }}
+                            min={pkgRow.minStartDate || getTodayDateStr()}
+                            value={pkgRow.startDate || (idx === 0 ? membershipStartDate : getTodayDateStr())}
+                            onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
@@ -2324,16 +2538,33 @@ export const AddMemberPage = ({
                               <span>End Date (Expiry) *</span>
                             </label>
                           </div>
-                          <input
-                            type="date"
-                            readOnly
-                            disabled
-                            value={membershipEndDate}
-                            className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
-                          />
+                          {pkgRow.endDate ? (
+                            <input
+                              type="date"
+                              readOnly
+                              disabled
+                              value={pkgRow.endDate}
+                              className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              readOnly
+                              disabled
+                              placeholder={pkgRow.packageId ? 'Calculating expiry...' : 'Select a package to calculate expiry'}
+                              value=""
+                              className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-400 cursor-not-allowed select-none italic"
+                            />
+                          )}
                         </div>
                       </div>
-                    )}
+                      {pkgRow.chainingMessage && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/70 border border-emerald-200/60 text-[10px] font-semibold text-emerald-800">
+                          <Sparkles className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                          <span>{pkgRow.chainingMessage}</span>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Dedicated PT Coach selection if PT package */}
                     {isPt && pkgRow.packageId && (

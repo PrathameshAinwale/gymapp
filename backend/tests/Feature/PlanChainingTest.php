@@ -20,7 +20,12 @@ class PlanChainingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Fix date context to known date for reliable testing if needed, or use today IST
+        \App\Models\Gym::create([
+            'id' => 1,
+            'name' => 'Test Gym',
+            'phone' => '9999999999',
+            'status' => 'Active',
+        ]);
     }
 
     /**
@@ -165,9 +170,11 @@ class PlanChainingTest extends TestCase
 
         // Add 7 frozen days
         MembershipFreeze::create([
+            'gym_id' => 1,
+            'member_name' => $user->name,
             'member_id' => $user->id,
-            'start_date' => $today->toDateString(),
-            'end_date' => $today->copy()->addDays(7)->toDateString(),
+            'freeze_start_date' => $today->toDateString(),
+            'freeze_end_date' => $today->copy()->addDays(7)->toDateString(),
             'days_frozen' => 7,
             'status' => 'Active Freeze',
             'reason' => 'Medical reason',

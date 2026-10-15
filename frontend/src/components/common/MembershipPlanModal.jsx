@@ -24,16 +24,19 @@ export const normalizePackageType = (type) => {
   const clean = String(type).trim().toLowerCase();
   const match = PACKAGE_TYPES.find((t) => t.toLowerCase() === clean);
   if (match) return match;
-  if (clean === 'membership' || clean === 'gym' || clean === 'cardio' || clean === 'gym cardio') {
+  if (clean === 'membership' || clean === 'gym' || clean === 'cardio' || clean === 'gym cardio' || clean === 'gym-cardio') {
     return 'Gym-Cardio';
   }
-  if (clean === 'pt' || clean === 'personal training') {
+  if (clean === 'pt' || clean === 'personal training' || clean === 'personal-training') {
     return 'Personal Training';
   }
-  if (clean === 'recovery' || clean === 'massage') {
+  if (clean === 'recovery' || clean === 'massage' || clean === 'spa') {
     return 'Massage';
   }
-  return 'Gym-Cardio';
+  if (clean === 'crossfit' || clean === 'gym-cardio-crossfit' || clean === 'cross-fit') {
+    return 'Crossfit';
+  }
+  return String(type).trim() || 'Gym-Cardio';
 };
 
 export const getPackagesForType = (type, plans = [], ptPlans = [], recoveryPlans = []) => {

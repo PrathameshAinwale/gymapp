@@ -72,7 +72,7 @@ export const CreateInvoicePage = ({
   } = useGymData();
   const { currentUser } = useAuth();
 
-  const defaultHandledBy = currentUser?.name || 'Staff';
+  const defaultHandledBy = currentUser?.name || '';
 
   // Selected Member
   const [selectedMemberId, setSelectedMemberId] = useState(
@@ -89,10 +89,10 @@ export const CreateInvoicePage = ({
   }, [initialMember, initialMemberId]);
 
   useEffect(() => {
-    if (!handledByStaffName && defaultHandledBy) {
-      setHandledByStaffName(defaultHandledBy);
+    if ((!handledByStaffName || handledByStaffName === 'Staff') && (currentUser?.name || defaultHandledBy)) {
+      setHandledByStaffName(currentUser?.name || defaultHandledBy);
     }
-  }, [defaultHandledBy]);
+  }, [currentUser?.name, defaultHandledBy]);
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -882,6 +882,21 @@ export const CreateInvoicePage = ({
             status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
             expiry_date: targetExpiryDate,
             expiryDate: targetExpiryDate,
+            packages: selectedPackages.map((pkg) => {
+              const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+              return {
+                name: pkgObj?.name || pkg.packageType,
+                plan_id: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
+                planId: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
+                package_type: normalizePackageType(pkg.packageType),
+                packageType: normalizePackageType(pkg.packageType),
+                price: Number(pkg.price) || 0,
+                start_date: pkg.startDate || targetStartDate,
+                startDate: pkg.startDate || targetStartDate,
+                end_date: pkg.expiryDate || targetExpiryDate,
+                endDate: pkg.expiryDate || targetExpiryDate
+              };
+            }),
             is_gst_included: isGstIncluded,
             gst_amount: gstBreakdown.totalGst,
             taxable_amount: gstBreakdown.taxable,
@@ -1029,12 +1044,25 @@ export const CreateInvoicePage = ({
         pendingAmount: calculatedBalanceDue,
         dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
         date: paymentDate || getTodayDateStr(),
+        issueDate: paymentDate || getTodayDateStr(),
         invoiceDate: paymentDate || getTodayDateStr(),
         paymentDate: paymentDate || getTodayDateStr(),
         paymentMethod: resolvedPaymentMethodString,
         isGstIncluded,
         status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+        startDate: targetStartDate,
+        endDate: targetExpiryDate,
         expiryDate: targetExpiryDate,
+        packages: selectedPackages.map((pkg) => {
+          const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+          return {
+            name: pkgObj?.name || pkg.packageType,
+            packageType: pkg.packageType,
+            price: Number(pkg.price) || 0,
+            startDate: pkg.startDate || targetStartDate,
+            endDate: pkg.expiryDate || targetExpiryDate
+          };
+        }),
         createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
       });
     } catch (err) {
@@ -2020,6 +2048,16 @@ export const CreateInvoicePage = ({
           </div>
         </div>
 
+        {/* Duplicate Advisory Notice (Informational only - does not block user) */}
+        {duplicateActivePlanInvoice && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Duplicate Notice:</strong> An identical invoice (#{duplicateActivePlanInvoice.invoiceNumber || duplicateActivePlanInvoice.id || 'INV'}) of <strong>₹{effectivePaidAmount.toLocaleString('en-IN')}</strong> was already recorded on <strong>{paymentDate}</strong> for {currentMember?.name || 'this member'}. You can still proceed if this is a separate service or transaction.
+            </span>
+          </div>
+        )}
+
         {/* Action Buttons Bar */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
@@ -2033,7 +2071,7 @@ export const CreateInvoicePage = ({
 
           <button
             type="submit"
-            disabled={isSubmitting || duplicateActivePlanInvoice}
+            disabled={isSubmitting}
             className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (

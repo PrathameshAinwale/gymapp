@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, isIntentionalAbort } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -90,10 +90,54 @@ export const defaultAccounts = [
   }
 ];
 
+// Safe localStorage setter that strips oversized/sensitive data and handles QuotaExceededError
+export const sanitizeAccountForStorage = (acc) => {
+  if (!acc) return null;
+  // Strip large or sensitive data: base64 images, raw passwords, tokens
+  const { aadhaar_image, pan_image, password, plain_password, token, ...safe } = acc;
+  return safe;
+};
+
+export const safeSetLocalStorage = (key, value) => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    localStorage.setItem(key, serialized);
+    return true;
+  } catch (err) {
+    console.warn(`localStorage.setItem('${key}') quota error:`, err?.message);
+    if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.code === 1014) {
+      try {
+        // Clear oversized legacy keys so existing users recover immediately
+        localStorage.removeItem('pulsefit_accounts_v2');
+        localStorage.removeItem('pulsefit_currentUser_v2');
+        localStorage.removeItem('pulsefit_staff_accounts');
+        localStorage.removeItem('pulsefit_offline_actions');
+
+        if (key === 'pulsefit_accounts_v2') {
+          const minimal = (Array.isArray(value) ? value : defaultAccounts).slice(0, 5).map(sanitizeAccountForStorage);
+          localStorage.setItem(key, JSON.stringify(minimal));
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [accounts, setAccounts] = useState(() => {
-    const saved = localStorage.getItem('pulsefit_accounts_v2');
-    return saved ? JSON.parse(saved) : defaultAccounts;
+    try {
+      const saved = localStorage.getItem('pulsefit_accounts_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map(sanitizeAccountForStorage).filter(Boolean);
+        }
+      }
+    } catch (e) {
+      try { localStorage.removeItem('pulsefit_accounts_v2'); } catch (_) {}
+    }
+    return defaultAccounts.map(sanitizeAccountForStorage);
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -126,9 +170,10 @@ export const AuthProvider = ({ children }) => {
   // Financials: Manager CANNOT access revenue, billing, or expense tracking
   const canAccessFinancials = isSuperadmin || isAccounts;
 
-  // Sync to LocalStorage
+  // Sync to LocalStorage safely (sanitized, try-catch protected against quota errors)
   useEffect(() => {
-    localStorage.setItem('pulsefit_accounts_v2', JSON.stringify(accounts));
+    const sanitized = accounts.map(sanitizeAccountForStorage);
+    safeSetLocalStorage('pulsefit_accounts_v2', sanitized);
   }, [accounts]);
 
   // On mount: Validate session with currently connected backend to prevent stale cross-database session leakage
@@ -364,6 +409,9 @@ export const AuthProvider = ({ children }) => {
         error: res?.message || 'Invalid Credentials. Please check your mobile number or email, and password.'
       };
     } catch (apiErr) {
+      if (isIntentionalAbort(apiErr)) {
+        return { success: false, cancelled: true };
+      }
       console.warn('Backend API login error:', apiErr.message);
       return {
         success: false,
@@ -538,24 +586,13 @@ export const AuthProvider = ({ children }) => {
       });
       if (res?.data) {
         backendUser = res.data;
+      } else {
+        throw new Error(res?.message || 'Failed to provision staff account in backend database');
       }
     } catch (e) {
-      console.warn('Backend create staff note:', e.message);
-      try {
-        const regRes = await api.auth.register({
-          name,
-          email: cleanEmail,
-          password: password || 'staff123',
-          role: roleNormalized,
-          phone: phone || '',
-          gym_id: Number(activeGymId)
-        });
-        if (regRes?.user) {
-          backendUser = regRes.user;
-        }
-      } catch (regErr) {
-        throw new Error(e.message || regErr.message || 'Failed to create staff account on server');
-      }
+      console.error('Backend create staff failed:', e.message);
+      // Ensure failure is shown clearly to the user with no fake success
+      throw new Error(e.message || 'Failed to create staff account in database');
     }
 
     const generatedUsername = cleanEmail && cleanEmail.includes('@')
@@ -563,13 +600,11 @@ export const AuthProvider = ({ children }) => {
       : (phone || name.toLowerCase().replace(/\s+/g, ''));
 
     const newStaff = {
-      id: backendUser?.id ? `usr-${roleNormalized}-${backendUser.id}` : `usr-${roleNormalized}-${Date.now().toString().slice(-4)}`,
-      userId: backendUser?.id || Date.now(),
-      name,
+      id: `usr-${roleNormalized}-${backendUser.id}`,
+      userId: backendUser.id,
+      name: backendUser.name || name,
       email: cleanEmail || '',
       username: generatedUsername,
-      password: password || 'staff123',
-      plain_password: password || 'staff123',
       mustChangePassword: false,
       role: roleNormalized,
       roleLabel:
@@ -580,15 +615,13 @@ export const AuthProvider = ({ children }) => {
           : roleNormalized === 'trainer'
           ? 'Personal Trainer & Coach'
           : 'Staff Member',
-      avatar: backendUser?.avatar || null,
+      avatar: backendUser.avatar || null,
       badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Trainer Access',
       phone: phone || '',
       dob: dob || null,
       joining_date: joining_date || joiningDate || backendUser?.joining_date || null,
       aadhaar_card: aadhaar_card || null,
-      aadhaar_image: aadhaar_image || null,
       pan_card: pan_card || null,
-      pan_image: pan_image || null,
       salary: salary ? Number(salary) : (backendUser?.salary || null),
       shifts: shifts || null,
       specialty: specialty || backendUser?.specialty || (roleNormalized === 'trainer' ? 'Strength & Conditioning' : null),

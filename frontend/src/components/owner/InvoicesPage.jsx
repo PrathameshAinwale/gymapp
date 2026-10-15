@@ -1825,20 +1825,30 @@ export const InvoicesPage = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
-                      AF
+                      {(gymInfo?.name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '★'}
                     </div>
                     <div>
                       <h2 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
-                        {gymInfo?.name || 'ARCHFIT ATHLETIC CLUB'}
+                        {gymInfo?.name || 'FITNESS CLUB'}
                       </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {gymInfo?.address || 'Central Avenue, Hiranandani Gardens, Powai, Mumbai - 400076'}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
-                        <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || '27AAPCP1234F1Z8'}</strong></span>
-                        <span>•</span>
-                        <span>Phone: <strong className="text-slate-600">{gymInfo?.phone || '+91 98201 54321'}</strong></span>
-                      </div>
+                      {gymInfo?.address && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {gymInfo.address}
+                        </p>
+                      )}
+                      {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number || gymInfo?.phone) && (
+                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                          {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
+                            <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</strong></span>
+                          )}
+                          {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && gymInfo?.phone && (
+                            <span>•</span>
+                          )}
+                          {gymInfo?.phone && (
+                            <span>Phone: <strong className="text-slate-600">{gymInfo.phone}</strong></span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

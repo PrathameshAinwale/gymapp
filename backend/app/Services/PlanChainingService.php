@@ -23,40 +23,59 @@ class PlanChainingService
             return 'Gym-Cardio';
         }
 
-        $clean = trim(strtolower($type));
+        $raw = trim($type);
+        $clean = strtolower($raw);
+        $cleanNormalized = str_replace(['_', '-'], ' ', $clean);
 
-        if (in_array($clean, ['personal training', 'pt', 'personal-training'])) {
+        if (in_array($clean, ['personal training', 'pt', 'personal-training', 'personal_training', 'personaltraining']) ||
+            in_array($cleanNormalized, ['personal training', 'pt', 'personal trainer', 'trainer']) ||
+            preg_match('/\b(pt|personal\s*train(ing|er)?)\b/i', $raw)) {
             return 'Personal Training';
         }
-        if (in_array($clean, ['massage', 'recovery', 'spa'])) {
+        if (in_array($clean, ['massage', 'recovery', 'spa', 'wellness']) ||
+            in_array($cleanNormalized, ['massage', 'recovery', 'spa', 'wellness']) ||
+            preg_match('/\b(massage|recovery|spa|wellness)\b/i', $raw)) {
             return 'Massage';
         }
-        if (in_array($clean, ['crossfit', 'gym-cardio-crossfit', 'cross-fit'])) {
+        if (in_array($clean, ['crossfit', 'gym-cardio-crossfit', 'cross-fit', 'cross_fit']) ||
+            in_array($cleanNormalized, ['crossfit', 'cross fit', 'gym cardio crossfit']) ||
+            preg_match('/\b(crossfit|cross\s*fit)\b/i', $raw)) {
             return 'Crossfit';
         }
         if (in_array($clean, ['activities', 'activity'])) {
             return 'Activities';
         }
-        if (in_array($clean, ['functional training', 'functional-training'])) {
+        if (in_array($clean, ['functional training', 'functional-training', 'functional_training']) ||
+            in_array($cleanNormalized, ['functional training']) ||
+            preg_match('/\bfunctional\s*train/i', $raw)) {
             return 'Functional Training';
         }
-        if (in_array($clean, ['kids training', 'kids-training'])) {
+        if (in_array($clean, ['kids training', 'kids-training', 'kids_training']) ||
+            in_array($cleanNormalized, ['kids training']) ||
+            preg_match('/\bkids\s*train/i', $raw)) {
             return 'Kids Training';
         }
-        if (in_array($clean, ['club membership', 'club'])) {
+        if (in_array($clean, ['club membership', 'club', 'club_membership']) ||
+            in_array($cleanNormalized, ['club membership', 'club'])) {
             return 'Club Membership';
         }
-        if (in_array($clean, ['zumba'])) {
+        if (in_array($clean, ['zumba']) || preg_match('/\bzumba\b/i', $raw)) {
             return 'Zumba';
         }
-        if (in_array($clean, ['general fitness', 'fitness'])) {
+        if (in_array($clean, ['general fitness', 'fitness', 'general_fitness']) ||
+            in_array($cleanNormalized, ['general fitness', 'fitness'])) {
             return 'General Fitness';
         }
-        if (in_array($clean, ['locker'])) {
+        if (in_array($clean, ['locker']) || preg_match('/\blocker\b/i', $raw)) {
             return 'Locker';
         }
+        if (in_array($clean, ['gym-cardio', 'gym_cardio', 'gym cardio', 'gym', 'cardio', 'membership', 'gymcardio']) ||
+            in_array($cleanNormalized, ['gym cardio', 'gym', 'cardio', 'membership']) ||
+            preg_match('/\b(gym|cardio)\b/i', $raw)) {
+            return 'Gym-Cardio';
+        }
 
-        return 'Gym-Cardio';
+        return $raw;
     }
 
     /**
@@ -321,7 +340,7 @@ class PlanChainingService
             $finalExpiry = $currentProfileExpiry;
         }
 
-        if ($finalExpiry && $finalExpiry !== $currentProfileExpiry) {
+        if ($finalExpiry && ($finalExpiry !== $currentProfileExpiry || $profile->status === 'Unassigned')) {
             $newStatus = \App\Http\Controllers\Api\MemberController::computeMemberStatus($finalExpiry, $profile->status);
             $profile->update([
                 'expiry_date' => $finalExpiry,
@@ -331,5 +350,117 @@ class PlanChainingService
 
         return $finalExpiry;
     }
+
+    /**
+     * Get member's subscription plans categorized into active (grouped by package type),
+     * upcoming (chained), and expired plans.
+     */
+    public static function getMemberPlansBreakdown(User $user): array
+    {
+        $todayStr = self::getTodayIst()->toDateString();
+
+        if (!$user->relationLoaded('invoices')) {
+            $user->load('invoices.plan');
+        }
+
+        $invoices = $user->invoices
+            ->whereNotIn('status', ['Cancelled', 'Refunded'])
+            ->sortBy('start_date');
+
+        $activePlans = [];
+        $upcomingPlans = [];
+        $expiredPlans = [];
+        $activeGrouped = [];
+
+        foreach ($invoices as $inv) {
+            $rawType = $inv->package_type ?? $inv->plan?->package_type;
+            if (!$rawType && ($inv->plan_name || $inv->title)) {
+                $combo = strtolower(($inv->plan_name ?? '') . ' ' . ($inv->title ?? ''));
+                if (str_contains($combo, 'pt') || str_contains($combo, 'personal training')) {
+                    $rawType = 'Personal Training';
+                } elseif (str_contains($combo, 'massage') || str_contains($combo, 'recovery') || str_contains($combo, 'spa')) {
+                    $rawType = 'Massage';
+                }
+            }
+            $pkgType = self::normalizePackageType($rawType ?: 'Gym-Cardio');
+            $planName = $inv->plan?->name ?? ($inv->plan_name ?? ($pkgType . ' Package'));
+
+            $startDate = $inv->start_date
+                ? ($inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : substr((string)$inv->start_date, 0, 10))
+                : ($inv->date ? ($inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : substr((string)$inv->date, 0, 10)) : $todayStr);
+
+            $endDate = $inv->end_date
+                ? ($inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : substr((string)$inv->end_date, 0, 10))
+                : null;
+
+            if (!$endDate && $startDate) {
+                $endDate = self::computePlanEndDate($startDate, $inv->plan);
+            }
+
+            if (!$endDate) {
+                continue;
+            }
+
+            $planItem = [
+                'packageType' => $pkgType,
+                'planName' => $planName,
+                'startDate' => $startDate ?: $todayStr,
+                'endDate' => $endDate,
+                'invoiceNumber' => $inv->invoice_number,
+                'amount' => (float)$inv->amount,
+            ];
+
+            if ($startDate && $startDate > $todayStr) {
+                $planItem['status'] = 'Upcoming';
+                $upcomingPlans[] = $planItem;
+            } elseif ($endDate < $todayStr) {
+                $planItem['status'] = 'Expired';
+                $expiredPlans[] = $planItem;
+            } else {
+                $planItem['status'] = 'Active';
+                $activePlans[] = $planItem;
+                if (!isset($activeGrouped[$pkgType]) || $endDate > $activeGrouped[$pkgType]['endDate']) {
+                    $activeGrouped[$pkgType] = $planItem;
+                }
+            }
+        }
+
+        // Fallback: If no active Gym-Cardio plan found in invoices, inspect member_profiles
+        if (!isset($activeGrouped['Gym-Cardio']) && $user->memberProfile) {
+            $profile = $user->memberProfile;
+            $profExp = $profile->expiry_date
+                ? ($profile->expiry_date instanceof \DateTimeInterface ? $profile->expiry_date->format('Y-m-d') : substr((string)$profile->expiry_date, 0, 10))
+                : null;
+            $profJoin = $profile->join_date
+                ? ($profile->join_date instanceof \DateTimeInterface ? $profile->join_date->format('Y-m-d') : substr((string)$profile->join_date, 0, 10))
+                : null;
+
+            if ($profExp) {
+                $fallbackItem = [
+                    'packageType' => 'Gym-Cardio',
+                    'planName' => $profile->plan?->name ?? 'Gym Membership',
+                    'startDate' => $profJoin ?: $todayStr,
+                    'endDate' => $profExp,
+                    'invoiceNumber' => null,
+                    'amount' => (float)($profile->plan?->price ?? 0),
+                ];
+
+                if ($profExp >= $todayStr) {
+                    $fallbackItem['status'] = 'Active';
+                    $activeGrouped['Gym-Cardio'] = $fallbackItem;
+                } else {
+                    $fallbackItem['status'] = 'Expired';
+                    $expiredPlans[] = $fallbackItem;
+                }
+            }
+        }
+
+        return [
+            'activePlans' => array_values($activeGrouped),
+            'upcomingPlans' => array_values($upcomingPlans),
+            'expiredPlans' => array_values($expiredPlans),
+        ];
+    }
 }
+
 
