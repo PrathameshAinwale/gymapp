@@ -3,6 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { api } from '../../services/api';
 import {
+  isValidName,
+  isValidDob,
+  getTodayDateStr,
   isValidEmail,
   isValidPhone,
   isValidPan,
@@ -55,6 +58,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { ShiftFormModal } from './ShiftFormModal';
 
 // Helper to retrieve saved/default password for staff
@@ -469,6 +473,16 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       return;
     }
 
+    if (!isValidName(formData.name)) {
+      addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).', 'error');
+      return;
+    }
+
+    if (formData.dob && !isValidDob(formData.dob)) {
+      addToast('Date of birth cannot be in the future.', 'error');
+      return;
+    }
+
     if (
       hasSqlInjection(formData.name) ||
       hasSqlInjection(formData.email) ||
@@ -608,6 +622,16 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     e.preventDefault();
     if (!editFormData.name || !editFormData.email) {
       addToast('Please fill in Name and Email', 'error');
+      return;
+    }
+
+    if (!isValidName(editFormData.name)) {
+      addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).', 'error');
+      return;
+    }
+
+    if (editFormData.dob && !isValidDob(editFormData.dob)) {
+      addToast('Date of birth cannot be in the future.', 'error');
       return;
     }
 
@@ -1175,11 +1199,17 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="date"
+                  max={getTodayDateStr()}
                   value={formData.dob}
                   onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
+              {formData.dob && !isValidDob(formData.dob) && (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Date of birth cannot be in the future.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1865,11 +1895,17 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="date"
+                    max={getTodayDateStr()}
                     value={editFormData.dob}
                     onChange={(e) => setEditFormData({ ...editFormData, dob: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                   />
                 </div>
+                {editFormData.dob && !isValidDob(editFormData.dob) && (
+                  <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                    Date of birth cannot be in the future.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -2248,48 +2284,28 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       </Modal>
 
       {/* DELETE STAFF CONFIRMATION MODAL */}
-      <Modal
+      <ConfirmDeleteModal
         isOpen={Boolean(deletingStaff)}
         onClose={() => setDeletingStaff(null)}
-        title="Delete Staff Member"
-        maxWidth="max-w-md"
-      >
-        {deletingStaff && (
-          <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-rose-100 text-rose-600 shrink-0">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-rose-900 text-sm">Delete {deletingStaff.name}?</h4>
-                <p className="text-[11px] text-rose-700 mt-1 leading-relaxed">
-                  Are you sure you want to permanently delete the staff member <strong>{deletingStaff.email}</strong>? This user will immediately lose access to the system.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeletingStaff(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isDeleting ? 'Deleting...' : 'Delete Account'}</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+        title="Confirm Deletion"
+        itemType="staff member"
+        recordName={deletingStaff?.name}
+        description={
+          deletingStaff?.email ? (
+            <span>
+              This user (<strong>{deletingStaff.email}</strong>) will immediately lose access to the system.
+            </span>
+          ) : null
+        }
+        message={
+          deletingStaff
+            ? `Are you sure you want to delete staff member "${deletingStaff.name}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this staff member? This action may not be reversible.'
+        }
+        confirmText="Delete Account"
+      />
 
       {/* COACH ATHLETE ROSTER MODAL */}
       <Modal

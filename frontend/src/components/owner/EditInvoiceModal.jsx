@@ -33,7 +33,7 @@ export const EditInvoiceModal = ({
   invoice,
   onUpdated
 }) => {
-  const { updateInvoice, members = [], plans = [], ptPlans = [], recoveryPlans = [], addToast } = useGymData();
+  const { updateInvoice, members = [], plans = [], ptPlans = [], recoveryPlans = [], addToast, gymInfo } = useGymData();
 
   // Resolve matching member to identify their current active package and profile details
   const targetMember = useMemo(() => {
@@ -301,7 +301,9 @@ export const EditInvoiceModal = ({
 
   // Tax calculations
   const totalBilled = Number(formData.totalAmount) || 0;
-  const baseFee = formData.isGstIncluded ? Math.round(totalBilled / 1.18) : totalBilled;
+  const taxRate = Number(formData.taxRate ?? invoice.taxRate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+  const halfTaxRate = (taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1);
+  const baseFee = formData.isGstIncluded ? Math.round(totalBilled / (1 + (taxRate / 100))) : totalBilled;
   const totalGst = formData.isGstIncluded ? Math.max(0, totalBilled - baseFee) : 0;
   const cgst = Math.round(totalGst / 2);
   const sgst = totalGst - cgst;
@@ -579,8 +581,8 @@ export const EditInvoiceModal = ({
           {formData.isGstIncluded && (
             <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex flex-wrap items-center justify-between gap-2">
               <span>Plan Base: <strong>₹{baseFee.toLocaleString('en-IN')}</strong></span>
-              <span>CGST (9%): <strong>₹{cgst.toLocaleString('en-IN')}</strong></span>
-              <span>SGST (9%): <strong>₹{sgst.toLocaleString('en-IN')}</strong></span>
+              <span>CGST ({halfTaxRate}%): <strong>₹{cgst.toLocaleString('en-IN')}</strong></span>
+              <span>SGST ({halfTaxRate}%): <strong>₹{sgst.toLocaleString('en-IN')}</strong></span>
               <span>Total Tax: <strong>₹{totalGst.toLocaleString('en-IN')}</strong></span>
             </div>
           )}

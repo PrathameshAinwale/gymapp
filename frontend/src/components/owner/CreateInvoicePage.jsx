@@ -3,9 +3,11 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import MemberSearchSelect from '../common/MemberSearchSelect';
 import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
+import { PayDueModal } from './PayDueModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
-import { calculatePlanExpiryDate, formatDateDisplay } from '../../utils/dateUtils';
+import { calculatePlanExpiryDate, formatDateDisplay, calculateMaxPromiseDate, validatePromiseDate } from '../../utils/dateUtils';
+import { mapInvoiceRecord } from '../../utils/invoiceMapper';
 import {
   hasSqlInjection,
   sanitizeDecimal,
@@ -72,13 +74,14 @@ export const CreateInvoicePage = ({
   } = useGymData();
   const { currentUser } = useAuth();
 
-  const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : 'Prathamesh';
+  const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : (gymInfo?.name ? `${gymInfo.name} Staff` : 'Staff');
 
   // Selected Member
   const [selectedMemberId, setSelectedMemberId] = useState(
     initialMember?.id || initialMemberId || ''
   );
   const [handledByStaffName, setHandledByStaffName] = useState(defaultHandledBy);
+  const [isPayingDueOpen, setIsPayingDueOpen] = useState(false);
 
   useEffect(() => {
     if (initialMember?.id) {
@@ -202,6 +205,88 @@ export const CreateInvoicePage = ({
     return members.find((m) => String(m.id) === String(selectedMemberId)) || null;
   }, [members, selectedMemberId]);
 
+  // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
+  const effectiveInvoiceStartDate = useMemo(() => {
+    const membershipRow = selectedPackages.find((r) => r.packageType !== 'Personal Training' && r.packageType !== 'pt' && r.packageType !== 'Massage' && r.packageType !== 'Activities' && r.packageId) || selectedPackages.find((r) => r.packageId);
+    return membershipRow?.startDate || selectedPackages[0]?.startDate || paymentDate || getTodayDateStr();
+  }, [selectedPackages, paymentDate]);
+
+  const effectiveInvoiceExpiryDate = useMemo(() => {
+    const membershipRow = selectedPackages.find((r) => r.packageType !== 'Personal Training' && r.packageType !== 'pt' && r.packageType !== 'Massage' && r.packageType !== 'Activities' && r.packageId) || selectedPackages.find((r) => r.packageId);
+    return membershipRow?.expiryDate || membershipRow?.endDate || selectedPackages[0]?.endDate || currentMember?.expiryDate || '';
+  }, [selectedPackages, currentMember]);
+
+  const minInvoicePromiseDate = effectiveInvoiceStartDate;
+  const maxInvoicePromiseDate = useMemo(() => calculateMaxPromiseDate(effectiveInvoiceExpiryDate), [effectiveInvoiceExpiryDate]);
+
+  // Revalidate selected promise date whenever invoice dates change
+  useEffect(() => {
+    if (balanceDueDate && effectiveInvoiceStartDate && effectiveInvoiceExpiryDate) {
+      const res = validatePromiseDate(balanceDueDate, effectiveInvoiceStartDate, effectiveInvoiceExpiryDate);
+      if (!res.isValid) {
+        setBalanceDueDate('');
+      }
+    }
+  }, [effectiveInvoiceStartDate, effectiveInvoiceExpiryDate, balanceDueDate]);
+
+  // Outstanding due balance of selected member (must be paid before new invoice can be created)
+  const memberDueAmount = useMemo(() => {
+    if (!currentMember) return 0;
+    const directFields = [
+      currentMember.duesAmount,
+      currentMember.dues_amount,
+      currentMember.balanceDue,
+      currentMember.balance_due,
+      currentMember.pendingAmount,
+      currentMember.pending_amount,
+      currentMember.dueAmount,
+      currentMember.due_amount,
+      currentMember.balance,
+      currentMember.dues
+    ];
+    let hasExplicitZero = false;
+    for (const val of directFields) {
+      if (val !== undefined && val !== null && val !== '') {
+        const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+        if (!isNaN(num)) {
+          if (num > 0) return num;
+          if (num === 0) hasExplicitZero = true;
+        }
+      }
+    }
+
+    if (hasExplicitZero) return 0;
+
+    // Cross-reference uncancelled pending invoices
+    if (Array.isArray(invoices) && invoices.length > 0) {
+      const cleanMemberId = String(currentMember.id || currentMember.userId || '').replace(/\D/g, '');
+      for (const inv of invoices) {
+        if (String(inv.status).toLowerCase() === 'paid' || String(inv.status).toLowerCase() === 'cancelled') continue;
+        const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
+        const isMatch = (cleanMemberId && invMemId && cleanMemberId === invMemId) ||
+          (inv.memberId && String(inv.memberId) === String(currentMember.id)) ||
+          (currentMember.phone && String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10) === String(currentMember.phone).replace(/\D/g, '').slice(-10)) ||
+          (currentMember.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentMember.name.toLowerCase().trim());
+
+        if (isMatch) {
+          const invPending = [inv.pendingAmount, inv.pending_amount, inv.duesAmount, inv.dues_amount, inv.balanceDue, inv.balance_due];
+          for (const val of invPending) {
+            if (val !== undefined && val !== null && val !== '') {
+              const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+              if (!isNaN(num) && num > 0) return num;
+            }
+          }
+          if (inv.status === 'Pending' || String(inv.status).toLowerCase() === 'pending' || String(inv.status).toLowerCase() === 'partial') {
+            const num = parseFloat(String(inv.amount || 0).replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+      }
+    }
+
+    return 0;
+  }, [currentMember, invoices]);
+
   const currentTrainer = useMemo(() => {
     return trainers.find((t) => String(t.id) === String(selectedTrainerId)) || null;
   }, [trainers, selectedTrainerId]);
@@ -239,7 +324,7 @@ export const CreateInvoicePage = ({
   }, [currentMember, plans]);
 
   // Find the latest active/upcoming end date for a member + specific package type
-  const getLatestEndDateForPackageType = (memberId, rawPkgType, currentRowId = null) => {
+  const getLatestEndDateForPackageType = (memberId, rawPkgType, currentRowId = null, currentRows = null) => {
     if (!memberId) return null;
     const todayStr = getTodayDateStr();
     const targetType = normalizePackageType(rawPkgType);
@@ -247,50 +332,124 @@ export const CreateInvoicePage = ({
 
     let latestEnd = null;
 
-    // 1. Existing uncancelled invoices
+    const considerDate = (rawDate) => {
+      if (!rawDate) return;
+      const cleanDate = String(rawDate).split('T')[0];
+      if (cleanDate && cleanDate >= todayStr) {
+        if (!latestEnd || cleanDate > latestEnd) {
+          latestEnd = cleanDate;
+        }
+      }
+    };
+
+    // 1. Existing uncancelled invoices (inspect nested items/packages and root invoice)
     if (Array.isArray(invoices)) {
       invoices.forEach((inv) => {
         const invMemId = String(inv.userId || inv.user_id || inv.memberId || inv.member_id || '').replace(/[^0-9]/g, '');
         if (invMemId !== cleanId) return;
         if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
 
-        const invType = normalizePackageType(inv.package_type || inv.packageType || inv.category || 'Gym-Cardio');
-        if (invType !== targetType) return;
+        // A. Check nested items / packages inside invoice
+        let itemsList = [];
+        if (Array.isArray(inv.items) && inv.items.length > 0) itemsList = inv.items;
+        else if (Array.isArray(inv.packages) && inv.packages.length > 0) itemsList = inv.packages;
+        else if (typeof inv.items === 'string') {
+          try { itemsList = JSON.parse(inv.items); } catch (_) { itemsList = []; }
+        } else if (typeof inv.packages === 'string') {
+          try { itemsList = JSON.parse(inv.packages); } catch (_) { itemsList = []; }
+        }
 
-        const endStr = (inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate || '').split('T')[0];
-        if (endStr && endStr >= todayStr) {
-          if (!latestEnd || endStr > latestEnd) {
-            latestEnd = endStr;
+        if (Array.isArray(itemsList) && itemsList.length > 0) {
+          itemsList.forEach((item) => {
+            let rawType = item.packageType || item.package_type || item.category;
+            const itemName = item.name || item.planName || item.plan_name || item.title || '';
+            if (!rawType && itemName) {
+              const combo = itemName.toLowerCase();
+              if (combo.includes('pt') || combo.includes('personal training')) rawType = 'Personal Training';
+              else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) rawType = 'Massage';
+            }
+            const itemType = normalizePackageType(rawType || 'Gym-Cardio');
+            if (itemType === targetType) {
+              considerDate(item.endDate || item.end_date || item.expiryDate || item.expiry_date);
+            }
+          });
+        } else {
+          // B. Check top-level invoice if no items list
+          let topType = inv.package_type || inv.packageType || inv.category;
+          const topName = inv.planName || inv.plan_name || inv.title || '';
+          if (!topType && topName) {
+            const combo = topName.toLowerCase();
+            if (combo.includes('pt') || combo.includes('personal training')) topType = 'Personal Training';
+            else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) topType = 'Massage';
+          }
+          const invType = normalizePackageType(topType || 'Gym-Cardio');
+          if (invType === targetType) {
+            considerDate(inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate);
           }
         }
       });
     }
 
-    // 2. Legacy fallback to member profile (if matching package type)
-    if (currentMember && String(currentMember.id).replace(/[^0-9]/g, '') === cleanId) {
-      const rawExp = (currentMember.expiryDate || currentMember.expiry_date || '').split('T')[0];
-      if (rawExp && rawExp >= todayStr && currentMember.status !== 'Expired') {
-        const profilePlan = plans.find((p) => String(p.id) === String(currentMember.planId || currentMember.plan_id));
+    // 2. Member profile / activePlans / upcomingPlans / enrolledPackages
+    const memberObj = (currentMember && String(currentMember.id || currentMember.userId || '').replace(/[^0-9]/g, '') === cleanId)
+      ? currentMember
+      : (Array.isArray(members) ? members.find((m) => String(m.id || m.userId || '').replace(/[^0-9]/g, '') === cleanId) : null);
+
+    if (memberObj) {
+      if (Array.isArray(memberObj.activePlans)) {
+        memberObj.activePlans.forEach((planItem) => {
+          let pType = planItem.packageType || planItem.package_type || planItem.category;
+          const pName = planItem.planName || planItem.name || '';
+          if (!pType && pName) {
+            const combo = pName.toLowerCase();
+            if (combo.includes('pt') || combo.includes('personal training')) pType = 'Personal Training';
+            else if (combo.includes('massage') || combo.includes('recovery')) pType = 'Massage';
+          }
+          if (normalizePackageType(pType || 'Gym-Cardio') === targetType) {
+            considerDate(planItem.endDate || planItem.end_date || planItem.expiryDate || planItem.expiry_date);
+          }
+        });
+      }
+
+      if (Array.isArray(memberObj.upcomingPlans)) {
+        memberObj.upcomingPlans.forEach((planItem) => {
+          let pType = planItem.packageType || planItem.package_type || planItem.category;
+          if (normalizePackageType(pType || 'Gym-Cardio') === targetType) {
+            considerDate(planItem.endDate || planItem.end_date || planItem.expiryDate || planItem.expiry_date);
+          }
+        });
+      }
+
+      const enrolled = memberObj.packages || memberObj.enrolledPackages;
+      if (Array.isArray(enrolled)) {
+        enrolled.forEach((p) => {
+          let pType = p.packageType || p.package_type || p.category;
+          if (normalizePackageType(pType || 'Gym-Cardio') === targetType) {
+            considerDate(p.endDate || p.end_date || p.expiryDate || p.expiry_date);
+          }
+        });
+      }
+
+      const rawExp = (memberObj.expiryDate || memberObj.expiry_date || '').split('T')[0];
+      if (rawExp && memberObj.status !== 'Expired') {
+        const profilePlan = plans.find((p) => String(p.id) === String(memberObj.planId || memberObj.plan_id));
         const profileType = normalizePackageType(
-          profilePlan?.packageType || profilePlan?.package_type || (currentMember.trainingType === 'pt' ? 'Personal Training' : 'Gym-Cardio')
+          profilePlan?.packageType || profilePlan?.package_type || (memberObj.trainingType === 'pt' ? 'Personal Training' : 'Gym-Cardio')
         );
         if (profileType === targetType) {
-          if (!latestEnd || rawExp > latestEnd) {
-            latestEnd = rawExp;
-          }
+          considerDate(rawExp);
         }
       }
     }
 
-    // 3. Preceding rows of the SAME package type in the current invoice
-    if (Array.isArray(selectedPackages)) {
-      for (const r of selectedPackages) {
+    // 3. Preceding rows in the form
+    const rowsToCheck = currentRows || selectedPackages;
+    if (Array.isArray(rowsToCheck)) {
+      for (const r of rowsToCheck) {
         if (r.id === currentRowId) break;
         const rType = normalizePackageType(r.packageType);
-        if (rType === targetType && r.expiryDate && r.expiryDate >= todayStr) {
-          if (!latestEnd || r.expiryDate > latestEnd) {
-            latestEnd = r.expiryDate;
-          }
+        if (rType === targetType) {
+          considerDate(r.expiryDate || r.endDate);
         }
       }
     }
@@ -299,10 +458,10 @@ export const CreateInvoicePage = ({
   };
 
   // Compute row-level chaining parameters (default start date = day after previous plan, min start = day after)
-  const getRowChainingInfo = (pkgRow) => {
+  const getRowChainingInfo = (pkgRow, currentRows = null) => {
     const todayStr = getTodayDateStr();
     const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
-    const latestEnd = getLatestEndDateForPackageType(selectedMemberId, pkgType, pkgRow?.id);
+    const latestEnd = getLatestEndDateForPackageType(selectedMemberId, pkgType, pkgRow?.id, currentRows);
 
     if (latestEnd && latestEnd >= todayStr) {
       const chainedStart = addDaysIso(latestEnd, 1);
@@ -400,30 +559,64 @@ export const CreateInvoicePage = ({
     }
   }, [mainMembershipValidityInfo]);
 
+  // Cascading recalculation for multi-package rows and plan chaining
+  const recalculatePackageRows = (rows, targetMemberId = selectedMemberId) => {
+    const updated = [];
+    const todayStr = getTodayDateStr();
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const pkgType = normalizePackageType(row.packageType || 'Gym-Cardio');
+      const latestEnd = getLatestEndDateForPackageType(targetMemberId, pkgType, row.id, updated);
+
+      let isChained = false;
+      let minStartDate = todayStr;
+      let defaultStartDate = todayStr;
+      let chainingMessage = `No active ${pkgType} plan found. Starts ${formatDateDisplay(todayStr)} by default.`;
+
+      if (latestEnd && latestEnd >= todayStr) {
+        const chainedStart = addDaysIso(latestEnd, 1);
+        isChained = true;
+        minStartDate = chainedStart;
+        defaultStartDate = chainedStart;
+        chainingMessage = `Current ${pkgType} ends on ${formatDateDisplay(latestEnd)}. Chains from ${formatDateDisplay(chainedStart)}.`;
+      }
+
+      const planObj = getPackageObject(row.packageType, row.packageId);
+      let effectiveStart = '';
+      if (row.isCustomStartDate && row.startDate && row.startDate >= minStartDate) {
+        effectiveStart = row.startDate;
+      } else {
+        effectiveStart = defaultStartDate;
+      }
+
+      const computedExp = planObj
+        ? computeCombinedPlanEndDate(effectiveStart, planObj)
+        : (row.expiryDate || '');
+
+      updated.push({
+        ...row,
+        packageType: row.packageType || pkgType,
+        startDate: effectiveStart,
+        expiryDate: computedExp,
+        minStartDate,
+        defaultStartDate,
+        latestEnd,
+        isChained,
+        chainingMessage
+      });
+    }
+
+    return updated;
+  };
+
   // Synchronize start date whenever member changes
   useEffect(() => {
     if (currentMember) {
       if (currentMember.trainerId) {
         setSelectedTrainerId(currentMember.trainerId);
       }
-
-      // Automatically default package rows according to each row's own package type chaining info
-      setSelectedPackages((prev) =>
-        prev.map((row) => {
-          if (row.isCustomStartDate) return row;
-          const planObj = getPackageObject(row.packageType, row.packageId);
-          const chaining = getRowChainingInfo(row);
-          const rowStart = chaining.defaultStartDate;
-          const computedExp = planObj
-            ? computeCombinedPlanEndDate(rowStart, planObj)
-            : row.expiryDate;
-          return {
-            ...row,
-            startDate: rowStart,
-            expiryDate: computedExp
-          };
-        })
-      );
+      setSelectedPackages((prev) => recalculatePackageRows(prev, currentMember.id));
     }
   }, [currentMember]);
 
@@ -435,24 +628,10 @@ export const CreateInvoicePage = ({
       setSelectedTrainerId(m.trainerId);
     }
 
-    const todayStr = getTodayDateStr();
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
-        const planObj = getPackageObject(row.packageType, row.packageId);
-        const pkgType = normalizePackageType(row.packageType || 'Gym-Cardio');
-        const latestEnd = getLatestEndDateForPackageType(newMemberId, pkgType, row.id);
-        const rowStart = (latestEnd && latestEnd >= todayStr) ? addDaysIso(latestEnd, 1) : todayStr;
-        const computedExp = planObj
-          ? computeCombinedPlanEndDate(rowStart, planObj)
-          : row.expiryDate;
-        return {
-          ...row,
-          startDate: rowStart,
-          expiryDate: computedExp,
-          isCustomStartDate: false
-        };
-      })
-    );
+    setSelectedPackages((prev) => {
+      const resetCustom = prev.map((row) => ({ ...row, isCustomStartDate: false }));
+      return recalculatePackageRows(resetCustom, newMemberId);
+    });
   };
 
   // Sync first package row when plans load
@@ -460,22 +639,15 @@ export const CreateInvoicePage = ({
     if (plans.length > 0 && selectedPackages.length > 0 && !selectedPackages[0].packageId) {
       const firstPlan = plans[0];
       const pkgType = normalizePackageType(firstPlan.packageType || firstPlan.package_type || 'Gym-Cardio');
-      const dummyRow = { id: 'pkg-1', packageType: pkgType, packageId: firstPlan.id };
-      const chaining = getRowChainingInfo(dummyRow);
-      const defaultStart = chaining.defaultStartDate;
-      const computedExp = computeCombinedPlanEndDate(defaultStart, firstPlan);
-      setSelectedPackages([
-        {
-          id: 'pkg-1',
-          packageType: pkgType,
-          packageId: String(firstPlan.id),
-          price: Number(firstPlan.price || 0),
-          discount: '',
-          startDate: defaultStart,
-          expiryDate: computedExp,
-          isCustomStartDate: false
-        }
-      ]);
+      const initialRow = {
+        id: 'pkg-1',
+        packageType: pkgType,
+        packageId: String(firstPlan.id),
+        price: Number(firstPlan.price || 0),
+        discount: '',
+        isCustomStartDate: false
+      };
+      setSelectedPackages(recalculatePackageRows([initialRow]));
     }
   }, [plans, selectedMemberId]);
 
@@ -488,15 +660,9 @@ export const CreateInvoicePage = ({
 
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
-    const dummyRow = { id: rowId, packageType: newType, packageId: firstPlan?.id };
-    const chaining = getRowChainingInfo(dummyRow);
-    const rowStart = chaining.defaultStartDate;
-    const computedExp = firstPlan
-      ? computeCombinedPlanEndDate(rowStart, firstPlan)
-      : '';
 
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
+    setSelectedPackages((prev) => {
+      const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
         return {
           ...row,
@@ -504,12 +670,11 @@ export const CreateInvoicePage = ({
           packageId: firstPlan ? String(firstPlan.id) : '',
           price: Number(firstPlan?.price || 0),
           discount: '',
-          startDate: rowStart,
-          expiryDate: computedExp,
           isCustomStartDate: false
         };
-      })
-    );
+      });
+      return recalculatePackageRows(nextRows);
+    });
   };
 
   const handlePackageIdChange = (rowId, newPackageId) => {
@@ -521,45 +686,32 @@ export const CreateInvoicePage = ({
       return;
     }
 
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
+    setSelectedPackages((prev) => {
+      const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
         const found = getPackageObject(row.packageType, newPackageId);
-        const chaining = getRowChainingInfo(row);
-        const rowStart = row.isCustomStartDate ? (row.startDate || chaining.defaultStartDate) : chaining.defaultStartDate;
-        const computedExp = found
-          ? computeCombinedPlanEndDate(rowStart, found)
-          : row.expiryDate;
         return {
           ...row,
           packageId: newPackageId,
-          price: Number(found?.price || 0),
-          startDate: rowStart,
-          expiryDate: computedExp
+          price: Number(found?.price || 0)
         };
-      })
-    );
+      });
+      return recalculatePackageRows(nextRows);
+    });
   };
 
   const handlePackageStartDateChange = (rowId, newStartDate) => {
-    setSelectedPackages((prev) =>
-      prev.map((row) => {
+    setSelectedPackages((prev) => {
+      const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
-        const chaining = getRowChainingInfo(row);
-        // Prevent selecting dates earlier than the minimum allowable start date (chained day after or today)
-        const safeStart = newStartDate && newStartDate < chaining.minStartDate ? chaining.minStartDate : newStartDate;
-        const planObj = getPackageObject(row.packageType, row.packageId);
-        const computedExp = planObj
-          ? computeCombinedPlanEndDate(safeStart, planObj)
-          : row.expiryDate;
         return {
           ...row,
-          startDate: safeStart,
-          expiryDate: computedExp,
+          startDate: newStartDate,
           isCustomStartDate: true
         };
-      })
-    );
+      });
+      return recalculatePackageRows(nextRows);
+    });
   };
 
   const handlePackageExpiryDateChange = (rowId, newExpiryDate) => {
@@ -588,26 +740,17 @@ export const CreateInvoicePage = ({
     const available = getPackagesForType(nextType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
     const newRowId = `pkg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const dummyRow = { id: newRowId, packageType: nextType, packageId: firstPlan?.id };
-    const chaining = getRowChainingInfo(dummyRow);
-    const defaultStart = chaining.defaultStartDate;
-    const computedExp = firstPlan
-      ? computeCombinedPlanEndDate(defaultStart, firstPlan)
-      : '';
 
-    setSelectedPackages((prev) => [
-      ...prev,
-      {
-        id: newRowId,
-        packageType: nextType,
-        packageId: firstPlan ? String(firstPlan.id) : '',
-        price: Number(firstPlan?.price || 0),
-        discount: '',
-        startDate: defaultStart,
-        expiryDate: computedExp,
-        isCustomStartDate: false
-      }
-    ]);
+    const newRow = {
+      id: newRowId,
+      packageType: nextType,
+      packageId: firstPlan ? String(firstPlan.id) : '',
+      price: Number(firstPlan?.price || 0),
+      discount: '',
+      isCustomStartDate: false
+    };
+
+    setSelectedPackages((prev) => recalculatePackageRows([...prev, newRow]));
   };
 
   const handleRemovePackageRow = (rowId) => {
@@ -615,7 +758,10 @@ export const CreateInvoicePage = ({
       addToast('At least one package is required to create an invoice.', 'error');
       return;
     }
-    setSelectedPackages((prev) => prev.filter((r) => r.id !== rowId));
+    setSelectedPackages((prev) => {
+      const filtered = prev.filter((r) => r.id !== rowId);
+      return recalculatePackageRows(filtered);
+    });
   };
 
 
@@ -653,16 +799,18 @@ export const CreateInvoicePage = ({
   // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
   const gstBreakdown = useMemo(() => {
     const targetAmount = effectivePaidAmount > 0 ? effectivePaidAmount : totalCalculatedAmount;
+    const gymTaxRate = Number(gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+    const halfTaxRate = (gymTaxRate / 2).toFixed(gymTaxRate % 2 === 0 ? 0 : 1);
     if (isGstIncluded) {
-      const taxable = Math.round(targetAmount / 1.18);
+      const taxable = Math.round(targetAmount / (1 + (gymTaxRate / 100)));
       const totalGst = Math.max(0, targetAmount - taxable);
       const cgst = Math.round(totalGst / 2);
       const sgst = totalGst - cgst;
-      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount };
+      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount, taxRate: gymTaxRate, halfTaxRate };
     } else {
-      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount };
+      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount, taxRate: gymTaxRate, halfTaxRate };
     }
-  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount]);
+  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount, gymInfo?.tax_rate, gymInfo?.taxRate]);
 
   const getResolvedPaymentMethod = () => {
     const parts = [];
@@ -773,6 +921,12 @@ export const CreateInvoicePage = ({
       return;
     }
 
+    if (memberDueAmount > 0) {
+      addToast(`Cannot create new invoice: Member "${currentMember?.name || 'Selected'}" has an outstanding due balance of ₹${memberDueAmount.toLocaleString('en-IN')}. Please settle the due balance first.`, 'error');
+      setIsPayingDueOpen(true);
+      return;
+    }
+
     const validPackages = selectedPackages.filter((r) => r.packageId && (Number(r.price) >= 0));
     if (validPackages.length === 0) {
       addToast('Please select at least one package with a plan.', 'error');
@@ -784,9 +938,16 @@ export const CreateInvoicePage = ({
       return;
     }
 
-    if (calculatedBalanceDue > 0 && !balanceDueDate) {
-      addToast('Please select the date when the remaining balance due will be paid.', 'error');
-      return;
+    if (calculatedBalanceDue > 0) {
+      if (!balanceDueDate) {
+        addToast('Please select the date when the remaining balance due will be paid.', 'error');
+        return;
+      }
+      const checkRes = validatePromiseDate(balanceDueDate, effectiveInvoiceStartDate, effectiveInvoiceExpiryDate);
+      if (!checkRes.isValid) {
+        addToast(checkRes.error, 'error');
+        return;
+      }
     }
 
     // Check discount ceiling across all selected packages
@@ -845,6 +1006,7 @@ export const CreateInvoicePage = ({
 
       // 1. Record Invoice directly in Backend Database API
       let backendInvoiceRef = generatedInvoiceNo;
+      let savedInvoiceResponse = null;
 
       try {
         if (api.invoices?.create) {
@@ -898,6 +1060,8 @@ export const CreateInvoicePage = ({
               };
             }),
             is_gst_included: isGstIncluded,
+            gst_rate: gstBreakdown.taxRate || 18,
+            gstRate: gstBreakdown.taxRate || 18,
             gst_amount: gstBreakdown.totalGst,
             taxable_amount: gstBreakdown.taxable,
             notes: notes || `Recorded invoice: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
@@ -908,6 +1072,7 @@ export const CreateInvoicePage = ({
           const invRes = await api.invoices.create(invPayload);
           if (invRes?.data?.invoiceNumber || invRes?.data?.id) {
             backendInvoiceRef = invRes.data.invoiceNumber || invRes.data.id;
+            savedInvoiceResponse = invRes.data;
           }
         }
       } catch (invErr) {
@@ -1031,40 +1196,39 @@ export const CreateInvoicePage = ({
       addToast(`Payment of ₹${effectivePaidAmount.toLocaleString('en-IN')} recorded & Invoice #${backendInvoiceRef} generated!`, 'success');
 
       // 5. Set receipt state for immediate download/WhatsApp share
-      setCompletedInvoiceData({
-        id: backendInvoiceRef,
-        invoiceNumber: backendInvoiceRef,
-        memberName: memberName,
-        phone: currentMember?.phone || '',
-        email: currentMember?.email || '',
-        planName: invoiceTitle,
-        amount: effectivePaidAmount,
-        totalAmount: totalCalculatedAmount,
-        duesAmount: calculatedBalanceDue,
-        pendingAmount: calculatedBalanceDue,
-        dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
-        date: paymentDate || getTodayDateStr(),
-        issueDate: paymentDate || getTodayDateStr(),
-        invoiceDate: paymentDate || getTodayDateStr(),
-        paymentDate: paymentDate || getTodayDateStr(),
-        paymentMethod: resolvedPaymentMethodString,
-        isGstIncluded,
-        status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
-        startDate: targetStartDate,
-        endDate: targetExpiryDate,
-        expiryDate: targetExpiryDate,
-        packages: selectedPackages.map((pkg) => {
-          const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
-          return {
-            name: pkgObj?.name || pkg.packageType,
-            packageType: pkg.packageType,
-            price: Number(pkg.price) || 0,
-            startDate: pkg.startDate || targetStartDate,
-            endDate: pkg.expiryDate || targetExpiryDate
-          };
-        }),
-        createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
-      });
+      const mappedReceipt = savedInvoiceResponse
+        ? mapInvoiceRecord(savedInvoiceResponse)
+        : mapInvoiceRecord({
+            id: backendInvoiceRef,
+            invoiceNumber: backendInvoiceRef,
+            memberName: memberName,
+            phone: currentMember?.phone || '',
+            email: currentMember?.email || '',
+            planName: invoiceTitle,
+            amount: effectivePaidAmount,
+            totalAmount: totalCalculatedAmount,
+            duesAmount: calculatedBalanceDue,
+            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+            date: paymentDate || getTodayDateStr(),
+            paymentMethod: resolvedPaymentMethodString,
+            isGstIncluded,
+            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+            startDate: targetStartDate,
+            endDate: targetExpiryDate,
+            packages: selectedPackages.map((pkg) => {
+              const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+              return {
+                name: pkgObj?.name || pkg.packageType,
+                packageType: pkg.packageType,
+                price: Number(pkg.price) || 0,
+                startDate: pkg.startDate || targetStartDate,
+                endDate: pkg.expiryDate || targetExpiryDate
+              };
+            }),
+            createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
+          });
+
+      setCompletedInvoiceData(mappedReceipt);
     } catch (err) {
       console.error('Create invoice error:', err);
       addToast(`Failed to create invoice: ${err.message}`, 'error');
@@ -1360,8 +1524,8 @@ export const CreateInvoicePage = ({
               <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 block font-medium">Pending Dues</span>
                 <span className="font-bold block mt-0.5">
-                  {Number(currentMember.duesAmount || 0) > 0 ? (
-                    <span className="text-rose-600 font-mono">₹{Number(currentMember.duesAmount).toLocaleString('en-IN')}</span>
+                  {memberDueAmount > 0 ? (
+                    <span className="text-rose-600 font-mono font-extrabold">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
                   ) : (
                     <span className="text-emerald-700">₹0 Settled</span>
                   )}
@@ -1432,13 +1596,52 @@ export const CreateInvoicePage = ({
                 <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
                   <span className="text-[10px] text-slate-400 block font-medium">Membership Dues</span>
                   <span className="font-semibold font-mono block mt-0.5">
-                    {Number(currentMember.duesAmount || 0) > 0 ? (
-                      <span className="text-rose-600 font-bold">₹{Number(currentMember.duesAmount).toLocaleString('en-IN')}</span>
+                    {memberDueAmount > 0 ? (
+                      <span className="text-rose-600 font-bold">₹{memberDueAmount.toLocaleString('en-IN')}</span>
                     ) : (
                       <span className="text-emerald-700">₹0 Settled</span>
                     )}
                   </span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* OUTSTANDING DUE BALANCE BLOCKER WARNING & SETTLEMENT ACTION */}
+          {currentMember && memberDueAmount > 0 && (
+            <div className="mt-3 p-4 rounded-2xl bg-gradient-to-r from-rose-50 via-rose-50/80 to-amber-50/60 border-2 border-rose-300 shadow-sm space-y-3 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase tracking-wider text-rose-900 bg-rose-100 px-2.5 py-0.5 rounded-full border border-rose-300">
+                        Outstanding Balance Due: ₹{memberDueAmount.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[11px] font-bold text-rose-700 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">
+                        Payment Required First
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-rose-950 mt-1">
+                      {currentMember.name} has an unpaid balance of <strong className="font-mono text-rose-700 text-sm">₹{memberDueAmount.toLocaleString('en-IN')}</strong>.
+                    </p>
+                    <p className="text-[11px] text-rose-700 mt-0.5">
+                      To prevent overwriting existing member dues and avoid uncollected amounts, outstanding dues must be settled first before generating a new invoice.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPayingDueOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+                  title="Collect and clear outstanding member due balance"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Pay Due Balance (₹{memberDueAmount.toLocaleString('en-IN')})</span>
+                </button>
               </div>
             </div>
           )}
@@ -1932,13 +2135,13 @@ export const CreateInvoicePage = ({
                     </strong>
                   </div>
                   <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST (9%)</span>
+                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                     <strong className="text-slate-800 font-mono text-xs">
                       ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
                     </strong>
                   </div>
                   <div className="p-2 rounded-lg bg-white border border-slate-200">
-                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST (9%)</span>
+                    <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                     <strong className="text-slate-800 font-mono text-xs">
                       ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
                     </strong>
@@ -1994,11 +2197,18 @@ export const CreateInvoicePage = ({
                       type="date"
                       required
                       value={balanceDueDate}
-                      min={getTodayDateStr()}
+                      min={minInvoicePromiseDate}
+                      max={maxInvoicePromiseDate}
                       onChange={(e) => setBalanceDueDate(e.target.value)}
                       className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                     />
                   </div>
+                  {effectiveInvoiceExpiryDate && (
+                    <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                      <span>Permitted: {formatDateDisplay(minInvoicePromiseDate)} to {formatDateDisplay(maxInvoicePromiseDate)}</span>
+                      <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2069,23 +2279,35 @@ export const CreateInvoicePage = ({
             Cancel
           </button>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Issuing Invoice & Recording Payment...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Issue Invoice & Collect Fee</span>
-              </>
-            )}
-          </button>
+          {memberDueAmount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setIsPayingDueOpen(true)}
+              className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95"
+              title="Collect outstanding balance due first"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Settle Outstanding Due (₹{memberDueAmount.toLocaleString('en-IN')}) First</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Issuing Invoice & Recording Payment...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Issue Invoice & Collect Fee</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </form>
 
@@ -2128,6 +2350,19 @@ export const CreateInvoicePage = ({
           }}
         />
       )}
+
+      {/* Pay Outstanding Due Modal */}
+      <PayDueModal
+        isOpen={isPayingDueOpen}
+        onClose={() => setIsPayingDueOpen(false)}
+        member={currentMember ? { ...currentMember, duesAmount: memberDueAmount, balanceDue: memberDueAmount } : null}
+        onSuccess={() => {
+          setIsPayingDueOpen(false);
+          fetchMembers?.();
+          fetchInvoices?.();
+          addToast('Outstanding due balance cleared successfully! You can now create the new invoice.', 'success');
+        }}
+      />
     </div>
   );
 };

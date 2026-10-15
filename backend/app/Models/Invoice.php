@@ -27,6 +27,7 @@ class Invoice extends Model
         'invoice_url',
         'created_by',
         'created_by_name',
+        'items',
     ];
 
     public function gym()
@@ -42,6 +43,7 @@ class Invoice extends Model
         'due_date' => 'date',
         'start_date' => 'date',
         'end_date' => 'date',
+        'items' => 'array',
     ];
 
     public function user()
@@ -62,5 +64,10 @@ class Invoice extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function revenueBilling()
+    {
+        return $this->hasOne(RevenueBilling::class, 'reference_no', 'invoice_number');
     }
 }

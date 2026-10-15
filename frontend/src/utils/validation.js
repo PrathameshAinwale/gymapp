@@ -200,14 +200,30 @@ export const isValidEmail = (email) => {
 };
 
 /**
- * Validates 10-digit Indian Mobile Number
- * @param {string} phone 
+ * Validates Mobile Number (rejects letters and unsupported symbols; enforces 10-digit Indian mobile or valid international phone)
+ * @param {string|number} phone 
  * @returns {boolean}
  */
 export const isValidPhone = (phone) => {
   if (!phone) return false;
-  const digits = String(phone).replace(/\D/g, '');
-  return digits.length === 10 && /^\d{10}$/.test(digits);
+  const str = String(phone).trim();
+  // Reject alphabetic characters
+  if (/[a-zA-Z]/.test(str)) return false;
+  // Reject unsupported symbols (allow +, digits, spaces, hyphens, parentheses)
+  if (!/^(\+?[0-9\s()-]{7,20})$/.test(str)) return false;
+
+  const digits = str.replace(/\D/g, '');
+  // International format
+  if (str.startsWith('+')) {
+    if (str.startsWith('+91')) {
+      const domestic = digits.slice(2);
+      return domestic.length === 10;
+    }
+    return digits.length >= 7 && digits.length <= 15;
+  }
+
+  // Standard domestic mobile: 10 digits
+  return digits.length === 10;
 };
 
 /**
@@ -229,4 +245,71 @@ export const isValidAadhaar = (aadhaar) => {
   if (!aadhaar) return false;
   const digits = String(aadhaar).replace(/\D/g, '');
   return digits.length === 12;
+};
+
+/**
+ * Validates human names containing alphabetic & Unicode letters, spaces, hyphens, and apostrophes.
+ * Rejects numbers and special-character-only values. Must have at least 2 letters and <= 100 chars.
+ * @param {string} name 
+ * @returns {boolean}
+ */
+export const isValidName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 100) return false;
+  // Disallow any digits
+  if (/\d/.test(trimmed)) return false;
+  // Disallow special characters other than spaces, hyphens, apostrophes, and unicode letters
+  const validCharsRegex = /^[\p{L}\s'-]+$/u;
+  if (!validCharsRegex.test(trimmed)) return false;
+  // Must contain at least 2 letters
+  const letterCount = (trimmed.match(/\p{L}/gu) || []).length;
+  return letterCount >= 2;
+};
+
+/**
+ * Sanitizes name input by stripping numbers and unsupported symbols
+ * @param {string} val 
+ * @returns {string}
+ */
+export const sanitizeName = (val) => {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/[0-9]/g, '')
+    .replace(/[^\p{L}\s'-]/gu, '')
+    .slice(0, 100);
+};
+
+/**
+ * Validates optional emergency contact. If provided, must be a valid 10-digit phone.
+ * @param {string} phone 
+ * @returns {boolean}
+ */
+export const isValidEmergencyContact = (phone) => {
+  if (!phone || String(phone).trim() === '') return true;
+  return isValidPhone(phone);
+};
+
+/**
+ * Gets today's local date string formatted as YYYY-MM-DD
+ * @returns {string}
+ */
+export const getTodayDateStr = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Validates Date of Birth (DOB) - cannot be in the future
+ * @param {string} dob 
+ * @returns {boolean}
+ */
+export const isValidDob = (dob) => {
+  if (!dob) return true;
+  const todayStr = getTodayDateStr();
+  const trimmed = String(dob).slice(0, 10);
+  return trimmed <= todayStr;
 };

@@ -5,12 +5,17 @@ import { Modal } from '../common/Modal';
 import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
-import { calculatePlanExpiryDate, formatDateDisplay, calculateAgeFromDob } from '../../utils/dateUtils';
+import { calculatePlanExpiryDate, formatDateDisplay, calculateAgeFromDob, calculateMaxPromiseDate, validatePromiseDate } from '../../utils/dateUtils';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getGymConsentForm } from '../../utils/consentFormConfig';
+import { mapInvoiceRecord } from '../../utils/invoiceMapper';
 import {
+  isValidName,
   isValidEmail,
   isValidPhone,
+  isValidEmergencyContact,
+  getTodayDateStr,
+  isValidDob,
   hasSqlInjection,
   sanitizeText,
   sanitizePhone,
@@ -112,7 +117,7 @@ export const AddMemberPage = ({
 
 
 
-  const defaultStaffExecutive = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : 'Prathamesh';
+  const defaultStaffExecutive = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : (gymInfo?.name ? `${gymInfo.name} Staff` : 'Staff');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -153,6 +158,7 @@ export const AddMemberPage = ({
   const [discountAmount, setDiscountAmount] = useState('');
   const [isGstIncluded, setIsGstIncluded] = useState(true);
 
+
   const [trainingType, setTrainingType] = useState('self');
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
   const [ptCustomSessions, setPtCustomSessions] = useState(12);
@@ -160,7 +166,7 @@ export const AddMemberPage = ({
   const [ptPackageFee, setPtPackageFee] = useState(3000);
   const [recoveryPlanId, setRecoveryPlanId] = useState('');
   const [commissionType, setCommissionType] = useState('percent');
-  const [ptCommissionPercent, setPtCommissionPercent] = useState();
+  const [ptCommissionPercent, setPtCommissionPercent] = useState('');
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
 
   const addDaysIso = (dateStr, days) => {
@@ -226,6 +232,16 @@ export const AddMemberPage = ({
     const todayStr = getTodayDateStr();
     let latestEnd = null;
 
+    const considerDate = (rawDate) => {
+      if (!rawDate) return;
+      const cleanDate = String(rawDate).split('T')[0];
+      if (cleanDate && cleanDate >= todayStr) {
+        if (!latestEnd || cleanDate > latestEnd) {
+          latestEnd = cleanDate;
+        }
+      }
+    };
+
     // 1. If targetMember (upgrade/edit of existing member), check their active plans/invoices
     if (targetMember) {
       const cleanMemberId = String(targetMember.id || targetMember.userId || '').replace(/[^0-9]/g, '');
@@ -235,28 +251,75 @@ export const AddMemberPage = ({
           if (invMemId !== cleanMemberId) return;
           if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
 
-          const invType = normalizePackageType(inv.package_type || inv.packageType || inv.category || 'Gym-Cardio');
-          if (invType !== targetType) return;
+          // A. Nested items / packages
+          let itemsList = [];
+          if (Array.isArray(inv.items) && inv.items.length > 0) itemsList = inv.items;
+          else if (Array.isArray(inv.packages) && inv.packages.length > 0) itemsList = inv.packages;
+          else if (typeof inv.items === 'string') {
+            try { itemsList = JSON.parse(inv.items); } catch (_) { itemsList = []; }
+          } else if (typeof inv.packages === 'string') {
+            try { itemsList = JSON.parse(inv.packages); } catch (_) { itemsList = []; }
+          }
 
-          const endStr = (inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate || '').split('T')[0];
-          if (endStr && endStr >= todayStr) {
-            if (!latestEnd || endStr > latestEnd) {
-              latestEnd = endStr;
+          if (Array.isArray(itemsList) && itemsList.length > 0) {
+            itemsList.forEach((item) => {
+              let rawType = item.packageType || item.package_type || item.category;
+              const itemName = item.name || item.planName || item.plan_name || item.title || '';
+              if (!rawType && itemName) {
+                const combo = itemName.toLowerCase();
+                if (combo.includes('pt') || combo.includes('personal training')) rawType = 'Personal Training';
+                else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) rawType = 'Massage';
+              }
+              const itemType = normalizePackageType(rawType || 'Gym-Cardio');
+              if (itemType === targetType) {
+                considerDate(item.endDate || item.end_date || item.expiryDate || item.expiry_date);
+              }
+            });
+          } else {
+            // B. Root invoice if no items list
+            let topType = inv.package_type || inv.packageType || inv.category;
+            const topName = inv.planName || inv.plan_name || inv.title || '';
+            if (!topType && topName) {
+              const combo = topName.toLowerCase();
+              if (combo.includes('pt') || combo.includes('personal training')) topType = 'Personal Training';
+              else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) topType = 'Massage';
+            }
+            const invType = normalizePackageType(topType || 'Gym-Cardio');
+            if (invType === targetType) {
+              considerDate(inv.end_date || inv.endDate || inv.expiry_date || inv.expiryDate);
             }
           }
         });
       }
 
+      // Check targetMember.activePlans
+      if (Array.isArray(targetMember.activePlans)) {
+        targetMember.activePlans.forEach((planItem) => {
+          let pType = planItem.packageType || planItem.package_type || planItem.category;
+          if (normalizePackageType(pType || 'Gym-Cardio') === targetType) {
+            considerDate(planItem.endDate || planItem.end_date || planItem.expiryDate || planItem.expiry_date);
+          }
+        });
+      }
+
+      // Check targetMember.upcomingPlans
+      if (Array.isArray(targetMember.upcomingPlans)) {
+        targetMember.upcomingPlans.forEach((planItem) => {
+          let pType = planItem.packageType || planItem.package_type || planItem.category;
+          if (normalizePackageType(pType || 'Gym-Cardio') === targetType) {
+            considerDate(planItem.endDate || planItem.end_date || planItem.expiryDate || planItem.expiry_date);
+          }
+        });
+      }
+
       const rawExp = (targetMember.expiryDate || targetMember.expiry_date || '').split('T')[0];
-      if (rawExp && rawExp >= todayStr && targetMember.status !== 'Expired') {
+      if (rawExp && targetMember.status !== 'Expired') {
         const profilePlan = plans.find((p) => String(p.id) === String(targetMember.planId || targetMember.plan_id));
         const profileType = normalizePackageType(
           profilePlan?.packageType || profilePlan?.package_type || (targetMember.trainingType === 'pt' ? 'Personal Training' : 'Gym-Cardio')
         );
         if (profileType === targetType) {
-          if (!latestEnd || rawExp > latestEnd) {
-            latestEnd = rawExp;
-          }
+          considerDate(rawExp);
         }
       }
     }
@@ -267,10 +330,8 @@ export const AddMemberPage = ({
       for (const r of rows) {
         if (r.id === currentRowId) break;
         const rType = normalizePackageType(r.packageType);
-        if (rType === targetType && r.endDate && r.endDate >= todayStr) {
-          if (!latestEnd || r.endDate > latestEnd) {
-            latestEnd = r.endDate;
-          }
+        if (rType === targetType) {
+          considerDate(r.endDate || r.expiryDate);
         }
       }
     }
@@ -358,6 +419,22 @@ export const AddMemberPage = ({
       chainingMessage: `Starts ${formatDateDisplay(getTodayDateStr())} by default`
     }
   ]);
+
+  // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
+  const effectiveMemberStartDate = membershipStartDate || formData.joinDate || getTodayDateStr();
+  const effectiveMemberExpiryDate = membershipEndDate || (selectedPackages?.[0]?.endDate) || '';
+  const minPromiseDate = effectiveMemberStartDate;
+  const maxPromiseDate = useMemo(() => calculateMaxPromiseDate(effectiveMemberExpiryDate), [effectiveMemberExpiryDate]);
+
+  // Revalidate selected promise date whenever membership dates change
+  useEffect(() => {
+    if (balanceDueDate && effectiveMemberStartDate && effectiveMemberExpiryDate) {
+      const res = validatePromiseDate(balanceDueDate, effectiveMemberStartDate, effectiveMemberExpiryDate);
+      if (!res.isValid) {
+        setBalanceDueDate('');
+      }
+    }
+  }, [balanceDueDate, effectiveMemberStartDate, effectiveMemberExpiryDate]);
 
   const handlePackageStartDateChange = (rowId, newStart) => {
     setSelectedPackages((prev) => {
@@ -674,7 +751,7 @@ export const AddMemberPage = ({
         targetWeight: targetMember.targetWeight || 75,
         height: targetMember.height || 175,
         medicalNotes: (targetMember.medicalNotes && targetMember.medicalNotes !== 'None' && targetMember.medicalNotes !== 'None reported') ? targetMember.medicalNotes : '',
-        emergencyContact: targetMember.emergencyContact || targetMember.phone || '',
+        emergencyContact: targetMember.emergencyContact || '',
         executive: targetMember.executive || defaultStaffExecutive,
         kycDocType: targetMember.kycDocType || 'Aadhaar Card',
         kycDocNumber: targetMember.kycDocNumber || '',
@@ -713,16 +790,21 @@ export const AddMemberPage = ({
 
         return {
           ...prev,
-          name: initialData.name || '',
-          email: initialData.email || '',
-          phone: initialData.phone || '',
-          password: 'fit' + Math.floor(1000 + Math.random() * 9000),
+          name: initialData.name || prev.name || '',
+          email: initialData.email || prev.email || '',
+          phone: initialData.phone || prev.phone || '',
+          password: prev.password || ('fit' + Math.floor(1000 + Math.random() * 9000)),
           planId: initPlanId,
-          goal: initialData.goal || 'Muscle Gain & Strength',
-          emergencyContact: initialData.emergencyContact || initialData.phone || '',
-          enquiryId: initialData.enquiryId || null,
+          goal: initialData.goal || prev.goal || 'Muscle Gain & Strength',
+          emergencyContact: initialData.emergencyContact || '',
+          enquiryId: initialData.enquiryId || prev.enquiryId || null,
           executive: initialData.executive || prev.executive || defaultStaffExecutive,
-          ...initialData,
+          weight: initialData.weight !== undefined && initialData.weight !== null ? initialData.weight : (prev.weight ?? ''),
+          targetWeight: initialData.targetWeight !== undefined && initialData.targetWeight !== null ? initialData.targetWeight : (prev.targetWeight ?? ''),
+          height: initialData.height !== undefined && initialData.height !== null ? initialData.height : (prev.height ?? ''),
+          gender: initialData.gender || prev.gender || 'Male',
+          biometricUserId: initialData.biometricUserId || prev.biometricUserId || '',
+          kycDocNumber: initialData.kycDocNumber || prev.kycDocNumber || '',
           medicalNotes: safeMedNotes,
           dob: initDob,
           age: computedAge
@@ -843,16 +925,18 @@ export const AddMemberPage = ({
   // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
   const gstBreakdown = useMemo(() => {
     const targetAmount = effectivePaidAmount > 0 ? effectivePaidAmount : totalCalculatedAmount;
+    const gymTaxRate = Number(gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+    const halfTaxRate = (gymTaxRate / 2).toFixed(gymTaxRate % 2 === 0 ? 0 : 1);
     if (isGstIncluded) {
-      const taxable = Math.round(targetAmount / 1.18);
+      const taxable = Math.round(targetAmount / (1 + (gymTaxRate / 100)));
       const totalGst = Math.max(0, targetAmount - taxable);
       const cgst = Math.round(totalGst / 2);
       const sgst = totalGst - cgst;
-      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount };
+      return { taxable, totalGst, cgst, sgst, hasGst: true, targetAmount, taxRate: gymTaxRate, halfTaxRate };
     } else {
-      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount };
+      return { taxable: targetAmount, totalGst: 0, cgst: 0, sgst: 0, hasGst: false, targetAmount, taxRate: gymTaxRate, halfTaxRate };
     }
-  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount]);
+  }, [isGstIncluded, effectivePaidAmount, totalCalculatedAmount, gymInfo?.tax_rate, gymInfo?.taxRate]);
 
   const basePrice = selectedPackages
     .filter(isMembershipRow)
@@ -1234,6 +1318,11 @@ export const AddMemberPage = ({
       return;
     }
 
+    if (!isValidName(formData.name)) {
+      addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).', 'error');
+      return;
+    }
+
     if (
       hasSqlInjection(formData.name) ||
       (formData.email && hasSqlInjection(formData.email)) ||
@@ -1258,6 +1347,16 @@ export const AddMemberPage = ({
 
     if (!isUpgradeMode && !isValidPhone(formData.phone)) {
       addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (formData.emergencyContact && !isValidEmergencyContact(formData.emergencyContact)) {
+      addToast('Emergency contact number must be a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (formData.dob && !isValidDob(formData.dob)) {
+      addToast('Date of birth cannot be in the future.', 'error');
       return;
     }
 
@@ -1332,16 +1431,24 @@ export const AddMemberPage = ({
       const todayStr = today.toISOString().split('T')[0];
       const fallbackExpiry = computePlanEndDate(membershipStartDate || todayStr, chosenPlan);
 
-      if (calculatedBalanceDue > 0 && !balanceDueDate) {
-        addToast('Please select the date when the remaining balance due will be paid.', 'error');
-        setIsCreatingMember(false);
-        return;
-      }
-
       const finalPaymentMethod = getResolvedPaymentMethod();
       const finalStartDate = membershipStartDate || todayStr;
       const finalExpiryDate = membershipEndDate || fallbackExpiry || todayStr;
       const finalJoinDate = formData.joinDate || finalStartDate;
+
+      if (calculatedBalanceDue > 0) {
+        if (!balanceDueDate) {
+          addToast('Please select the date when the remaining balance due will be paid.', 'error');
+          setIsCreatingMember(false);
+          return;
+        }
+        const promiseCheck = validatePromiseDate(balanceDueDate, finalStartDate, finalExpiryDate);
+        if (!promiseCheck.isValid) {
+          addToast(promiseCheck.error, 'error');
+          setIsCreatingMember(false);
+          return;
+        }
+      }
 
       const additions = [];
       validPackages.forEach((pkgRow) => {
@@ -1407,8 +1514,8 @@ export const AddMemberPage = ({
         paymentMethod: finalPaymentMethod,
         is_gst_included: isGstIncluded,
         gst_included: isGstIncluded,
-        gst_rate: 18,
-        gstRate: 18,
+        gst_rate: gstBreakdown.taxRate || 18,
+        gstRate: gstBreakdown.taxRate || 18,
         gst_amount: gstBreakdown.totalGst,
         gstAmount: gstBreakdown.totalGst,
         taxable_amount: gstBreakdown.taxable,
@@ -1454,14 +1561,16 @@ export const AddMemberPage = ({
       }
 
       await registerAccount({
-        id: createdMember.id,
+        id: createdMember?.id,
         name: formData.name,
+        phone: formData.phone,
         email: formData.email || null,
-        username: (formData.email ? formData.email.split('@')[0] : formData.phone) || `mem_${createdMember.id}`,
+        username: (formData.email ? formData.email.split('@')[0] : formData.phone) || `mem_${createdMember?.id || Date.now()}`,
         password: formData.password || 'fit1234',
         role: 'member',
         planName: chosenPlan?.name,
-        qrPassCode: createdMember.qrPassCode
+        qrPassCode: createdMember?.qrPassCode,
+        skipApi: true,
       });
 
       await addConsentForm({
@@ -1503,13 +1612,29 @@ export const AddMemberPage = ({
         addToast(`WhatsApp welcome pass sent to ${formData.phone}`, 'info');
       }
 
+      const savedInvoice = mapInvoiceRecord(createdMember?.invoice || {
+        ...createdMember,
+        invoiceNumber: createdMember.invoiceNumber || createdMember.invoice_number,
+        items: packagesPayload,
+        packages: packagesPayload,
+        totalAmount: totalCalculatedAmount,
+        paidAmount: effectivePaidAmount,
+        duesAmount: calculatedBalanceDue,
+        dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        startDate: finalStartDate,
+        endDate: finalExpiryDate,
+        date: finalJoinDate || todayStr,
+        createdByName: formData.executive?.trim() || currentUser?.name || 'Staff'
+      });
+
       setNewlyCreatedCredentials({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         password: formData.password || 'fit1234',
         id: createdMember.id,
-        invoiceNumber: createdMember.invoiceNumber || createdMember.invoice_number || null,
+        invoice: savedInvoice,
+        invoiceNumber: savedInvoice?.invoiceNumber || createdMember.invoiceNumber || createdMember.invoice_number || null,
         qrPassCode: createdMember.qrPassCode,
         planName: invoiceTitle,
         packageAmount: basePrice + ptPrice + recoveryPrice,
@@ -1530,6 +1655,7 @@ export const AddMemberPage = ({
         joinDate: finalJoinDate,
         issueDate: finalJoinDate || todayStr,
         packages: packagesPayload,
+        items: packagesPayload,
         ptName: trainingType === 'pt' ? `${ptCustomSessions} 1-on-1 PT Sessions` : null,
         recoveryName: chosenRecoveryPlan?.name,
         trainerCommission: ptCommissionAmount > 0 ? ptCommissionAmount : null,
@@ -1558,18 +1684,20 @@ export const AddMemberPage = ({
     const dues = Number(newlyCreatedCredentials.duesAmount || 0);
     const isGst = Boolean(newlyCreatedCredentials.isGstIncluded);
 
-    const baseFee = Math.round(paid / 1.18);
+    const memberTaxRate = Number(newlyCreatedCredentials.gstRate ?? newlyCreatedCredentials.gst_rate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+    const memberHalfTax = (memberTaxRate / 2).toFixed(memberTaxRate % 2 === 0 ? 0 : 1);
+    const baseFee = isGst ? Math.round(paid / (1 + (memberTaxRate / 100))) : paid;
     const totalGst = Math.max(0, paid - baseFee);
     const cgst = Math.round(totalGst / 2);
     const sgst = totalGst - cgst;
 
     const gstSection = isGst
       ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
-        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
-        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
+        `• CGST (${memberHalfTax}%): ₹${cgst.toLocaleString('en-IN')}\n` +
+        `• SGST (${memberHalfTax}%): ₹${sgst.toLocaleString('en-IN')}\n`
       : `• Tax Applied: None (Non-GST Payment)\n`;
 
-    const text = `Welcome to ${gymInfo?.name || 'PulseFit Pro'}!\n\n` +
+    const text = `Welcome to ${gymInfo?.name || 'our Gym'}!\n\n` +
       `Here are your Member Login Credentials:\n` +
       `• Member ID: ${newlyCreatedCredentials.id}\n` +
       `• Password: ${newlyCreatedCredentials.password}\n` +
@@ -1606,18 +1734,20 @@ export const AddMemberPage = ({
     const dues = Number(newlyCreatedCredentials.duesAmount || 0);
     const isGst = Boolean(newlyCreatedCredentials.isGstIncluded);
 
-    const baseFee = Math.round(paid / 1.18);
+    const memberTaxRate = Number(newlyCreatedCredentials.gstRate ?? newlyCreatedCredentials.gst_rate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+    const memberHalfTax = (memberTaxRate / 2).toFixed(memberTaxRate % 2 === 0 ? 0 : 1);
+    const baseFee = isGst ? Math.round(paid / (1 + (memberTaxRate / 100))) : paid;
     const totalGst = Math.max(0, paid - baseFee);
     const cgst = Math.round(totalGst / 2);
     const sgst = totalGst - cgst;
 
     const gstSection = isGst
       ? `• Plan Base Fee: ₹${baseFee.toLocaleString('en-IN')}\n` +
-        `• CGST (9%): ₹${cgst.toLocaleString('en-IN')}\n` +
-        `• SGST (9%): ₹${sgst.toLocaleString('en-IN')}\n`
+        `• CGST (${memberHalfTax}%): ₹${cgst.toLocaleString('en-IN')}\n` +
+        `• SGST (${memberHalfTax}%): ₹${sgst.toLocaleString('en-IN')}\n`
       : `• Tax Applied: None (Non-GST Payment)\n`;
 
-    const text = `Welcome to *${gymInfo?.name || 'PulseFit Pro'}*!\n\n` +
+    const text = `Welcome to *${gymInfo?.name || 'our Gym'}*!\n\n` +
       `Here are your Member Login Credentials:\n` +
       `• Member ID: *${newlyCreatedCredentials.id}*\n` +
       `• Password: *${newlyCreatedCredentials.password}*\n` +
@@ -1640,37 +1770,11 @@ export const AddMemberPage = ({
   const handleDownloadInvoicePdf = async () => {
     if (!newlyCreatedCredentials) return;
     try {
-      const invObj = {
-        invoiceNumber: newlyCreatedCredentials.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-        id: newlyCreatedCredentials.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-        memberName: newlyCreatedCredentials.name,
-        name: newlyCreatedCredentials.name,
-        memberPhone: newlyCreatedCredentials.phone,
-        phone: newlyCreatedCredentials.phone,
-        memberEmail: newlyCreatedCredentials.email,
-        email: newlyCreatedCredentials.email,
-        planName: newlyCreatedCredentials.planName,
-        packageAmount: newlyCreatedCredentials.packageAmount || newlyCreatedCredentials.totalAmount,
-        discountAmount: newlyCreatedCredentials.discountAmount || 0,
-        amount: newlyCreatedCredentials.paidAmount ?? newlyCreatedCredentials.totalAmount,
-        totalAmount: newlyCreatedCredentials.totalAmount,
-        duesAmount: newlyCreatedCredentials.duesAmount || 0,
-        pendingAmount: newlyCreatedCredentials.duesAmount || 0,
-        dueDate: newlyCreatedCredentials.dueDate,
-        paymentMethod: newlyCreatedCredentials.paymentMethod || 'UPI',
-        date: newlyCreatedCredentials.joinDate || getTodayDateStr(),
-        issueDate: newlyCreatedCredentials.joinDate || getTodayDateStr(),
-        startDate: newlyCreatedCredentials.startDate,
-        endDate: newlyCreatedCredentials.expiryDate,
-        expiryDate: newlyCreatedCredentials.expiryDate,
+      const invObj = newlyCreatedCredentials.invoice || mapInvoiceRecord({
+        ...newlyCreatedCredentials,
         packages: newlyCreatedCredentials.packages || (typeof packagesPayload !== 'undefined' ? packagesPayload : []),
-        isGstIncluded: Boolean(newlyCreatedCredentials.isGstIncluded),
-        hasGst: Boolean(newlyCreatedCredentials.isGstIncluded),
-        status: Number(newlyCreatedCredentials.duesAmount || 0) > 0 ? 'Pending' : 'Paid',
-        createdByName: newlyCreatedCredentials.createdByName || formData.executive?.trim() || currentUser?.name || 'Staff',
-        created_by_name: newlyCreatedCredentials.created_by_name || formData.executive?.trim() || currentUser?.name || 'Staff',
-        executive: newlyCreatedCredentials.executive || formData.executive?.trim() || currentUser?.name || 'Staff'
-      };
+        items: newlyCreatedCredentials.packages || (typeof packagesPayload !== 'undefined' ? packagesPayload : []),
+      });
       const result = generateInvoicePdf({ invoice: invObj, gymInfo, member: newlyCreatedCredentials });
       if (result && typeof result.download === 'function') {
         result.download();
@@ -1843,11 +1947,16 @@ export const AddMemberPage = ({
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
                   <Receipt className="w-4 h-4 text-emerald-600" />
-                  <span>Invoice & Membership Summary</span>
+                  <span>Invoice Summary</span>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {newlyCreatedCredentials.duesAmount > 0 ? 'Partial Payment' : 'Paid in Full'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                    {newlyCreatedCredentials.invoiceNumber || newlyCreatedCredentials.invoice?.invoiceNumber}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {newlyCreatedCredentials.duesAmount > 0 ? 'Partial Payment' : 'Paid in Full'}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-3 space-y-2.5 text-xs">
@@ -1856,9 +1965,24 @@ export const AddMemberPage = ({
                   <span className="font-bold text-slate-900">{newlyCreatedCredentials.name}</span>
                 </div>
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-500">Selected Plan:</span>
-                  <span className="font-bold text-emerald-700">{newlyCreatedCredentials.planName}</span>
+                  <span className="text-slate-500">Invoice Number:</span>
+                  <span className="font-mono font-bold text-emerald-700">{newlyCreatedCredentials.invoiceNumber || newlyCreatedCredentials.invoice?.invoiceNumber}</span>
                 </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-50">
+                  <span className="text-slate-500">Selected Plan:</span>
+                  <span className="font-bold text-slate-800">{newlyCreatedCredentials.planName}</span>
+                </div>
+                {newlyCreatedCredentials.packages && newlyCreatedCredentials.packages.length > 1 && (
+                  <div className="py-2 border-b border-slate-100 space-y-1.5">
+                    <span className="text-[11px] font-bold text-slate-700">Packages Breakdown ({newlyCreatedCredentials.packages.length} items):</span>
+                    {newlyCreatedCredentials.packages.map((pkg, pIdx) => (
+                      <div key={pIdx} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded">
+                        <span className="text-slate-600 font-medium">{pkg.name || pkg.packageType}</span>
+                        <span className="font-mono text-slate-800 font-semibold">₹{Number(pkg.price || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Validity Period:</span>
                   <span className="font-medium text-slate-800">{newlyCreatedCredentials.startDate} to {newlyCreatedCredentials.expiryDate}</span>
@@ -2094,7 +2218,7 @@ export const AddMemberPage = ({
                     <input
                       type="email"
                       placeholder="athlete@example.com"
-                      value={formData.email}
+                      value={formData.email ?? ''}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                     />
@@ -2106,7 +2230,7 @@ export const AddMemberPage = ({
                     <input
                       type="text"
                       required
-                      value={formData.password}
+                      value={formData.password ?? ''}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-500"
                     />
@@ -2136,13 +2260,20 @@ export const AddMemberPage = ({
                 required
                 disabled={isUpgradeMode && !isEditMode}
                 placeholder="e.g. Liam Hemsworth"
-                value={formData.name}
+                value={formData.name ?? ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode && !isEditMode
                   ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
-                  : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
+                  : formData.name && !isValidName(formData.name)
+                    ? 'bg-rose-50 border border-rose-300 text-slate-900 focus:outline-none focus:border-rose-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
                   }`}
               />
+              {formData.name && !isValidName(formData.name) && (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Name must contain letters only (spaces, hyphens, and apostrophes allowed).
+                </p>
+              )}
             </div>
 
             <div>
@@ -2163,13 +2294,15 @@ export const AddMemberPage = ({
                 maxLength={10}
                 inputMode="numeric"
                 onKeyDown={preventNonPhoneKey}
-                value={formData.phone}
+                value={formData.phone ?? ''}
                 onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
                 className={`w-full px-3 py-2 rounded-xl text-xs transition-colors ${isUpgradeMode || isEditMode
                     ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed select-none font-medium'
                     : duplicatePhoneMember
                       ? 'bg-rose-50 border-2 border-rose-500 text-slate-900 focus:outline-none'
-                      : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
+                      : !isUpgradeMode && formData.phone && !isValidPhone(formData.phone)
+                        ? 'bg-rose-50 border border-rose-300 text-slate-900 focus:outline-none focus:border-rose-500 font-mono'
+                        : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-medium'
                   }`}
               />
               {isEditMode ? (
@@ -2177,12 +2310,16 @@ export const AddMemberPage = ({
                   <Lock className="w-2.5 h-2.5 text-slate-400" />
                   <span>Locked for mobile OTP verification & account security.</span>
                 </p>
-              ) : duplicatePhoneMember && (
+              ) : duplicatePhoneMember ? (
                 <p className="text-[10px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
                   <span>Existing member already registered with this mobile</span>
                 </p>
-              )}
+              ) : !isUpgradeMode && formData.phone && !isValidPhone(formData.phone) ? (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Please enter a valid 10-digit mobile number.
+                </p>
+              ) : null}
             </div>
 
             {isEditMode && (
@@ -2217,7 +2354,7 @@ export const AddMemberPage = ({
                 type="date"
                 required
                 disabled={isUpgradeMode || isEditMode}
-                value={formData.joinDate}
+                value={formData.joinDate ?? ''}
                 onChange={(e) => {
                   const val = e.target.value;
                   setFormData((prev) => ({ ...prev, joinDate: val }));
@@ -2238,8 +2375,9 @@ export const AddMemberPage = ({
               </label>
               <input
                 type="date"
+                max={getTodayDateStr()}
                 disabled={isUpgradeMode && !isEditMode}
-                value={formData.dob}
+                value={formData.dob ?? ''}
                 onChange={(e) => {
                   const val = e.target.value;
                   const computedAge = calculateAgeFromDob(val);
@@ -2249,8 +2387,17 @@ export const AddMemberPage = ({
                     age: computedAge !== '' ? computedAge : (val ? prev.age : '')
                   }));
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className={`w-full px-3 py-2 rounded-xl text-xs ${
+                  formData.dob && !isValidDob(formData.dob)
+                    ? 'bg-rose-50 border border-rose-300 text-slate-900 focus:outline-none focus:border-rose-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
+                }`}
               />
+              {formData.dob && !isValidDob(formData.dob) && (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Date of birth cannot be in the future.
+                </p>
+              )}
             </div>
 
             <div>
@@ -2261,7 +2408,7 @@ export const AddMemberPage = ({
                 max={120}
                 placeholder="e.g. 25"
                 disabled={isUpgradeMode && !isEditMode}
-                value={formData.age}
+                value={formData.age ?? ''}
                 onChange={(e) => setFormData({ ...formData, age: sanitizeDigits(e.target.value) })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
               />
@@ -2271,7 +2418,7 @@ export const AddMemberPage = ({
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
               <select
                 disabled={isUpgradeMode && !isEditMode}
-                value={formData.gender}
+                value={formData.gender ?? 'Male'}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
@@ -2307,17 +2454,62 @@ export const AddMemberPage = ({
             {isEditMode && (
               <>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Membership Status</label>
-                  <select
-                    value={formData.status || 'Active'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Expiring Soon">Expiring Soon</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Frozen">Frozen / Paused</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">Membership Status</label>
+                    <span className="text-[10px] text-slate-400 font-medium">Auto-derived from dates</span>
+                  </div>
+                  {['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended'].includes(formData.status) ? (
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200">
+                        {formData.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const autoSt = calculateMemberStatus
+                            ? calculateMemberStatus(formData.expiryDate || membershipEndDate || targetMember?.expiryDate, 'Active', formData.joinDate || targetMember?.joinDate)
+                            : 'Active';
+                          setFormData({ ...formData, status: autoSt });
+                        }}
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+                      >
+                        Resume Membership
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const curDerived = calculateMemberStatus
+                          ? calculateMemberStatus(formData.expiryDate || membershipEndDate || targetMember?.expiryDate, formData.status, formData.joinDate || targetMember?.joinDate)
+                          : (formData.status || 'Active');
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                            curDerived === 'Active'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : curDerived === 'Expiring Soon'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : curDerived === 'Upcoming'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${
+                              curDerived === 'Active'
+                                ? 'bg-emerald-500'
+                                : curDerived === 'Expiring Soon'
+                                ? 'bg-amber-500'
+                                : curDerived === 'Upcoming'
+                                ? 'bg-sky-500'
+                                : 'bg-rose-500'
+                            }`} />
+                            {curDerived}
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[11px] text-slate-400 italic">
+                        (Managed by plan validity)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -2425,7 +2617,7 @@ export const AddMemberPage = ({
               </div>
 
               <p className="text-[11px] text-slate-500 pt-1">
-                â„¹ï¸ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
+                ℹ️ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
               </p>
             </div>
           ) : (
@@ -2534,7 +2726,7 @@ export const AddMemberPage = ({
                         <input
                           type="text"
                           placeholder="0"
-                          value={pkgRow.discount}
+                          value={pkgRow.discount ?? ''}
                           onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
                           className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-mono transition-colors focus:outline-none ${maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
                               ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
@@ -2543,7 +2735,7 @@ export const AddMemberPage = ({
                         />
                         {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
                           <p className="text-[10px] text-rose-600 font-bold mt-1">
-                            âš ï¸ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
+                            ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
                           </p>
                         )}
                       </div>
@@ -2578,7 +2770,7 @@ export const AddMemberPage = ({
                               type="date"
                               readOnly
                               disabled
-                              value={pkgRow.endDate}
+                              value={pkgRow.endDate ?? ''}
                               className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
                             />
                           ) : (
@@ -2620,7 +2812,7 @@ export const AddMemberPage = ({
                               Assigned Coach *
                             </label>
                             <select
-                              value={selectedTrainerId}
+                              value={selectedTrainerId ?? ''}
                               onChange={(e) => {
                                 setSelectedTrainerId(e.target.value);
                                 setFormData((prev) => ({ ...prev, trainerId: e.target.value }));
@@ -2671,7 +2863,7 @@ export const AddMemberPage = ({
                                   type="number"
                                   min={0}
                                   max={100}
-                                  value={ptCommissionPercent}
+                                  value={ptCommissionPercent ?? ''}
                                   onChange={(e) => setPtCommissionPercent(sanitizeDigits(e.target.value))}
                                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
                                 />
@@ -2679,7 +2871,7 @@ export const AddMemberPage = ({
                                 <input
                                   type="number"
                                   min={0}
-                                  value={ptFixedCommission}
+                                  value={ptFixedCommission ?? ''}
                                   onChange={(e) => setPtFixedCommission(sanitizeDigits(e.target.value))}
                                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
                                 />
@@ -2711,7 +2903,7 @@ export const AddMemberPage = ({
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
               <select
-                value={formData.goal}
+                value={formData.goal ?? ''}
                 onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
@@ -2730,7 +2922,7 @@ export const AddMemberPage = ({
                 type="number"
                 step="0.1"
                 placeholder="e.g. 72.5"
-                value={formData.weight}
+                value={formData.weight ?? ''}
                 onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
               />
@@ -2742,7 +2934,7 @@ export const AddMemberPage = ({
                 type="number"
                 step="0.1"
                 placeholder="e.g. 68.0"
-                value={formData.targetWeight}
+                value={formData.targetWeight ?? ''}
                 onChange={(e) => setFormData({ ...formData, targetWeight: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
               />
@@ -2753,7 +2945,7 @@ export const AddMemberPage = ({
               <input
                 type="number"
                 placeholder="e.g. 175"
-                value={formData.height}
+                value={formData.height ?? ''}
                 onChange={(e) => setFormData({ ...formData, height: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
               />
@@ -2761,15 +2953,27 @@ export const AddMemberPage = ({
 
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Emergency Contact (Name & Phone)
+                Emergency Contact Number
               </label>
               <input
-                type="text"
-                placeholder="e.g. Sarah (Sister) - 9876543210"
-                value={formData.emergencyContact}
-                onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                type="tel"
+                placeholder="10-digit mobile number"
+                maxLength={15}
+                inputMode="numeric"
+                onKeyDown={preventNonPhoneKey}
+                value={formData.emergencyContact ?? ''}
+                onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value.replace(/[^0-9+\s()-]/g, '') })}
+                className={`w-full px-3 py-2 rounded-xl text-xs font-mono ${
+                  formData.emergencyContact && !isValidEmergencyContact(formData.emergencyContact)
+                    ? 'bg-rose-50 border border-rose-300 text-slate-900 focus:outline-none focus:border-rose-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
+                }`}
               />
+              {formData.emergencyContact && !isValidEmergencyContact(formData.emergencyContact) && (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Emergency contact must be a valid 10-digit phone number without letters.
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -2779,7 +2983,7 @@ export const AddMemberPage = ({
               <input
                 type="text"
                 placeholder="Staff name"
-                value={formData.executive}
+                value={formData.executive ?? ''}
                 onChange={(e) => setFormData({ ...formData, executive: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
@@ -2792,7 +2996,7 @@ export const AddMemberPage = ({
               <input
                 type="text"
                 placeholder="Any prior injuries, chronic conditions, or physician recommendations (optional)"
-                value={formData.medicalNotes}
+                value={formData.medicalNotes ?? ''}
                 onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
@@ -2850,7 +3054,7 @@ export const AddMemberPage = ({
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
-                      value={cashAmount}
+                      value={cashAmount ?? ''}
                       onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
                       placeholder="0"
                       className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
@@ -2881,7 +3085,7 @@ export const AddMemberPage = ({
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
-                      value={upiAmount}
+                      value={upiAmount ?? ''}
                       onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
                       placeholder="0"
                       className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
@@ -2912,7 +3116,7 @@ export const AddMemberPage = ({
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
-                      value={accountTransferAmount}
+                      value={accountTransferAmount ?? ''}
                       onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
                       placeholder="0"
                       className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
@@ -2992,13 +3196,13 @@ export const AddMemberPage = ({
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST (9%)</span>
+                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
                         ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST (9%)</span>
+                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
                         ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
                       </strong>
@@ -3054,12 +3258,19 @@ export const AddMemberPage = ({
                       <input
                         type="date"
                         required
-                        value={balanceDueDate}
-                        min={getTodayDateStr()}
+                        value={balanceDueDate ?? ''}
+                        min={minPromiseDate}
+                        max={maxPromiseDate}
                         onChange={(e) => setBalanceDueDate(e.target.value)}
                         className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                       />
                     </div>
+                    {effectiveMemberExpiryDate && (
+                      <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                        <span>Permitted: {formatDateDisplay(minPromiseDate)} to {formatDateDisplay(maxPromiseDate)}</span>
+                        <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -3251,7 +3462,7 @@ export const AddMemberPage = ({
                               type="text"
                               maxLength={6}
                               placeholder="Enter 6-digit OTP"
-                              value={otpValue}
+                              value={otpValue ?? ''}
                               onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
                               className="w-36 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-center font-mono text-sm tracking-widest font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
                             />

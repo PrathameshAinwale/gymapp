@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
 import { PACKAGE_PLANS } from './packagePlans';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   Sparkles,
   Check,
@@ -267,19 +268,23 @@ export const PlansManager = ({ onPlansUpdated }) => {
     }
   };
 
-  const handleDelete = async (plan) => {
-    if (!window.confirm(`Are you sure you want to remove the plan "${plan.name}"?`)) {
-      return;
-    }
+  const [planToDelete, setPlanToDelete] = useState(null);
+  const [isDeletingPlan, setIsDeletingPlan] = useState(false);
 
+  const handleConfirmDeletePlan = async () => {
+    if (!planToDelete) return;
     try {
-      const res = await api.superadmin.deletePlan(plan.id);
+      setIsDeletingPlan(true);
+      const res = await api.superadmin.deletePlan(planToDelete.id);
       if (res?.success) {
         await loadPlans();
         if (typeof onPlansUpdated === 'function') onPlansUpdated();
+        setPlanToDelete(null);
       }
     } catch (err) {
       alert('Failed to delete plan: ' + (err.message || 'Server error'));
+    } finally {
+      setIsDeletingPlan(false);
     }
   };
 
@@ -412,7 +417,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(plan)}
+                        onClick={() => setPlanToDelete(plan)}
                         title="Delete Plan"
                         className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
@@ -897,6 +902,21 @@ export const PlansManager = ({ onPlansUpdated }) => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(planToDelete)}
+        onClose={() => setPlanToDelete(null)}
+        onConfirm={handleConfirmDeletePlan}
+        isDeleting={isDeletingPlan}
+        title="Confirm Deletion"
+        itemType="platform plan"
+        recordName={planToDelete?.name}
+        message={
+          planToDelete
+            ? `Are you sure you want to remove the plan "${planToDelete.name}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this plan? This action cannot be undone.'
+        }
+      />
     </div>
   );
 };

@@ -24,7 +24,7 @@ class WhatsAppController extends Controller
     {
         $placeholders = [
             '{{name}}'          => $data['name'] ?? '',
-            '{{gym_name}}'      => $data['gym_name'] ?? 'PulseFit Pro',
+            '{{gym_name}}'      => $data['gym_name'] ?? 'Fitness Club',
             '{{role}}'          => ucfirst($data['role'] ?? 'Member'),
             '{{phone}}'         => $data['phone'] ?? '',
             '{{plan_name}}'     => $data['plan_name'] ?? 'Membership',
@@ -232,7 +232,7 @@ class WhatsAppController extends Controller
     {
         $gymId = $this->resolveGymId($request) ?: 1;
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         $today = Carbon::today();
@@ -735,7 +735,7 @@ class WhatsAppController extends Controller
     public function executeBroadcast($gymId, $template, string $targetRole, ?string $planName = null, ?string $customNote = null, ?array $userIds = null)
     {
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         // Query users based on target role
@@ -859,7 +859,7 @@ class WhatsAppController extends Controller
     public function executeAutoTriggersDirect(?int $gymId = null): array
     {
         $gym = $gymId ? Gym::find($gymId) : Gym::first();
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         $today = Carbon::today();
@@ -1134,7 +1134,7 @@ class WhatsAppController extends Controller
 
         $phone = $request->input('phone');
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : 'PulseFit Pro';
+        $gymName = $gym ? $gym->name : 'Fitness Club';
         $testMsg = "Hello from *{$gymName}*! 🚀\n\nThis is a test notification confirming your automated WhatsApp delivery engine is connected and working!";
 
         $result = \App\Services\WhatsAppNotificationService::dispatchViaGateway($phone, $testMsg, $gymId);

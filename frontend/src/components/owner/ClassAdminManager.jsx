@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   hasSqlInjection,
   sanitizeDigits,
@@ -32,6 +33,22 @@ export const ClassAdminManager = () => {
     fetchClasses?.();
     fetchTrainers?.();
   }, [fetchClasses, fetchTrainers]);
+
+  const [classToDelete, setClassToDelete] = useState(null);
+  const [isDeletingClass, setIsDeletingClass] = useState(false);
+
+  const handleConfirmDeleteClass = async () => {
+    if (!classToDelete) return;
+    try {
+      setIsDeletingClass(true);
+      await deleteClass(classToDelete.id);
+      setClassToDelete(null);
+    } catch (err) {
+      console.error('Delete class error:', err);
+    } finally {
+      setIsDeletingClass(false);
+    }
+  };
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
@@ -389,7 +406,7 @@ export const ClassAdminManager = () => {
                     {canEditDelete && (
                       <button
                         type="button"
-                        onClick={() => deleteClass(cls.id)}
+                        onClick={() => setClassToDelete(cls)}
                         className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-all cursor-pointer"
                         title="Remove Class"
                       >
@@ -689,6 +706,21 @@ export const ClassAdminManager = () => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(classToDelete)}
+        onClose={() => setClassToDelete(null)}
+        onConfirm={handleConfirmDeleteClass}
+        isDeleting={isDeletingClass}
+        title="Confirm Deletion"
+        itemType="class"
+        recordName={classToDelete?.name || classToDelete?.title}
+        message={
+          classToDelete
+            ? `Are you sure you want to delete class "${classToDelete.name || classToDelete.title}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this class? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

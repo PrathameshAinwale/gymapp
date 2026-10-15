@@ -72,8 +72,24 @@ class EnquiryController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:50',
+            'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone' => [
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'email' => 'nullable|email|max:255',
             'source' => 'nullable|string|max:100',
             'interestedPlan' => 'nullable|string|max:255',
@@ -87,12 +103,18 @@ class EnquiryController extends Controller
             'staffName' => 'nullable|string|max:255',
             'staff_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+        ], [
+            'name.required' => 'Prospect full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'phone.required' => 'Mobile number is required.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first() ?: 'Validation error',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -155,8 +177,25 @@ class EnquiryController extends Controller
         $enquiry = Enquiry::findOrFail($numericId);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255',
-            'phone' => 'sometimes|required|string|max:50',
+            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone' => [
+                'sometimes',
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'email' => 'nullable|email|max:255',
             'source' => 'nullable|string|max:100',
             'interestedPlan' => 'nullable|string|max:255',
@@ -170,6 +209,10 @@ class EnquiryController extends Controller
             'staffName' => 'nullable|string|max:255',
             'staff_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+        ], [
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
         ]);
 
         if ($validator->fails()) {
@@ -448,7 +491,7 @@ class EnquiryController extends Controller
             'height' => $request->input('height', $profile->height ?? 175),
             'goal' => $request->input('goal', $request->input('fitness_goal', $enquiry->fitness_goal ?? 'Fitness & Conditioning')),
             'medical_notes' => $request->input('medical_notes', $request->input('medicalNotes', $profile->medical_notes ?? null)),
-            'emergency_contact' => $request->input('emergency_contact', $request->input('emergencyContact', $phone)),
+            'emergency_contact' => $request->input('emergency_contact', $request->input('emergencyContact', null)),
             'qr_pass_code' => $profile->qr_pass_code ?? ('PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5))),
             'dues_amount' => 0,
         ]);
@@ -501,7 +544,7 @@ class EnquiryController extends Controller
             'height' => $p?->height ?? 175,
             'goal' => $p?->goal ?? 'Fitness & Conditioning',
             'medicalNotes' => $p?->medical_notes ?? '',
-            'emergencyContact' => $p?->emergency_contact ?? $phone,
+            'emergencyContact' => $p?->emergency_contact ?? '',
             'attendanceStreak' => $p?->attendance_streak ?? 0,
             'qrPassCode' => $p?->qr_pass_code ?? ('PF-M-' . $user->id),
             'duesAmount' => $p?->dues_amount ?? 0,

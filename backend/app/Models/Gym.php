@@ -42,6 +42,8 @@ class Gym extends Model
         'tax_rate',
         'subscription_expires_at',
         'notes',
+        'essl_device_ip',
+        'essl_device_port',
     ];
 
     protected $hidden = [

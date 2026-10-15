@@ -18,5 +18,7 @@ class GymSetting extends Model
         'email',
         'operating_hours',
         'currency',
+        'essl_device_ip',
+        'essl_device_port',
     ];
 }

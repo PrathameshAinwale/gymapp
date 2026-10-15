@@ -37,7 +37,7 @@ class WhatsAppNotificationService
     {
         $placeholders = [
             '{{name}}'          => $data['name'] ?? '',
-            '{{gym_name}}'      => $data['gym_name'] ?? 'PulseFit Pro',
+            '{{gym_name}}'      => $data['gym_name'] ?? 'Fitness Club',
             '{{role}}'          => ucfirst($data['role'] ?? 'Member'),
             '{{phone}}'         => $data['phone'] ?? '',
             '{{plan_name}}'     => $data['plan_name'] ?? 'Membership',
@@ -257,7 +257,7 @@ class WhatsAppNotificationService
         }
 
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         // Locate active welcome template
@@ -354,7 +354,7 @@ class WhatsAppNotificationService
         }
 
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'PulseFit Pro');
+        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         // Locate active birthday template

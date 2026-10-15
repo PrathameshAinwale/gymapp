@@ -361,4 +361,53 @@ class CreateInvoicePersistenceTest extends TestCase
         $this->assertEquals($expiredEnd, $expiredItem['endDate']);
         $this->assertEquals('Expired', $expiredItem['status']);
     }
+
+    public function test_cannot_create_invoice_when_member_has_outstanding_due_until_paid(): void
+    {
+        // 1. Give member an existing outstanding due balance
+        $this->member->memberProfile->update([
+            'dues_amount' => 1500,
+            'due_date' => now()->addDays(5)->toDateString(),
+        ]);
+
+        $payload = [
+            'user_id' => $this->member->id,
+            'plan_id' => $this->plan->id,
+            'plan_name' => 'Gym-Cardio Gold',
+            'package_type' => 'Gym-Cardio',
+            'amount' => 5000,
+            'total_amount' => 5000,
+            'dues_amount' => 0,
+            'payment_date' => now()->toDateString(),
+            'start_date' => now()->toDateString(),
+            'expiry_date' => now()->addDays(30)->toDateString(),
+            'payment_method' => 'UPI',
+            'status' => 'Paid',
+            'created_by' => $this->owner->id,
+            'gym_id' => 1,
+        ];
+
+        // 2. Attempt to create new invoice - must be rejected with HTTP 422
+        $response = $this->actingAs($this->owner, 'sanctum')
+            ->postJson('/api/v1/invoices', $payload);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'success' => false,
+        ]);
+        $this->assertStringContainsString('outstanding due balance', $response->json('message'));
+
+        // 3. Member pays their due balance
+        $this->member->memberProfile->update([
+            'dues_amount' => 0,
+            'due_date' => null,
+        ]);
+
+        // 4. Creation now succeeds
+        $successResponse = $this->actingAs($this->owner, 'sanctum')
+            ->postJson('/api/v1/invoices', $payload);
+
+        $successResponse->assertSuccessful();
+        $successResponse->assertJson(['success' => true]);
+    }
 }

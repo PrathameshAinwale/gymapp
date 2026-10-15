@@ -4,9 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import MemberSearchSelect from '../common/MemberSearchSelect';
 import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjectFromLists, normalizePackageType } from '../common/MembershipPlanModal';
+import { PayDueModal } from './PayDueModal';
 import { api } from '../../services/api';
-import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
-import { calculatePlanExpiryDate } from '../../utils/dateUtils';
+import { calculatePlanExpiryDate, formatDateDisplay, calculateMaxPromiseDate, validatePromiseDate } from '../../utils/dateUtils';
 import {
   hasSqlInjection,
   sanitizeDecimal,
@@ -87,7 +87,7 @@ export const RecordPaymentModal = ({
   // PT Specific State
   const [selectedTrainerId, setSelectedTrainerId] = useState('');
   const [commissionType, setCommissionType] = useState('percent'); // 'percent' | 'fixed'
-  const [ptCommissionPercent, setPtCommissionPercent] = useState();
+  const [ptCommissionPercent, setPtCommissionPercent] = useState('');
   const [ptFixedCommission, setPtFixedCommission] = useState(1000);
   const [ptCustomSessions, setPtCustomSessions] = useState(12);
 
@@ -126,6 +126,7 @@ export const RecordPaymentModal = ({
 
   // Submission & Receipt States
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPayingDueOpen, setIsPayingDueOpen] = useState(false);
   const [completedInvoiceData, setCompletedInvoiceData] = useState(null);
 
   const formatDate = (date) => {
@@ -254,6 +255,88 @@ export const RecordPaymentModal = ({
     () => members.find((m) => String(m.id) === String(selectedMemberId)) || null,
     [members, selectedMemberId]
   );
+
+  // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
+  const effectiveModalStartDate = useMemo(() => {
+    const membershipRow = selectedPackages.find((r) => r.packageType !== 'Personal Training' && r.packageType !== 'pt' && r.packageType !== 'Massage' && r.packageType !== 'Activities' && r.packageId) || selectedPackages.find((r) => r.packageId);
+    return membershipRow?.startDate || selectedPackages[0]?.startDate || paymentDate || new Date().toISOString().split('T')[0];
+  }, [selectedPackages, paymentDate]);
+
+  const effectiveModalExpiryDate = useMemo(() => {
+    const membershipRow = selectedPackages.find((r) => r.packageType !== 'Personal Training' && r.packageType !== 'pt' && r.packageType !== 'Massage' && r.packageType !== 'Activities' && r.packageId) || selectedPackages.find((r) => r.packageId);
+    return membershipRow?.expiryDate || membershipRow?.endDate || selectedPackages[0]?.endDate || currentMember?.expiryDate || '';
+  }, [selectedPackages, currentMember]);
+
+  const minModalPromiseDate = effectiveModalStartDate;
+  const maxModalPromiseDate = useMemo(() => calculateMaxPromiseDate(effectiveModalExpiryDate), [effectiveModalExpiryDate]);
+
+  // Revalidate selected promise date whenever modal dates change
+  useEffect(() => {
+    if (balanceDueDate && effectiveModalStartDate && effectiveModalExpiryDate) {
+      const res = validatePromiseDate(balanceDueDate, effectiveModalStartDate, effectiveModalExpiryDate);
+      if (!res.isValid) {
+        setBalanceDueDate('');
+      }
+    }
+  }, [effectiveModalStartDate, effectiveModalExpiryDate, balanceDueDate]);
+
+  // Outstanding due balance of selected member (must be paid before new invoice can be created)
+  const memberDueAmount = useMemo(() => {
+    if (!currentMember) return 0;
+    const directFields = [
+      currentMember.duesAmount,
+      currentMember.dues_amount,
+      currentMember.balanceDue,
+      currentMember.balance_due,
+      currentMember.pendingAmount,
+      currentMember.pending_amount,
+      currentMember.dueAmount,
+      currentMember.due_amount,
+      currentMember.balance,
+      currentMember.dues
+    ];
+    let hasExplicitZero = false;
+    for (const val of directFields) {
+      if (val !== undefined && val !== null && val !== '') {
+        const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+        if (!isNaN(num)) {
+          if (num > 0) return num;
+          if (num === 0) hasExplicitZero = true;
+        }
+      }
+    }
+
+    if (hasExplicitZero) return 0;
+
+    // Cross-reference uncancelled pending invoices
+    if (Array.isArray(invoices) && invoices.length > 0) {
+      const cleanMemberId = String(currentMember.id || currentMember.userId || '').replace(/\D/g, '');
+      for (const inv of invoices) {
+        if (String(inv.status).toLowerCase() === 'paid' || String(inv.status).toLowerCase() === 'cancelled') continue;
+        const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
+        const isMatch = (cleanMemberId && invMemId && cleanMemberId === invMemId) ||
+          (inv.memberId && String(inv.memberId) === String(currentMember.id)) ||
+          (currentMember.phone && String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10) === String(currentMember.phone).replace(/\D/g, '').slice(-10)) ||
+          (currentMember.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentMember.name.toLowerCase().trim());
+
+        if (isMatch) {
+          const invPending = [inv.pendingAmount, inv.pending_amount, inv.duesAmount, inv.dues_amount, inv.balanceDue, inv.balance_due];
+          for (const val of invPending) {
+            if (val !== undefined && val !== null && val !== '') {
+              const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+              if (!isNaN(num) && num > 0) return num;
+            }
+          }
+          if (inv.status === 'Pending' || String(inv.status).toLowerCase() === 'pending' || String(inv.status).toLowerCase() === 'partial') {
+            const num = parseFloat(String(inv.amount || 0).replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+      }
+    }
+
+    return 0;
+  }, [currentMember, invoices]);
 
   const currentTrainer = useMemo(
     () => trainers.find((t) => String(t.id) === String(selectedTrainerId)) || trainers[0] || null,
@@ -648,6 +731,12 @@ export const RecordPaymentModal = ({
       return;
     }
 
+    if (memberDueAmount > 0) {
+      addToast(`Cannot record new payment: Member "${currentMember?.name || 'Selected'}" has an outstanding due balance of ₹${memberDueAmount.toLocaleString('en-IN')}. Please settle the due balance first.`, 'error');
+      setIsPayingDueOpen(true);
+      return;
+    }
+
     const validPackages = selectedPackages.filter((r) => r.packageId && (Number(r.price) >= 0));
     if (validPackages.length === 0) {
       addToast('Please select at least one package with a plan.', 'error');
@@ -659,9 +748,16 @@ export const RecordPaymentModal = ({
       return;
     }
 
-    if (calculatedBalanceDue > 0 && !balanceDueDate) {
-      addToast('Please select the date when the remaining balance due will be paid.', 'error');
-      return;
+    if (calculatedBalanceDue > 0) {
+      if (!balanceDueDate) {
+        addToast('Please select the date when the remaining balance due will be paid.', 'error');
+        return;
+      }
+      const checkRes = validatePromiseDate(balanceDueDate, effectiveModalStartDate, effectiveModalExpiryDate);
+      if (!checkRes.isValid) {
+        addToast(checkRes.error, 'error');
+        return;
+      }
     }
 
     // Duplicate Invoice Check (Only on Member's Active Plan)
@@ -1054,11 +1150,40 @@ export const RecordPaymentModal = ({
                     </span>
                   </div>
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-400 block font-medium">PT Sessions:</span>
-                    <span className="font-bold text-emerald-700 truncate block">
-                      {Number(currentMember.ptSessions) || 0} Available
+                    <span className="text-[10px] text-slate-400 block font-medium">Pending Dues:</span>
+                    <span className="font-bold truncate block">
+                      {memberDueAmount > 0 ? (
+                        <span className="text-rose-600 font-extrabold font-mono">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
+                      ) : (
+                        <span className="text-emerald-700">₹0 Settled</span>
+                      )}
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* OUTSTANDING DUE BLOCKER BANNER */}
+              {currentMember && memberDueAmount > 0 && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-300 space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-xs font-bold text-rose-950">
+                        Outstanding Balance: ₹{memberDueAmount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsPayingDueOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Pay Due First</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-rose-700">
+                    Existing due balance must be collected and cleared first to prevent losing or overwriting previous member dues.
+                  </p>
                 </div>
               )}
             </div>
@@ -1595,11 +1720,18 @@ export const RecordPaymentModal = ({
                           type="date"
                           required
                           value={balanceDueDate}
-                          min={new Date().toISOString().split('T')[0]}
+                          min={minModalPromiseDate}
+                          max={maxModalPromiseDate}
                           onChange={(e) => setBalanceDueDate(e.target.value)}
                           className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                         />
                       </div>
+                      {effectiveModalExpiryDate && (
+                        <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                          <span>Permitted: {formatDateDisplay(minModalPromiseDate)} to {formatDateDisplay(maxModalPromiseDate)}</span>
+                          <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1675,28 +1807,41 @@ export const RecordPaymentModal = ({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || totalCalculatedBill <= 0 || Boolean(duplicateActivePlanInvoice)}
-                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generating Invoice...</span>
-                  </>
-                ) : duplicateActivePlanInvoice ? (
-                  <>
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    <span>Duplicate Invoice (Change Date/Details)</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Confirm & Issue Bill (₹{effectivePaidAmount.toLocaleString('en-IN')})</span>
-                  </>
-                )}
-              </button>
+
+              {memberDueAmount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsPayingDueOpen(true)}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
+                  title="Settle outstanding member balance first"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Settle Outstanding Due (₹{memberDueAmount.toLocaleString('en-IN')}) First</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || totalCalculatedBill <= 0 || Boolean(duplicateActivePlanInvoice)}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Generating Invoice...</span>
+                    </>
+                  ) : duplicateActivePlanInvoice ? (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Duplicate Invoice (Change Date/Details)</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Confirm & Issue Bill (₹{effectivePaidAmount.toLocaleString('en-IN')})</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </form>
         )}
@@ -1839,6 +1984,18 @@ export const RecordPaymentModal = ({
           </div>
         </form>
       </Modal>
+      {/* Pay Outstanding Due Modal */}
+      <PayDueModal
+        isOpen={isPayingDueOpen}
+        onClose={() => setIsPayingDueOpen(false)}
+        member={currentMember ? { ...currentMember, duesAmount: memberDueAmount, balanceDue: memberDueAmount } : null}
+        onSuccess={() => {
+          setIsPayingDueOpen(false);
+          fetchMembers?.();
+          fetchInvoices?.();
+          addToast('Outstanding due balance cleared successfully! You can now record payment.', 'success');
+        }}
+      />
     </>
   );
 };

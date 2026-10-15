@@ -87,6 +87,93 @@ class PlanChainingService
     }
 
     /**
+     * Check if an invoice or item is a fee, dues collection, or balance payment rather than an active service package.
+     */
+    public static function isFeeOrBalanceInvoice(Invoice $inv, ?array $item = null): bool
+    {
+        // Multi-package invoices with items are legitimate package bundles at top-level
+        if (!$item && !empty($inv->items) && is_array($inv->items) && count($inv->items) > 0) {
+            return false;
+        }
+
+        $pkgType = strtolower((string)($inv->package_type ?? ''));
+        $planName = '';
+
+        if ($item) {
+            $itemPkg = strtolower((string)($item['package_type'] ?? $item['packageType'] ?? $item['category'] ?? ''));
+            $itemName = strtolower((string)($item['name'] ?? $item['plan_name'] ?? ''));
+            if ($itemPkg) {
+                $pkgType .= ' ' . $itemPkg;
+            }
+            if ($itemName) {
+                $planName .= ' ' . $itemName;
+            }
+        }
+
+        $invPlanName = strtolower((string)($inv->plan?->name ?? ''));
+        $planName .= ' ' . $invPlanName;
+
+        // If package_type is directly Due Payment, Fee Payment, or similar
+        if (
+            str_contains($pkgType, 'due payment') ||
+            str_contains($pkgType, 'fee payment') ||
+            str_contains($pkgType, 'dues payment')
+        ) {
+            return true;
+        }
+
+        // If package_type is 'membership fee' without a legitimate plan
+        if (str_contains($pkgType, 'membership fee') && empty($inv->plan_id) && empty($item['plan_id'])) {
+            return true;
+        }
+
+        $feeKeywords = [
+            'balance due payment',
+            'due payment',
+            'dues payment',
+            'remaining due payment',
+            'balance payment',
+            'due clearance',
+            'dues clearance',
+            'fee collection',
+            'transfer fee',
+            'freeze fee',
+            'extension fee',
+            'membership fee package',
+        ];
+
+        $checkStr = $pkgType . ' ' . $planName;
+        foreach ($feeKeywords as $kw) {
+            if (str_contains($checkStr, $kw)) {
+                return true;
+            }
+        }
+
+        // Check matching revenue_billing if available
+        $inflow = $inv->relationLoaded('revenueBilling')
+            ? $inv->revenueBilling
+            : ($inv->invoice_number ? \App\Models\RevenueBilling::where('reference_no', $inv->invoice_number)->first() : null);
+
+        if ($inflow) {
+            $inflowCheck = strtolower(($inflow->title ?? '') . ' ' . ($inflow->plan_name ?? ''));
+            foreach ($feeKeywords as $kw) {
+                if (str_contains($inflowCheck, $kw)) {
+                    return true;
+                }
+            }
+            $infCat = strtolower((string)($inflow->category ?? ''));
+            if (in_array($infCat, ['due payment', 'dues payment', 'fee payment'])) {
+                return true;
+            }
+            if ($infCat === 'membership fee' && empty($inv->plan_id) && empty($item['plan_id']) && empty($inv->items)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Find the latest active or upcoming plan end date for a member and package type.
      * Evaluates uncancelled invoices first; falls back to legacy member_profiles.expiry_date.
      * Incorporates approved freeze days (Option 1).
@@ -96,37 +183,93 @@ class PlanChainingService
         $normalizedType = self::normalizePackageType($packageType);
         $today = self::getTodayIst();
 
-        // 1. Query invoices with explicit package_type and end_date (not Cancelled)
+        // 1. Query invoices (not Cancelled, Refunded, or Transferred)
         $invoiceQuery = Invoice::where('user_id', $userId)
-            ->where('status', '!=', 'Cancelled')
-            ->whereNotNull('end_date')
-            ->where(function ($q) use ($normalizedType) {
-                $q->where('package_type', $normalizedType);
-                if ($normalizedType === 'Gym-Cardio') {
-                    $q->orWhereNull('package_type');
-                }
-            })
-            ->whereDate('end_date', '>=', $today->toDateString());
+            ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred']);
 
         if ($gymId) {
             $invoiceQuery->where('gym_id', $gymId);
         }
 
-        $latestInvoice = $invoiceQuery->orderBy('end_date', 'desc')->first();
-
+        $allInvoices = $invoiceQuery->get();
         $latestEndDate = null;
-        if ($latestInvoice && $latestInvoice->end_date) {
-            $dateStr = $latestInvoice->end_date instanceof \DateTimeInterface
-                ? $latestInvoice->end_date->format('Y-m-d')
-                : substr((string)$latestInvoice->end_date, 0, 10);
-            $latestEndDate = Carbon::createFromFormat('Y-m-d', $dateStr, self::TIMEZONE)->startOfDay();
+
+        // Check if member has completed transfers
+        $completedTransfers = \App\Models\MembershipTransfer::where('from_member_id', $userId)
+            ->where('status', 'Completed')
+            ->get();
+
+        foreach ($allInvoices as $inv) {
+            if (self::isFeeOrBalanceInvoice($inv)) {
+                continue;
+            }
+
+            $isInvTransferred = false;
+            if ($completedTransfers->isNotEmpty()) {
+                $invDate = $inv->date ? ($inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : substr((string)$inv->date, 0, 10)) : null;
+                $invStartDate = $inv->start_date ? ($inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : substr((string)$inv->start_date, 0, 10)) : $invDate;
+                foreach ($completedTransfers as $trf) {
+                    $trfDate = substr((string)$trf->transfer_date, 0, 10);
+                    if ($invStartDate && $invStartDate <= $trfDate) {
+                        $isInvTransferred = true;
+                        break;
+                    }
+                }
+            }
+            if ($isInvTransferred) {
+                continue;
+            }
+
+            $rawItems = $inv->items;
+            if (is_string($rawItems)) {
+                $rawItems = json_decode($rawItems, true);
+            }
+
+            if (!empty($rawItems) && is_array($rawItems)) {
+                foreach ($rawItems as $item) {
+                    if (self::isFeeOrBalanceInvoice($inv, $item)) {
+                        continue;
+                    }
+                    $rawType = $item['package_type'] ?? $item['packageType'] ?? $item['category'] ?? null;
+                    if (!$rawType && (!empty($item['name']) || !empty($item['plan_name']))) {
+                        $combo = strtolower(($item['name'] ?? '') . ' ' . ($item['plan_name'] ?? ''));
+                        if (str_contains($combo, 'pt') || str_contains($combo, 'personal training')) {
+                            $rawType = 'Personal Training';
+                        } elseif (str_contains($combo, 'massage') || str_contains($combo, 'recovery')) {
+                            $rawType = 'Massage';
+                        }
+                    }
+                    $itemType = self::normalizePackageType($rawType ?: 'Gym-Cardio');
+                    $rawEnd = $item['end_date'] ?? $item['endDate'] ?? $item['expiry_date'] ?? $item['expiryDate'] ?? null;
+
+                    if ($itemType === $normalizedType && !empty($rawEnd)) {
+                        $dateStr = substr((string)$rawEnd, 0, 10);
+                        $d = Carbon::createFromFormat('Y-m-d', $dateStr, self::TIMEZONE)->startOfDay();
+                        if ($d->toDateString() >= $today->toDateString() && (!$latestEndDate || $d->greaterThan($latestEndDate))) {
+                            $latestEndDate = $d;
+                        }
+                    }
+                }
+            } else {
+                $topType = self::normalizePackageType($inv->package_type ?? 'Gym-Cardio');
+                if (($topType === $normalizedType || ($normalizedType === 'Gym-Cardio' && empty($inv->package_type))) && $inv->end_date) {
+                    $dateStr = $inv->end_date instanceof \DateTimeInterface
+                        ? $inv->end_date->format('Y-m-d')
+                        : substr((string)$inv->end_date, 0, 10);
+                    $d = Carbon::createFromFormat('Y-m-d', $dateStr, self::TIMEZONE)->startOfDay();
+                    if ($d->toDateString() >= $today->toDateString() && (!$latestEndDate || $d->greaterThan($latestEndDate))) {
+                        $latestEndDate = $d;
+                    }
+                }
+            }
         }
 
         // 2. Legacy fallback: Check member_profiles.expiry_date if no invoice end_date found or if profile is further ahead
-        // Layer 2: Ignore orphan profile expiry when plan_id is null and there are no uncancelled invoices
+        // Layer 2: Ignore orphan profile expiry when plan_id is null and there are no uncancelled invoices.
+        // Also ignore if member profile is already Expired.
         $profile = MemberProfile::with('plan')->where('user_id', $userId)->first();
-        if ($profile && $profile->expiry_date) {
-            $hasLegitimatePlan = ($profile->plan_id !== null) || Invoice::where('user_id', $userId)->where('status', '!=', 'Cancelled')->exists();
+        if ($profile && $profile->expiry_date && $profile->status !== 'Expired') {
+            $hasLegitimatePlan = ($profile->plan_id !== null) || Invoice::where('user_id', $userId)->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])->exists();
             if ($hasLegitimatePlan) {
                 $profDateStr = $profile->expiry_date instanceof \DateTimeInterface
                     ? $profile->expiry_date->format('Y-m-d')
@@ -138,7 +281,7 @@ class PlanChainingService
                     );
 
                     if ($profileType === $normalizedType) {
-                        if (!$latestEndDate || $profileExpiry->toDateString() > $latestEndDate->toDateString()) {
+                        if (!$latestEndDate) {
                             $latestEndDate = $profileExpiry;
                         }
                     }
@@ -279,7 +422,7 @@ class PlanChainingService
      */
     public static function checkCanCancelOrDeleteInvoice(Invoice $invoice): array
     {
-        if (!$invoice->end_date || !$invoice->user_id) {
+        if (!$invoice->end_date || !$invoice->user_id || self::isFeeOrBalanceInvoice($invoice)) {
             return ['can_cancel' => true];
         }
 
@@ -289,7 +432,7 @@ class PlanChainingService
         // Check if there are any later active/pending invoices of the same package type
         $laterChainedInvoices = Invoice::where('user_id', $invoice->user_id)
             ->where('id', '!=', $invoice->id)
-            ->where('status', '!=', 'Cancelled')
+            ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
             ->where('package_type', $packageType)
             ->whereDate('start_date', '>=', $invoiceEndDate->toDateString())
             ->get();
@@ -316,15 +459,37 @@ class PlanChainingService
             return null;
         }
 
-        $furthestInvoiceEndDate = Invoice::where('user_id', $userId)
-            ->where('status', '!=', 'Cancelled')
-            ->whereNotNull('end_date')
-            ->max('end_date');
+        $userInvoices = Invoice::where('user_id', $userId)
+            ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
+            ->get();
 
-        if ($furthestInvoiceEndDate instanceof \DateTimeInterface) {
-            $furthestInvoiceEndDate = $furthestInvoiceEndDate->format('Y-m-d');
-        } elseif ($furthestInvoiceEndDate) {
-            $furthestInvoiceEndDate = substr((string)$furthestInvoiceEndDate, 0, 10);
+        $furthestInvoiceEndDate = null;
+        foreach ($userInvoices as $inv) {
+            if (self::isFeeOrBalanceInvoice($inv)) {
+                continue;
+            }
+
+            if (!empty($inv->items) && is_array($inv->items)) {
+                foreach ($inv->items as $item) {
+                    if (self::isFeeOrBalanceInvoice($inv, $item)) {
+                        continue;
+                    }
+                    if (!empty($item['end_date'])) {
+                        $dStr = substr((string)$item['end_date'], 0, 10);
+                        if (!$furthestInvoiceEndDate || $dStr > $furthestInvoiceEndDate) {
+                            $furthestInvoiceEndDate = $dStr;
+                        }
+                    }
+                }
+            }
+            if ($inv->end_date) {
+                $dStr = $inv->end_date instanceof \DateTimeInterface
+                    ? $inv->end_date->format('Y-m-d')
+                    : substr((string)$inv->end_date, 0, 10);
+                if (!$furthestInvoiceEndDate || $dStr > $furthestInvoiceEndDate) {
+                    $furthestInvoiceEndDate = $dStr;
+                }
+            }
         }
 
         $currentProfileExpiry = $profile->expiry_date
@@ -335,13 +500,13 @@ class PlanChainingService
 
         $finalExpiry = $furthestInvoiceEndDate ?: $currentProfileExpiry;
 
-        $hasLegitimatePriorPlan = ($profile->plan_id !== null) || Invoice::where('user_id', $userId)->where('status', '!=', 'Cancelled')->whereNotNull('end_date')->exists();
+        $hasLegitimatePriorPlan = ($profile->plan_id !== null && $profile->status !== 'Expired') || Invoice::where('user_id', $userId)->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])->whereNotNull('end_date')->exists();
         if ($currentProfileExpiry && $hasLegitimatePriorPlan && (!$finalExpiry || $currentProfileExpiry > $finalExpiry)) {
             $finalExpiry = $currentProfileExpiry;
         }
 
         if ($finalExpiry && ($finalExpiry !== $currentProfileExpiry || $profile->status === 'Unassigned')) {
-            $newStatus = \App\Http\Controllers\Api\MemberController::computeMemberStatus($finalExpiry, $profile->status);
+            $newStatus = \App\Http\Controllers\Api\MemberController::computeMemberStatus($finalExpiry, $profile->status, $profile->join_date);
             $profile->update([
                 'expiry_date' => $finalExpiry,
                 'status' => $newStatus,
@@ -363,6 +528,18 @@ class PlanChainingService
             $user->load('invoices.plan');
         }
 
+        $profile = $user->memberProfile;
+        $profileStatus = $profile?->status;
+        $profileExpiry = $profile?->expiry_date
+            ? ($profile->expiry_date instanceof \DateTimeInterface ? $profile->expiry_date->format('Y-m-d') : substr((string)$profile->expiry_date, 0, 10))
+            : null;
+        $isMemberExpired = ($profileStatus === 'Expired') || ($profileExpiry && $profileExpiry < $todayStr);
+
+        // Fetch completed transfers where this member was the source
+        $completedTransfers = \App\Models\MembershipTransfer::where('from_member_id', $user->id)
+            ->where('status', 'Completed')
+            ->get();
+
         $invoices = $user->invoices
             ->whereNotIn('status', ['Cancelled', 'Refunded'])
             ->sortBy('start_date');
@@ -373,6 +550,90 @@ class PlanChainingService
         $activeGrouped = [];
 
         foreach ($invoices as $inv) {
+            if (self::isFeeOrBalanceInvoice($inv)) {
+                continue;
+            }
+
+            $isInvTransferred = ($inv->status === 'Transferred');
+            if (!$isInvTransferred && $completedTransfers->isNotEmpty()) {
+                $invDate = $inv->date ? ($inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : substr((string)$inv->date, 0, 10)) : null;
+                $invStartDate = $inv->start_date ? ($inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : substr((string)$inv->start_date, 0, 10)) : $invDate;
+                foreach ($completedTransfers as $trf) {
+                    $trfDate = substr((string)$trf->transfer_date, 0, 10);
+                    if ($invStartDate && $invStartDate <= $trfDate) {
+                        $isInvTransferred = true;
+                        break;
+                    }
+                }
+            }
+
+            // Check if this invoice contains line items (multi-package invoice)
+            if (!empty($inv->items) && is_array($inv->items)) {
+                foreach ($inv->items as $item) {
+                    if (self::isFeeOrBalanceInvoice($inv, $item)) {
+                        continue;
+                    }
+                    $rawType = $item['package_type'] ?? $item['packageType'] ?? 'Gym-Cardio';
+                    $pkgType = self::normalizePackageType($rawType);
+                    $planName = $item['name'] ?? $item['plan_name'] ?? ($pkgType . ' Package');
+
+                    $startDate = !empty($item['start_date'])
+                        ? substr((string)$item['start_date'], 0, 10)
+                        : ($inv->date ? ($inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : substr((string)$inv->date, 0, 10)) : $todayStr);
+
+                    $endDate = !empty($item['end_date'])
+                        ? substr((string)$item['end_date'], 0, 10)
+                        : null;
+
+                    if (!$endDate && $startDate) {
+                        $itemPlan = !empty($item['plan_id']) ? Plan::find($item['plan_id']) : null;
+                        $endDate = self::computePlanEndDate($startDate, $itemPlan);
+                    }
+
+                    if (!$endDate) {
+                        continue;
+                    }
+
+                    $itemTransferred = $isInvTransferred || (($item['status'] ?? '') === 'Transferred');
+                    if (!$itemTransferred && $completedTransfers->isNotEmpty()) {
+                        foreach ($completedTransfers as $trf) {
+                            $trfDate = substr((string)$trf->transfer_date, 0, 10);
+                            if ($startDate <= $trfDate && $endDate >= $trfDate) {
+                                $itemTransferred = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    $planItem = [
+                        'packageType' => $pkgType,
+                        'planName' => $planName,
+                        'startDate' => $startDate ?: $todayStr,
+                        'endDate' => $endDate,
+                        'invoiceNumber' => $inv->invoice_number,
+                        'amount' => (float)($item['net_amount'] ?? $item['price'] ?? 0),
+                    ];
+
+                    if ($itemTransferred) {
+                        $planItem['status'] = 'Transferred';
+                        $expiredPlans[] = $planItem;
+                    } elseif ($startDate && $startDate > $todayStr) {
+                        $planItem['status'] = 'Upcoming';
+                        $upcomingPlans[] = $planItem;
+                    } elseif ($endDate < $todayStr || ($isMemberExpired && ($pkgType === 'Gym-Cardio' || $endDate <= ($profileExpiry ?: $todayStr)))) {
+                        $planItem['status'] = 'Expired';
+                        $expiredPlans[] = $planItem;
+                    } else {
+                        $planItem['status'] = 'Active';
+                        $activePlans[] = $planItem;
+                        if (!isset($activeGrouped[$pkgType]) || $endDate > $activeGrouped[$pkgType]['endDate']) {
+                            $activeGrouped[$pkgType] = $planItem;
+                        }
+                    }
+                }
+                continue;
+            }
+
             $rawType = $inv->package_type ?? $inv->plan?->package_type;
             if (!$rawType && ($inv->plan_name || $inv->title)) {
                 $combo = strtolower(($inv->plan_name ?? '') . ' ' . ($inv->title ?? ''));
@@ -401,6 +662,17 @@ class PlanChainingService
                 continue;
             }
 
+            $invTransferred = $isInvTransferred || ($inv->status === 'Transferred');
+            if (!$invTransferred && $completedTransfers->isNotEmpty()) {
+                foreach ($completedTransfers as $trf) {
+                    $trfDate = substr((string)$trf->transfer_date, 0, 10);
+                    if ($startDate <= $trfDate && $endDate >= $trfDate) {
+                        $invTransferred = true;
+                        break;
+                    }
+                }
+            }
+
             $planItem = [
                 'packageType' => $pkgType,
                 'planName' => $planName,
@@ -410,10 +682,13 @@ class PlanChainingService
                 'amount' => (float)$inv->amount,
             ];
 
-            if ($startDate && $startDate > $todayStr) {
+            if ($invTransferred) {
+                $planItem['status'] = 'Transferred';
+                $expiredPlans[] = $planItem;
+            } elseif ($startDate && $startDate > $todayStr) {
                 $planItem['status'] = 'Upcoming';
                 $upcomingPlans[] = $planItem;
-            } elseif ($endDate < $todayStr) {
+            } elseif ($endDate < $todayStr || ($isMemberExpired && ($pkgType === 'Gym-Cardio' || $endDate <= ($profileExpiry ?: $todayStr)))) {
                 $planItem['status'] = 'Expired';
                 $expiredPlans[] = $planItem;
             } else {
@@ -445,11 +720,11 @@ class PlanChainingService
                     'amount' => (float)($profile->plan?->price ?? 0),
                 ];
 
-                if ($profExp >= $todayStr) {
+                if ($profExp >= $todayStr && !$isMemberExpired && $completedTransfers->isEmpty()) {
                     $fallbackItem['status'] = 'Active';
                     $activeGrouped['Gym-Cardio'] = $fallbackItem;
                 } else {
-                    $fallbackItem['status'] = 'Expired';
+                    $fallbackItem['status'] = $completedTransfers->isNotEmpty() ? 'Transferred' : 'Expired';
                     $expiredPlans[] = $fallbackItem;
                 }
             }
@@ -457,6 +732,7 @@ class PlanChainingService
 
         return [
             'activePlans' => array_values($activeGrouped),
+            'activeGrouped' => $activeGrouped,
             'upcomingPlans' => array_values($upcomingPlans),
             'expiredPlans' => array_values($expiredPlans),
         ];

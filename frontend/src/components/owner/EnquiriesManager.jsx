@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import {
+  isValidName,
   isValidEmail,
   isValidPhone,
   hasSqlInjection,
@@ -51,6 +52,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 
 export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const {
@@ -65,7 +67,8 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     trainers,
     addMember,
     addToast,
-    loadingModules
+    loadingModules,
+    gymInfo
   } = useGymData();
   const { currentUser, registerAccount } = useAuth();
 
@@ -124,6 +127,10 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const [leadToScrap, setLeadToScrap] = useState(null);
   const [scrapReason, setScrapReason] = useState('Pricing Too High');
 
+  // Delete Modal State
+  const [enquiryToDelete, setEnquiryToDelete] = useState(null);
+  const [isDeletingEnquiry, setIsDeletingEnquiry] = useState(false);
+
   // Comment Modal State
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [selectedEnquiryForComment, setSelectedEnquiryForComment] = useState(null);
@@ -135,7 +142,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
 
   const resolveStaffName = () => {
     const raw = currentUser?.name;
-    const name = raw && !raw.toLowerCase().includes('arch devops') ? raw : 'Prathamesh';
+    const name = raw && !raw.toLowerCase().includes('arch devops') ? raw : (gymInfo?.name ? `${gymInfo.name} Staff` : 'Gym Staff');
     return `${name} (${currentUser?.role === 'owner' || currentUser?.role === 'superadmin' ? 'Owner' : 'Staff'})`;
   };
   const defaultStaffName = resolveStaffName();
@@ -290,6 +297,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
       return;
     }
 
+    if (!isValidName(formData.name)) {
+      if (addToast) addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only).', 'error');
+      return;
+    }
+
     if (
       hasSqlInjection(formData.name) ||
       hasSqlInjection(formData.phone) ||
@@ -379,6 +391,11 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     e.preventDefault();
     if (!editingEnquiry || !editingEnquiry.name || !editingEnquiry.phone) {
       if (addToast) addToast('Please enter both prospect full name and mobile number.', 'error');
+      return;
+    }
+
+    if (!isValidName(editingEnquiry.name)) {
+      if (addToast) addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only).', 'error');
       return;
     }
 
@@ -478,34 +495,36 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     }
   };
 
-  const handleConvertToMember = (enquiry) => {
-    updateEnquiry(enquiry.id, { status: 'Converted' });
-    if (onConvertLeadToMember) {
-      onConvertLeadToMember(enquiry);
-    }
-  };
-
-  const handleOpenAddMemberModal = (enquiry) => {
-    // Match plan from interestedPlan if possible
-    const matchedPlan = plans.find((p) =>
+  const prepareLeadForMemberConversion = (enquiry) => {
+    const matchedPlan = (plans || []).find((p) =>
       p.name?.toLowerCase().trim() === (enquiry.interestedPlan || '').toLowerCase().trim() ||
       p.id === enquiry.interestedPlan
-    ) || plans[0];
+    ) || plans?.[0];
 
     const cleanNotes = (enquiry.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
 
-    const preparedData = {
+    return {
       name: enquiry.name || '',
       phone: enquiry.phone || '',
       email: enquiry.email || '',
       goal: enquiry.goal || 'Muscle Gain & Strength',
-      planId: matchedPlan?.id || plans[0]?.id || '',
+      planId: matchedPlan?.id || plans?.[0]?.id || '',
       medicalNotes: '',
       enquiryNotes: cleanNotes || '',
-      emergencyContact: enquiry.phone || '',
+      emergencyContact: '',
       enquiryId: enquiry.id,
     };
+  };
 
+  const handleConvertToMember = (enquiry) => {
+    updateEnquiry(enquiry.id, { status: 'Converted' });
+    if (onConvertLeadToMember) {
+      onConvertLeadToMember(prepareLeadForMemberConversion(enquiry));
+    }
+  };
+
+  const handleOpenAddMemberModal = (enquiry) => {
+    const preparedData = prepareLeadForMemberConversion(enquiry);
     if (onConvertLeadToMember) {
       onConvertLeadToMember(preparedData);
     } else {
@@ -861,7 +880,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteEnquiry(enq.id)}
+                      onClick={() => setEnquiryToDelete(enq)}
                       className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                       title="Delete"
                     >
@@ -996,7 +1015,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                         <div className="flex items-center gap-2">
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900 text-xs truncate max-w-[135px]" title={enq.staffName}>
-                              {enq.staffName && !enq.staffName.toLowerCase().includes('arch devops') ? enq.staffName : 'Prathamesh (Owner)'}
+                              {enq.staffName && !enq.staffName.toLowerCase().includes('arch devops') ? enq.staffName : (gymInfo?.ownerName ? `${gymInfo.ownerName} (Owner)` : 'Gym Staff')}
                             </div>
                           </div>
                         </div>
@@ -1061,7 +1080,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => deleteEnquiry(enq.id)}
+                            onClick={() => setEnquiryToDelete(enq)}
                             className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete Enquiry"
                           >
@@ -1207,7 +1226,6 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               />
               <datalist id="staff-name-datalist">
                 <option value={defaultStaffName} />
-                <option value="Prathamesh (Owner)" />
                 {trainers?.map((t) => (
                   <option key={t.id} value={`${t.name} (Coach)`} />
                 ))}
@@ -1518,7 +1536,6 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
                 />
                 <datalist id="edit-staff-name-datalist">
                   <option value={defaultStaffName} />
-                  <option value="Prathamesh (Owner)" />
                   {trainers?.map((t) => (
                     <option key={t.id} value={`${t.name} (Coach)`} />
                   ))}
@@ -1780,6 +1797,32 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(enquiryToDelete)}
+        onClose={() => setEnquiryToDelete(null)}
+        onConfirm={async () => {
+          if (!enquiryToDelete) return;
+          try {
+            setIsDeletingEnquiry(true);
+            await deleteEnquiry(enquiryToDelete.id);
+            setEnquiryToDelete(null);
+          } catch (err) {
+            console.error('Delete enquiry error:', err);
+          } finally {
+            setIsDeletingEnquiry(false);
+          }
+        }}
+        isDeleting={isDeletingEnquiry}
+        title="Confirm Deletion"
+        itemType="enquiry"
+        recordName={enquiryToDelete?.name}
+        message={
+          enquiryToDelete
+            ? `Are you sure you want to delete enquiry for "${enquiryToDelete.name}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this enquiry? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

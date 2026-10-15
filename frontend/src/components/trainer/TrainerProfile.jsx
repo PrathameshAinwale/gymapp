@@ -3,6 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { api } from '../../services/api';
 import {
+  isValidName,
+  isValidPhone,
+  isValidDob,
+  getTodayDateStr
+} from '../../utils/validation';
+import {
   Award,
   Phone,
   Mail,
@@ -134,8 +140,16 @@ export const TrainerProfile = () => {
       addToast('Please enter your full name.', 'error');
       return;
     }
-    if (!editForm.phone.trim()) {
-      addToast('Please enter your mobile number.', 'error');
+    if (!isValidName(editForm.name)) {
+      addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).', 'error');
+      return;
+    }
+    if (!editForm.phone.trim() || !isValidPhone(editForm.phone)) {
+      addToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+    if (editForm.dob && !isValidDob(editForm.dob)) {
+      addToast('Date of birth cannot be in the future.', 'error');
       return;
     }
 
@@ -395,10 +409,16 @@ export const TrainerProfile = () => {
               <label className="block text-slate-700 font-semibold mb-1">Date of Birth</label>
               <input
                 type="date"
+                max={getTodayDateStr()}
                 value={editForm.dob}
                 onChange={(e) => setEditForm({ ...editForm, dob: e.target.value })}
                 className="w-full h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
               />
+              {editForm.dob && !isValidDob(editForm.dob) && (
+                <p className="text-xs text-rose-500 mt-1 font-semibold">
+                  Date of birth cannot be in the future.
+                </p>
+              )}
             </div>
 
             <div>

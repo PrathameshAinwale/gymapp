@@ -18,6 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   hasSqlInjection,
   sanitizeDigits,
@@ -72,6 +73,24 @@ export const DietBuilder = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
+  const [dietPlanToDelete, setDietPlanToDelete] = useState(null);
+  const [isDeletingDietPlan, setIsDeletingDietPlan] = useState(false);
+
+  const handleConfirmDeleteDietPlan = async () => {
+    if (!dietPlanToDelete) return;
+    try {
+      setIsDeletingDietPlan(true);
+      await deleteDietPlan(dietPlanToDelete.id);
+      if (selectedPlanForView?.id === dietPlanToDelete.id) {
+        setSelectedPlanForView(null);
+      }
+      setDietPlanToDelete(null);
+    } catch (err) {
+      console.error('Delete diet plan error:', err);
+    } finally {
+      setIsDeletingDietPlan(false);
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -279,13 +298,8 @@ export const DietBuilder = () => {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (confirm(`Delete diet plan for ${selectedPlanForView.memberName}?`)) {
-                  deleteDietPlan(selectedPlanForView.id);
-                  setSelectedPlanForView(null);
-                }
-              }}
-              className="p-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-all"
+              onClick={() => setDietPlanToDelete(selectedPlanForView)}
+              className="p-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-all cursor-pointer"
               title="Delete Plan"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -550,12 +564,8 @@ export const DietBuilder = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Delete diet plan for ${plan.memberName}?`)) {
-                          deleteDietPlan(plan.id);
-                        }
-                      }}
-                      className="p-2 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-colors"
+                      onClick={() => setDietPlanToDelete(plan)}
+                      className="p-2 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
                       title="Delete Plan"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -914,6 +924,20 @@ export const DietBuilder = () => {
         </form>
       </Modal>
 
+      <ConfirmDeleteModal
+        isOpen={Boolean(dietPlanToDelete)}
+        onClose={() => setDietPlanToDelete(null)}
+        onConfirm={handleConfirmDeleteDietPlan}
+        isDeleting={isDeletingDietPlan}
+        title="Confirm Deletion"
+        itemType="diet plan"
+        recordName={dietPlanToDelete?.memberName ? `for ${dietPlanToDelete.memberName}` : dietPlanToDelete?.title}
+        message={
+          dietPlanToDelete
+            ? `Are you sure you want to delete the diet plan for "${dietPlanToDelete.memberName || dietPlanToDelete.title}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this diet plan? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

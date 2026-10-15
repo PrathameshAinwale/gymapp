@@ -233,6 +233,7 @@ export const OwnerDashboard = ({
 
   const [isAddEnquiryOpen, setIsAddEnquiryOpen] = useState(false);
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
+  const [enquirySubmitError, setEnquirySubmitError] = useState(null);
   const [enquiryFormData, setEnquiryFormData] = useState({
     name: '',
     phone: '',
@@ -278,6 +279,7 @@ export const OwnerDashboard = ({
     if (!enquiryFormData.name || !enquiryFormData.phone) return;
 
     try {
+      setEnquirySubmitError(null);
       setIsSubmittingEnquiry(true);
       const today = getTodayFormatted();
       const cleanNotes = (enquiryFormData.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
@@ -294,6 +296,7 @@ export const OwnerDashboard = ({
       }
 
       setIsAddEnquiryOpen(false);
+      setEnquirySubmitError(null);
       setEnquiryFormData({
         name: '',
         phone: '',
@@ -310,9 +313,8 @@ export const OwnerDashboard = ({
       }
     } catch (err) {
       console.error('Failed to add enquiry:', err);
-      if (addToast) {
-        addToast('Failed to save enquiry', 'error');
-      }
+      const errMsg = err?.message || (err?.errors ? Object.values(err.errors).flat().join(' ') : 'Failed to save enquiry');
+      setEnquirySubmitError(errMsg);
     } finally {
       setIsSubmittingEnquiry(false);
     }
@@ -2121,11 +2123,20 @@ export const OwnerDashboard = ({
       {/* ADD NEW ENQUIRY MODAL */}
       <Modal
         isOpen={isAddEnquiryOpen}
-        onClose={() => setIsAddEnquiryOpen(false)}
+        onClose={() => {
+          setIsAddEnquiryOpen(false);
+          setEnquirySubmitError(null);
+        }}
         title="Add New Gym Enquiry / Lead"
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleAddEnquirySubmit} className="space-y-3">
+          {enquirySubmitError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2 animate-fadeIn">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 font-semibold leading-relaxed">{enquirySubmitError}</div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">

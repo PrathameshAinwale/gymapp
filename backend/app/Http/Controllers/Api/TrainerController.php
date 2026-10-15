@@ -118,13 +118,35 @@ class TrainerController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|min:7|max:20',
+            'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone' => [
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'email' => 'nullable|email',
             'specialty' => 'nullable|string',
             'monthly_salary' => 'nullable|numeric',
+            'dob' => 'nullable|date|before_or_equal:today',
         ], [
+            'name.required' => 'Trainer full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory to register trainer.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ]);
 
         if ($validator->fails()) {
@@ -184,6 +206,43 @@ class TrainerController extends Controller
         $numericId = str_replace('trn-', '', $id);
         $user = User::where('role', 'trainer')->findOrFail($numericId);
         $profile = TrainerProfile::firstOrCreate(['user_id' => $user->id]);
+
+        $validator = Validator::make($request->all(), [
+            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone' => [
+                'sometimes',
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
+            'email' => 'nullable|email',
+            'dob' => 'nullable|date|before_or_equal:today',
+        ], [
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         // Editable personal/contact details
         if ($request->has('name') && filled($request->name)) $user->name = $request->name;

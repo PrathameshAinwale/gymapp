@@ -484,10 +484,20 @@ const handleResponse = async (response) => {
         window.dispatchEvent(new CustomEvent('pulsefit:unauthorized'));
       }
     }
-    const errorMsg = data?.message || (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
+    let errorMsg = '';
+    if (data?.errors && typeof data.errors === 'object') {
+      const detailedErrors = Object.values(data.errors).flat().filter(Boolean);
+      if (detailedErrors.length > 0) {
+        errorMsg = detailedErrors.join(' ');
+      }
+    }
+    if (!errorMsg || errorMsg === 'Validation error') {
+      errorMsg = (data?.message && data.message !== 'Validation error') ? data.message : (errorMsg || 'Validation error');
+    }
     const error = new Error(errorMsg);
     error.status = response.status;
     error.data = data;
+    error.errors = data?.errors;
     throw error;
   }
 

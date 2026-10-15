@@ -550,7 +550,7 @@ class OperationsController extends Controller
             if ($type !== 'extension') {
                 $profile->status = 'Frozen';
             } else {
-                $profile->status = MemberController::computeMemberStatus($newExpiryDate, 'Active');
+                $profile->status = MemberController::computeMemberStatus($newExpiryDate, 'Active', $profile->join_date);
             }
             $profile->save();
         }
@@ -763,12 +763,50 @@ class OperationsController extends Controller
         $recipientExpiryDate = \Carbon\Carbon::parse($membershipStartDate)->addDays($daysRemaining)->toDateString();
 
         // 1. Source Member: Status is set to Expired and expiry date set to yesterday (marked Expired)
+        $cutoffDate = \Carbon\Carbon::parse($transferDate)->subDay()->toDateString();
         $fromProfile->status = 'Expired';
-        $fromProfile->expiry_date = \Carbon\Carbon::parse($transferDate)->subDay()->toDateString();
+        $fromProfile->expiry_date = $cutoffDate;
         if (\Illuminate\Support\Facades\Schema::hasColumn('member_profiles', 'notes')) {
             $fromProfile->notes = trim(($fromProfile->notes ? $fromProfile->notes . ' | ' : '') . "Transferred {$daysRemaining} remaining days to " . ($request->toMemberName ?? 'Recipient') . " on {$transferDate}. Status set to Expired.");
         }
         $fromProfile->save();
+
+        // Expire / transfer source member's active invoices so they no longer appear as active subscriptions
+        $sourceInvoices = Invoice::where('user_id', $fromMemberId)
+            ->whereNotIn('status', ['Cancelled', 'Refunded'])
+            ->get();
+
+        foreach ($sourceInvoices as $srcInv) {
+            $updatedItems = false;
+            $items = $srcInv->items;
+            if (is_array($items) && count($items) > 0) {
+                foreach ($items as &$item) {
+                    $itemEnd = !empty($item['end_date']) ? substr((string)$item['end_date'], 0, 10) : null;
+                    if ($itemEnd && $itemEnd >= $transferDate) {
+                        $item['end_date'] = $cutoffDate;
+                        $item['status'] = 'Transferred';
+                        $updatedItems = true;
+                    }
+                }
+                unset($item);
+            }
+
+            $invEnd = $srcInv->end_date
+                ? ($srcInv->end_date instanceof \DateTimeInterface ? $srcInv->end_date->format('Y-m-d') : substr((string)$srcInv->end_date, 0, 10))
+                : null;
+
+            if ($invEnd && $invEnd >= $transferDate) {
+                $srcInv->end_date = $cutoffDate;
+                $srcInv->status = 'Transferred';
+                if ($updatedItems) {
+                    $srcInv->items = $items;
+                }
+                $srcInv->save();
+            } elseif ($updatedItems) {
+                $srcInv->items = $items;
+                $srcInv->save();
+            }
+        }
 
         // 2. Destination Member: Existing user or create new user/profile
         if (!$toMemberId && !empty($request->toMemberName)) {
@@ -908,7 +946,7 @@ class OperationsController extends Controller
             $profile = MemberProfile::where('user_id', $freeze->member_id)->first()
                 ?? MemberProfile::find($freeze->member_id);
             if ($profile) {
-                $profile->status = MemberController::computeMemberStatus($profile->expiry_date, 'Active');
+                $profile->status = MemberController::computeMemberStatus($profile->expiry_date, 'Active', $profile->join_date);
                 $profile->save();
             }
         }

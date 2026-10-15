@@ -21,6 +21,7 @@ import {
 import { Modal } from '../common/Modal';
 import { StatCard } from '../common/StatCard';
 import {
+  isValidName,
   hasSqlInjection,
   isValidPhone,
   preventNonNumericKey,
@@ -78,6 +79,16 @@ export const MemberProfile = () => {
       hasSqlInjection(formData.medicalNotes)
     ) {
       alert('Security Warning: Special SQL/script characters detected. Please remove them.');
+      return;
+    }
+
+    if (!formData.name?.trim()) {
+      alert('Please enter your full name.');
+      return;
+    }
+
+    if (!isValidName(formData.name)) {
+      alert('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).');
       return;
     }
 

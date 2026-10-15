@@ -147,7 +147,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
             <div className="flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[130px] xs:max-w-[180px] sm:max-w-[260px] md:max-w-[340px] leading-tight">
-                  {gymName || 'ARCHFIT CLUB'}
+                  {gymName || 'Fitness Club'}
                 </span>
                 <div className="shrink-0 hidden xs:inline-flex items-center gap-1.5">
                   {getRoleBadge()}
@@ -257,11 +257,11 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
           {currentUser && (
             <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 shadow-2xs">
               <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
-                {(currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : 'Prathamesh').charAt(0).toUpperCase()}
+                {(currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : (currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : 'Staff')).charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col text-left leading-none min-w-0 max-w-[120px] md:max-w-[150px]">
                 <span className="text-xs font-bold text-slate-800 truncate" title={currentUser?.name}>
-                  {currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : 'Prathamesh'}
+                  {currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : (currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : 'Staff')}
                 </span>
                 <span className="text-[9px] font-semibold text-slate-400 capitalize">
                   {currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : currentRole || 'Staff'}

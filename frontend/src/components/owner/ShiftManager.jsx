@@ -21,6 +21,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import { ShiftFormModal } from './ShiftFormModal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 
 // Helper to convert "HH:MM" or "HH:MM AM/PM" to 12h display
 const formatTimeTo12Hour = (timeStr) => {
@@ -419,53 +420,28 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
       />
 
       {/* 5. MODAL: DELETE CONFIRMATION */}
-      {deleteConfirmShift && (
-        <Modal
-          isOpen={Boolean(deleteConfirmShift)}
-          onClose={() => setDeleteConfirmShift(null)}
-          title="Delete Shift Profile"
-          maxWidth="max-w-md"
-        >
-          <div className="space-y-4 py-2 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-
-            <div>
-              <h3 className="text-base font-black text-slate-900">
-                Are you sure you want to delete "{deleteConfirmShift.name}"?
-              </h3>
-              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                {deleteConfirmShift.assigned_staff_count > 0 ? (
-                  <span className="text-amber-700 font-semibold block">
-                    ⚠️ {deleteConfirmShift.assigned_staff_count} staff member(s) are currently assigned to this shift.
-                  </span>
-                ) : null}
-                This action will permanently delete this shift configuration from your gym.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-3 pt-3">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmShift(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-rose-600/20 cursor-pointer disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isSubmitting ? 'Deleting...' : 'Yes, Delete Shift'}</span>
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteConfirmShift)}
+        onClose={() => setDeleteConfirmShift(null)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isSubmitting}
+        title="Confirm Deletion"
+        itemType="shift"
+        recordName={deleteConfirmShift?.name}
+        description={
+          deleteConfirmShift?.assigned_staff_count > 0 ? (
+            <span>
+              ⚠️ {deleteConfirmShift.assigned_staff_count} staff member(s) are currently assigned to this shift.
+            </span>
+          ) : null
+        }
+        message={
+          deleteConfirmShift
+            ? `Are you sure you want to delete "${deleteConfirmShift.name}"? This action will permanently delete this shift configuration.`
+            : 'Are you sure you want to delete this shift? This action will permanently delete this shift configuration.'
+        }
+        confirmText="Yes, Delete Shift"
+      />
     </div>
   );
 };

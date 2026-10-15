@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   hasSqlInjection,
   sanitizeDigits,
@@ -67,6 +68,8 @@ export const PTSessionsManager = () => {
   const [trainerFilter, setTrainerFilter] = useState('ALL');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
   const searchContainerRef = useRef(null);
 
   useEffect(() => {
@@ -685,11 +688,7 @@ export const PTSessionsManager = () => {
                           {deletePTSession && (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (window.confirm(`Remove PT package for ${pt.memberName}?`)) {
-                                  deletePTSession(pt.numericId || pt.id);
-                                }
-                              }}
+                              onClick={() => setSessionToDelete(pt)}
                               className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
                               title="Delete Package"
                             >
@@ -1318,6 +1317,32 @@ export const PTSessionsManager = () => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(sessionToDelete)}
+        onClose={() => setSessionToDelete(null)}
+        onConfirm={async () => {
+          if (!sessionToDelete) return;
+          try {
+            setIsDeletingSession(true);
+            await deletePTSession(sessionToDelete.numericId || sessionToDelete.id);
+            setSessionToDelete(null);
+          } catch (err) {
+            console.error('Delete PT session error:', err);
+          } finally {
+            setIsDeletingSession(false);
+          }
+        }}
+        isDeleting={isDeletingSession}
+        title="Confirm Deletion"
+        itemType="PT package"
+        recordName={sessionToDelete?.memberName}
+        message={
+          sessionToDelete
+            ? `Are you sure you want to remove the PT package for "${sessionToDelete.memberName}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this PT package? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

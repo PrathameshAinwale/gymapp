@@ -278,12 +278,28 @@ class RevenueBillingController extends Controller
         $inflowAmount = (float)$request->amount;
         $inflowTotalAmount = (float)($request->total_amount ?? $request->totalAmount ?? ($inflowAmount + $duesAmount));
 
+        // Validate promise date if remaining dues are pending
+        if ($duesAmount > 0 && $userId) {
+            $userObj = User::with('memberProfile')->find($userId);
+            $profile = $userObj?->memberProfile;
+            $checkStart = $request->input('start_date', $request->input('startDate', $profile?->join_date ? $profile->join_date->format('Y-m-d') : $inflowDate));
+            $checkExpiry = $request->input('expiry_date', $request->input('expiryDate', $request->input('end_date', $request->input('endDate', $profile?->expiry_date ? $profile->expiry_date->format('Y-m-d') : null))));
+            $dueError = \App\Http\Controllers\Api\MemberController::validatePromiseDate($dueDate, $checkStart, $checkExpiry);
+            if ($dueError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $dueError,
+                    'errors' => ['due_date' => [$dueError]]
+                ], 422);
+            }
+        }
+
         // Duplicate Invoice Validation: Only applies to the active plans of the member
         // If invoice date is different -> allowed.
         // If invoice date is same, but other contents differ -> allowed.
         // If invoice date is same AND all contents/amounts are identical for the active plan -> blocked.
         if ($userId) {
-            $userObj = User::with('memberProfile')->find($userId);
+            $userObj = $userObj ?? User::with('memberProfile')->find($userId);
             $profile = $userObj?->memberProfile;
             $todayStr = now()->toDateString();
             $expiryStr = $profile?->expiry_date ? $profile->expiry_date->format('Y-m-d') : null;
@@ -347,11 +363,32 @@ class RevenueBillingController extends Controller
                         $rawPkg = 'Massage';
                     }
                 }
-                $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPkg ?: 'Gym-Cardio');
-                $startDate = $request->start_date ?? $request->startDate ?? $record->date;
-                $endDate = $request->end_date ?? $request->endDate ?? $request->expiry_date ?? $request->expiryDate;
-                if (!$endDate && $startDate) {
-                    $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $planObj);
+                $isDueOrFeePayment = false;
+                $categoryInput = strtolower((string)($request->category ?? ''));
+                $checkStr = strtolower(($request->title ?? '') . ' ' . ($planName ?? '') . ' ' . $categoryInput);
+                if (
+                    $categoryInput === 'due payment' ||
+                    $categoryInput === 'fee payment' ||
+                    str_contains($checkStr, 'balance due') ||
+                    str_contains($checkStr, 'due payment') ||
+                    str_contains($checkStr, 'dues payment') ||
+                    str_contains($checkStr, 'due clearance') ||
+                    str_contains($checkStr, 'fee collection')
+                ) {
+                    $isDueOrFeePayment = true;
+                }
+
+                if ($isDueOrFeePayment) {
+                    $packageType = 'Due Payment';
+                    $startDate = $request->start_date ?? $request->startDate ?? $record->date;
+                    $endDate = null;
+                } else {
+                    $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPkg ?: 'Gym-Cardio');
+                    $startDate = $request->start_date ?? $request->startDate ?? $record->date;
+                    $endDate = $request->end_date ?? $request->endDate ?? $request->expiry_date ?? $request->expiryDate;
+                    if (!$endDate && $startDate && $planObj) {
+                        $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $planObj);
+                    }
                 }
 
                 $invPayload = [
@@ -636,17 +673,30 @@ class RevenueBillingController extends Controller
             'numericId' => $item->id,
             'gymId' => $item->gym_id,
             'invoiceNumber' => $item->reference_no,
+            'invoice_number' => $item->reference_no,
             'memberId' => $item->user_id ? ('mem-' . $item->user_id) : null,
+            'userId' => $item->user_id,
             'memberName' => $item->member_name ?: ($item->user?->name ?? 'Member'),
+            'memberPhone' => $item->user?->phone,
+            'memberEmail' => $item->user?->email,
             'planId' => $item->plan_id ? ('plan-' . $item->plan_id) : null,
             'planName' => $item->plan_name ?: ($item->plan?->name ?? 'Membership Plan'),
             'title' => $item->title,
             'category' => $item->category ?: 'Membership Fee',
             'amount' => (float)$item->amount,
+            'paidAmount' => (float)$item->amount,
             'totalAmount' => (float)($matchingInvoice?->total_amount ?? ($item->amount + $pendingAmount)),
             'pendingAmount' => $pendingAmount,
             'duesAmount' => $pendingAmount,
             'date' => $item->date instanceof \DateTimeInterface ? $item->date->format('Y-m-d') : (string)$item->date,
+            'issueDate' => $item->date instanceof \DateTimeInterface ? $item->date->format('Y-m-d') : (string)$item->date,
+            'packageType' => $matchingInvoice?->package_type ?? 'Gym-Cardio',
+            'startDate' => $matchingInvoice?->start_date ? ($matchingInvoice->start_date instanceof \DateTimeInterface ? $matchingInvoice->start_date->format('Y-m-d') : (string)$matchingInvoice->start_date) : null,
+            'endDate' => $matchingInvoice?->end_date ? ($matchingInvoice->end_date instanceof \DateTimeInterface ? $matchingInvoice->end_date->format('Y-m-d') : (string)$matchingInvoice->end_date) : null,
+            'expiryDate' => $matchingInvoice?->end_date ? ($matchingInvoice->end_date instanceof \DateTimeInterface ? $matchingInvoice->end_date->format('Y-m-d') : (string)$matchingInvoice->end_date) : null,
+            'dueDate' => $matchingInvoice?->due_date ? ($matchingInvoice->due_date instanceof \DateTimeInterface ? $matchingInvoice->due_date->format('Y-m-d') : (string)$matchingInvoice->due_date) : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null),
+            'items' => is_array($matchingInvoice?->items) ? $matchingInvoice->items : [],
+            'packages' => is_array($matchingInvoice?->items) ? $matchingInvoice->items : [],
             'paymentMethod' => $item->payment_method ?: 'UPI',
             'status' => $status,
             'notes' => $item->notes,

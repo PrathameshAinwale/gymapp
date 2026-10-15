@@ -257,7 +257,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     } else {
       invoice = arg1;
       if (arg2 && typeof arg2 === 'object') {
-        if (arg2.gstin || arg2.gst_number || arg2.address || arg2.tagline || arg2.currency || arg2.logo) {
+        if (arg2.gstin || arg2.gst_number || arg2.address || arg2.tagline || arg2.currency || arg2.logo || arg2.taxRate !== undefined || arg2.tax_rate !== undefined) {
           gymInfo = arg2;
           member = arg3 || null;
         } else {
@@ -291,6 +291,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const gymWebsite = gymInfo?.website || '';
   const gymTagline = gymInfo?.tagline || gymInfo?.tag_line || '';
   const currencySymbol = gymInfo?.currency || '₹';
+  const pdfCurrencySymbol = (!gymInfo?.currency || gymInfo.currency === '₹' || gymInfo.currency.includes('â')) ? 'Rs.' : gymInfo.currency;
   const taxRate = Number(invoice?.gstRate ?? invoice?.taxRate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18);
 
   const memberName = member?.name || invoice.memberName || invoice.member_name || 'Valued Member';
@@ -349,7 +350,8 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     invoice.is_gst_included ??
     (invoice.taxable_amount !== undefined && Number(invoice.taxable_amount) < totalAmount)
   );
-  const taxableBase = hasGst ? Math.round(totalAmount / 1.18) : totalAmount;
+  const effectiveTaxRate = taxRate > 0 ? taxRate : 18;
+  const taxableBase = hasGst ? Math.round(totalAmount / (1 + (effectiveTaxRate / 100))) : totalAmount;
   const totalGst = hasGst ? Math.max(0, totalAmount - taxableBase) : 0;
   const cgst = hasGst ? Math.round(totalGst / 2) : 0;
   const sgst = hasGst ? (totalGst - cgst) : 0;
@@ -753,7 +755,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(`Rs. ${row.priceVal.toLocaleString('en-IN')}`, pageWidth - margin - 4, pkgY + 4.5, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${row.priceVal.toLocaleString('en-IN')}`, pageWidth - margin - 4, pkgY + 4.5, { align: 'right' });
 
     pkgY += row.rowHeight;
 
@@ -833,18 +835,18 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const halfTaxRate = (taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1);
   if (hasGst) {
     doc.text('Plan Base Fee:', sumBoxX + 5, rY);
-    doc.text(`${currencySymbol} ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
     rY += 4.5;
     doc.text(`CGST (${halfTaxRate}%):`, sumBoxX + 5, rY);
-    doc.text(`${currencySymbol} ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${cgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
     rY += 4.5;
     doc.text(`SGST (${halfTaxRate}%):`, sumBoxX + 5, rY);
-    doc.text(`${currencySymbol} ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
   } else {
     doc.text('Plan Fee:', sumBoxX + 5, rY);
-    doc.text(`${currencySymbol} ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
     rY += 4.5;
     doc.text('Tax Applied:', sumBoxX + 5, rY);
@@ -856,7 +858,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(225, 29, 72); // rose-600
     doc.text('Pending Balance Due:', sumBoxX + 5, rY);
-    doc.text(`${currencySymbol} ${pendingAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${pendingAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
   }
 
   // Total Banner inside box
@@ -876,7 +878,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
     doc.setFontSize(9.5);
     doc.setTextColor(217, 119, 6);
-    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY + 6, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY + 6, { align: 'right' });
   } else {
     doc.setFillColor(240, 253, 244);
     doc.roundedRect(sumBoxX + 3, rY, sumBoxW - 6, 9.5, 1.5, 1.5, 'F');
@@ -888,7 +890,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
     doc.setFontSize(10.5);
     doc.setTextColor(5, 150, 105);
-    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY + 6, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY + 6, { align: 'right' });
   }
 
   // 5. CLUB POLICIES & DIGITAL SEAL

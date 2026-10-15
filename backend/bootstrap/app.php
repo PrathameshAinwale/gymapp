@@ -41,6 +41,14 @@ return Application::configure(basePath: dirname(__DIR__))
                     "Missing DB table/column caught gracefully: {$e->getMessage()}"
                 );
 
+                if (!$request->isMethod('safe') && !$request->isMethod('get')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Database table/column not yet migrated ({$table}). Please run: php artisan migrate",
+                        '_migration_needed' => true,
+                    ], 500);
+                }
+
                 return response()->json([
                     'success' => true,
                     'data' => [],

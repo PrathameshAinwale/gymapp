@@ -45,6 +45,7 @@ import { PagesManager } from './PagesManager';
 import { SuperadminCredentialsManager } from './SuperadminCredentialsManager';
 import { SuperadminWhatsAppManager } from './SuperadminWhatsAppManager';
 import { PACKAGE_PLANS } from './packagePlans';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   hasSqlInjection,
   sanitizePhone,
@@ -443,17 +444,21 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
   };
 
   // Delete Gym — available for ALL gyms
-  const handleDeleteGym = async (gymId, gymName) => {
-    if (!confirm(`Are you sure you want to permanently delete "${gymName}"? All owner, member, trainer accounts, and data associated with this gym will be purged immediately.`)) {
-      return;
-    }
+  const [gymToDelete, setGymToDelete] = useState(null);
+  const [isDeletingGym, setIsDeletingGym] = useState(false);
 
+  const handleConfirmDeleteGym = async () => {
+    if (!gymToDelete) return;
     try {
-      await api.superadmin.deleteGym(gymId);
-      showToast(`Gym "${gymName}" deleted successfully.`);
+      setIsDeletingGym(true);
+      await api.superadmin.deleteGym(gymToDelete.id);
+      showToast(`Gym "${gymToDelete.name}" deleted successfully.`);
+      setGymToDelete(null);
       loadData();
     } catch (err) {
-      alert('Failed to delete gym: ' + err.message);
+      alert('Failed to delete gym: ' + (err.message || 'Server error'));
+    } finally {
+      setIsDeletingGym(false);
     }
   };
 
@@ -972,7 +977,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
 
                             {/* Delete Gym Button — Available for EVERY gym */}
                             <button
-                              onClick={() => handleDeleteGym(gym.id, gym.name)}
+                              onClick={() => setGymToDelete(gym)}
                               className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer hover:scale-105 active:scale-95"
                               title="Permanently delete this gym and its accounts"
                             >
@@ -1860,6 +1865,22 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(gymToDelete)}
+        onClose={() => setGymToDelete(null)}
+        onConfirm={handleConfirmDeleteGym}
+        isDeleting={isDeletingGym}
+        title="Confirm Deletion"
+        itemType="gym"
+        recordName={gymToDelete?.name}
+        description="All owner, member, trainer accounts, and data associated with this gym will be purged immediately."
+        message={
+          gymToDelete
+            ? `Are you sure you want to permanently delete "${gymToDelete.name}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this gym? This action cannot be undone.'
+        }
+      />
     </div>
   );
 };

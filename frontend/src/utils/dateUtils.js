@@ -271,3 +271,151 @@ export const calculateAgeFromDob = (dobInput, refDate = new Date()) => {
   }
 };
 
+/**
+ * Calculate the latest permitted payment promise date:
+ * Must be strictly before the membership expiry date (i.e. Expiry Date - 1 day).
+ * The expiry date itself is not permitted.
+ */
+export const calculateMaxPromiseDate = (expiryDateStr) => {
+  if (!expiryDateStr) return '';
+  try {
+    const cleanStr = String(expiryDateStr).split('T')[0].trim();
+    const parts = cleanStr.split('-');
+    let exp;
+    if (parts.length === 3) {
+      exp = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    } else {
+      exp = new Date(cleanStr);
+    }
+    if (isNaN(exp.getTime())) return '';
+    exp.setDate(exp.getDate() - 1);
+    const yr = exp.getFullYear();
+    const mo = String(exp.getMonth() + 1).padStart(2, '0');
+    const da = String(exp.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Validate payment promise date according to the business rule:
+ * Membership Start Date <= Promise Date < Membership Expiry Date
+ *
+ * @param {string} promiseDate - YYYY-MM-DD
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} expiryDate - YYYY-MM-DD
+ * @returns {{ isValid: boolean, error?: string }}
+ */
+export const validatePromiseDate = (promiseDate, startDate, expiryDate) => {
+  if (!promiseDate) {
+    return { isValid: false, error: 'Promised due date is required when there is a remaining balance due.' };
+  }
+  const cleanPromise = String(promiseDate).split('T')[0].trim();
+  const cleanStart = startDate ? String(startDate).split('T')[0].trim() : '';
+  const cleanExpiry = expiryDate ? String(expiryDate).split('T')[0].trim() : '';
+
+  if (!cleanStart || !cleanExpiry) {
+    return { isValid: true };
+  }
+
+  if (cleanStart >= cleanExpiry) {
+    return {
+      isValid: false,
+      error: 'Membership date range contains no permitted promise date (start date must be before expiry date).'
+    };
+  }
+
+  if (cleanPromise < cleanStart) {
+    return {
+      isValid: false,
+      error: `Promised due date (${formatDateDisplay(cleanPromise)}) cannot be earlier than membership start date (${formatDateDisplay(cleanStart)}).`
+    };
+  }
+
+  if (cleanPromise >= cleanExpiry) {
+    return {
+      isValid: false,
+      error: `Promised due date (${formatDateDisplay(cleanPromise)}) must be strictly before membership expiry date (${formatDateDisplay(cleanExpiry)}). The expiry date itself is not permitted.`
+    };
+  }
+
+  return { isValid: true };
+};
+
+export const parseLocalDate = (dateInput) => {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    return new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate());
+  }
+  const cleanStr = String(dateInput).split('T')[0].split(' ')[0].trim();
+  const parts = cleanStr.split('-').map(Number);
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+/**
+ * Calculate member status according to date-driven rules and validity boundaries:
+ * - Administrative states (Frozen, Frozen (Paused), On Hold, Suspended, Cancelled) are preserved.
+ * - If start date is in the future (> today), returns 'Upcoming'.
+ * - If today > expiry date, returns 'Expired'.
+ * - If 0 <= diffDays <= 10, returns 'Expiring Soon' (membership is valid through end of expiry date!).
+ * - Otherwise returns 'Active'.
+ *
+ * @param {string|Date} expiryDate
+ * @param {string} currentStatus
+ * @param {string|Date} startDate
+ * @param {Date} [referenceDate] - Optional reference date for deterministic testing
+ * @returns {string}
+ */
+export const calculateMemberStatus = (expiryDate, currentStatus = 'Active', startDate = null, referenceDate = null) => {
+  // Preserve legitimate administrative overriding states
+  if (
+    currentStatus === 'Frozen' ||
+    currentStatus === 'Frozen (Paused)' ||
+    currentStatus === 'On Hold' ||
+    currentStatus === 'Suspended' ||
+    currentStatus === 'Cancelled'
+  ) {
+    return currentStatus;
+  }
+
+  try {
+    const today = referenceDate ? parseLocalDate(referenceDate) : new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. If start date is in the future, membership is Upcoming
+    if (startDate) {
+      const start = parseLocalDate(startDate);
+      if (start && start.getTime() > today.getTime()) {
+        return 'Upcoming';
+      }
+    }
+
+    if (!expiryDate) {
+      return (currentStatus && currentStatus !== 'Active') ? currentStatus : 'Unassigned';
+    }
+
+    const exp = parseLocalDate(expiryDate);
+    if (!exp) return currentStatus || 'Active';
+
+    // Membership is valid THROUGH its expiry date.
+    // It becomes Expired only after the expiry date has ended (diffDays < 0).
+    const diffTime = exp.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return 'Expired';
+    } else if (diffDays <= 10) {
+      return 'Expiring Soon';
+    } else {
+      return 'Active';
+    }
+  } catch {
+    return currentStatus || 'Active';
+  }
+};
+

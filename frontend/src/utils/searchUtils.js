@@ -337,9 +337,13 @@ export const getInvoiceSortTime = (inv) => {
  * Extracts a numeric weighting from invoice ID for consistent tie-breaking.
  */
 export const getInvoiceIdNumber = (inv) => {
-  if (!inv?.id) return 0;
+  if (!inv) return 0;
+  if (inv.numericId !== undefined && inv.numericId !== null) {
+    const n = Number(inv.numericId);
+    if (!isNaN(n) && n > 0) return n;
+  }
   if (typeof inv.id === 'number') return inv.id;
-  const num = parseInt(String(inv.id).replace(/\D/g, ''), 10);
+  const num = parseInt(String(inv.numericId || inv.id).replace(/\D/g, ''), 10);
   return isNaN(num) ? 0 : num;
 };
 

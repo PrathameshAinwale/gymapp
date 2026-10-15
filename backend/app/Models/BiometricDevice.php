@@ -19,11 +19,13 @@ class BiometricDevice extends Model
         'total_punches_today',
         'pulse_duration_sec',
         'last_sync',
+        'port',
     ];
 
     protected $casts = [
         'total_punches_today' => 'integer',
         'pulse_duration_sec' => 'integer',
+        'port' => 'integer',
     ];
 
     public function gym()

@@ -18,6 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   hasSqlInjection,
   sanitizeDecimal,
@@ -75,6 +76,24 @@ export const WorkoutBuilder = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
+  const [workoutPlanToDelete, setWorkoutPlanToDelete] = useState(null);
+  const [isDeletingWorkoutPlan, setIsDeletingWorkoutPlan] = useState(false);
+
+  const handleConfirmDeleteWorkoutPlan = async () => {
+    if (!workoutPlanToDelete) return;
+    try {
+      setIsDeletingWorkoutPlan(true);
+      await deleteWorkoutPlan(workoutPlanToDelete.id);
+      if (selectedPlanForView?.id === workoutPlanToDelete.id) {
+        setSelectedPlanForView(null);
+      }
+      setWorkoutPlanToDelete(null);
+    } catch (err) {
+      console.error('Delete workout plan error:', err);
+    } finally {
+      setIsDeletingWorkoutPlan(false);
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -282,12 +301,7 @@ export const WorkoutBuilder = () => {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (confirm(`Delete workout plan for ${selectedPlanForView.memberName}?`)) {
-                  deleteWorkoutPlan(selectedPlanForView.id);
-                  setSelectedPlanForView(null);
-                }
-              }}
+              onClick={() => setWorkoutPlanToDelete(selectedPlanForView)}
               className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer"
               title="Delete Plan"
             >
@@ -542,11 +556,7 @@ export const WorkoutBuilder = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Delete workout plan for ${plan.memberName}?`)) {
-                          deleteWorkoutPlan(plan.id);
-                        }
-                      }}
+                      onClick={() => setWorkoutPlanToDelete(plan)}
                       className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer"
                       title="Delete Plan"
                     >
@@ -877,6 +887,20 @@ export const WorkoutBuilder = () => {
         </form>
       </Modal>
 
+      <ConfirmDeleteModal
+        isOpen={Boolean(workoutPlanToDelete)}
+        onClose={() => setWorkoutPlanToDelete(null)}
+        onConfirm={handleConfirmDeleteWorkoutPlan}
+        isDeleting={isDeletingWorkoutPlan}
+        title="Confirm Deletion"
+        itemType="workout plan"
+        recordName={workoutPlanToDelete?.memberName ? `for ${workoutPlanToDelete.memberName}` : workoutPlanToDelete?.title}
+        message={
+          workoutPlanToDelete
+            ? `Are you sure you want to delete the workout plan for "${workoutPlanToDelete.memberName || workoutPlanToDelete.title}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this workout plan? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

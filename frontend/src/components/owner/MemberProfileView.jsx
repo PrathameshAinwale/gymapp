@@ -36,6 +36,24 @@ import { EditInvoiceModal } from './EditInvoiceModal';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { normalizePackageType } from '../common/MembershipPlanModal';
+import { compareInvoicesDesc } from '../../utils/searchUtils';
+
+const isFeeOrBalanceItem = (item) => {
+  if (!item) return false;
+  const pkgType = String(item.packageType || item.package_type || item.category || '').toLowerCase();
+  const name = String(item.planName || item.name || item.title || '').toLowerCase();
+  const combo = `${pkgType} ${name}`;
+  return (
+    pkgType === 'due payment' ||
+    pkgType === 'fee payment' ||
+    pkgType === 'membership fee' ||
+    combo.includes('balance due') ||
+    combo.includes('due payment') ||
+    combo.includes('dues payment') ||
+    combo.includes('fee collection') ||
+    combo.includes('membership fee package')
+  );
+};
 
 export const MemberProfileView = ({
   member,
@@ -90,7 +108,7 @@ export const MemberProfileView = ({
     if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
     if (inv.memberName && inv.memberName.toLowerCase().trim() === memberNameClean) return true;
     return false;
-  }).sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+  }).sort(compareInvoicesDesc);
 
   const totalPaidTillDate = memberInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
@@ -98,12 +116,34 @@ export const MemberProfileView = ({
   const plansBreakdown = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
+    const memberStatus = String(member?.status || '').toLowerCase();
+    const expiryStr = (member?.expiryDate || member?.expiry_date || '').split('T')[0];
+    const isMemberExpired = memberStatus === 'expired' || (expiryStr && expiryStr < todayStr);
+
     // If backend provided pre-computed activePlans on member object
     if (member?.activePlans?.length > 0 || member?.upcomingPlans?.length > 0 || member?.expiredPlans?.length > 0) {
+      let active = (member.activePlans || [])
+        .filter(p => !isFeeOrBalanceItem(p) && p.status !== 'Transferred' && p.status !== 'Expired');
+      const upcoming = [...(member.upcomingPlans || [])].filter(p => !isFeeOrBalanceItem(p));
+      const expired = [...(member.expiredPlans || [])].filter(p => !isFeeOrBalanceItem(p));
+
+      // If member overall status is Expired, any Gym-Cardio or expired/transferred plan cannot be active
+      if (isMemberExpired) {
+        const remainingActive = [];
+        active.forEach(p => {
+          if (p.packageType === 'Gym-Cardio' || p.endDate < todayStr || (expiryStr && p.endDate <= expiryStr)) {
+            expired.push({ ...p, status: p.status === 'Transferred' ? 'Transferred' : 'Expired' });
+          } else {
+            remainingActive.push(p);
+          }
+        });
+        active = remainingActive;
+      }
+
       return {
-        active: member.activePlans || [],
-        upcoming: member.upcomingPlans || [],
-        expired: member.expiredPlans || []
+        active,
+        upcoming,
+        expired
       };
     }
 
@@ -112,13 +152,14 @@ export const MemberProfileView = ({
     const expired = [];
 
     (memberInvoices || []).forEach((inv) => {
-      if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+      if (inv.status === 'Cancelled' || inv.status === 'Refunded' || inv.status === 'Transferred' || isFeeOrBalanceItem(inv)) return;
 
       const itemsToProcess = Array.isArray(inv.packages) && inv.packages.length > 0
         ? inv.packages
         : [inv];
 
       itemsToProcess.forEach((itemRow) => {
+        if (itemRow.status === 'Transferred' || itemRow.status === 'Cancelled' || itemRow.status === 'Refunded' || isFeeOrBalanceItem(itemRow)) return;
         let rawType = itemRow.packageType || itemRow.package_type || itemRow.category || inv.packageType || inv.package_type || inv.category;
         const itemName = itemRow.name || itemRow.planName || itemRow.plan_name || itemRow.title || inv.planName || inv.plan_name || inv.title || '';
         if (!rawType && itemName) {
@@ -156,7 +197,7 @@ export const MemberProfileView = ({
         if (startStr && startStr > todayStr) {
           planItem.status = 'Upcoming';
           upcoming.push(planItem);
-        } else if (endStr < todayStr) {
+        } else if (endStr < todayStr || (isMemberExpired && (type === 'Gym-Cardio' || (expiryStr && endStr <= expiryStr)))) {
           planItem.status = 'Expired';
           expired.push(planItem);
         } else {
@@ -176,9 +217,9 @@ export const MemberProfileView = ({
         planName: member.planName || member.plan_name || 'Gym Membership',
         startDate: start,
         endDate: exp,
-        status: exp >= todayStr ? 'Active' : 'Expired'
+        status: (exp >= todayStr && !isMemberExpired) ? 'Active' : 'Expired'
       };
-      if (exp >= todayStr) {
+      if (exp >= todayStr && !isMemberExpired) {
         activeMap['Gym-Cardio'] = fallbackItem;
       } else {
         expired.push(fallbackItem);
@@ -324,7 +365,7 @@ export const MemberProfileView = ({
             <div className="flex items-center gap-2 shrink-0">
               {member.phone && (
                 <a
-                  href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from ${gymInfo?.name || 'ArchFit'}!`)}
+                  href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from ${gymInfo?.name || 'our Gym'}!`)}
                   target="_blank"
                   rel="noreferrer"
                   className="p-2 sm:px-3 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"

@@ -43,6 +43,7 @@ import {
   Fingerprint
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { PayDueModal } from './PayDueModal';
 import { calculateAgeFromDob } from '../../utils/dateUtils';
 import {
@@ -55,7 +56,7 @@ import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { getPlanByTier, resolveGymTier } from '../superadmin/packagePlans';
-import { matchesMemberUniversal } from '../../utils/searchUtils';
+import { matchesMemberUniversal, compareInvoicesDesc } from '../../utils/searchUtils';
 import { api } from '../../services/api';
 
 export const MemberList = ({
@@ -170,6 +171,8 @@ export const MemberList = ({
   const [payingDueMember, setPayingDueMember] = useState(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
 
   // Invoice Receipt View Modal state
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -764,7 +767,7 @@ export const MemberList = ({
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
                 title="Clear search"
               >
-                âœ•
+                ✕
               </button>
             )}
 
@@ -1100,7 +1103,7 @@ export const MemberList = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => deleteMember(member.id)}
+                          onClick={() => setMemberToDelete(member)}
                           className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
                           title="Delete"
                         >
@@ -1352,7 +1355,7 @@ export const MemberList = ({
 
                               <button
                                 type="button"
-                                onClick={() => deleteMember(member.id)}
+                                onClick={() => setMemberToDelete(member)}
                                 title="Remove Member"
                                 className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
                               >
@@ -1390,7 +1393,7 @@ export const MemberList = ({
             if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
             if (inv.memberName && inv.memberName.toLowerCase().trim() === memberNameClean) return true;
             return false;
-          });
+          }).sort(compareInvoicesDesc);
 
           const totalPaidTillDate = memberInvoices.reduce(
             (sum, inv) => sum + (Number(inv.amount) || 0),
@@ -1877,7 +1880,7 @@ export const MemberList = ({
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Turnstile QR Pass on ArchFit Mobile App</span>
+                      <span>Turnstile QR Pass on Mobile App</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1907,31 +1910,42 @@ export const MemberList = ({
 
                   {/* Right: Tax Breakdown */}
                   <div className="sm:col-span-5 space-y-1.5 text-xs text-slate-600 bg-white p-3.5 rounded-xl border border-slate-200">
-                    {Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true) ? (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Plan Base Fee:</span>
-                          <span className="font-semibold text-slate-800">
-                            ₹{Math.round(Number(selectedInvoice.amount || 0) / 1.18).toLocaleString('en-IN')}
+                    {(() => {
+                      if (Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true)) {
+                        const invTaxRate = Number(selectedInvoice.gstRate ?? selectedInvoice.taxRate ?? selectedInvoice.gst_rate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+                        const invHalfTax = (invTaxRate / 2).toFixed(invTaxRate % 2 === 0 ? 0 : 1);
+                        const taxable = Math.round(Number(selectedInvoice.amount || 0) / (1 + (invTaxRate / 100)));
+                        const totalGst = Math.max(0, Number(selectedInvoice.amount || 0) - taxable);
+                        const cgst = Math.round(totalGst / 2);
+                        const sgst = totalGst - cgst;
+                        return (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Plan Base Fee:</span>
+                              <span className="font-semibold text-slate-800">
+                                ₹{taxable.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-slate-500 text-[11px]">
+                              <span>CGST ({invHalfTax}%):</span>
+                              <span>₹{cgst.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-500 text-[11px]">
+                              <span>SGST ({invHalfTax}%):</span>
+                              <span>₹{sgst.toLocaleString('en-IN')}</span>
+                            </div>
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Tax Type:</span>
+                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                            Non-GST Payment (No Tax Bifurcation)
                           </span>
                         </div>
-                        <div className="flex justify-between text-slate-500 text-[11px]">
-                          <span>CGST (9%):</span>
-                          <span>₹{Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2).toLocaleString('en-IN')}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-500 text-[11px]">
-                          <span>SGST (9%):</span>
-                          <span>₹{(Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18) - Math.round((Number(selectedInvoice.amount || 0) - Math.round(Number(selectedInvoice.amount || 0) / 1.18)) / 2)).toLocaleString('en-IN')}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-between py-1">
-                        <span className="text-slate-500">Tax Type:</span>
-                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                          Non-GST Payment (No Tax Bifurcation)
-                        </span>
-                      </div>
-                    )}
+                      );
+                    })()}
                     <div className="border-t border-slate-200 pt-1.5 flex justify-between items-baseline">
                       <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
                       <span className="text-xl font-black text-emerald-600 font-mono">
@@ -1953,7 +1967,7 @@ export const MemberList = ({
                       <span>Digitally Verified</span>
                     </div>
                     <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
-                    <div className="text-[10px] text-slate-400">ArchFit Athletic Club</div>
+                    <div className="text-[10px] text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
                   </div>
                 </div>
               </div>
@@ -2286,6 +2300,32 @@ export const MemberList = ({
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(memberToDelete)}
+        onClose={() => setMemberToDelete(null)}
+        onConfirm={async () => {
+          if (!memberToDelete) return;
+          try {
+            setIsDeletingMember(true);
+            await deleteMember(memberToDelete.id);
+            setMemberToDelete(null);
+          } catch (err) {
+            console.error('Delete member error:', err);
+          } finally {
+            setIsDeletingMember(false);
+          }
+        }}
+        isDeleting={isDeletingMember}
+        title="Confirm Deletion"
+        itemType="member"
+        recordName={memberToDelete?.name}
+        message={
+          memberToDelete
+            ? `Are you sure you want to delete member "${memberToDelete.name}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this member? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

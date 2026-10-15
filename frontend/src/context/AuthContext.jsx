@@ -9,7 +9,7 @@ export const defaultAccounts = [
     userId: 1,
     gymId: 1,
     gym_id: 1,
-    name: "Prathamesh",
+    name: "Gym Owner",
     role: "superadmin",
     roleLabel: "Superadmin & General Director",
     email: "owner@archfit.in",
@@ -190,7 +190,7 @@ export const AuthProvider = ({ children }) => {
             ...(prev || {}),
             id: `usr-${userRole}-${res.user.id}`,
             userId: res.user.id,
-            name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : 'Prathamesh',
+            name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : (userRole === 'owner' || userRole === 'superadmin' ? 'Gym Owner' : 'Staff'),
             email: res.user.email,
             role: userRole,
             gym_id: gymId,
@@ -367,7 +367,7 @@ export const AuthProvider = ({ children }) => {
         const backendUser = {
           id: `usr-${userRole}-${res.user.id}`,
           userId: res.user.id,
-          name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : 'Prathamesh',
+          name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : (userRole === 'owner' || userRole === 'superadmin' ? 'Gym Owner' : 'Staff'),
           email: res.user.email,
           role: userRole,
           roleLabel: roleLabel,
@@ -529,15 +529,20 @@ export const AuthProvider = ({ children }) => {
       badge: accountData.role === 'trainer' ? 'Trainer Access' : accountData.role === 'owner' ? 'Owner Access' : 'Member Pass'
     };
 
-    try {
-      await api.auth.register({
-        name: accountData.name,
-        email: accountData.email,
-        password: accountData.password || 'pulse123',
-        role: accountData.role,
-        phone: accountData.phone,
-      });
-    } catch (e) {}
+    // Only call backend auth/register if account was not already registered on backend
+    if (!accountData.skipApi && !accountData.skipBackend && (!accountData.id || !String(accountData.id).startsWith('mem-'))) {
+      try {
+        await api.auth.register({
+          name: accountData.name,
+          email: accountData.email,
+          password: accountData.password || 'pulse123',
+          role: accountData.role,
+          phone: accountData.phone,
+        });
+      } catch (e) {
+        console.warn('Backend auth register notice:', e.message);
+      }
+    }
 
     setAccounts((prev) => [newAccount, ...prev]);
     return newAccount;

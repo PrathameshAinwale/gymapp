@@ -115,14 +115,30 @@ class StaffController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'           => 'required|string|max:100',
-            'phone'          => 'required|string|min:7|max:20',
+            'name'           => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone'          => [
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'email'          => 'nullable|email',
             'password'       => 'required|string|min:4',
             'role'           => 'required|in:manager,accounts,trainer',
             'gym_id'         => 'nullable|integer',
             'avatar'         => 'nullable|string',
-            'dob'            => 'nullable|date',
+            'dob'            => 'nullable|date|before_or_equal:today',
             'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
@@ -141,8 +157,13 @@ class StaffController extends Controller
             'bloodGroup'     => 'nullable|string|max:10',
             'address'        => 'nullable|string',
         ], [
+            'name.required' => 'Staff full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory to register staff.',
             'phone.min' => 'Please enter a valid mobile number.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ]);
 
         $gymId = $validated['gym_id'] ?? $this->resolveGymId($request);
@@ -268,12 +289,29 @@ class StaffController extends Controller
         }
 
         $validated = $request->validate([
-            'name'           => 'sometimes|string|max:100',
+            'name'           => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
             'email'          => 'nullable|email',
-            'phone'          => 'sometimes|required|string|min:7|max:20',
+            'phone'          => [
+                'sometimes',
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'role'           => 'sometimes|in:manager,accounts,trainer',
             'password'       => 'nullable|string|min:4',
-            'dob'            => 'nullable|date',
+            'dob'            => 'nullable|date|before_or_equal:today',
             'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
@@ -292,7 +330,11 @@ class StaffController extends Controller
             'bloodGroup'     => 'nullable|string|max:10',
             'address'        => 'nullable|string',
         ], [
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ]);
 
         if (isset($validated['name']))  $user->name  = $validated['name'];

@@ -3,6 +3,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
   MessageSquare,
   MessageCircle,
@@ -522,9 +523,19 @@ export const WhatsAppAutomation = () => {
   };
 
   // ── Delete Template ────────────────────────────────────────
-  const handleDeleteTemplate = async (tpl) => {
-    if (window.confirm(`Are you sure you want to delete template "${tpl.name}"?`)) {
-      await deleteWhatsAppTemplate(tpl.id);
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    try {
+      setIsDeletingTemplate(true);
+      await deleteWhatsAppTemplate(templateToDelete.id);
+      setTemplateToDelete(null);
+    } catch (err) {
+      console.error('Delete template error:', err);
+    } finally {
+      setIsDeletingTemplate(false);
     }
   };
 
@@ -588,7 +599,7 @@ export const WhatsAppAutomation = () => {
 
   // ── Dynamic WhatsApp Preview Renderer ──────────────────────
   const renderPreviewText = (templateText, sampleOverrides = {}) => {
-    const gymName = gymInfo?.name || 'PulseFit Pro';
+    const gymName = gymInfo?.name || 'Our Gym';
     const sample = {
       '{{name}}': sampleOverrides.name || 'Rahul Sharma',
       '{{gym_name}}': gymName,
@@ -1355,7 +1366,7 @@ export const WhatsAppAutomation = () => {
                             <Copy className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteTemplate(tpl)}
+                            onClick={() => setTemplateToDelete(tpl)}
                             className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete template"
                           >
@@ -2126,7 +2137,7 @@ export const WhatsAppAutomation = () => {
                     PF
                   </div>
                   <div>
-                    <div className="text-xs font-bold leading-tight">{gymInfo?.name || 'PulseFit Pro'}</div>
+                    <div className="text-xs font-bold leading-tight">{gymInfo?.name || 'Our Gym'}</div>
                     <div className="text-[10px] text-emerald-100">WhatsApp Business</div>
                   </div>
                 </div>
@@ -2400,6 +2411,21 @@ export const WhatsAppAutomation = () => {
           </div>
         </Modal>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(templateToDelete)}
+        onClose={() => setTemplateToDelete(null)}
+        onConfirm={handleConfirmDeleteTemplate}
+        isDeleting={isDeletingTemplate}
+        title="Confirm Deletion"
+        itemType="WhatsApp template"
+        recordName={templateToDelete?.name}
+        message={
+          templateToDelete
+            ? `Are you sure you want to delete template "${templateToDelete.name}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this template? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

@@ -272,4 +272,143 @@ class PlanChainingTest extends TestCase
         $check2 = PlanChainingService::checkCanCancelOrDeleteInvoice($inv2);
         $this->assertTrue($check2['can_cancel']);
     }
+
+    /**
+     * Test 8: Transferred and expired plans do not appear in active plans breakdown.
+     */
+    public function test_transferred_and_expired_plans_do_not_appear_in_active_plans()
+    {
+        $today = PlanChainingService::getTodayIst();
+
+        // 1. User with transferred plan via MembershipTransfer
+        $user1 = User::factory()->create(['role' => 'member', 'gym_id' => 1]);
+        MemberProfile::create([
+            'user_id' => $user1->id,
+            'status' => 'Expired',
+            'expiry_date' => $today->copy()->subDay()->toDateString(),
+        ]);
+
+        Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-TRF-SRC',
+            'user_id' => $user1->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 5000,
+            'date' => $today->toDateString(),
+            'start_date' => $today->toDateString(),
+            'end_date' => $today->copy()->addDays(30)->toDateString(),
+            'payment_method' => 'Cash',
+            'status' => 'Transferred',
+        ]);
+
+        \App\Models\MembershipTransfer::create([
+            'gym_id' => 1,
+            'from_member_id' => $user1->id,
+            'from_member_name' => $user1->name,
+            'to_member_id' => 9999,
+            'to_member_name' => 'Recipient Member',
+            'plan_name' => 'Gym Membership',
+            'days_remaining' => 30,
+            'transfer_fee' => 500,
+            'payment_method' => 'Cash',
+            'transfer_date' => $today->toDateString(),
+            'status' => 'Completed',
+        ]);
+
+        $breakdown1 = PlanChainingService::getMemberPlansBreakdown($user1);
+        $this->assertEmpty($breakdown1['activePlans'], 'Transferred member should not have active plans');
+        $this->assertNotEmpty($breakdown1['expiredPlans'], 'Transferred plan should be in expired/transferred plans');
+        $this->assertEquals('Transferred', $breakdown1['expiredPlans'][0]['status']);
+
+        // 2. User with expired profile status
+        $user2 = User::factory()->create(['role' => 'member', 'gym_id' => 1]);
+        MemberProfile::create([
+            'user_id' => $user2->id,
+            'status' => 'Expired',
+            'expiry_date' => $today->copy()->subDays(5)->toDateString(),
+        ]);
+
+        $breakdown2 = PlanChainingService::getMemberPlansBreakdown($user2);
+        $this->assertEmpty($breakdown2['activePlans'], 'Expired member should not have active plans');
+    }
+
+    public function test_balance_due_payments_and_fee_collections_are_excluded_from_active_subscriptions_breakdown(): void
+    {
+        $today = PlanChainingService::getTodayIst();
+        $user = User::factory()->create(['role' => 'member', 'gym_id' => 1]);
+        $plan = Plan::create([
+            'gym_id' => 1,
+            'name' => 'Gold Membership',
+            'package_type' => 'Gym-Cardio',
+            'price' => 5000,
+            'duration_months' => 1,
+            'status' => 'Active',
+        ]);
+
+        MemberProfile::create([
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'status' => 'Active',
+            'join_date' => $today->toDateString(),
+            'expiry_date' => $today->copy()->addDays(30)->toDateString(),
+        ]);
+
+        // 1. Primary legitimate subscription invoice
+        Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-LEGIT-1',
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 4000,
+            'date' => $today->toDateString(),
+            'start_date' => $today->toDateString(),
+            'end_date' => $today->copy()->addDays(30)->toDateString(),
+            'payment_method' => 'Cash',
+            'status' => 'Paid',
+        ]);
+
+        // 2. Balance due payment invoice for the remaining amount
+        Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-DUE-PAY-1',
+            'user_id' => $user->id,
+            'plan_id' => null,
+            'package_type' => 'Due Payment',
+            'amount' => 1000,
+            'date' => $today->toDateString(),
+            'start_date' => $today->toDateString(),
+            'end_date' => null,
+            'payment_method' => 'Cash',
+            'status' => 'Paid',
+        ]);
+
+        // 3. Fee collection invoice with 'Membership Fee' package type and null plan_id
+        Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-FEE-PAY-2',
+            'user_id' => $user->id,
+            'plan_id' => null,
+            'package_type' => 'Membership Fee',
+            'amount' => 500,
+            'date' => $today->toDateString(),
+            'start_date' => $today->toDateString(),
+            'end_date' => $today->copy()->addDays(30)->toDateString(),
+            'payment_method' => 'UPI',
+            'status' => 'Paid',
+        ]);
+
+        $breakdown = PlanChainingService::getMemberPlansBreakdown($user);
+
+        // Assert: only the single legitimate Gym-Cardio plan should appear in active plans
+        $this->assertCount(1, $breakdown['activePlans'], 'Only legitimate subscription packages should appear in activePlans');
+        $this->assertEquals('Gym-Cardio', $breakdown['activePlans'][0]['packageType']);
+        $this->assertEquals('Gold Membership', $breakdown['activePlans'][0]['planName']);
+        $this->assertEquals('INV-LEGIT-1', $breakdown['activePlans'][0]['invoiceNumber']);
+
+        // Assert: latest plan end date for chaining ignores the fee invoices
+        $latestEnd = PlanChainingService::getLatestPlanEndDate($user->id, 'Gym-Cardio', 1);
+        $this->assertEquals($today->copy()->addDays(30)->toDateString(), $latestEnd->toDateString());
+    }
 }
+

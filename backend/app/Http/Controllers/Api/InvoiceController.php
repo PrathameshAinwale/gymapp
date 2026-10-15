@@ -34,7 +34,7 @@ class InvoiceController extends Controller
             }
         }
 
-        $invoicesList = $query->latest()->get();
+        $invoicesList = $query->orderByDesc('id')->get();
 
         // Batch pre-fetch matching RevenueBilling and gym owner to eliminate N+1 queries
         $invoiceNumbers = $invoicesList->pluck('invoice_number')->filter();
@@ -44,65 +44,11 @@ class InvoiceController extends Controller
             ->keyBy('reference_no');
 
         $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
-        $defaultOwnerName = $owner ? $owner->name : 'Prathamesh';
+        $defaultOwnerName = $owner ? $owner->name : 'Staff';
 
         $invoices = $invoicesList->map(function ($inv) use ($inflowMap, $owner, $defaultOwnerName) {
             $matchingInflow = $inflowMap->get($inv->invoice_number);
-            $userProfile = $inv->user?->memberProfile;
-            $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
-            $status = $inv->status;
-            if ($pendingAmount > 0) {
-                $status = 'Pending';
-            } elseif (!$status) {
-                $status = 'Paid';
-            }
-
-            $creatorUser = $inv->creator ?: $matchingInflow?->creator;
-            $rawCreator = $inv->created_by_name;
-            // If created_by_name was corrupted/hardcoded to 'prathamesh' but actual creator user is different, use the actual creator's name
-            if ($creatorUser && strtolower((string)$rawCreator) === 'prathamesh' && strtolower((string)$creatorUser->name) !== 'prathamesh') {
-                $rawCreator = $creatorUser->name;
-            }
-            if (!$rawCreator) {
-                $rawCreator = $creatorUser?->name ?: ($matchingInflow?->created_by_name ?: $defaultOwnerName);
-            }
-
-            $creatorRole = $creatorUser?->role ?: ($matchingInflow?->creator?->role ?: null);
-            if (!$creatorRole) {
-                $creatorRole = ($owner && strcasecmp($rawCreator, $owner->name) === 0) ? 'Owner' : 'Staff';
-            }
-
-            $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
-            $createdByName = (trim($cleanName) && stripos($cleanName, 'arch devops') === false) ? trim($cleanName) : $defaultOwnerName;
-            $creatorRole = ucfirst(strtolower($creatorRole));
-
-            return [
-                'id' => $inv->invoice_number,
-                'numericId' => $inv->id,
-                'gymId' => $inv->gym_id,
-                'memberId' => 'mem-' . $inv->user_id,
-                'memberName' => $inv->user?->name ?? 'Unknown',
-                'memberPhone' => $inv->user?->phone,
-                'memberEmail' => $inv->user?->email,
-                'planId' => $inv->plan_id ? ('plan-' . $inv->plan_id) : ($inv->plan?->id ? ('plan-' . $inv->plan->id) : null),
-                'planName' => $matchingInflow?->plan_name ?: ($inv->plan?->name ?? 'Fitness Package'),
-                'amount' => (float)$inv->amount,
-                'totalAmount' => (float)($inv->total_amount ?? ($inv->amount + $pendingAmount)),
-                'pendingAmount' => $pendingAmount,
-                'duesAmount' => $pendingAmount,
-                'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
-                'packageType' => $inv->package_type ?? ($inv->plan?->package_type ?? 'Gym-Cardio'),
-                'startDate' => $inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : ($inv->start_date ? (string)$inv->start_date : null),
-                'expiryDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
-                'endDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
-                'dueDate' => $inv->due_date instanceof \DateTimeInterface ? $inv->due_date->format('Y-m-d') : ($inv->due_date ? (string)$inv->due_date : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null)),
-                'paymentMethod' => $inv->payment_method,
-                'status' => $status,
-                'invoiceUrl' => $inv->invoice_url ?? '#',
-                'createdBy' => $inv->created_by ?: $matchingInflow?->created_by,
-                'createdByName' => $createdByName,
-                'creatorRole' => $creatorRole,
-            ];
+            return self::formatInvoiceRecord($inv, $defaultOwnerName, $matchingInflow);
         });
 
         return response()->json([
@@ -201,6 +147,16 @@ class InvoiceController extends Controller
             ], 422);
         }
 
+        // Enforce: Existing member outstanding dues must be paid and cleared before creating a new invoice
+        $existingDue = (float)($user->memberProfile?->dues_amount ?? 0);
+        if ($existingDue > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Member {$user->name} has an outstanding due balance of ₹" . number_format($existingDue) . ". Existing dues must be paid and cleared before a new invoice can be created.",
+                'dues_amount' => $existingDue,
+            ], 422);
+        }
+
         // Clean and resolve plan
         $plan = null;
         if ($planIdInput) {
@@ -215,8 +171,8 @@ class InvoiceController extends Controller
         }
 
         $amount = (float)($request->amount ?? $plan?->price ?? 0);
-        $duesAmount = (float)($request->dues_amount ?? $request->duesAmount ?? $request->pending_amount ?? $request->pendingAmount ?? 0);
-        $dueDate = $request->due_date ?? $request->dueDate;
+        $duesAmount = (float)($request->dues_amount ?? $request->duesAmount ?? $request->pending_amount ?? $request->pendingAmount ?? $request->balance_due ?? $request->balanceDue ?? 0);
+        $dueDate = $request->due_date ?? $request->dueDate ?? $request->balance_due_date ?? $request->balanceDueDate;
         $date = $request->payment_date ?? $request->paymentDate ?? $request->date ?? now()->toDateString();
         $method = $request->payment_method ?? $request->paymentMethod ?? 'UPI';
         $status = $request->status;
@@ -244,199 +200,273 @@ class InvoiceController extends Controller
         }
 
         $packagesList = $request->input('packages');
-        if (is_array($packagesList) && count($packagesList) > 1) {
-            $createdInvoices = [];
-            DB::transaction(function () use ($packagesList, $user, $gymId, $creatorId, $creatorName, $method, $request, &$createdInvoices) {
-                $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
-                foreach ($packagesList as $pkg) {
-                    $pkgType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? $pkg['packageType'] ?? 'Gym-Cardio');
-                    $rawPkgPlanId = $pkg['plan_id'] ?? $pkg['planId'] ?? null;
-                    $pkgPlanId = !empty($rawPkgPlanId) ? (int)preg_replace('/[^0-9]/', '', (string)$rawPkgPlanId) : null;
-                    $pkgPlan = $pkgPlanId ? Plan::find($pkgPlanId) : null;
-                    $pkgStart = !empty($pkg['start_date'] ?? $pkg['startDate'] ?? null) ? ($pkg['start_date'] ?? $pkg['startDate']) : now()->toDateString();
-                    $rawPkgEnd = $pkg['end_date'] ?? $pkg['endDate'] ?? $pkg['expiry_date'] ?? $pkg['expiryDate'] ?? null;
-                    $pkgEnd = !empty($rawPkgEnd)
-                        ? $rawPkgEnd
-                        : \App\Services\PlanChainingService::computePlanEndDate($pkgStart, $pkgPlan);
-                    $pkgPrice = (float)($pkg['price'] ?? $pkg['amount'] ?? $pkgPlan?->price ?? 0);
-                    $pkgInvNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
-
-                    $invRow = Invoice::create([
-                        'gym_id' => $gymId,
-                        'invoice_number' => $pkgInvNo,
-                        'user_id' => $user->id,
-                        'plan_id' => $pkgPlan?->id,
-                        'package_type' => $pkgType,
-                        'start_date' => $pkgStart,
-                        'end_date' => $pkgEnd,
-                        'amount' => $pkgPrice,
-                        'total_amount' => $pkgPrice,
-                        'pending_amount' => 0,
-                        'date' => now()->toDateString(),
-                        'payment_method' => $method,
-                        'status' => 'Paid',
-                        'invoice_url' => '#',
-                        'created_by' => $creatorId,
-                        'created_by_name' => $creatorName,
-                    ]);
-
-                    \App\Models\RevenueBilling::create([
-                        'gym_id' => $gymId,
-                        'type' => 'inflow',
-                        'reference_no' => $pkgInvNo,
-                        'user_id' => $user->id,
-                        'member_name' => $user->name,
-                        'plan_id' => $pkgPlan?->id,
-                        'plan_name' => $pkg['name'] ?? ($pkgPlan?->name ?? ($pkgType . ' Package')),
-                        'title' => ($pkg['name'] ?? ($pkgPlan?->name ?? $pkgType)),
-                        'category' => $pkgType === 'Personal Training' ? 'Personal Training' : ($pkgType === 'Massage' ? 'Recovery & Wellness' : 'Membership Fee'),
-                        'vendor' => null,
-                        'amount' => $pkgPrice,
-                        'date' => now()->toDateString(),
-                        'payment_method' => $method,
-                        'status' => 'Paid',
-                        'notes' => "Fee collected for {$pkgType}",
-                        'created_by' => $creatorId,
-                        'created_by_name' => $creatorName,
-                    ]);
-
-                    $createdInvoices[] = $invRow;
-                }
-
-                if ($lockedUser && $lockedUser->memberProfile) {
-                    $lockedUser->memberProfile->update(['status' => 'Active']);
-                }
-            });
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Invoices issued successfully for all packages',
-                'data' => $createdInvoices[0] ?? null,
-                'invoices' => $createdInvoices,
-            ], 201);
-        }
-
-        $rawPackageType = $request->package_type ?? $request->packageType ?? $request->category ?? $plan?->package_type ?? 'Gym-Cardio';
-        $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPackageType);
+        $items = [];
+        $grossTotal = 0;
+        $discountTotal = (float)($request->discount ?? $request->discount_amount ?? $request->discountAmount ?? 0);
         $startDate = $request->start_date ?? $request->startDate ?? $date;
-
-        $invoiceData = [
-            'gym_id' => $gymId,
-            'invoice_number' => 'INV-' . date('Y') . '-' . rand(1000, 9999),
-            'user_id' => $user->id,
-            'plan_id' => $plan?->id,
-            'package_type' => $packageType,
-            'amount' => $amount,
-            'date' => $date,
-            'payment_method' => $method,
-            'status' => $status,
-            'invoice_url' => '#',
-            'created_by' => $creatorId,
-            'created_by_name' => $creatorName,
-        ];
-        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
-            $invoiceData['pending_amount'] = $duesAmount;
-        }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
-            $invoiceData['total_amount'] = (float)($request->total_amount ?? $request->totalAmount ?? ($amount + $duesAmount));
-        }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'due_date') && $dueDate) {
-            $invoiceData['due_date'] = $dueDate;
+        $endDate = $request->expiry_date ?? $request->expiryDate ?? $request->end_date ?? $request->endDate;
+        if (!$endDate) {
+            $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $plan);
         }
 
-        $invoice = DB::transaction(function () use ($invoiceData, $user, $duesAmount, $dueDate, $plan, $request, $packageType, $startDate, $gymId) {
-            // 1. Concurrency Safety: Lock user row to prevent overlapping simultaneous invoices
-            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+        if (is_array($packagesList) && count($packagesList) > 0) {
+            $earliestStart = null;
+            $furthestEnd = null;
 
-            // 2. Strict Backend Validation: Enforce start date business rules
-            \App\Services\PlanChainingService::validateStartDate($user->id, $packageType, $startDate, $gymId);
+            foreach ($packagesList as $pkg) {
+                $pkgType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? $pkg['packageType'] ?? 'Gym-Cardio');
+                $rawPkgPlanId = $pkg['plan_id'] ?? $pkg['planId'] ?? null;
+                $pkgPlanId = !empty($rawPkgPlanId) ? (int)preg_replace('/[^0-9]/', '', (string)$rawPkgPlanId) : null;
+                $pkgPlan = $pkgPlanId ? Plan::find($pkgPlanId) : null;
+                $pkgStart = !empty($pkg['start_date'] ?? $pkg['startDate'] ?? null) ? ($pkg['start_date'] ?? $pkg['startDate']) : $startDate;
+                $rawPkgEnd = $pkg['end_date'] ?? $pkg['endDate'] ?? $pkg['expiry_date'] ?? $pkg['expiryDate'] ?? null;
+                $pkgEnd = !empty($rawPkgEnd) ? $rawPkgEnd : \App\Services\PlanChainingService::computePlanEndDate($pkgStart, $pkgPlan);
+                $pkgPrice = (float)($pkg['price'] ?? $pkg['amount'] ?? $pkgPlan?->price ?? 0);
+                $pkgDisc = (float)($pkg['discount'] ?? 0);
+                $pkgNet = max(0, $pkgPrice - $pkgDisc);
 
-            // 3. Compute clean end date (preserves plan's own duration without doubling days)
-            $endDate = $request->expiry_date ?? $request->expiryDate ?? $request->end_date ?? $request->endDate;
-            if (!$endDate) {
-                $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $plan);
+                $grossTotal += $pkgPrice;
+                if ($pkgDisc > 0) {
+                    $discountTotal += $pkgDisc;
+                }
+
+                if (!$earliestStart || $pkgStart < $earliestStart) {
+                    $earliestStart = $pkgStart;
+                }
+                if (!$furthestEnd || $pkgEnd > $furthestEnd) {
+                    $furthestEnd = $pkgEnd;
+                }
+
+                $items[] = [
+                    'package_type' => $pkgType,
+                    'packageType' => $pkgType,
+                    'plan_id' => $pkgPlanId,
+                    'name' => $pkg['name'] ?? ($pkgPlan?->name ?? ($pkgType . ' Package')),
+                    'price' => $pkgPrice,
+                    'discount' => $pkgDisc,
+                    'net_amount' => $pkgNet,
+                    'start_date' => $pkgStart,
+                    'end_date' => $pkgEnd,
+                    'trainer_id' => $pkg['trainer_id'] ?? $pkg['trainerId'] ?? null,
+                    'pt_sessions' => (int)($pkg['pt_sessions'] ?? $pkg['ptSessions'] ?? 0),
+                ];
             }
 
-            $invoiceData['start_date'] = $startDate;
-            $invoiceData['end_date'] = $endDate;
+            $startDate = $earliestStart ?: $startDate;
+            $endDate = $furthestEnd ?: $endDate;
+            $packageType = $items[0]['package_type'] ?? 'Gym-Cardio';
+            $planId = $items[0]['plan_id'] ?? $plan?->id;
+        } else {
+            $rawPackageType = $request->package_type ?? $request->packageType ?? $request->category ?? $plan?->package_type ?? 'Gym-Cardio';
+            $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPackageType);
+            $planId = $plan?->id;
+            $itemPrice = (float)($request->total_amount ?? $request->totalAmount ?? ($amount + $duesAmount));
+            $itemDisc = $discountTotal;
+            $grossTotal = $itemPrice;
 
-            $createdInvoice = Invoice::create($invoiceData);
+            $items[] = [
+                'package_type' => $packageType,
+                'packageType' => $packageType,
+                'plan_id' => $planId,
+                'name' => $plan?->name ?? ($request->plan_name ?? $request->planName ?? ($packageType . ' Package')),
+                'price' => $itemPrice,
+                'discount' => $itemDisc,
+                'net_amount' => max(0, $itemPrice - $itemDisc),
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'trainer_id' => $request->trainer_id ?? $request->trainerId ?? null,
+                'pt_sessions' => (int)($request->pt_sessions ?? $request->ptSessions ?? 0),
+            ];
+        }
 
-            // 4. Create matching RevenueBilling inflow record so invoice appears in accounting and member inflows
+        $computedTotal = $grossTotal > 0 ? max(0, $grossTotal - $discountTotal) : ($amount + $duesAmount);
+        $totalAmount = (float)($request->total_amount ?? $request->totalAmount ?? $computedTotal);
+        $paidAmount = $amount;
+        if ($duesAmount <= 0 && $totalAmount > $paidAmount) {
+            $duesAmount = max(0, $totalAmount - $paidAmount);
+        }
+        $status = $duesAmount > 0 ? 'Pending' : 'Paid';
+        $invoiceNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
+        $invoiceTitle = implode(' + ', array_column($items, 'name')) ?: ($plan?->name ?? 'Membership Package');
+
+        if ($duesAmount > 0 && !empty($dueDate)) {
+            $promiseError = MemberController::validatePromiseDate($dueDate, $startDate, $endDate, false);
+            if ($promiseError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $promiseError,
+                    'errors' => [
+                        'due_date' => [$promiseError],
+                        'dueDate' => [$promiseError],
+                        'balance_due_date' => [$promiseError],
+                        'balanceDueDate' => [$promiseError],
+                    ]
+                ], 422);
+            }
+        }
+
+        $invoice = DB::transaction(function () use (
+            $gymId, $invoiceNo, $user, $planId, $packageType, $items, $paidAmount, $totalAmount,
+            $duesAmount, $date, $startDate, $endDate, $dueDate, $method, $status,
+            $creatorId, $creatorName, $invoiceTitle, $plan
+        ) {
+            // 1. Concurrency Safety: Lock user row
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+
+            // 2. Enforce start date business rules if single package
+            if (count($items) === 1) {
+                \App\Services\PlanChainingService::validateStartDate($user->id, $packageType, $startDate, $gymId);
+            }
+
+            // 3. Create ONE Invoice with all line items
+            $invData = [
+                'gym_id' => $gymId,
+                'invoice_number' => $invoiceNo,
+                'user_id' => $user->id,
+                'plan_id' => $planId,
+                'package_type' => $packageType,
+                'amount' => $paidAmount,
+                'date' => $date,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'due_date' => $duesAmount > 0 ? $dueDate : null,
+                'payment_method' => $method,
+                'status' => $status,
+                'invoice_url' => '#',
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'items')) {
+                $invData['items'] = $items;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+                $invData['total_amount'] = $totalAmount;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                $invData['pending_amount'] = $duesAmount;
+            }
+
+            $createdInvoice = Invoice::create($invData);
+
+            // 4. Create matching RevenueBilling inflow record (one inflow per invoice submission)
             \App\Models\RevenueBilling::create([
                 'gym_id' => $gymId,
                 'type' => 'inflow',
                 'reference_no' => $createdInvoice->invoice_number,
                 'user_id' => $user->id,
                 'member_name' => $user->name,
-                'plan_id' => $plan?->id,
-                'plan_name' => $plan?->name ?? ($request->plan_name ?? $request->planName ?? ($packageType . ' Package')),
-                'title' => ($plan?->name ?? $packageType) . ($duesAmount > 0 ? " (Pending Balance Due: ₹" . number_format($duesAmount) . ")" : ""),
-                'category' => $packageType === 'Personal Training' ? 'Personal Training' : ($packageType === 'Massage' ? 'Recovery & Wellness' : 'Membership Fee'),
+                'plan_id' => $planId,
+                'plan_name' => $invoiceTitle,
+                'title' => $invoiceTitle . ($duesAmount > 0 ? " (Pending Balance Due: ₹" . number_format($duesAmount) . ")" : ""),
+                'category' => (count($items) === 1 && $packageType === 'Personal Training') ? 'Personal Training' : 'Membership Fee',
                 'vendor' => null,
-                'amount' => (float)$invoiceData['amount'],
-                'date' => $invoiceData['date'],
-                'payment_method' => $invoiceData['payment_method'],
-                'status' => $invoiceData['status'],
-                'notes' => $duesAmount > 0 ? "Payment of ₹" . number_format($invoiceData['amount']) . " recorded. Balance due: ₹" . number_format($duesAmount) : "Full fee collected for {$packageType}",
-                'created_by' => $invoiceData['created_by'],
-                'created_by_name' => $invoiceData['created_by_name'],
+                'amount' => $paidAmount,
+                'date' => $date,
+                'payment_method' => $method,
+                'status' => $status,
+                'notes' => $duesAmount > 0 ? "Payment of ₹" . number_format($paidAmount) . " recorded. Balance due: ₹" . number_format($duesAmount) : "Full fee collected for {$invoiceTitle}",
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
             ]);
 
             // 5. Synchronize member profile status & master access expiry date
             if ($lockedUser && $lockedUser->memberProfile) {
                 $updateData = [
                     'status' => 'Active',
+                    'dues_amount' => $duesAmount,
+                    'due_date' => $duesAmount > 0 ? $dueDate : null,
                 ];
-                if ($duesAmount > 0) {
-                    $updateData['dues_amount'] = $duesAmount;
-                    if ($dueDate) {
-                        $updateData['due_date'] = $dueDate;
-                    }
-                } else {
-                    $updateData['dues_amount'] = 0;
-                    $updateData['due_date'] = null;
+                if ($planId) {
+                    $updateData['plan_id'] = $planId;
                 }
-                if ($plan) {
-                    $updateData['plan_id'] = $plan->id;
-                }
-
                 $lockedUser->memberProfile->update($updateData);
 
-                // Synchronize master facility check-in access expiry date with furthest active plan
+                // Synchronize master facility access expiry date with furthest active plan
                 \App\Services\PlanChainingService::syncMemberProfileExpiry($lockedUser->id);
             }
 
             return $createdInvoice;
         });
 
+        $formatted = self::formatInvoiceRecord($invoice, $creatorName);
+
         return response()->json([
             'success' => true,
-            'message' => 'Invoice recorded successfully in database',
-            'data' => [
-                'id' => $invoice->invoice_number,
-                'numericId' => $invoice->id,
-                'memberId' => 'mem-' . $user->id,
-                'memberName' => $user->name,
-                'planName' => $plan?->name ?? ($request->plan_name ?? $request->planName ?? 'Membership Package'),
-                'packageType' => $invoice->package_type,
-                'startDate' => $invoice->start_date ? $invoice->start_date->format('Y-m-d') : null,
-                'expiryDate' => $invoice->end_date ? $invoice->end_date->format('Y-m-d') : null,
-                'endDate' => $invoice->end_date ? $invoice->end_date->format('Y-m-d') : null,
-                'amount' => (float)$invoice->amount,
-                'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
-                'pendingAmount' => $duesAmount,
-                'duesAmount' => $duesAmount,
-                'dueDate' => $invoice->due_date ? (is_string($invoice->due_date) ? $invoice->due_date : $invoice->due_date->format('Y-m-d')) : null,
-                'date' => is_string($invoice->date) ? $invoice->date : $invoice->date->format('Y-m-d'),
-                'paymentMethod' => $invoice->payment_method,
-                'status' => $invoice->status,
-                'invoiceUrl' => '#',
-                'createdBy' => $invoice->created_by,
-                'createdByName' => $invoice->created_by_name ?: $creatorName,
-                'creatorRole' => ucfirst(strtolower($authCreator?->role ?? 'Staff')),
-            ],
+            'message' => 'Invoice issued successfully with all package line items',
+            'data' => $formatted,
+            'invoice' => $formatted,
         ], 201);
+    }
+
+    /**
+     * Canonical single-source-of-truth formatter for invoice records
+     */
+    public static function formatInvoiceRecord(Invoice $inv, ?string $defaultOwner = 'Staff', $matchingInflow = null): array
+    {
+        $userProfile = $inv->user?->memberProfile;
+        $pendingAmount = (float)($inv->pending_amount ?? $userProfile?->dues_amount ?? 0);
+        $status = $inv->status;
+        if ($pendingAmount > 0) {
+            $status = 'Pending';
+        } elseif (!$status) {
+            $status = 'Paid';
+        }
+
+        $creatorUser = $inv->creator ?: $matchingInflow?->creator;
+        $rawCreator = $inv->created_by_name;
+        if ($creatorUser && strtolower((string)$rawCreator) === 'prathamesh' && strtolower((string)$creatorUser->name) !== 'prathamesh') {
+            $rawCreator = $creatorUser->name;
+        }
+        if (!$rawCreator) {
+            $rawCreator = $creatorUser?->name ?: ($matchingInflow?->created_by_name ?: $defaultOwner);
+        }
+
+        $creatorRole = $creatorUser?->role ?: ($matchingInflow?->creator?->role ?: null);
+        $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', (string)$rawCreator);
+        $createdByName = trim($cleanName) ?: ($defaultOwner ?: 'Staff');
+        $creatorRole = ucfirst(strtolower($creatorRole ?: 'Staff'));
+
+        $items = is_array($inv->items) ? $inv->items : [];
+        $planName = $matchingInflow?->plan_name ?: ($inv->plan?->name ?? (!empty($items) ? implode(' + ', array_column($items, 'name')) : ($inv->package_type . ' Package')));
+
+        return [
+            'id' => $inv->invoice_number,
+            'numericId' => $inv->id,
+            'gymId' => $inv->gym_id,
+            'invoiceNumber' => $inv->invoice_number,
+            'invoice_number' => $inv->invoice_number,
+            'memberId' => 'mem-' . $inv->user_id,
+            'userId' => $inv->user_id,
+            'memberName' => $inv->user?->name ?? 'Unknown',
+            'memberPhone' => $inv->user?->phone,
+            'memberEmail' => $inv->user?->email,
+            'planId' => $inv->plan_id ? ('plan-' . $inv->plan_id) : ($inv->plan?->id ? ('plan-' . $inv->plan->id) : null),
+            'planName' => $planName,
+            'items' => $items,
+            'packages' => $items,
+            'amount' => (float)$inv->amount,
+            'paidAmount' => (float)$inv->amount,
+            'totalAmount' => (float)($inv->total_amount ?? ($inv->amount + $pendingAmount)),
+            'pendingAmount' => $pendingAmount,
+            'duesAmount' => $pendingAmount,
+            'date' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
+            'issueDate' => $inv->date instanceof \DateTimeInterface ? $inv->date->format('Y-m-d') : (string)$inv->date,
+            'packageType' => $inv->package_type ?? ($inv->plan?->package_type ?? 'Gym-Cardio'),
+            'startDate' => $inv->start_date instanceof \DateTimeInterface ? $inv->start_date->format('Y-m-d') : ($inv->start_date ? (string)$inv->start_date : null),
+            'expiryDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
+            'endDate' => $inv->end_date instanceof \DateTimeInterface ? $inv->end_date->format('Y-m-d') : ($inv->end_date ? (string)$inv->end_date : null),
+            'dueDate' => $inv->due_date instanceof \DateTimeInterface ? $inv->due_date->format('Y-m-d') : ($inv->due_date ? (string)$inv->due_date : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null)),
+            'paymentMethod' => $inv->payment_method ?: 'UPI',
+            'status' => $status,
+            'invoiceUrl' => $inv->invoice_url ?? '#',
+            'createdBy' => $inv->created_by ?: $matchingInflow?->created_by,
+            'createdByName' => $createdByName,
+            'creatorRole' => $creatorRole,
+            'createdAt' => $inv->created_at?->toISOString() ?? ($inv->created_at ? (string)$inv->created_at : null),
+            'created_at' => $inv->created_at?->toISOString() ?? ($inv->created_at ? (string)$inv->created_at : null),
+            'updatedAt' => $inv->updated_at?->toISOString() ?? ($inv->updated_at ? (string)$inv->updated_at : null),
+            'updated_at' => $inv->updated_at?->toISOString() ?? ($inv->updated_at ? (string)$inv->updated_at : null),
+        ];
     }
 
     /**
@@ -532,7 +562,20 @@ class InvoiceController extends Controller
             $invoiceUpdate['date'] = $request->date ?? $request->payment_date ?? $request->paymentDate;
         }
         if ($request->has('due_date') || $request->has('dueDate')) {
-            $invoiceUpdate['due_date'] = $request->due_date ?? $request->dueDate;
+            $upDueDate = $request->due_date ?? $request->dueDate;
+            if ($duesAmount > 0 && $upDueDate) {
+                $checkStart = $invoice->start_date ? ($invoice->start_date instanceof \DateTimeInterface ? $invoice->start_date->format('Y-m-d') : substr((string)$invoice->start_date, 0, 10)) : null;
+                $checkEnd = $invoice->end_date ? ($invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : substr((string)$invoice->end_date, 0, 10)) : null;
+                $upPromiseError = MemberController::validatePromiseDate($upDueDate, $checkStart, $checkEnd);
+                if ($upPromiseError) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $upPromiseError,
+                        'errors' => ['due_date' => [$upPromiseError]]
+                    ], 422);
+                }
+            }
+            $invoiceUpdate['due_date'] = $upDueDate;
         }
         if ($request->has('payment_method') || $request->has('paymentMethod')) {
             $invoiceUpdate['payment_method'] = $request->payment_method ?? $request->paymentMethod;

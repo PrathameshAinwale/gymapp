@@ -19,21 +19,63 @@ use Illuminate\Support\Facades\Validator;
 
 class MemberController extends Controller
 {
-    public static function computeMemberStatus($expiryDate, ?string $currentStatus = 'Active'): string
+    public static function validatePromiseDate(?string $promiseDate, ?string $startDate, ?string $expiryDate, bool $isRequired = false): ?string
     {
-        if ($currentStatus === 'Frozen' || $currentStatus === 'Frozen (Paused)' || $currentStatus === 'On Hold' || $currentStatus === 'Expired') {
-            return $currentStatus;
+        if (empty($promiseDate)) {
+            return $isRequired ? 'Promised due date is required when there is an outstanding balance.' : null;
         }
-        if (!$expiryDate) {
-            return ($currentStatus && $currentStatus !== 'Active') ? $currentStatus : 'Unassigned';
+        $pDate = substr(trim($promiseDate), 0, 10);
+        $sDate = $startDate ? substr(trim($startDate), 0, 10) : null;
+        $eDate = $expiryDate ? substr(trim($expiryDate), 0, 10) : null;
+
+        if ($sDate && $eDate && $sDate >= $eDate) {
+            return 'Membership date range contains no permitted promise date (start date must be before expiry date).';
+        }
+
+        if ($sDate && $pDate < $sDate) {
+            return "Promised due date ({$pDate}) cannot be earlier than membership start date ({$sDate}).";
+        }
+
+        if ($eDate && $pDate >= $eDate) {
+            return "Promised due date ({$pDate}) must be strictly before membership expiry date ({$eDate}). The expiry date itself is not permitted.";
+        }
+
+        return null;
+    }
+
+    public static function computeMemberStatus($expiryDate, ?string $currentStatus = 'Active', $startDate = null): string
+    {
+        // Preserve legitimate administrative overriding states
+        if (in_array($currentStatus, ['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended', 'Cancelled'])) {
+            return $currentStatus;
         }
 
         try {
-            $expiry = ($expiryDate instanceof \Illuminate\Support\Carbon)
-                ? $expiryDate->copy()->startOfDay()
-                : \Illuminate\Support\Carbon::parse($expiryDate)->startOfDay();
-            $today = now()->startOfDay();
+            $tz = \App\Services\PlanChainingService::TIMEZONE;
+            $today = \Illuminate\Support\Carbon::now($tz)->startOfDay();
 
+            // 1. If start date is in the future, membership is Upcoming
+            if ($startDate) {
+                $start = ($startDate instanceof \Illuminate\Support\Carbon)
+                    ? $startDate->copy()->setTimezone($tz)->startOfDay()
+                    : \Illuminate\Support\Carbon::parse($startDate, $tz)->startOfDay();
+
+                if ($start->gt($today)) {
+                    return 'Upcoming';
+                }
+            }
+
+            if (!$expiryDate) {
+                return ($currentStatus && $currentStatus !== 'Active') ? $currentStatus : 'Unassigned';
+            }
+
+            $expiry = ($expiryDate instanceof \Illuminate\Support\Carbon)
+                ? $expiryDate->copy()->setTimezone($tz)->startOfDay()
+                : \Illuminate\Support\Carbon::parse($expiryDate, $tz)->startOfDay();
+
+            // Expiry date boundary:
+            // A membership is valid through its expiry date.
+            // It becomes Expired only after the expiry date has ended (expiry < today).
             if ($expiry->lt($today)) {
                 return 'Expired';
             }
@@ -51,38 +93,56 @@ class MemberController extends Controller
 
     public static function syncAllMemberStatuses(bool $force = false): void
     {
-        $cacheKey = 'member_statuses_last_synced_' . now()->toDateString();
+        $tz = \App\Services\PlanChainingService::TIMEZONE;
+        $todayStr = \Illuminate\Support\Carbon::now($tz)->toDateString();
+        $cacheKey = 'member_statuses_last_synced_' . $todayStr;
         if (!$force && Cache::has($cacheKey)) {
             return;
         }
 
         try {
-            $today = now()->toDateString();
-            $tenDaysLater = now()->addDays(10)->toDateString();
+            $today = \Illuminate\Support\Carbon::now($tz)->startOfDay();
+            $tenDaysLater = $today->copy()->addDays(10)->toDateString();
+            $todayDateStr = $today->toDateString();
 
-            // 1. Members whose expiry_date < today and not Frozen/On Hold -> Expired
+            $excludedStatuses = ['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended', 'Cancelled'];
+
+            // 1. Members whose join_date is in the future (> today) -> Upcoming
+            MemberProfile::whereNotNull('join_date')
+                ->whereDate('join_date', '>', $todayDateStr)
+                ->whereNotIn('status', $excludedStatuses)
+                ->where('status', '!=', 'Upcoming')
+                ->update(['status' => 'Upcoming']);
+
+            // 2. Members whose expiry_date < today and not in excluded statuses -> Expired
             MemberProfile::whereNotNull('expiry_date')
-                ->whereDate('expiry_date', '<', $today)
-                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold'])
+                ->whereDate('expiry_date', '<', $todayDateStr)
+                ->whereNotIn('status', $excludedStatuses)
                 ->where('status', '!=', 'Expired')
                 ->update(['status' => 'Expired']);
 
-            // 2. Members whose expiry_date >= today and <= today + 10 days and not Frozen/On Hold/Expired -> Expiring Soon
+            // 3. Members whose expiry_date >= today and <= today + 10 days, join_date <= today -> Expiring Soon
             MemberProfile::whereNotNull('expiry_date')
-                ->whereDate('expiry_date', '>=', $today)
+                ->whereDate('expiry_date', '>=', $todayDateStr)
                 ->whereDate('expiry_date', '<=', $tenDaysLater)
-                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold', 'Expired'])
+                ->where(function ($q) use ($todayDateStr) {
+                    $q->whereNull('join_date')->orWhereDate('join_date', '<=', $todayDateStr);
+                })
+                ->whereNotIn('status', $excludedStatuses)
                 ->where('status', '!=', 'Expiring Soon')
                 ->update(['status' => 'Expiring Soon']);
 
-            // 3. Members whose expiry_date > today + 10 days and not Frozen/On Hold/Expired -> Active
+            // 4. Members whose expiry_date > today + 10 days, join_date <= today -> Active
             MemberProfile::whereNotNull('expiry_date')
                 ->whereDate('expiry_date', '>', $tenDaysLater)
-                ->whereNotIn('status', ['Frozen', 'Frozen (Paused)', 'On Hold', 'Expired'])
+                ->where(function ($q) use ($todayDateStr) {
+                    $q->whereNull('join_date')->orWhereDate('join_date', '<=', $todayDateStr);
+                })
+                ->whereNotIn('status', $excludedStatuses)
                 ->where('status', '!=', 'Active')
                 ->update(['status' => 'Active']);
 
-            Cache::put($cacheKey, true, now()->endOfDay());
+            Cache::put($cacheKey, true, \Illuminate\Support\Carbon::now($tz)->endOfDay());
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Member status sync failed: ' . $e->getMessage());
         }
@@ -171,7 +231,7 @@ class MemberController extends Controller
                 'planName' => $profile?->plan?->name ?? 'Unassigned',
                 'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
-                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status) : 'Active',
+                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status, $profile->join_date) : 'Active',
                 'joinDate' => $profile?->join_date?->format('Y-m-d'),
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
@@ -231,7 +291,7 @@ class MemberController extends Controller
                 'planName' => $profile?->plan?->name ?? 'Unassigned',
                 'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
-                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status) : 'Active',
+                'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status, $profile->join_date) : 'Active',
                 'joinDate' => $profile?->join_date?->format('Y-m-d'),
                 'expiryDate' => $profile?->expiry_date?->format('Y-m-d'),
                 'trainerId' => $profile?->trainer_id ? 'trn-' . $profile->trainer_id : null,
@@ -275,9 +335,25 @@ class MemberController extends Controller
       public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
             'email' => 'nullable|email',
-            'phone' => 'required|string|min:7|max:20',
+            'phone' => [
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
             'biometric_user_id' => 'nullable|string|max:50',
             'biometricUserId' => 'nullable|string|max:50',
             'plan_id' => 'nullable',
@@ -291,16 +367,50 @@ class MemberController extends Controller
             'targetWeight' => 'nullable|numeric',
             'height' => 'nullable|numeric',
             'age' => 'nullable|integer',
-            'dob' => 'nullable|date',
-            'date_of_birth' => 'nullable|date',
-            'birthdate' => 'nullable|date',
-            'DOB' => 'nullable|date',
+            'dob' => 'nullable|date|before_or_equal:today',
+            'date_of_birth' => 'nullable|date|before_or_equal:today',
+            'birthdate' => 'nullable|date|before_or_equal:today',
+            'DOB' => 'nullable|date|before_or_equal:today',
             'password' => 'nullable|string',
             'avatar' => 'nullable|string',
             'medical_notes' => 'nullable|string',
             'medicalNotes' => 'nullable|string',
-            'emergency_contact' => 'nullable|string',
-            'emergencyContact' => 'nullable|string',
+            'emergency_contact' => [
+                'nullable',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    if (empty(trim($value))) return;
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('Emergency contact must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Emergency contact must be a valid 10-digit mobile number.');
+                        }
+                    }
+                }
+            ],
+            'emergencyContact' => [
+                'nullable',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    if (empty(trim($value))) return;
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('Emergency contact must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Emergency contact must be a valid 10-digit mobile number.');
+                        }
+                    }
+                }
+            ],
             'enquiry_id' => 'nullable',
             'enquiryId' => 'nullable',
             'amount' => 'nullable|numeric|min:0',
@@ -321,8 +431,18 @@ class MemberController extends Controller
             'packages.*.price' => 'nullable|numeric|min:0',
             'packages.*.discount' => 'nullable|numeric|min:0',
         ], [
+            'name.required' => 'Member full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory to register a member.',
             'phone.min' => 'Please enter a valid mobile number.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'emergency_contact.regex' => 'Emergency contact must be a valid phone number with digits only.',
+            'emergencyContact.regex' => 'Emergency contact must be a valid phone number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+            'date_of_birth.before_or_equal' => 'Date of birth cannot be in the future.',
+            'birthdate.before_or_equal' => 'Date of birth cannot be in the future.',
+            'DOB.before_or_equal' => 'Date of birth cannot be in the future.',
             'amount.min' => 'Payment amount cannot be negative.',
             'paid_amount.min' => 'Paid amount cannot be negative.',
             'paidAmount.min' => 'Paid amount cannot be negative.',
@@ -538,7 +658,7 @@ class MemberController extends Controller
             }
         }
 
-        $computedStatus = self::computeMemberStatus($expiryDate, $request->status ?? ($expiryDate ? 'Active' : 'Unassigned'));
+        $computedStatus = self::computeMemberStatus($expiryDate, $request->status ?? ($expiryDate ? 'Active' : 'Unassigned'), $joinDate);
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', 0)));
         $totalBill = (float)($request->input('total_amount', $request->input('totalAmount', $plan?->price ?? 0)));
         $paidAmountInput = $request->input('paid_amount', $request->input('paidAmount'));
@@ -548,6 +668,21 @@ class MemberController extends Controller
 
         $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
         $parsedDueDate = ($duesAmount > 0 && $rawDueDate) ? \Illuminate\Support\Carbon::parse($rawDueDate)->toDateString() : null;
+
+        if ($duesAmount > 0) {
+            $promiseError = self::validatePromiseDate($parsedDueDate, $joinDate, $expiryDate, true);
+            if ($promiseError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $promiseError,
+                    'errors' => [
+                        'due_date' => [$promiseError],
+                        'dueDate' => [$promiseError],
+                        'balance_due_date' => [$promiseError],
+                    ]
+                ], 422);
+            }
+        }
 
         $rawTrainingType = $request->input('training_type', $request->input('trainingType', 'self'));
         $rawExecutive = $request->input('executive', $request->input('staff_name', $request->input('staffName')));
@@ -570,7 +705,7 @@ class MemberController extends Controller
         $emailVal = !empty($request->email) ? trim(strtolower($request->email)) : null;
 
         // 3. Perform all database writes atomically inside a transaction
-        [$user, $profile, $qrCode, $primaryInvoiceNo] = DB::transaction(function () use (
+        [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice] = DB::transaction(function () use (
             $numTargetId, $request, $emailVal, $plainPassword, $gymId, $plan,
             $rawKycDocNumber, $rawKycDocType, $planId, $trainerId, $rawExecutive,
             $rawTrainingType, $computedStatus, $joinDate, $expiryDate, $duesAmount,
@@ -672,153 +807,146 @@ class MemberController extends Controller
                 })->values()
                 : collect();
 
+            $primaryInvoice = null;
             $primaryInvoiceNo = null;
 
-            if ($validPackagesList->count() > 1) {
-                // Multi-package invoice creation with waterfall paid / dues allocation
-                $remainingPaid = $receivedAmount;
+            if ($validPackagesList->isNotEmpty() || $receivedAmount > 0 || ($plan && $plan->price > 0)) {
                 $topDiscount = (float)($request->discount ?? $request->discount_amount ?? $request->discountAmount ?? 0);
                 $sumPkgDisc = $validPackagesList->sum(fn($p) => (float)($p['discount'] ?? 0));
                 $unallocatedDiscount = ($sumPkgDisc > 0) ? 0 : $topDiscount;
 
-                foreach ($validPackagesList as $idx => $pkg) {
-                    $pkgType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? 'Gym-Cardio');
-                    $pkgPlanId = !empty($pkg['plan_id']) ? (int)str_replace('plan-', '', $pkg['plan_id']) : null;
-                    $pkgPrice = (float)($pkg['price'] ?? 0);
-                    $pkgDisc = (float)($pkg['discount'] ?? 0);
-                    if ($pkgDisc === 0.0 && $unallocatedDiscount > 0) {
-                        $pkgDisc = min($pkgPrice, $unallocatedDiscount);
-                        $unallocatedDiscount = max(0, $unallocatedDiscount - $pkgDisc);
-                    }
-                    $rowNet = max(0, $pkgPrice - $pkgDisc);
+                $items = [];
+                $earliestStart = null;
+                $furthestEnd = null;
+                $grossSum = 0;
 
-                    $isLast = ($idx === $validPackagesList->count() - 1);
-                    if ($isLast) {
-                        $rowPaid = $remainingPaid;
-                        $rowDues = max(0, $rowNet - $rowPaid);
-                    } else {
-                        $rowPaid = min($rowNet, $remainingPaid);
-                        $rowDues = max(0, $rowNet - $rowPaid);
-                        $remainingPaid = max(0, $remainingPaid - $rowPaid);
-                    }
+                if ($validPackagesList->isNotEmpty()) {
+                    foreach ($validPackagesList as $pkg) {
+                        $pkgType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? 'Gym-Cardio');
+                        $pkgPlanId = !empty($pkg['plan_id']) ? (int)str_replace('plan-', '', $pkg['plan_id']) : null;
+                        $pkgPrice = (float)($pkg['price'] ?? 0);
+                        $pkgDisc = (float)($pkg['discount'] ?? 0);
+                        if ($pkgDisc === 0.0 && $unallocatedDiscount > 0) {
+                            $pkgDisc = min($pkgPrice, $unallocatedDiscount);
+                            $unallocatedDiscount = max(0, $unallocatedDiscount - $pkgDisc);
+                        }
+                        $rowNet = max(0, $pkgPrice - $pkgDisc);
+                        $grossSum += $pkgPrice;
 
-                    $rowInvStatus = $rowDues > 0 ? 'Pending' : 'Paid';
-                    $rowInvNo = 'INV-' . strtoupper(substr(uniqid(), -6));
-                    if (!$primaryInvoiceNo) {
-                        $primaryInvoiceNo = $rowInvNo;
-                    }
+                        $rowStartDate = !empty($pkg['start_date']) ? \Illuminate\Support\Carbon::parse($pkg['start_date'])->toDateString() : $joinDate;
+                        $rowEndDate = !empty($pkg['end_date']) ? \Illuminate\Support\Carbon::parse($pkg['end_date'])->toDateString() : $expiryDate;
 
-                    $rowStartDate = !empty($pkg['start_date']) ? \Illuminate\Support\Carbon::parse($pkg['start_date'])->toDateString() : $joinDate;
-                    $rowEndDate = !empty($pkg['end_date']) ? \Illuminate\Support\Carbon::parse($pkg['end_date'])->toDateString() : $expiryDate;
+                        if (!$earliestStart || $rowStartDate < $earliestStart) {
+                            $earliestStart = $rowStartDate;
+                        }
+                        if (!$furthestEnd || $rowEndDate > $furthestEnd) {
+                            $furthestEnd = $rowEndDate;
+                        }
 
-                    $invPayload = [
-                        'gym_id' => $gymId,
-                        'invoice_number' => $rowInvNo,
-                        'user_id' => $user->id,
-                        'plan_id' => $pkgPlanId,
-                        'package_type' => $pkgType,
-                        'amount' => $rowPaid,
-                        'date' => now()->toDateString(),
-                        'start_date' => $rowStartDate,
-                        'end_date' => $rowEndDate,
-                        'due_date' => $parsedDueDate,
-                        'payment_method' => $paymentMethod,
-                        'status' => $rowInvStatus,
-                        'created_by' => $creatorId,
-                        'created_by_name' => $creatorName,
-                    ];
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
-                        $invPayload['pending_amount'] = $rowDues;
-                    }
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
-                        $invPayload['total_amount'] = (float)$rowNet;
-                    }
-                    Invoice::create($invPayload);
-
-                    if ($rowPaid > 0) {
-                        RevenueBilling::create([
-                            'gym_id' => $gymId,
-                            'type' => 'inflow',
-                            'reference_no' => $rowInvNo,
-                            'user_id' => $user->id,
-                            'member_name' => $user->name,
+                        $items[] = [
+                            'package_type' => $pkgType,
+                            'packageType' => $pkgType,
                             'plan_id' => $pkgPlanId,
-                            'plan_name' => $pkg['name'] ?? ($pkgType . ' Package'),
-                            'title' => ($pkg['name'] ?? $pkgType) . ($rowDues > 0 ? " (Pending Balance Due: ₹" . number_format($rowDues) . ")" : ""),
-                            'category' => $pkgType === 'Personal Training' ? 'Personal Training' : 'Membership Fee',
-                            'vendor' => null,
-                            'amount' => $rowPaid,
-                            'date' => now()->toDateString(),
-                            'payment_method' => $paymentMethod,
-                            'status' => $rowInvStatus,
-                            'notes' => $rowDues > 0 ? "Initial payment of ₹{$rowPaid} received for {$pkgType}. Balance pending: ₹{$rowDues}" : "Full payment received for {$pkgType} upon registration",
-                            'created_by' => $creatorId,
-                            'created_by_name' => $creatorName,
-                        ]);
+                            'name' => $pkg['name'] ?? ($pkgType . ' Package'),
+                            'price' => $pkgPrice,
+                            'discount' => $pkgDisc,
+                            'net_amount' => $rowNet,
+                            'start_date' => $rowStartDate,
+                            'end_date' => $rowEndDate,
+                            'trainer_id' => $pkg['trainer_id'] ?? null,
+                            'pt_sessions' => (int)($pkg['pt_sessions'] ?? 0),
+                        ];
                     }
-                }
-            } elseif ($receivedAmount > 0 || ($plan && $plan->price > 0)) {
-                // Single-package or legacy flow (identical to before + start_date, end_date, package_type populated)
-                $firstPkg = $validPackagesList->first();
-                $finalAmount = $receivedAmount;
-                $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
-                if ($duesAmount > 0) {
-                    $invoiceTitle .= " (Pending Balance Due: ₹" . number_format($duesAmount) . ")";
+                } else {
+                    $singleType = $plan ? \App\Services\PlanChainingService::normalizePackageType($plan->package_type ?? 'Gym-Cardio') : 'Gym-Cardio';
+                    $singlePrice = (float)($totalBill > 0 ? $totalBill : ($receivedAmount + $duesAmount));
+                    $grossSum = $singlePrice;
+                    $earliestStart = $joinDate;
+                    $furthestEnd = $expiryDate;
+
+                    $items[] = [
+                        'package_type' => $singleType,
+                        'packageType' => $singleType,
+                        'plan_id' => $plan?->id,
+                        'name' => $plan?->name ?? 'Membership',
+                        'price' => $singlePrice,
+                        'discount' => $topDiscount,
+                        'net_amount' => max(0, $singlePrice - $topDiscount),
+                        'start_date' => $joinDate,
+                        'end_date' => $expiryDate,
+                        'trainer_id' => $trainerId,
+                        'pt_sessions' => 0,
+                    ];
                 }
 
-                $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
-                $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
-                $primaryInvoiceNo = $invNo;
+                $invoiceNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+                $primaryInvoiceNo = $invoiceNo;
+                $overallStartDate = $earliestStart ?: $joinDate;
+                $overallEndDate = $furthestEnd ?: $expiryDate;
+                $overallPackageType = $items[0]['package_type'] ?? 'Gym-Cardio';
+                $overallPlanId = $items[0]['plan_id'] ?? $plan?->id;
 
-                $singleStartDate = !empty($firstPkg['start_date']) ? \Illuminate\Support\Carbon::parse($firstPkg['start_date'])->toDateString() : $joinDate;
-                $singleEndDate = !empty($firstPkg['end_date']) ? \Illuminate\Support\Carbon::parse($firstPkg['end_date'])->toDateString() : $expiryDate;
-                $singlePkgType = !empty($firstPkg['package_type'])
-                    ? \App\Services\PlanChainingService::normalizePackageType($firstPkg['package_type'])
-                    : ($plan ? \App\Services\PlanChainingService::normalizePackageType($plan->package_type ?? 'Gym-Cardio') : 'Gym-Cardio');
+                $computedGross = $grossSum;
+                $computedNet = (float)($totalBill > 0 ? $totalBill : max(0, $computedGross - $topDiscount));
+                $invPaid = (float)$receivedAmount;
+                $invDues = (float)$duesAmount;
+                if ($invDues <= 0 && $computedNet > $invPaid) {
+                    $invDues = max(0, $computedNet - $invPaid);
+                }
+                $invStatus = $invDues > 0 ? 'Pending' : 'Paid';
+
+                $invoiceTitle = implode(' + ', array_column($items, 'name')) ?: ($plan?->name ?? 'New Member Registration');
 
                 $invPayload = [
                     'gym_id' => $gymId,
-                    'invoice_number' => $invNo,
+                    'invoice_number' => $invoiceNo,
                     'user_id' => $user->id,
-                    'plan_id' => $plan?->id,
-                    'package_type' => $singlePkgType,
-                    'amount' => $finalAmount,
+                    'plan_id' => $overallPlanId,
+                    'package_type' => $overallPackageType,
+                    'amount' => $invPaid,
                     'date' => now()->toDateString(),
-                    'start_date' => $singleStartDate,
-                    'end_date' => $singleEndDate,
+                    'start_date' => $overallStartDate,
+                    'end_date' => $overallEndDate,
                     'due_date' => $parsedDueDate,
                     'payment_method' => $paymentMethod,
                     'status' => $invStatus,
+                    'invoice_url' => '#',
                     'created_by' => $creatorId,
                     'created_by_name' => $creatorName,
                 ];
-                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
-                    $invPayload['pending_amount'] = $duesAmount;
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'items')) {
+                    $invPayload['items'] = $items;
                 }
                 if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
-                    $invPayload['total_amount'] = (float)($totalBill > 0 ? $totalBill : ($finalAmount + $duesAmount));
+                    $invPayload['total_amount'] = $computedNet;
                 }
-                Invoice::create($invPayload);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                    $invPayload['pending_amount'] = $invDues;
+                }
 
-                RevenueBilling::create([
-                    'gym_id' => $gymId,
-                    'type' => 'inflow',
-                    'reference_no' => $invNo,
-                    'user_id' => $user->id,
-                    'member_name' => $user->name,
-                    'plan_id' => $plan?->id,
-                    'plan_name' => $plan?->name ?? 'Membership',
-                    'title' => $invoiceTitle,
-                    'category' => 'Membership Fee',
-                    'vendor' => null,
-                    'amount' => $finalAmount,
-                    'date' => now()->toDateString(),
-                    'payment_method' => $paymentMethod,
-                    'status' => $invStatus,
-                    'notes' => $duesAmount > 0 ? "Initial payment of ₹{$finalAmount} received. Balance pending: ₹{$duesAmount}" : 'Full payment received upon registration',
-                    'created_by' => $creatorId,
-                    'created_by_name' => $creatorName,
-                ]);
+                $primaryInvoice = Invoice::create($invPayload);
+
+                if ($invPaid > 0) {
+                    RevenueBilling::create([
+                        'gym_id' => $gymId,
+                        'type' => 'inflow',
+                        'reference_no' => $invoiceNo,
+                        'user_id' => $user->id,
+                        'member_name' => $user->name,
+                        'plan_id' => $overallPlanId,
+                        'plan_name' => $invoiceTitle,
+                        'title' => $invoiceTitle . ($invDues > 0 ? " (Pending Balance Due: ₹" . number_format($invDues) . ")" : ""),
+                        'category' => (count($items) === 1 && $overallPackageType === 'Personal Training') ? 'Personal Training' : 'Membership Fee',
+                        'vendor' => null,
+                        'amount' => $invPaid,
+                        'date' => now()->toDateString(),
+                        'payment_method' => $paymentMethod,
+                        'status' => $invStatus,
+                        'notes' => $invDues > 0 ? "Initial payment of ₹{$invPaid} received. Balance pending: ₹{$invDues}" : "Full payment received upon registration",
+                        'created_by' => $creatorId,
+                        'created_by_name' => $creatorName,
+                    ]);
+                }
             }
 
             // Sync member profile expiry date and status with uncancelled invoices
@@ -892,7 +1020,7 @@ class MemberController extends Controller
                 Enquiry::where('id', $cleanEnqId)->delete();
             }
 
-            return [$user, $profile, $qrCode, $primaryInvoiceNo];
+            return [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice];
         });
 
         // 4. Automatically register new member into eSSL Biometric Terminal over LAN
@@ -906,9 +1034,13 @@ class MemberController extends Controller
             \Illuminate\Support\Facades\Log::warning("Auto WhatsApp welcome notification failed for user {$user->id}: " . $e->getMessage());
         }
 
+        $formattedInvoice = $primaryInvoice ? \App\Http\Controllers\Api\InvoiceController::formatInvoiceRecord($primaryInvoice, $creatorName) : null;
+
         return response()->json([
             'success' => true,
             'message' => 'Member registered successfully',
+            'invoice' => $formattedInvoice,
+            'invoiceNumber' => $primaryInvoiceNo,
             'data' => [
                 'id' => 'mem-' . $user->id,
                 'userId' => $user->id,
@@ -943,6 +1075,7 @@ class MemberController extends Controller
                 'totalAmount' => (float)$totalBill,
                 'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
                 'qrPassCode' => $qrCode,
+                'invoice' => $formattedInvoice,
                 'invoiceNumber' => $primaryInvoiceNo,
                 'invoice_number' => $primaryInvoiceNo,
                 'createdBy' => $creatorId,
@@ -965,9 +1098,77 @@ class MemberController extends Controller
         $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
 
         $validator = Validator::make($request->all(), [
+            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'phone' => [
+                'sometimes',
+                'required',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('International phone numbers must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Mobile number must be a valid 10-digit number.');
+                        }
+                    }
+                }
+            ],
+            'emergency_contact' => [
+                'nullable',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    if (empty(trim($value))) return;
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('Emergency contact must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Emergency contact must be a valid 10-digit mobile number.');
+                        }
+                    }
+                }
+            ],
+            'emergencyContact' => [
+                'nullable',
+                'string',
+                'regex:/^(\+?[0-9\s()-]{7,20})$/',
+                function ($attribute, $value, $fail) {
+                    if (empty(trim($value))) return;
+                    $digits = preg_replace('/\D+/', '', $value);
+                    if (str_starts_with(trim($value), '+')) {
+                        if (strlen($digits) < 7 || strlen($digits) > 15) {
+                            $fail('Emergency contact must contain between 7 and 15 digits.');
+                        }
+                    } else {
+                        if (strlen($digits) !== 10) {
+                            $fail('Emergency contact must be a valid 10-digit mobile number.');
+                        }
+                    }
+                }
+            ],
+            'dob' => 'nullable|date|before_or_equal:today',
+            'date_of_birth' => 'nullable|date|before_or_equal:today',
+            'birthdate' => 'nullable|date|before_or_equal:today',
+            'DOB' => 'nullable|date|before_or_equal:today',
             'dues_amount' => 'nullable|numeric|min:0',
             'duesAmount' => 'nullable|numeric|min:0',
         ], [
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'phone.regex' => 'Please enter a valid mobile number with digits only.',
+            'emergency_contact.regex' => 'Emergency contact must be a valid phone number with digits only.',
+            'emergencyContact.regex' => 'Emergency contact must be a valid phone number with digits only.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+            'date_of_birth.before_or_equal' => 'Date of birth cannot be in the future.',
+            'birthdate.before_or_equal' => 'Date of birth cannot be in the future.',
+            'DOB.before_or_equal' => 'Date of birth cannot be in the future.',
             'dues_amount.min' => 'Dues amount cannot be negative.',
             'duesAmount.min' => 'Dues amount cannot be negative.',
         ]);
@@ -1030,11 +1231,16 @@ class MemberController extends Controller
                 $profile->expiry_date = $request->expiry_date ?? $request->expiryDate;
             }
             if ($request->has('status')) {
-                $profile->status = $request->status;
-            }
-            // If status is not explicitly set to Frozen or On Hold, re-evaluate based on expiry_date
-            if (!in_array($profile->status, ['Frozen', 'On Hold']) && $profile->expiry_date) {
-                $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status);
+                $requestedStatus = $request->status;
+                if (in_array($requestedStatus, ['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended', 'Cancelled'])) {
+                    $profile->status = $requestedStatus;
+                } else {
+                    $profile->status = self::computeMemberStatus($profile->expiry_date, 'Active', $profile->join_date);
+                }
+            } else {
+                if (!in_array($profile->status, ['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended', 'Cancelled'])) {
+                    $profile->status = self::computeMemberStatus($profile->expiry_date, $profile->status, $profile->join_date);
+                }
             }
             $rawUpdateDob = $request->dob ?? $request->date_of_birth ?? $request->birthdate ?? $request->DOB;
             if ($rawUpdateDob !== null) {
@@ -1109,7 +1315,20 @@ class MemberController extends Controller
             }
             if ($request->has('due_date') || $request->has('dueDate')) {
                 $rawUpDueDate = $request->due_date ?? $request->dueDate;
-                $profile->due_date = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
+                $newDueDate = $rawUpDueDate ? \Illuminate\Support\Carbon::parse($rawUpDueDate)->toDateString() : null;
+                if ($profile->dues_amount > 0 && $newDueDate) {
+                    $checkStart = $profile->join_date ? ($profile->join_date instanceof \DateTimeInterface ? $profile->join_date->format('Y-m-d') : substr((string)$profile->join_date, 0, 10)) : null;
+                    $checkExpiry = $profile->expiry_date ? ($profile->expiry_date instanceof \DateTimeInterface ? $profile->expiry_date->format('Y-m-d') : substr((string)$profile->expiry_date, 0, 10)) : null;
+                    $upDueError = self::validatePromiseDate($newDueDate, $checkStart, $checkExpiry);
+                    if ($upDueError) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $upDueError,
+                            'errors' => ['due_date' => [$upDueError]]
+                        ], 422);
+                    }
+                }
+                $profile->due_date = $newDueDate;
             }
             $profile->save();
 

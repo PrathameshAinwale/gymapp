@@ -18,6 +18,7 @@ import {
   Filter,
   X
 } from 'lucide-react';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
 import { hasSqlInjection } from '../../utils/validation';
 
@@ -108,10 +109,19 @@ export const EquipmentManager = () => {
     }
   };
 
-  const handleDelete = (item) => {
-    if (window.confirm(`Are you sure you want to remove "${item.name}" from your equipment inventory?`)) {
-      deleteEquipment(item.id);
-      if (addToast) addToast(`Removed "${item.name}" from inventory.`, 'info');
+  const [equipmentToDelete, setEquipmentToDelete] = useState(null);
+  const [isDeletingEquipment, setIsDeletingEquipment] = useState(false);
+
+  const handleConfirmDeleteEquipment = async () => {
+    if (!equipmentToDelete) return;
+    try {
+      setIsDeletingEquipment(true);
+      await deleteEquipment(equipmentToDelete.id);
+      setEquipmentToDelete(null);
+    } catch (err) {
+      console.error('Delete equipment error:', err);
+    } finally {
+      setIsDeletingEquipment(false);
     }
   };
 
@@ -443,7 +453,7 @@ export const EquipmentManager = () => {
                 <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => handleDelete(item)}
+                    onClick={() => setEquipmentToDelete(item)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Remove equipment asset"
                   >
@@ -665,6 +675,21 @@ export const EquipmentManager = () => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(equipmentToDelete)}
+        onClose={() => setEquipmentToDelete(null)}
+        onConfirm={handleConfirmDeleteEquipment}
+        isDeleting={isDeletingEquipment}
+        title="Confirm Deletion"
+        itemType="equipment asset"
+        recordName={equipmentToDelete?.name}
+        message={
+          equipmentToDelete
+            ? `Are you sure you want to remove "${equipmentToDelete.name}" from your equipment inventory? This action may not be reversible.`
+            : 'Are you sure you want to delete this equipment? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

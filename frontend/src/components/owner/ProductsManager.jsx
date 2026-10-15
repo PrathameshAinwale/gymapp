@@ -33,6 +33,7 @@ import {
   Receipt,
   Check
 } from 'lucide-react';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import {
@@ -107,6 +108,22 @@ export const ProductsManager = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    try {
+      setIsDeletingProduct(true);
+      await deleteProduct(productToDelete.id);
+      setProductToDelete(null);
+    } catch (err) {
+      console.error('Delete product error:', err);
+    } finally {
+      setIsDeletingProduct(false);
+    }
+  };
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
@@ -775,7 +792,7 @@ export const ProductsManager = () => {
 
                     <button
                       type="button"
-                      onClick={() => deleteProduct(p.id)}
+                      onClick={() => setProductToDelete(p)}
                       className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-colors cursor-pointer active:scale-95 shrink-0"
                       title="Remove product"
                     >
@@ -1664,6 +1681,21 @@ export const ProductsManager = () => {
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(productToDelete)}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={handleConfirmDeleteProduct}
+        isDeleting={isDeletingProduct}
+        title="Confirm Deletion"
+        itemType="product"
+        recordName={productToDelete?.name}
+        message={
+          productToDelete
+            ? `Are you sure you want to delete product "${productToDelete.name}"? This action may not be reversible.`
+            : 'Are you sure you want to delete this product? This action may not be reversible.'
+        }
+      />
     </div>
   );
 };

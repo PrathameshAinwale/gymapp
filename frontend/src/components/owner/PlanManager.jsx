@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../common/EmptyState';
 import { MembershipPlanModal, PACKAGE_TYPES, normalizePackageType } from '../common/MembershipPlanModal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 
 const safeFeatures = (features) => {
   if (Array.isArray(features)) return features;
@@ -138,13 +139,19 @@ export const PlanManager = () => {
     setIsAddOpen(true);
   };
 
-  const handleDeletePlan = async (plan) => {
-    if (confirm(`Are you sure you want to delete the plan "${plan.name}"? This action cannot be undone.`)) {
-      try {
-        await deletePlan(plan.id);
-      } catch (err) {
-        console.error('Delete plan error:', err);
-      }
+  const [planToDelete, setPlanToDelete] = useState(null);
+  const [isDeletingPlan, setIsDeletingPlan] = useState(false);
+
+  const handleConfirmDeletePlan = async () => {
+    if (!planToDelete) return;
+    try {
+      setIsDeletingPlan(true);
+      await deletePlan(planToDelete.id);
+      setPlanToDelete(null);
+    } catch (err) {
+      console.error('Delete plan error:', err);
+    } finally {
+      setIsDeletingPlan(false);
     }
   };
 
@@ -387,7 +394,7 @@ export const PlanManager = () => {
 
                   <button
                     type="button"
-                    onClick={() => handleDeletePlan(plan)}
+                    onClick={() => setPlanToDelete(plan)}
                     title="Delete Plan"
                     className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 active:scale-95 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
                   >
@@ -415,6 +422,21 @@ export const PlanManager = () => {
           }}
         />
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(planToDelete)}
+        onClose={() => setPlanToDelete(null)}
+        onConfirm={handleConfirmDeletePlan}
+        isDeleting={isDeletingPlan}
+        title="Confirm Deletion"
+        itemType="plan"
+        recordName={planToDelete?.name}
+        message={
+          planToDelete
+            ? `Are you sure you want to delete the plan "${planToDelete.name}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this plan? This action cannot be undone.'
+        }
+      />
     </div>
   );
 };

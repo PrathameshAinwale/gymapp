@@ -54,7 +54,7 @@ class ReportController extends Controller
             $members = MemberProfile::whereHas('user', fn($u) => $u->where('gym_id', $gymId))
                 ->with('user', 'plan')->get();
 
-            $statusGroups = $members->groupBy(fn($m) => MemberController::computeMemberStatus($m->expiry_date, $m->status));
+            $statusGroups = $members->groupBy(fn($m) => MemberController::computeMemberStatus($m->expiry_date, $m->status, $m->join_date));
             $active   = $statusGroups->get('Active', collect())->count();
             $expiring = $statusGroups->get('Expiring Soon', collect())->count();
             $expired  = $statusGroups->get('Expired', collect())->count();

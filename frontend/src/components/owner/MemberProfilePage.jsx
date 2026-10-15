@@ -40,6 +40,23 @@ import { compareInvoicesDesc } from '../../utils/searchUtils';
 import { api } from '../../services/api';
 import { normalizePackageType } from '../common/MembershipPlanModal';
 
+const isFeeOrBalanceItem = (item) => {
+  if (!item) return false;
+  const pkgType = String(item.packageType || item.package_type || item.category || '').toLowerCase();
+  const name = String(item.planName || item.name || item.title || '').toLowerCase();
+  const combo = `${pkgType} ${name}`;
+  return (
+    pkgType === 'due payment' ||
+    pkgType === 'fee payment' ||
+    pkgType === 'membership fee' ||
+    combo.includes('balance due') ||
+    combo.includes('due payment') ||
+    combo.includes('dues payment') ||
+    combo.includes('fee collection') ||
+    combo.includes('membership fee package')
+  );
+};
+
 export const MemberProfilePage = ({
   initialMemberId,
   onBackToDashboard,
@@ -157,12 +174,34 @@ export const MemberProfilePage = ({
     const todayStr = new Date().toISOString().split('T')[0];
     const targetMember = profileData || currentMember;
 
+    const memberStatus = String(targetMember?.status || '').toLowerCase();
+    const expiryStr = (targetMember?.expiryDate || targetMember?.expiry_date || '').split('T')[0];
+    const isMemberExpired = memberStatus === 'expired' || (expiryStr && expiryStr < todayStr);
+
     // If backend provided pre-computed activePlans on member object
     if (targetMember?.activePlans?.length > 0 || targetMember?.upcomingPlans?.length > 0 || targetMember?.expiredPlans?.length > 0) {
+      let active = (targetMember.activePlans || [])
+        .filter(p => !isFeeOrBalanceItem(p) && p.status !== 'Transferred' && p.status !== 'Expired');
+      const upcoming = [...(targetMember.upcomingPlans || [])].filter(p => !isFeeOrBalanceItem(p));
+      const expired = [...(targetMember.expiredPlans || [])].filter(p => !isFeeOrBalanceItem(p));
+
+      // If member overall status is Expired, any Gym-Cardio or expired/transferred plan cannot be active
+      if (isMemberExpired) {
+        const remainingActive = [];
+        active.forEach(p => {
+          if (p.packageType === 'Gym-Cardio' || p.endDate < todayStr || (expiryStr && p.endDate <= expiryStr)) {
+            expired.push({ ...p, status: p.status === 'Transferred' ? 'Transferred' : 'Expired' });
+          } else {
+            remainingActive.push(p);
+          }
+        });
+        active = remainingActive;
+      }
+
       return {
-        active: targetMember.activePlans || [],
-        upcoming: targetMember.upcomingPlans || [],
-        expired: targetMember.expiredPlans || []
+        active,
+        upcoming,
+        expired
       };
     }
 
@@ -171,13 +210,14 @@ export const MemberProfilePage = ({
     const expired = [];
 
     (memberInvoices || []).forEach((inv) => {
-      if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+      if (inv.status === 'Cancelled' || inv.status === 'Refunded' || inv.status === 'Transferred' || isFeeOrBalanceItem(inv)) return;
 
       const itemsToProcess = Array.isArray(inv.packages) && inv.packages.length > 0
         ? inv.packages
         : [inv];
 
       itemsToProcess.forEach((itemRow) => {
+        if (itemRow.status === 'Transferred' || itemRow.status === 'Cancelled' || itemRow.status === 'Refunded' || isFeeOrBalanceItem(itemRow)) return;
         let rawType = itemRow.packageType || itemRow.package_type || itemRow.category || inv.packageType || inv.package_type || inv.category;
         const itemName = itemRow.name || itemRow.planName || itemRow.plan_name || itemRow.title || inv.planName || inv.plan_name || inv.title || '';
         if (!rawType && itemName) {
@@ -215,7 +255,7 @@ export const MemberProfilePage = ({
         if (startStr && startStr > todayStr) {
           planItem.status = 'Upcoming';
           upcoming.push(planItem);
-        } else if (endStr < todayStr) {
+        } else if (endStr < todayStr || (isMemberExpired && (type === 'Gym-Cardio' || (expiryStr && endStr <= expiryStr)))) {
           planItem.status = 'Expired';
           expired.push(planItem);
         } else {
@@ -235,9 +275,9 @@ export const MemberProfilePage = ({
         planName: targetMember.planName || targetMember.plan_name || 'Gym Membership',
         startDate: start,
         endDate: exp,
-        status: exp >= todayStr ? 'Active' : 'Expired'
+        status: (exp >= todayStr && !isMemberExpired) ? 'Active' : 'Expired'
       };
-      if (exp >= todayStr) {
+      if (exp >= todayStr && !isMemberExpired) {
         activeMap['Gym-Cardio'] = fallbackItem;
       } else {
         expired.push(fallbackItem);
@@ -442,7 +482,7 @@ export const MemberProfilePage = ({
             <div className="w-full mt-5 space-y-2">
               {currentMember.phone && (
                 <a
-                  href={getWhatsAppUrl(currentMember.phone, `Hi ${currentMember.name}, greetings from ${gymInfo?.name || 'ArchFit'}!`)}
+                  href={getWhatsAppUrl(currentMember.phone, `Hi ${currentMember.name}, greetings from ${gymInfo?.name || 'our Gym'}!`)}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"

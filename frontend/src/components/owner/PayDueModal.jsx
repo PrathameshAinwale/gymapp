@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { api } from '../../services/api';
+import { calculateMaxPromiseDate, validatePromiseDate, formatDateDisplay } from '../../utils/dateUtils';
 import {
   CreditCard,
   CheckCircle2,
@@ -25,6 +26,7 @@ export const PayDueModal = ({
   const { currentUser } = useAuth();
   const {
     updateMember,
+    members = [],
     invoices = [],
     fetchMembers,
     fetchInvoices,
@@ -42,7 +44,11 @@ export const PayDueModal = ({
       m.pendingAmount,
       m.pending_amount,
       m.dueAmount,
-      m.due_amount
+      m.due_amount,
+      m.totalPending,
+      m.total_pending,
+      m.invoice?.pendingAmount,
+      m.invoice?.duesAmount
     ];
     for (const f of directFields) {
       if (f !== undefined && f !== null && f !== '') {
@@ -50,6 +56,53 @@ export const PayDueModal = ({
         if (!isNaN(num) && num > 0) return num;
       }
     }
+
+    const cleanId = (v) => String(v || '').replace(/\D/g, '');
+    const targetCleanId = cleanId(m.id || m.userId || m.memberId || m.memberKey);
+    const targetPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
+    const targetName = (m.name || '').trim().toLowerCase();
+
+    // Check members list from context
+    if (Array.isArray(members) && members.length > 0) {
+      const foundMember = members.find((mem) => {
+        const memCleanId = cleanId(mem.id || mem.userId || mem.user_id);
+        if (targetCleanId && memCleanId && targetCleanId === memCleanId) return true;
+        if (targetPhone && mem.phone && String(mem.phone).replace(/\D/g, '').slice(-10) === targetPhone) return true;
+        if (targetName && mem.name && mem.name.trim().toLowerCase() === targetName) return true;
+        return false;
+      });
+
+      if (foundMember) {
+        const memberDues = [
+          foundMember.duesAmount,
+          foundMember.dues_amount,
+          foundMember.balanceDue,
+          foundMember.balance_due,
+          foundMember.pendingAmount,
+          foundMember.pending_amount
+        ];
+        for (const f of memberDues) {
+          if (f !== undefined && f !== null && f !== '') {
+            const num = parseFloat(String(f).replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+      }
+    }
+
+    // Fallback: check uncancelled invoices for this member in context
+    if (Array.isArray(invoices) && targetCleanId) {
+      let pendingSum = 0;
+      invoices.forEach((inv) => {
+        const invMemId = cleanId(inv.userId || inv.user_id || inv.memberId || inv.member_id);
+        if (targetCleanId === invMemId && inv.status !== 'Cancelled') {
+          const invPending = Number(inv.pendingAmount ?? inv.duesAmount ?? (inv.status === 'Pending' ? inv.amount : 0));
+          if (invPending > 0) pendingSum += invPending;
+        }
+      });
+      if (pendingSum > 0) return pendingSum;
+    }
+
     return 0;
   };
 
@@ -64,6 +117,21 @@ export const PayDueModal = ({
   const [nextDueDate, setNextDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [handledByName, setHandledByName] = useState(defaultCollectorName);
+
+  // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
+  const memberStartDate = member?.startDate || member?.start_date || member?.joinDate || member?.join_date || new Date().toISOString().split('T')[0];
+  const memberExpiryDate = member?.expiryDate || member?.expiry_date || member?.endDate || member?.end_date || '';
+  const minDuePromiseDate = memberStartDate;
+  const maxDuePromiseDate = useMemo(() => calculateMaxPromiseDate(memberExpiryDate), [memberExpiryDate]);
+
+  useEffect(() => {
+    if (nextDueDate && memberStartDate && memberExpiryDate) {
+      const res = validatePromiseDate(nextDueDate, memberStartDate, memberExpiryDate);
+      if (!res.isValid) {
+        setNextDueDate('');
+      }
+    }
+  }, [memberStartDate, memberExpiryDate]);
 
   useEffect(() => {
     if (currentUser?.name && !handledByName) {
@@ -167,16 +235,25 @@ export const PayDueModal = ({
       return;
     }
 
-    if (remainingDue > 0 && !nextDueDate) {
-      addToast('Please select the promised date when the remaining balance will be paid.', 'error');
-      return;
+    if (remainingDue > 0) {
+      if (!nextDueDate) {
+        addToast('Please select the promised date when the remaining balance will be paid.', 'error');
+        return;
+      }
+      const dueCheck = validatePromiseDate(nextDueDate, memberStartDate, memberExpiryDate);
+      if (!dueCheck.isValid) {
+        addToast(dueCheck.error, 'error');
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
-      const cleanUserId = typeof member?.id === 'string'
-        ? parseInt(member.id.replace(/\D/g, ''), 10) || 1
-        : Number(member?.id) || 1;
+      const rawId = member?.id || member?.userId || member?.memberId || member?.memberKey;
+      const cleanUserId = typeof rawId === 'string'
+        ? parseInt(rawId.replace(/\D/g, ''), 10) || 1
+        : Number(rawId) || 1;
+      const targetMemberId = member?.id || member?.memberId || `mem-${cleanUserId}`;
 
       const invoiceTitle = `Balance Due Payment - ${member.planName || 'Gym Membership'}`;
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
@@ -185,11 +262,12 @@ export const PayDueModal = ({
       if (api.revenueBilling?.addInflow) {
         await api.revenueBilling.addInflow({
           user_id: cleanUserId,
-          memberId: member.id,
+          memberId: targetMemberId,
           member_name: member.name,
           plan_name: invoiceTitle,
           title: `${member.name} - ${invoiceTitle}`,
-          category: 'Membership Fee',
+          category: 'Due Payment',
+          package_type: 'Due Payment',
           amount: paidNow,
           total_amount: totalDue,
           dues_amount: remainingDue,
@@ -206,12 +284,13 @@ export const PayDueModal = ({
 
       // 2. Clear or update any matching pending invoices for this member
       if (Array.isArray(invoices) && invoices.length > 0 && api.invoices?.update) {
-        const cleanMemIdStr = String(member.id || member.userId || '').replace(/\D/g, '');
+        const cleanMemIdStr = String(rawId || '').replace(/\D/g, '');
         const matchingPendingInvoices = invoices.filter((inv) => {
+          if (member.invoiceId && (String(inv.id) === String(member.invoiceId) || String(inv.invoiceNumber) === String(member.invoiceId))) return true;
           if (String(inv.status).toLowerCase() === 'paid') return false;
           const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
           if (cleanMemIdStr && invMemId && cleanMemIdStr === invMemId) return true;
-          if (inv.memberId && String(inv.memberId) === String(member.id)) return true;
+          if (inv.memberId && String(inv.memberId) === String(targetMemberId)) return true;
           if (member.email && inv.memberEmail && inv.memberEmail.toLowerCase() === member.email.toLowerCase()) return true;
           if (member.name && inv.memberName && inv.memberName.toLowerCase().trim() === member.name.toLowerCase().trim()) return true;
           return false;
@@ -235,8 +314,9 @@ export const PayDueModal = ({
 
       // 3. Update Member profile dues in state & DB
       if (updateMember) {
-        await updateMember(member.id, {
+        await updateMember(targetMemberId, {
           ...member,
+          id: targetMemberId,
           duesAmount: remainingDue,
           dues_amount: remainingDue,
           balanceDue: remainingDue,
@@ -480,11 +560,18 @@ export const PayDueModal = ({
                     type="date"
                     required
                     value={nextDueDate}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={minDuePromiseDate}
+                    max={maxDuePromiseDate}
                     onChange={(e) => setNextDueDate(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                   />
                 </div>
+                {memberExpiryDate && (
+                  <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                    <span>Permitted: {formatDateDisplay(minDuePromiseDate)} to {formatDateDisplay(maxDuePromiseDate)}</span>
+                    <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
+                  </div>
+                )}
               </div>
             </div>
 

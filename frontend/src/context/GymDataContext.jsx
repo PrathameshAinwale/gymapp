@@ -2,38 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
 import { useToastActions, useToasts } from './ToastContext';
-import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate, calculatePlanExpiryDate } from '../utils/dateUtils';
+import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate, calculatePlanExpiryDate, calculateMemberStatus } from '../utils/dateUtils';
 import { compareInvoicesDesc } from '../utils/searchUtils';
+import { mapInvoiceRecord } from '../utils/invoiceMapper';
+
+export { calculateMemberStatus };
 
 const GymDataContext = createContext(null);
-
-export const calculateMemberStatus = (expiryDate, currentStatus = 'Active') => {
-  if (currentStatus === 'Frozen' || currentStatus === 'Frozen (Paused)' || currentStatus === 'On Hold' || currentStatus === 'Expired') return currentStatus;
-  if (!expiryDate) return (currentStatus && currentStatus !== 'Active') ? currentStatus : 'Unassigned';
-
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const exp = new Date(expiryDate);
-    exp.setHours(0, 0, 0, 0);
-
-    if (isNaN(exp.getTime())) return currentStatus || 'Active';
-
-    const diffTime = exp.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return 'Expired';
-    } else if (diffDays <= 10) {
-      return 'Expiring Soon';
-    } else {
-      return 'Active';
-    }
-  } catch {
-    return currentStatus || 'Active';
-  }
-};
 
 export const getExpiryDaysDiff = (expiryDate) => {
   if (!expiryDate) return null;
@@ -62,7 +37,7 @@ const SEED_PLANS = [
     features: [
       "Access to all cardio & strength training zones",
       "Locker, steam room & shower facilities",
-      "ArchFit Mobile App QR Turnstile Pass",
+      "Mobile App QR Turnstile Pass",
       "1 Initial InBody body composition scan"
     ],
     activeSubscribers: 142
@@ -115,7 +90,7 @@ const SEED_PLANS = [
       "24/7 VIP Gym floor, Lounge & Steam access",
       "Weekly 1-on-1 Personal Training Session",
       "Customized Indian Vegetarian / Non-Veg Macro Diet",
-      "Free ArchFit Athlete Kit (Duffel Bag, Shaker & Towel)",
+      "Free Athlete Kit (Duffel Bag, Shaker & Towel)",
       "Complimentary Post-Workout Protein Shakes"
     ],
     activeSubscribers: 94
@@ -446,7 +421,7 @@ const SEED_ENQUIRIES = [
 const SEED_PRODUCTS = [
   { id: "prd-1", numericId: 1, name: "Optimum Nutrition Gold Standard 100% Whey (5 lbs)", category: "Supplements", price: 6899, costPrice: 5200, stock: 18, minStockAlert: 5, status: "In Stock", image: "" },
   { id: "prd-2", numericId: 2, name: "MuscleBlaze Micronized Creatine Monohydrate (250g)", category: "Supplements", price: 999, costPrice: 650, stock: 26, minStockAlert: 5, status: "In Stock", image: "" },
-  { id: "prd-3", numericId: 3, name: "ArchFit Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "" },
+  { id: "prd-3", numericId: 3, name: "Pro Athlete Performance Kit (Duffel + Shaker)", category: "Merchandise", price: 1499, costPrice: 800, stock: 45, minStockAlert: 10, status: "In Stock", image: "" },
   { id: "prd-4", numericId: 4, name: "Cellucor C4 Original Pre-Workout (30 Servings)", category: "Supplements", price: 2399, costPrice: 1700, stock: 14, minStockAlert: 5, status: "In Stock", image: "" },
   { id: "prd-5", numericId: 5, name: "Raw Electrolyte & Hydration Drink (500ml)", category: "Beverages", price: 120, costPrice: 75, stock: 60, minStockAlert: 15, status: "In Stock", image: "" }
 ];
@@ -454,7 +429,7 @@ const SEED_PRODUCTS = [
 const SEED_EXPENSES = [
   { id: "exp-1", title: "Facility Commercial Lease - Powai Club", category: "Rent", vendor: "Hiranandani Realtors Pvt Ltd", amount: 120000, date: "2026-08-01", paymentMode: "Bank Transfer", refNo: "LEASE-AUG-2026", notes: "Monthly commercial premises rent." },
   { id: "exp-2", title: "Adani Electricity Powai HT Commercial", category: "Utilities", vendor: "Adani Electricity Mumbai Ltd", amount: 45000, date: "2026-08-05", paymentMode: "UPI", refNo: "BILL-AUG-9912", notes: "HVAC central cooling & power." },
-  { id: "exp-3", title: "Trainer & Staff Commissions Payout", category: "Salaries", vendor: "ArchFit Payroll Disbursement", amount: 48000, date: "2026-08-07", paymentMode: "Bank Transfer", refNo: "SAL-AUG-01", notes: "Trainer commissions & staff." },
+  { id: "exp-3", title: "Trainer & Staff Commissions Payout", category: "Salaries", vendor: "Payroll Disbursement", amount: 48000, date: "2026-08-07", paymentMode: "Bank Transfer", refNo: "SAL-AUG-01", notes: "Trainer commissions & staff." },
   { id: "exp-4", title: "Life Fitness & Technogym AMC Inspection", category: "Equipment AMC", vendor: "Fitness World Services Mumbai", amount: 14500, date: "2026-08-10", paymentMode: "Card", refNo: "AMC-Q3-004", notes: "Quarterly cable & belt lubrication." }
 ];
 
@@ -801,7 +776,7 @@ export const GymDataProvider = ({ children }) => {
       if (Array.isArray(res?.data)) {
         const synced = res.data.map((m) => ({
           ...m,
-          status: calculateMemberStatus(m.expiryDate, m.status)
+          status: calculateMemberStatus(m.expiryDate, m.status, m.joinDate || m.startDate)
         }));
         setMembers(synced);
         return synced;
@@ -927,7 +902,7 @@ export const GymDataProvider = ({ children }) => {
         ? await api.revenueBilling.getInflows({ gym_id: activeGym })
         : await api.invoices.getAll({ gym_id: activeGym });
       if (Array.isArray(res?.data)) {
-        const sorted = [...res.data].sort(compareInvoicesDesc);
+        const sorted = res.data.map(mapInvoiceRecord).filter(Boolean).sort(compareInvoicesDesc);
         setInvoices(sorted);
         if (typeof window !== 'undefined') {
           localStorage.setItem(`pulsefit_invoices_${activeGym || 'default'}`, JSON.stringify(sorted));
@@ -1114,6 +1089,10 @@ export const GymDataProvider = ({ children }) => {
               deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || prev?.deviceIp || '192.168.1.201',
               devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || prev?.devicePort || 4370,
               payrollAttendanceSettings: res.data.payrollAttendanceSettings || res.data.payroll_attendance_settings || prev?.payrollAttendanceSettings || null,
+              taxRate: res.data.taxRate ?? res.data.tax_rate ?? prev?.taxRate ?? 18,
+              tax_rate: res.data.tax_rate ?? res.data.taxRate ?? prev?.tax_rate ?? 18,
+              gstin: res.data.gstin || res.data.gst_number || res.data.gstNumber || prev?.gstin || '',
+              gst_number: res.data.gst_number || res.data.gstin || res.data.gstNumber || prev?.gst_number || '',
             };
             return cleanInfo;
           });
@@ -1772,10 +1751,28 @@ export const GymDataProvider = ({ children }) => {
   const addMember = useCallback(async (newMemberData, options = {}) => {
     try {
       const res = await api.members.create(newMemberData);
-      if (res.success && res.data) {
+      if (res._migration_needed || !res.success) {
+        throw new Error(res?.message || 'Database migration required on backend server');
+      }
+      if (Array.isArray(res.data) && res.data.length === 0 && !res.member) {
+        throw new Error(res?.message || 'Failed to register member on backend server');
+      }
+
+      if (res.success && (res.data || res.member)) {
+        const memberObj = res.data?.member || res.data?.data || res.data || res.member || {};
+        const memberName = memberObj.name || res.data?.name || res.member?.name || newMemberData?.name || 'Member';
+        const memberId = memberObj.id || res.data?.id || (memberObj.userId ? `mem-${memberObj.userId}` : (res.data?.userId ? `mem-${res.data.userId}` : undefined));
+
+        const normalizedMember = {
+          ...res.data,
+          ...memberObj,
+          name: memberName,
+          ...(memberId ? { id: memberId } : {}),
+        };
+
         setMembers((prev) => [
-          res.data,
-          ...prev.filter((m) => m.id !== res.data.id && m.userId !== res.data.userId)
+          normalizedMember,
+          ...prev.filter((m) => m.id !== normalizedMember.id && m.userId !== normalizedMember.userId)
         ]);
         await fetchMembers();
         await fetchInvoices();
@@ -1784,9 +1781,9 @@ export const GymDataProvider = ({ children }) => {
         fetchWhatsAppTriggers?.();
         fetchWhatsAppStats?.();
         if (!options?.silent) {
-          addToast(`Member "${res.data.name}" registered successfully!`, 'success');
+          addToast(`Member "${memberName}" registered successfully!`, 'success');
         }
-        return res.data;
+        return normalizedMember;
       }
       throw new Error(res?.message || 'Failed to register member on backend server');
     } catch (e) {
@@ -1808,7 +1805,11 @@ export const GymDataProvider = ({ children }) => {
     }
 
     const calculatedStatus = (updatedData.expiryDate || updatedData.expiry_date)
-      ? calculateMemberStatus(updatedData.expiryDate || updatedData.expiry_date, updatedData.status)
+      ? calculateMemberStatus(
+          updatedData.expiryDate || updatedData.expiry_date,
+          updatedData.status,
+          updatedData.joinDate || updatedData.join_date
+        )
       : updatedData.status;
 
     setMembers((prev) =>
@@ -1821,7 +1822,9 @@ export const GymDataProvider = ({ children }) => {
 
   const deleteMember = useCallback(async (id) => {
     let deletedName = id;
+    let previousMembers = null;
     setMembers((prev) => {
+      previousMembers = prev;
       const found = prev.find((m) => m.id === id);
       if (found?.name) deletedName = found.name;
       return prev.filter((m) => m.id !== id);
@@ -1831,11 +1834,13 @@ export const GymDataProvider = ({ children }) => {
       await api.members.delete(id);
       fetchWhatsAppTriggers?.();
       fetchWhatsAppStats?.();
+      addToast(`Member "${deletedName}" removed`, 'info');
     } catch (e) {
-      console.warn('Backend delete member fallback:', e.message);
+      console.warn('Backend delete member error:', e.message);
+      if (previousMembers) setMembers(previousMembers);
+      addToast(`Failed to delete member: ${e.message}`, 'error');
+      throw e;
     }
-
-    addToast(`Member "${deletedName}" removed`, 'info');
   }, [fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
   const renewMemberPlan = useCallback(async (memberId, planId) => {
@@ -2241,11 +2246,13 @@ export const GymDataProvider = ({ children }) => {
   const deletePlan = useCallback(async (id) => {
     try {
       await api.plans.delete(id);
+      setPlans((prev) => prev.filter((p) => p.id !== id));
+      addToast(`Plan package removed from active memberships.`, 'info');
     } catch (e) {
-      console.warn('Backend delete plan fallback:', e.message);
+      console.warn('Backend delete plan error:', e.message);
+      addToast(`Failed to delete plan: ${e.message}`, 'error');
+      throw e;
     }
-    setPlans((prev) => prev.filter((p) => p.id !== id));
-    addToast(`Plan package removed from active memberships.`);
   }, [addToast]);
 
   // EQUIPMENT ACTIONS
@@ -2285,11 +2292,13 @@ export const GymDataProvider = ({ children }) => {
   const deleteEquipment = useCallback(async (id) => {
     try {
       await api.equipment.delete(id);
+      setEquipment((prev) => prev.filter((item) => item.id !== id));
+      addToast('Equipment record removed', 'info');
     } catch (e) {
-      console.warn('Backend delete equipment fallback:', e.message);
+      console.warn('Backend delete equipment error:', e.message);
+      addToast(`Failed to delete equipment: ${e.message}`, 'error');
+      throw e;
     }
-    setEquipment((prev) => prev.filter((item) => item.id !== id));
-    addToast('Equipment record removed', 'info');
   }, [addToast]);
 
   // ATTENDANCE & QR CHECK-IN
@@ -2486,17 +2495,28 @@ export const GymDataProvider = ({ children }) => {
   };
 
   const deleteClass = async (id) => {
+    let previousClasses = null;
+    let deletedName = id;
     setClasses((prev) => {
+      previousClasses = prev;
+      const found = prev.find((c) => c.id === id || c.numericId === id);
+      if (found?.name || found?.title) deletedName = found.name || found.title;
       const updated = prev.filter((c) => c.id !== id && c.numericId !== id);
       localStorage.setItem('pulsefit_classes', JSON.stringify(updated));
       return updated;
     });
     try {
       await api.classes.delete(id);
+      addToast(`Class "${deletedName}" removed from schedule`, 'info');
     } catch (err) {
       console.warn('Class deletion sync error:', err.message);
+      if (previousClasses) {
+        setClasses(previousClasses);
+        localStorage.setItem('pulsefit_classes', JSON.stringify(previousClasses));
+      }
+      addToast(`Failed to delete class: ${err.message}`, 'error');
+      throw err;
     }
-    addToast('Class removed from schedule');
   };
 
   // WORKOUT & DIET ACTIONS
@@ -2621,7 +2641,7 @@ export const GymDataProvider = ({ children }) => {
       }
     } catch (err) {
       console.warn('Enquiry create sync error:', err.message);
-      addToast(`Error saving enquiry: ${err.message}`, 'error');
+      addToast(err?.message || 'Failed to save enquiry', 'error');
       throw err;
     }
   };
@@ -2737,13 +2757,23 @@ export const GymDataProvider = ({ children }) => {
   };
 
   const deleteProduct = async (id) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    let previousProducts = null;
+    let deletedName = id;
+    setProducts((prev) => {
+      previousProducts = prev;
+      const found = prev.find((p) => p.id === id);
+      if (found?.name) deletedName = found.name;
+      return prev.filter((p) => p.id !== id);
+    });
     try {
       await api.products.delete(id);
+      addToast(`Product "${deletedName}" removed from database`, 'info');
     } catch (err) {
       console.warn('Product delete sync error:', err.message);
+      if (previousProducts) setProducts(previousProducts);
+      addToast(`Failed to delete product: ${err.message}`, 'error');
+      throw err;
     }
-    addToast('Product removed from database', 'info');
   };
 
   const recordProductSale = async ({
