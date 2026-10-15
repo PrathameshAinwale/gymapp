@@ -51,7 +51,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
     } catch (err) {
       const msg = err.message || '';
       if (msg.includes('aborted') || msg.includes('Failed to fetch') || msg.includes('Network error') || msg.includes('Load failed')) {
-        setError('Unable to reach backend server (127.0.0.1:8000). Please ensure Laravel server is running: php artisan serve');
+        setError('Unable to reach backend server. Please ensure Laravel server is running: php artisan serve');
       } else {
         setError(msg || 'Invalid Superadmin credentials. Please verify your email and password.');
       }

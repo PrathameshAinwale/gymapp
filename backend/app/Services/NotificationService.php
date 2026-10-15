@@ -25,7 +25,7 @@ class NotificationService
         // Fetch already read reference IDs for this staff user today in IST
         $readReferenceIds = NotificationRead::where('gym_id', $gymId)
             ->where('user_id', $userId)
-            ->where('read_date', $today)
+            ->whereDate('read_date', $today)
             ->pluck('reference_id')
             ->flip()
             ->all();
@@ -79,7 +79,7 @@ class NotificationService
             ->where('gym_id', $gymId)
             ->where('pending_amount', '>', 0)
             ->whereNotNull('due_date')
-            ->where('due_date', '<=', $maxDueDate)
+            ->whereDate('due_date', '<=', $maxDueDate)
             ->whereNotIn('status', ['Cancelled', 'Refunded'])
             ->orderBy('due_date', 'asc')
             ->get();
@@ -133,8 +133,8 @@ class NotificationService
         $candidateInvoices = Invoice::with(['user.memberProfile', 'plan'])
             ->where('gym_id', $gymId)
             ->whereNotNull('end_date')
-            ->where('end_date', '>=', $today)
-            ->where('end_date', '<=', $maxExpiringDate)
+            ->whereDate('end_date', '>=', $today)
+            ->whereDate('end_date', '<=', $maxExpiringDate)
             ->whereNotIn('status', ['Cancelled', 'Refunded'])
             ->whereHas('user', function ($q) {
                 $q->where('role', 'member')
@@ -154,7 +154,7 @@ class NotificationService
         if (!empty($candidateUserIds)) {
             $laterInvoices = Invoice::where('gym_id', $gymId)
                 ->whereIn('user_id', $candidateUserIds)
-                ->where('end_date', '>', $maxExpiringDate)
+                ->whereDate('end_date', '>', $maxExpiringDate)
                 ->whereNotIn('status', ['Cancelled', 'Refunded'])
                 ->get();
 

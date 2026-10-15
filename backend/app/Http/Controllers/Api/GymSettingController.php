@@ -65,9 +65,14 @@ class GymSettingController extends Controller
                     }
                 }
 
+                $owner = \App\Models\User::where('gym_id', $gym->id)->where('role', 'owner')->first();
+                $ownerName = $owner?->name ?? '';
+
                 return [
                     'id' => $gym->id,
                     'name' => $gym->name ?? '',
+                    'ownerName' => $ownerName,
+                    'owner_name' => $ownerName,
                     'tagline' => $gym->tagline ?? '',
                     'logo' => $gym->logo ?? '',
                     'address' => $gym->address ?? '',
@@ -80,6 +85,20 @@ class GymSettingController extends Controller
                     'operatingHours' => $gym->operating_hours ?? '',
                     'currency' => $gym->currency ?? 'â‚¹',
                     'gstNumber' => $gym->gst_number ?? '',
+                    'gstin' => $gym->gst_number ?? '',
+                    'gst_number' => $gym->gst_number ?? '',
+                    'upiId' => $gym->upi_id ?? '',
+                    'upi_id' => $gym->upi_id ?? '',
+                    'bankDetails' => $gym->bank_details ?? '',
+                    'bank_details' => $gym->bank_details ?? '',
+                    'termsAndConditions' => $gym->terms_and_conditions ?? '',
+                    'terms_and_conditions' => $gym->terms_and_conditions ?? '',
+                    'footerText' => $gym->footer_text ?? '',
+                    'footer_text' => $gym->footer_text ?? '',
+                    'signatoryText' => $gym->signatory_text ?? '',
+                    'signatory_text' => $gym->signatory_text ?? '',
+                    'taxRate' => (int)($gym->tax_rate ?? 18),
+                    'tax_rate' => (int)($gym->tax_rate ?? 18),
                     'package' => $packageTier,
                     'packageTier' => $packageTier,
                     'package_tier' => $packageTier,
@@ -183,7 +202,29 @@ class GymSettingController extends Controller
             if (($request->has('operatingHours') || $request->has('operating_hours')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'operating_hours')) {
                 $gym->operating_hours = $request->input('operatingHours') ?? $request->input('operating_hours') ?: null;
             }
-            if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: 'â‚¹';
+            if ($request->has('currency') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'currency')) $gym->currency = $request->input('currency') ?: '₹';
+            if ($request->has('website') && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'website')) $gym->website = $request->input('website') ?: null;
+            if (($request->has('gstNumber') || $request->has('gst_number') || $request->has('gstin')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'gst_number')) {
+                $gym->gst_number = $request->input('gstNumber') ?? $request->input('gst_number') ?? $request->input('gstin') ?: null;
+            }
+            if (($request->has('upiId') || $request->has('upi_id')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'upi_id')) {
+                $gym->upi_id = $request->input('upiId') ?? $request->input('upi_id') ?: null;
+            }
+            if (($request->has('bankDetails') || $request->has('bank_details')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'bank_details')) {
+                $gym->bank_details = $request->input('bankDetails') ?? $request->input('bank_details') ?: null;
+            }
+            if (($request->has('termsAndConditions') || $request->has('terms_and_conditions') || $request->has('terms')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'terms_and_conditions')) {
+                $gym->terms_and_conditions = $request->input('termsAndConditions') ?? $request->input('terms_and_conditions') ?? $request->input('terms') ?: null;
+            }
+            if (($request->has('footerText') || $request->has('footer_text')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'footer_text')) {
+                $gym->footer_text = $request->input('footerText') ?? $request->input('footer_text') ?: null;
+            }
+            if (($request->has('signatoryText') || $request->has('signatory_text')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'signatory_text')) {
+                $gym->signatory_text = $request->input('signatoryText') ?? $request->input('signatory_text') ?: null;
+            }
+            if (($request->has('taxRate') || $request->has('tax_rate')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'tax_rate')) {
+                $gym->tax_rate = (int)($request->input('taxRate') ?? $request->input('tax_rate') ?? 18);
+            }
             if (($request->has('payrollAttendanceSettings') || $request->has('payroll_attendance_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'payroll_attendance_settings')) {
                 $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
                 $gym->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;

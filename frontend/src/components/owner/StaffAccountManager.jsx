@@ -266,23 +266,63 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     address: ''
   });
 
-  // Handle file uploads to base64
-  const handleFileUpload = (e, field, isEdit = false) => {
+  // Compress image file to reasonable dimensions (~800px) and quality (0.7) to prevent network aborts and quota errors
+  const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
+    return new Promise((resolve) => {
+      if (!file || !file.type.startsWith('image/')) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(e.target?.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle file uploads with automatic compression
+  const handleFileUpload = async (e, field, isEdit = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      addToast('Image size must be less than 5MB', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('Document size must be less than 10MB', 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
+    const compressedDataUrl = await compressImageFile(file);
+    if (compressedDataUrl) {
       if (isEdit) {
-        setEditFormData((prev) => ({ ...prev, [field]: reader.result }));
+        setEditFormData((prev) => ({ ...prev, [field]: compressedDataUrl }));
       } else {
-        setFormData((prev) => ({ ...prev, [field]: reader.result }));
+        setFormData((prev) => ({ ...prev, [field]: compressedDataUrl }));
       }
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Merge database staff accounts with auth accounts, strictly isolated to active gym

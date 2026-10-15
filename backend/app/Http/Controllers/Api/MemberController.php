@@ -103,7 +103,7 @@ class MemberController extends Controller
         } else {
             $query->where('gym_id', $gymId);
         }
-        $query->with(['memberProfile.plan', 'memberProfile.trainer']);
+        $query->with(['memberProfile.plan', 'memberProfile.trainer', 'invoices.plan']);
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -159,6 +159,7 @@ class MemberController extends Controller
 
         $members = $query->latest()->get()->map(function ($user) {
             $profile = $user->memberProfile;
+            $breakdown = \App\Services\PlanChainingService::getMemberPlansBreakdown($user);
             return [
                 'id' => 'mem-' . $user->id,
                 'userId' => $user->id,
@@ -194,6 +195,9 @@ class MemberController extends Controller
                 'duesAmount' => $profile?->dues_amount ?? 0,
                 'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
                 'lastCheckIn' => $profile?->last_check_in ? $profile->last_check_in->diffForHumans() : 'Never',
+                'activePlans' => $breakdown['activePlans'] ?? [],
+                'upcomingPlans' => $breakdown['upcomingPlans'] ?? [],
+                'expiredPlans' => $breakdown['expiredPlans'] ?? [],
             ];
         });
 
@@ -212,6 +216,7 @@ class MemberController extends Controller
             ->findOrFail($numericId);
 
         $profile = $user->memberProfile;
+        $plansBreakdown = \App\Services\PlanChainingService::getMemberPlansBreakdown($user);
 
         return response()->json([
             'success' => true,
@@ -252,7 +257,17 @@ class MemberController extends Controller
                 'workoutPlan' => $user->workoutPlans->sortByDesc('created_at')->first(),
                 'dietPlan' => $user->dietPlans->sortByDesc('created_at')->first(),
                 'bodyMetrics' => $user->bodyMetrics->sortByDesc('created_at')->values(),
-                'invoices' => $user->invoices->sortByDesc('created_at')->values(),
+                'activePlans' => $plansBreakdown['activePlans'],
+                'upcomingPlans' => $plansBreakdown['upcomingPlans'],
+                'expiredPlans' => $plansBreakdown['expiredPlans'],
+                'invoices' => $user->invoices->sortByDesc('created_at')->map(function ($inv) use ($user) {
+                    $creatorName = $inv->created_by_name ?: ($inv->creator?->name ?: (\App\Models\User::where('gym_id', $user->gym_id)->where('role', 'owner')->value('name') ?: 'Staff'));
+                    $arr = $inv->toArray();
+                    $arr['createdByName'] = $creatorName;
+                    $arr['created_by_name'] = $creatorName;
+                    $arr['executive'] = $creatorName;
+                    return $arr;
+                })->values(),
             ]
         ]);
     }
@@ -298,6 +313,13 @@ class MemberController extends Controller
             'discount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'discountAmount' => 'nullable|numeric|min:0',
+            'packages' => 'nullable|array',
+            'packages.*.package_type' => 'nullable|string',
+            'packages.*.plan_id' => 'nullable',
+            'packages.*.start_date' => 'nullable|date',
+            'packages.*.end_date' => 'nullable|date',
+            'packages.*.price' => 'nullable|numeric|min:0',
+            'packages.*.discount' => 'nullable|numeric|min:0',
         ], [
             'phone.required' => 'Mobile number is mandatory to register a member.',
             'phone.min' => 'Please enter a valid mobile number.',
@@ -311,6 +333,8 @@ class MemberController extends Controller
             'discount.min' => 'Discount cannot be negative.',
             'discount_amount.min' => 'Discount cannot be negative.',
             'discountAmount.min' => 'Discount cannot be negative.',
+            'packages.*.price.min' => 'Package price cannot be negative.',
+            'packages.*.discount.min' => 'Package discount cannot be negative.',
         ]);
 
         if ($validator->fails()) {
@@ -401,12 +425,92 @@ class MemberController extends Controller
             }
         }
 
+        $todayStr = now()->toDateString();
+        $packagesList = $request->input('packages');
+
+        // Validate package dates and overlaps if packages array is provided
+        if (is_array($packagesList) && count($packagesList) > 0) {
+            $packagesByType = [];
+            foreach ($packagesList as $idx => $pkg) {
+                $pkgName = $pkg['name'] ?? ("Package #" . ($idx + 1));
+                $pkgStart = !empty($pkg['start_date']) ? \Illuminate\Support\Carbon::parse($pkg['start_date'])->toDateString() : null;
+                $pkgEnd = !empty($pkg['end_date']) ? \Illuminate\Support\Carbon::parse($pkg['end_date'])->toDateString() : null;
+
+                if ($pkgStart && $pkgStart < $todayStr) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Start date cannot be in the past for {$pkgName} ({$pkgStart}).",
+                        'errors' => ['packages' => ["Start date cannot be in the past for {$pkgName}."]]
+                    ], 422);
+                }
+
+                if ($pkgStart && $pkgEnd && $pkgEnd < $pkgStart) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "End date cannot be before start date for {$pkgName}.",
+                        'errors' => ['packages' => ["End date cannot be before start date for {$pkgName}."]]
+                    ], 422);
+                }
+
+                $normType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? 'Gym-Cardio');
+                $packagesByType[$normType][] = [
+                    'name' => $pkgName,
+                    'start_date' => $pkgStart,
+                    'end_date' => $pkgEnd,
+                ];
+            }
+
+            // Check for date overlaps within the same package type in the same request
+            foreach ($packagesByType as $pType => $pRows) {
+                if (count($pRows) > 1) {
+                    usort($pRows, function ($a, $b) {
+                        return strcmp($a['start_date'] ?? '', $b['start_date'] ?? '');
+                    });
+                    for ($k = 0; $k < count($pRows) - 1; $k++) {
+                        $curr = $pRows[$k];
+                        $next = $pRows[$k + 1];
+                        if ($curr['end_date'] && $next['start_date'] && $next['start_date'] <= $curr['end_date']) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Package '{$next['name']}' start date ({$next['start_date']}) overlaps with package '{$curr['name']}' ending on {$curr['end_date']}.",
+                                'errors' => ['packages' => ["Package '{$next['name']}' overlaps with '{$curr['name']}'."]]
+                            ], 422);
+                        }
+                    }
+                }
+            }
+
+            // Resolve plan and expiry from submitted packages if not explicitly set
+            $firstPkgWithPlan = collect($packagesList)->first(function ($p) {
+                return !empty($p['plan_id']);
+            });
+            if ($firstPkgWithPlan && !$planId) {
+                $planId = (int)str_replace('plan-', '', $firstPkgWithPlan['plan_id']);
+                $plan = Plan::find($planId);
+            }
+        }
+
         $rawJoin = $request->join_date ?? $request->joinDate ?? $request->start_date ?? $request->startDate;
         $joinDate = $rawJoin ? \Illuminate\Support\Carbon::parse($rawJoin)->toDateString() : now()->toDateString();
         $rawExpiry = $request->expiry_date ?? $request->expiryDate;
 
+        if ($joinDate < $todayStr && !$numTargetId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Start date cannot be in the past.',
+                'errors' => ['start_date' => ['Start date cannot be in the past.']]
+            ], 422);
+        }
+
         if ($rawExpiry) {
             $expiryDate = \Illuminate\Support\Carbon::parse($rawExpiry)->toDateString();
+            if ($expiryDate < $joinDate) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'End date cannot be before start date.',
+                    'errors' => ['expiry_date' => ['End date cannot be before start date.']]
+                ], 422);
+            }
         } else {
             if ($plan) {
                 $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
@@ -423,6 +527,14 @@ class MemberController extends Controller
                 $expiryDate = $expiry->toDateString();
             } else {
                 $expiryDate = null;
+            }
+        }
+
+        // If packages array is provided, ensure expiryDate reflects the furthest end_date
+        if (is_array($packagesList) && count($packagesList) > 0) {
+            $maxPkgEnd = collect($packagesList)->pluck('end_date')->filter()->max();
+            if ($maxPkgEnd && (!$expiryDate || $maxPkgEnd > $expiryDate)) {
+                $expiryDate = \Illuminate\Support\Carbon::parse($maxPkgEnd)->toDateString();
             }
         }
 
@@ -458,12 +570,12 @@ class MemberController extends Controller
         $emailVal = !empty($request->email) ? trim(strtolower($request->email)) : null;
 
         // 3. Perform all database writes atomically inside a transaction
-        [$user, $profile, $qrCode] = DB::transaction(function () use (
+        [$user, $profile, $qrCode, $primaryInvoiceNo] = DB::transaction(function () use (
             $numTargetId, $request, $emailVal, $plainPassword, $gymId, $plan,
             $rawKycDocNumber, $rawKycDocType, $planId, $trainerId, $rawExecutive,
             $rawTrainingType, $computedStatus, $joinDate, $expiryDate, $duesAmount,
             $parsedDueDate, $receivedAmount, $totalBill, $rawKycStatus, $creatorId,
-            $creatorName
+            $creatorName, $packagesList
         ) {
             $user = null;
             if ($numTargetId && $numTargetId > 0) {
@@ -552,10 +664,103 @@ class MemberController extends Controller
             ]);
             $profile->save();
 
-            // Create initial invoice and record inflow in revenue_and_billings if plan has a price or payment received
-            if ($receivedAmount > 0 || ($plan && $plan->price > 0)) {
+            // Create invoices and record inflow in revenue_and_billings
+            $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
+            $validPackagesList = (is_array($packagesList) && count($packagesList) > 0)
+                ? collect($packagesList)->filter(function ($p) {
+                    return !empty($p['plan_id']) || !empty($p['price']) || !empty($p['name']);
+                })->values()
+                : collect();
+
+            $primaryInvoiceNo = null;
+
+            if ($validPackagesList->count() > 1) {
+                // Multi-package invoice creation with waterfall paid / dues allocation
+                $remainingPaid = $receivedAmount;
+                $topDiscount = (float)($request->discount ?? $request->discount_amount ?? $request->discountAmount ?? 0);
+                $sumPkgDisc = $validPackagesList->sum(fn($p) => (float)($p['discount'] ?? 0));
+                $unallocatedDiscount = ($sumPkgDisc > 0) ? 0 : $topDiscount;
+
+                foreach ($validPackagesList as $idx => $pkg) {
+                    $pkgType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? 'Gym-Cardio');
+                    $pkgPlanId = !empty($pkg['plan_id']) ? (int)str_replace('plan-', '', $pkg['plan_id']) : null;
+                    $pkgPrice = (float)($pkg['price'] ?? 0);
+                    $pkgDisc = (float)($pkg['discount'] ?? 0);
+                    if ($pkgDisc === 0.0 && $unallocatedDiscount > 0) {
+                        $pkgDisc = min($pkgPrice, $unallocatedDiscount);
+                        $unallocatedDiscount = max(0, $unallocatedDiscount - $pkgDisc);
+                    }
+                    $rowNet = max(0, $pkgPrice - $pkgDisc);
+
+                    $isLast = ($idx === $validPackagesList->count() - 1);
+                    if ($isLast) {
+                        $rowPaid = $remainingPaid;
+                        $rowDues = max(0, $rowNet - $rowPaid);
+                    } else {
+                        $rowPaid = min($rowNet, $remainingPaid);
+                        $rowDues = max(0, $rowNet - $rowPaid);
+                        $remainingPaid = max(0, $remainingPaid - $rowPaid);
+                    }
+
+                    $rowInvStatus = $rowDues > 0 ? 'Pending' : 'Paid';
+                    $rowInvNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+                    if (!$primaryInvoiceNo) {
+                        $primaryInvoiceNo = $rowInvNo;
+                    }
+
+                    $rowStartDate = !empty($pkg['start_date']) ? \Illuminate\Support\Carbon::parse($pkg['start_date'])->toDateString() : $joinDate;
+                    $rowEndDate = !empty($pkg['end_date']) ? \Illuminate\Support\Carbon::parse($pkg['end_date'])->toDateString() : $expiryDate;
+
+                    $invPayload = [
+                        'gym_id' => $gymId,
+                        'invoice_number' => $rowInvNo,
+                        'user_id' => $user->id,
+                        'plan_id' => $pkgPlanId,
+                        'package_type' => $pkgType,
+                        'amount' => $rowPaid,
+                        'date' => now()->toDateString(),
+                        'start_date' => $rowStartDate,
+                        'end_date' => $rowEndDate,
+                        'due_date' => $parsedDueDate,
+                        'payment_method' => $paymentMethod,
+                        'status' => $rowInvStatus,
+                        'created_by' => $creatorId,
+                        'created_by_name' => $creatorName,
+                    ];
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'pending_amount')) {
+                        $invPayload['pending_amount'] = $rowDues;
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('invoices', 'total_amount')) {
+                        $invPayload['total_amount'] = (float)$rowNet;
+                    }
+                    Invoice::create($invPayload);
+
+                    if ($rowPaid > 0) {
+                        RevenueBilling::create([
+                            'gym_id' => $gymId,
+                            'type' => 'inflow',
+                            'reference_no' => $rowInvNo,
+                            'user_id' => $user->id,
+                            'member_name' => $user->name,
+                            'plan_id' => $pkgPlanId,
+                            'plan_name' => $pkg['name'] ?? ($pkgType . ' Package'),
+                            'title' => ($pkg['name'] ?? $pkgType) . ($rowDues > 0 ? " (Pending Balance Due: ₹" . number_format($rowDues) . ")" : ""),
+                            'category' => $pkgType === 'Personal Training' ? 'Personal Training' : 'Membership Fee',
+                            'vendor' => null,
+                            'amount' => $rowPaid,
+                            'date' => now()->toDateString(),
+                            'payment_method' => $paymentMethod,
+                            'status' => $rowInvStatus,
+                            'notes' => $rowDues > 0 ? "Initial payment of ₹{$rowPaid} received for {$pkgType}. Balance pending: ₹{$rowDues}" : "Full payment received for {$pkgType} upon registration",
+                            'created_by' => $creatorId,
+                            'created_by_name' => $creatorName,
+                        ]);
+                    }
+                }
+            } elseif ($receivedAmount > 0 || ($plan && $plan->price > 0)) {
+                // Single-package or legacy flow (identical to before + start_date, end_date, package_type populated)
+                $firstPkg = $validPackagesList->first();
                 $finalAmount = $receivedAmount;
-                $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
                 $invoiceTitle = $request->input('invoice_title', $request->input('plan_name', $plan?->name ? ($plan->name . ' - New Member Registration') : 'New Member Registration'));
                 if ($duesAmount > 0) {
                     $invoiceTitle .= " (Pending Balance Due: â‚¹" . number_format($duesAmount) . ")";
@@ -563,14 +768,24 @@ class MemberController extends Controller
 
                 $invStatus = $duesAmount > 0 ? 'Pending' : 'Paid';
                 $invNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+                $primaryInvoiceNo = $invNo;
+
+                $singleStartDate = !empty($firstPkg['start_date']) ? \Illuminate\Support\Carbon::parse($firstPkg['start_date'])->toDateString() : $joinDate;
+                $singleEndDate = !empty($firstPkg['end_date']) ? \Illuminate\Support\Carbon::parse($firstPkg['end_date'])->toDateString() : $expiryDate;
+                $singlePkgType = !empty($firstPkg['package_type'])
+                    ? \App\Services\PlanChainingService::normalizePackageType($firstPkg['package_type'])
+                    : ($plan ? \App\Services\PlanChainingService::normalizePackageType($plan->package_type ?? 'Gym-Cardio') : 'Gym-Cardio');
 
                 $invPayload = [
                     'gym_id' => $gymId,
                     'invoice_number' => $invNo,
                     'user_id' => $user->id,
                     'plan_id' => $plan?->id,
+                    'package_type' => $singlePkgType,
                     'amount' => $finalAmount,
                     'date' => now()->toDateString(),
+                    'start_date' => $singleStartDate,
+                    'end_date' => $singleEndDate,
                     'due_date' => $parsedDueDate,
                     'payment_method' => $paymentMethod,
                     'status' => $invStatus,
@@ -606,32 +821,67 @@ class MemberController extends Controller
                 ]);
             }
 
+            // Sync member profile expiry date and status with uncancelled invoices
+            \App\Services\PlanChainingService::syncMemberProfileExpiry($user->id);
+            $profile->refresh();
+
             // If member registered with PT, automatically allocate and store PT session in database
-            $trainingType = $request->input('training_type', $request->input('trainingType'));
-            $ptSessionsCount = (int)($request->input('pt_sessions', $request->input('ptSessions', $request->input('ptSessionsCount', 0))));
-            if ($trainingType === 'pt' || $ptSessionsCount > 0) {
-                $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
-                if (!$existingPt) {
-                    $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
-                    $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
-                    $trainerUser = $trainerId ? User::find($trainerId) : null;
+            $ptPackages = $validPackagesList->filter(function ($p) {
+                $t = \App\Services\PlanChainingService::normalizePackageType($p['package_type'] ?? '');
+                return $t === 'Personal Training';
+            });
+            if ($ptPackages->isNotEmpty()) {
+                foreach ($ptPackages as $ptPkg) {
+                    $sessions = !empty($ptPkg['pt_sessions']) ? (int)$ptPkg['pt_sessions'] : 12;
+                    $ptTrainerId = !empty($ptPkg['trainer_id']) ? (int)str_replace('trn-', '', $ptPkg['trainer_id']) : $trainerId;
+                    $trainerUser = $ptTrainerId ? User::find($ptTrainerId) : null;
                     $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
+                    $ptStartDate = !empty($ptPkg['start_date']) ? \Illuminate\Support\Carbon::parse($ptPkg['start_date'])->toDateString() : now()->toDateString();
+                    $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
 
                     PtSession::create([
                         'gym_id' => $gymId,
                         'member_id' => $user->id,
                         'member_name' => $user->name,
                         'member_avatar' => $user->avatar,
-                        'trainer_id' => $trainerId,
+                        'trainer_id' => $ptTrainerId,
                         'trainer_name' => $trainerName,
-                        'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
+                        'plan_name' => $ptPkg['name'] ?? "{$sessions} 1-on-1 PT Sessions",
                         'total_sessions' => $sessions,
                         'completed_sessions' => 0,
                         'remaining_sessions' => $sessions,
                         'client_otp' => $ptOtp,
                         'status' => 'Active',
-                        'start_date' => now()->toDateString(),
+                        'start_date' => $ptStartDate,
                     ]);
+                }
+            } else {
+                $trainingType = $request->input('training_type', $request->input('trainingType'));
+                $ptSessionsCount = (int)($request->input('pt_sessions', $request->input('ptSessions', $request->input('ptSessionsCount', 0))));
+                if ($trainingType === 'pt' || $ptSessionsCount > 0) {
+                    $existingPt = PtSession::where('member_id', $user->id)->where('status', 'Active')->first();
+                    if (!$existingPt) {
+                        $sessions = $ptSessionsCount > 0 ? $ptSessionsCount : 12;
+                        $ptOtp = str_pad(random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+                        $trainerUser = $trainerId ? User::find($trainerId) : null;
+                        $trainerName = $trainerUser?->name ?? $request->input('trainer_name', $request->input('trainerName', 'PT Coach'));
+
+                        PtSession::create([
+                            'gym_id' => $gymId,
+                            'member_id' => $user->id,
+                            'member_name' => $user->name,
+                            'member_avatar' => $user->avatar,
+                            'trainer_id' => $trainerId,
+                            'trainer_name' => $trainerName,
+                            'plan_name' => $request->input('pt_plan_name', $request->input('ptPlanName', "{$sessions} 1-on-1 PT Sessions")),
+                            'total_sessions' => $sessions,
+                            'completed_sessions' => 0,
+                            'remaining_sessions' => $sessions,
+                            'client_otp' => $ptOtp,
+                            'status' => 'Active',
+                            'start_date' => now()->toDateString(),
+                        ]);
+                    }
                 }
             }
 
@@ -642,7 +892,7 @@ class MemberController extends Controller
                 Enquiry::where('id', $cleanEnqId)->delete();
             }
 
-            return [$user, $profile, $qrCode];
+            return [$user, $profile, $qrCode, $primaryInvoiceNo];
         });
 
         // 4. Automatically register new member into eSSL Biometric Terminal over LAN
@@ -668,7 +918,7 @@ class MemberController extends Controller
                 'biometricUserId' => $profile->biometric_user_id,
                 'planId' => $plan ? 'plan-' . $plan->id : null,
                 'planName' => $plan?->name ?? 'Unassigned',
-                'status' => $computedStatus,
+                'status' => $profile->status,
                 'joinDate' => $profile->join_date ? \Illuminate\Support\Carbon::parse($profile->join_date)->toDateString() : null,
                 'expiryDate' => $profile->expiry_date ? \Illuminate\Support\Carbon::parse($profile->expiry_date)->toDateString() : null,
                 'dob' => $profile->dob ? \Illuminate\Support\Carbon::parse($profile->dob)->toDateString() : null,
@@ -693,6 +943,13 @@ class MemberController extends Controller
                 'totalAmount' => (float)$totalBill,
                 'paymentMethod' => $request->input('payment_method', $request->input('paymentMethod', 'UPI')),
                 'qrPassCode' => $qrCode,
+                'invoiceNumber' => $primaryInvoiceNo,
+                'invoice_number' => $primaryInvoiceNo,
+                'createdBy' => $creatorId,
+                'created_by' => $creatorId,
+                'createdByName' => $creatorName,
+                'created_by_name' => $creatorName,
+                'executive' => $creatorName,
                 'avatar' => $user->avatar,
                 'device_sync' => $deviceSyncResult,
                 'whatsapp_welcome' => $whatsappResult,

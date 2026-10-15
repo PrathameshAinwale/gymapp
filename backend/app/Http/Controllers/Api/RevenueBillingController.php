@@ -31,6 +31,14 @@ class RevenueBillingController extends Controller
 
         $query = RevenueBilling::with(['user.memberProfile', 'plan', 'creator'])->inflow()->forGym($gymId);
 
+        $memberIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
+        if ($memberIdInput) {
+            $numericMemberId = (int)preg_replace('/[^0-9]/', '', (string)$memberIdInput);
+            if ($numericMemberId > 0) {
+                $query->where('user_id', $numericMemberId);
+            }
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -329,11 +337,31 @@ class RevenueBillingController extends Controller
         // Mirror to invoices for backward compatibility & sync member profile
         try {
             if ($userId && $userObj = User::find($userId)) {
+                $planObj = $planId ? \App\Models\Plan::find($planId) : null;
+                $rawPkg = $request->package_type ?? $request->packageType ?? $request->category ?? $planObj?->package_type;
+                if (!$rawPkg && ($request->title || $planName)) {
+                    $strCheck = strtolower(($request->title ?? '') . ' ' . ($planName ?? ''));
+                    if (str_contains($strCheck, 'pt') || str_contains($strCheck, 'personal training')) {
+                        $rawPkg = 'Personal Training';
+                    } elseif (str_contains($strCheck, 'massage') || str_contains($strCheck, 'recovery')) {
+                        $rawPkg = 'Massage';
+                    }
+                }
+                $packageType = \App\Services\PlanChainingService::normalizePackageType($rawPkg ?: 'Gym-Cardio');
+                $startDate = $request->start_date ?? $request->startDate ?? $record->date;
+                $endDate = $request->end_date ?? $request->endDate ?? $request->expiry_date ?? $request->expiryDate;
+                if (!$endDate && $startDate) {
+                    $endDate = \App\Services\PlanChainingService::computePlanEndDate($startDate, $planObj);
+                }
+
                 $invPayload = [
                     'gym_id' => $gymId,
                     'invoice_number' => $refNo,
                     'user_id' => $userId,
                     'plan_id' => $planId,
+                    'package_type' => $packageType,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                     'amount' => (float)$request->amount,
                     'date' => $record->date,
                     'payment_method' => $record->payment_method,

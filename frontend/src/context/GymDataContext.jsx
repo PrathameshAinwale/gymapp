@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
-import { useToastActions } from './ToastContext';
+import { useToastActions, useToasts } from './ToastContext';
 import { getTodayIso, getYesterdayIso, getOffsetIso, formatDateDisplay, recordMatchesDate, calculatePlanExpiryDate } from '../utils/dateUtils';
 import { compareInvoicesDesc } from '../utils/searchUtils';
 
@@ -775,30 +775,12 @@ export const GymDataProvider = ({ children }) => {
 
   const [revenueAnalytics, setRevenueAnalytics] = useState([]);
 
-  // Toast Notification System (delegated to decoupled ToastContext to avoid cascading re-renders)
+  // Toast Notification System (delegated to decoupled ToastContext as single source of truth)
   const toastActions = useToastActions();
-  const [localToasts, setLocalToasts] = useState([]);
-
-  const localRemoveToast = useCallback((id) => {
-    setLocalToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  const localAddToast = useCallback((message, type = 'success') => {
-    if (!message) return;
-    const id = Date.now() + Math.random().toString(36).substring(2, 7);
-    setLocalToasts((prev) => {
-      if (prev.some((t) => t.message === message)) return prev;
-      const next = [...prev, { id, message, type }];
-      return next.slice(-2);
-    });
-    setTimeout(() => {
-      localRemoveToast(id);
-    }, 4000);
-  }, [localRemoveToast]);
-
-  const addToast = toastActions?.addToast || localAddToast;
-  const removeToast = toastActions?.removeToast || localRemoveToast;
-  const toasts = localToasts;
+  const contextToasts = useToasts();
+  const toasts = contextToasts || [];
+  const addToast = toastActions?.addToast || (() => {});
+  const removeToast = toastActions?.removeToast || (() => {});
 
   const fetchEnquiries = useCallback(async () => {
     try {
@@ -1097,6 +1079,8 @@ export const GymDataProvider = ({ children }) => {
             maxMembers: res.data.maxMembers ?? res.data.max_members ?? null,
             maxTrainers: res.data.maxTrainers ?? res.data.max_trainers ?? null,
             maxBranches: res.data.maxBranches ?? res.data.max_branches ?? 1,
+            ownerName: res.data.ownerName || res.data.owner_name || '',
+            owner_name: res.data.owner_name || res.data.ownerName || '',
           };
           setGymInfo(cleanInfo);
           return cleanInfo;
@@ -1799,6 +1783,13 @@ export const GymDataProvider = ({ children }) => {
   }, [fetchPtSessions, fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
   const deleteMember = useCallback(async (id) => {
+    let deletedName = id;
+    setMembers((prev) => {
+      const found = prev.find((m) => m.id === id);
+      if (found?.name) deletedName = found.name;
+      return prev.filter((m) => m.id !== id);
+    });
+
     try {
       await api.members.delete(id);
       fetchWhatsAppTriggers?.();
@@ -1807,11 +1798,7 @@ export const GymDataProvider = ({ children }) => {
       console.warn('Backend delete member fallback:', e.message);
     }
 
-    setMembers((prev) => {
-      const member = prev.find((m) => m.id === id);
-      addToast(`Member "${member?.name || id}" removed`, 'info');
-      return prev.filter((m) => m.id !== id);
-    });
+    addToast(`Member "${deletedName}" removed`, 'info');
   }, [fetchWhatsAppTriggers, fetchWhatsAppStats, addToast]);
 
   const renewMemberPlan = useCallback(async (memberId, planId) => {

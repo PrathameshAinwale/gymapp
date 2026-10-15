@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi } from 'lucide-react';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, FileText, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi } from 'lucide-react';
 import { getPlanByTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
@@ -237,7 +237,14 @@ export const SettingsManager = () => {
     phone: gymInfo?.phone || '',
     email: gymInfo?.email || '',
     operatingHours: gymInfo?.operatingHours || '',
-    currency: gymInfo?.currency || 'â‚¹',
+    currency: gymInfo?.currency || '₹',
+    gstNumber: gymInfo?.gstNumber || gymInfo?.gstin || gymInfo?.gst_number || '',
+    upiId: gymInfo?.upiId || gymInfo?.upi_id || '',
+    bankDetails: gymInfo?.bankDetails || gymInfo?.bank_details || '',
+    termsAndConditions: gymInfo?.termsAndConditions || gymInfo?.terms_and_conditions || '',
+    footerText: gymInfo?.footerText || gymInfo?.footer_text || '',
+    signatoryText: gymInfo?.signatoryText || gymInfo?.signatory_text || '',
+    taxRate: gymInfo?.taxRate !== undefined ? gymInfo?.taxRate : (gymInfo?.tax_rate !== undefined ? gymInfo?.tax_rate : 18),
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -269,8 +276,15 @@ export const SettingsManager = () => {
         address: gymInfo.address || '',
         phone: gymInfo.phone || '',
         email: gymInfo.email || '',
-        operatingHours: gymInfo.operatingHours || '',
+        operatingHours: gymInfo.operatingHours || gymInfo.operating_hours || '',
         currency: gymInfo.currency || '₹',
+        gstNumber: gymInfo.gstNumber || gymInfo.gstin || gymInfo.gst_number || '',
+        upiId: gymInfo.upiId || gymInfo.upi_id || '',
+        bankDetails: gymInfo.bankDetails || gymInfo.bank_details || '',
+        termsAndConditions: gymInfo.termsAndConditions || gymInfo.terms_and_conditions || '',
+        footerText: gymInfo.footerText || gymInfo.footer_text || '',
+        signatoryText: gymInfo.signatoryText || gymInfo.signatory_text || '',
+        taxRate: gymInfo.taxRate !== undefined ? gymInfo.taxRate : (gymInfo.tax_rate !== undefined ? gymInfo.tax_rate : 18),
       });
       if (gymInfo.deviceIp || gymInfo.device_ip || gymInfo.essl_device_ip) {
         setDeviceIp(gymInfo.deviceIp || gymInfo.device_ip || gymInfo.essl_device_ip);
@@ -489,6 +503,20 @@ export const SettingsManager = () => {
         email: sanitizeText(formData.email),
         operatingHours: sanitizeText(formData.operatingHours),
         currency: formData.currency || '₹',
+        gstNumber: sanitizeText(formData.gstNumber),
+        gstin: sanitizeText(formData.gstNumber),
+        upiId: sanitizeText(formData.upiId),
+        upi_id: sanitizeText(formData.upiId),
+        bankDetails: sanitizeText(formData.bankDetails),
+        bank_details: sanitizeText(formData.bankDetails),
+        termsAndConditions: sanitizeText(formData.termsAndConditions),
+        terms_and_conditions: sanitizeText(formData.termsAndConditions),
+        footerText: sanitizeText(formData.footerText),
+        footer_text: sanitizeText(formData.footerText),
+        signatoryText: sanitizeText(formData.signatoryText),
+        signatory_text: sanitizeText(formData.signatoryText),
+        taxRate: Number(formData.taxRate) || 18,
+        tax_rate: Number(formData.taxRate) || 18,
         deviceIp: (deviceIp || '192.168.1.201').trim(),
         devicePort: Number(devicePort) || 4370,
       };
@@ -506,6 +534,14 @@ export const SettingsManager = () => {
             email: res.data.email || '',
             operatingHours: res.data.operatingHours || res.data.operating_hours || '',
             currency: res.data.currency || '₹',
+            gstNumber: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
+            gstin: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
+            upiId: res.data.upiId || res.data.upi_id || '',
+            bankDetails: res.data.bankDetails || res.data.bank_details || '',
+            termsAndConditions: res.data.termsAndConditions || res.data.terms_and_conditions || '',
+            footerText: res.data.footerText || res.data.footer_text || '',
+            signatoryText: res.data.signatoryText || res.data.signatory_text || '',
+            taxRate: res.data.taxRate !== undefined ? res.data.taxRate : 18,
             deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || (deviceIp || '192.168.1.201').trim(),
             devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || (Number(devicePort) || 4370),
           };
@@ -968,7 +1004,7 @@ export const SettingsManager = () => {
               <input
                 type="text"
                 readOnly
-                value="Indian Rupee (â‚¹ / INR)"
+                value="Indian Rupee (₹ / INR)"
                 className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold"
               />
             </div>
@@ -979,6 +1015,118 @@ export const SettingsManager = () => {
                 readOnly
                 value="Asia/Kolkata (IST - UTC+05:30)"
                 className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice, Tax & Payment Settings */}
+        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Invoice, Tax & Payment Configuration</span>
+            </h3>
+            <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
+              Printed on Member PDF Receipts & Official Invoices
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                GSTIN / Tax Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 27AAPCP1234F1Z8"
+                value={formData.gstNumber || ''}
+                onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                UPI ID (VPA for QR payments)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. gymname@okaxis"
+                value={formData.upiId || ''}
+                onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Default Tax Rate (%)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                placeholder="18"
+                value={formData.taxRate !== undefined ? formData.taxRate : 18}
+                onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Bank Transfer Details (NEFT/RTGS)
+              </label>
+              <textarea
+                rows="2"
+                placeholder="e.g. Bank: HDFC Bank, A/C: 50200012345678, IFSC: HDFC0001234, Branch: Bandra West"
+                value={formData.bankDetails || ''}
+                onChange={(e) => setFormData({ ...formData, bankDetails: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Authorized Signatory Text
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Authorised Signatory"
+                value={formData.signatoryText || ''}
+                onChange={(e) => setFormData({ ...formData, signatoryText: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Terms & Conditions Note
+              </label>
+              <textarea
+                rows="2"
+                placeholder="e.g. Fees once paid are non-refundable. Non-transferable under any circumstances."
+                value={formData.termsAndConditions || ''}
+                onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Invoice Footer / Thank You Message
+              </label>
+              <textarea
+                rows="2"
+                placeholder="e.g. Thank you for your business! Stay consistent & conquer your goals."
+                value={formData.footerText || ''}
+                onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>

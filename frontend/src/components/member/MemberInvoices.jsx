@@ -20,7 +20,7 @@ import { compareInvoicesDesc } from '../../utils/searchUtils';
 
 export const MemberInvoices = () => {
   const { currentUser } = useAuth();
-  const { invoices, members } = useGymData();
+  const { invoices, members, gymInfo } = useGymData();
   const [searchTerm, setSearchTerm] = useState('');
 
   const currentMember = members.find((m) => String(m.id) === String(currentUser?.id)) || {};
@@ -232,7 +232,7 @@ export const MemberInvoices = () => {
                       type="button"
                       onClick={() => {
                         try {
-                          const { blob, fileName } = generateInvoicePdf({ invoice: inv, member: currentMember });
+                          const { blob, fileName } = generateInvoicePdf({ invoice: inv, member: currentMember, gymInfo });
                           downloadPdfBlob(blob, fileName);
                         } catch {
                           window.print();

@@ -37,6 +37,8 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { compareInvoicesDesc } from '../../utils/searchUtils';
+import { api } from '../../services/api';
+import { normalizePackageType } from '../common/MembershipPlanModal';
 
 export const MemberProfilePage = ({
   initialMemberId,
@@ -65,6 +67,7 @@ export const MemberProfilePage = ({
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPayDueOpen, setIsPayDueOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [profileData, setProfileData] = useState(null);
 
   // Directly locate THIS particular member from backend records
   const currentMember = useMemo(() => {
@@ -111,6 +114,25 @@ export const MemberProfilePage = ({
   const cleanMemberPhone = String(currentMember?.phone || '').replace(/\D/g, '').slice(-10);
   const memberNameClean = (currentMember?.name || '').toLowerCase().trim();
 
+  // Fetch full member profile with activePlans from backend
+  useEffect(() => {
+    let isMounted = true;
+    const loadFullMember = async () => {
+      const idToFetch = currentMember?.userId || currentMember?.user_id || cleanMemberId;
+      if (!idToFetch || !api.members?.get) return;
+      try {
+        const res = await api.members.get(idToFetch);
+        if (isMounted && res?.data) {
+          setProfileData(res.data);
+        }
+      } catch (err) {
+        // Fallback gracefully to list/local state
+      }
+    };
+    loadFullMember();
+    return () => { isMounted = false; };
+  }, [cleanMemberId, currentMember?.userId, currentMember?.user_id]);
+
   const memberInvoices = useMemo(() => {
     if (!currentMember) return [];
     return (invoices || [])
@@ -129,6 +151,105 @@ export const MemberProfilePage = ({
   const totalPaidTillDate = useMemo(() => {
     return memberInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
   }, [memberInvoices]);
+
+  // Subscriptions & Packages Breakdown (Active by package type, Upcoming chained, Expired)
+  const plansBreakdown = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const targetMember = profileData || currentMember;
+
+    // If backend provided pre-computed activePlans on member object
+    if (targetMember?.activePlans?.length > 0 || targetMember?.upcomingPlans?.length > 0 || targetMember?.expiredPlans?.length > 0) {
+      return {
+        active: targetMember.activePlans || [],
+        upcoming: targetMember.upcomingPlans || [],
+        expired: targetMember.expiredPlans || []
+      };
+    }
+
+    const activeMap = {};
+    const upcoming = [];
+    const expired = [];
+
+    (memberInvoices || []).forEach((inv) => {
+      if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+
+      const itemsToProcess = Array.isArray(inv.packages) && inv.packages.length > 0
+        ? inv.packages
+        : [inv];
+
+      itemsToProcess.forEach((itemRow) => {
+        let rawType = itemRow.packageType || itemRow.package_type || itemRow.category || inv.packageType || inv.package_type || inv.category;
+        const itemName = itemRow.name || itemRow.planName || itemRow.plan_name || itemRow.title || inv.planName || inv.plan_name || inv.title || '';
+        if (!rawType && itemName) {
+          const combo = itemName.toLowerCase();
+          if (combo.includes('pt') || combo.includes('personal training')) {
+            rawType = 'Personal Training';
+          } else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) {
+            rawType = 'Massage';
+          }
+        }
+        const type = normalizePackageType(rawType || 'Gym-Cardio');
+
+        const startStr = (itemRow.startDate || itemRow.start_date || inv.startDate || inv.start_date || inv.date || '').split('T')[0] || todayStr;
+        let endStr = (itemRow.endDate || itemRow.end_date || itemRow.expiryDate || itemRow.expiry_date || inv.endDate || inv.end_date || inv.expiryDate || inv.expiry_date || '').split('T')[0];
+
+        if (!endStr && startStr) {
+          try {
+            const d = new Date(startStr);
+            d.setDate(d.getDate() + 30);
+            endStr = d.toISOString().split('T')[0];
+          } catch (_) {}
+        }
+        if (!endStr) return;
+
+        const planName = itemName || `${type} Package`;
+        const planItem = {
+          packageType: type,
+          planName,
+          startDate: startStr,
+          endDate: endStr,
+          invoiceNumber: inv.id || inv.invoiceNumber,
+          status: 'Active'
+        };
+
+        if (startStr && startStr > todayStr) {
+          planItem.status = 'Upcoming';
+          upcoming.push(planItem);
+        } else if (endStr < todayStr) {
+          planItem.status = 'Expired';
+          expired.push(planItem);
+        } else {
+          planItem.status = 'Active';
+          if (!activeMap[type] || endStr > activeMap[type].endDate) {
+            activeMap[type] = planItem;
+          }
+        }
+      });
+    });
+
+    if (!activeMap['Gym-Cardio'] && (targetMember?.expiryDate || targetMember?.expiry_date)) {
+      const exp = (targetMember.expiryDate || targetMember.expiry_date).split('T')[0];
+      const start = (targetMember.startDate || targetMember.start_date || targetMember.joinDate || targetMember.join_date || todayStr).split('T')[0];
+      const fallbackItem = {
+        packageType: 'Gym-Cardio',
+        planName: targetMember.planName || targetMember.plan_name || 'Gym Membership',
+        startDate: start,
+        endDate: exp,
+        status: exp >= todayStr ? 'Active' : 'Expired'
+      };
+      if (exp >= todayStr) {
+        activeMap['Gym-Cardio'] = fallbackItem;
+      } else {
+        expired.push(fallbackItem);
+      }
+    }
+
+    return {
+      active: Object.values(activeMap),
+      upcoming,
+      expired
+    };
+  }, [profileData, currentMember, memberInvoices]);
 
   // Comprehensive Pending Dues extraction across direct member fields and invoices
   const duesAmount = useMemo(() => {
@@ -578,6 +699,100 @@ export const MemberProfilePage = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Active Subscriptions & Packages Breakdown (Grouped by Package Type with Start & End Dates) */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <span>Active Subscriptions & Packages</span>
+              </h3>
+              <span className="text-xs font-bold text-slate-400">
+                {plansBreakdown.active.length} Active Plan{plansBreakdown.active.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            {plansBreakdown.active.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {plansBreakdown.active.map((pkg, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-teal-50/30 border border-emerald-200/70 shadow-2xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                        {pkg.packageType}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Active
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-700 truncate">{pkg.planName}</div>
+                    <div className="mt-2 pt-2 border-t border-emerald-100/80 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-medium">Duration:</span>
+                      <span className="font-bold text-emerald-950 font-mono">
+                        {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                No active membership plans recorded for this member.
+              </div>
+            )}
+
+            {/* Upcoming (Chained) Subscriptions */}
+            {plansBreakdown.upcoming.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Upcoming (Chained) Subscriptions</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {plansBreakdown.upcoming.map((pkg, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-sky-50/50 border border-sky-200 flex items-center justify-between text-xs">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{pkg.packageType}</span>
+                          <span className="px-1.5 py-0.2 bg-sky-100 text-sky-800 rounded text-[9px] font-bold">Upcoming</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] text-sky-600 font-semibold block">Starts & Ends</span>
+                        <span className="font-bold font-mono text-sky-900 text-[10px]">
+                          {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Expired Plans */}
+            {plansBreakdown.expired.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Past / Expired Plans ({plansBreakdown.expired.length})</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {plansBreakdown.expired.slice(0, 4).map((pkg, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs opacity-75">
+                      <div className="min-w-0 pr-2">
+                        <span className="font-bold text-slate-700 block truncate">{pkg.packageType}: {pkg.planName}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-slate-500 text-[10px]">
+                          {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 3. Billing Invoices & Receipts (Matching reference "Prescriptions" with "+ Add a prescription") */}

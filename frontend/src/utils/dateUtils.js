@@ -171,3 +171,103 @@ export const calculatePlanExpiryDate = (startDateStr, durationMonths = 1, period
     return '';
   }
 };
+
+/**
+ * Calculate age from date of birth (DOB).
+ * Correctly accounts for:
+ * - Empty or invalid dates (returns '')
+ * - Various date formats: YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, ISO strings
+ * - Leap years (e.g. Feb 29 on leap vs non-leap years)
+ * - Whether birthday has already passed in the current/reference year
+ * - Future birthdates (returns '')
+ * - Age bounds (0 to 130)
+ *
+ * @param {string|Date} dobInput
+ * @param {Date} [refDate=new Date()]
+ * @returns {number|string} integer age or ''
+ */
+export const calculateAgeFromDob = (dobInput, refDate = new Date()) => {
+  if (!dobInput) return '';
+
+  try {
+    let birthYear;
+    let birthMonth;
+    let birthDay;
+
+    if (dobInput instanceof Date) {
+      if (isNaN(dobInput.getTime())) return '';
+      birthYear = dobInput.getFullYear();
+      birthMonth = dobInput.getMonth();
+      birthDay = dobInput.getDate();
+    } else {
+      const rawStr = String(dobInput).trim();
+      if (!rawStr) return '';
+
+      const cleanStr = rawStr.split('T')[0].trim();
+      const parts = cleanStr.split(/[-/.]/);
+
+      if (parts.length === 3) {
+        const p0 = parseInt(parts[0], 10);
+        const p1 = parseInt(parts[1], 10);
+        const p2 = parseInt(parts[2], 10);
+
+        if (isNaN(p0) || isNaN(p1) || isNaN(p2)) return '';
+
+        if (parts[0].length === 4) {
+          // YYYY-MM-DD
+          birthYear = p0;
+          birthMonth = p1 - 1;
+          birthDay = p2;
+        } else if (parts[2].length === 4) {
+          // DD-MM-YYYY
+          birthDay = p0;
+          birthMonth = p1 - 1;
+          birthYear = p2;
+        } else {
+          return '';
+        }
+      } else {
+        const parsed = new Date(rawStr);
+        if (isNaN(parsed.getTime())) return '';
+        birthYear = parsed.getFullYear();
+        birthMonth = parsed.getMonth();
+        birthDay = parsed.getDate();
+      }
+    }
+
+    if (birthMonth < 0 || birthMonth > 11 || birthDay < 1 || birthDay > 31) {
+      return '';
+    }
+
+    // Verify calendar date validity (e.g. Feb 29 on non-leap year or Apr 31)
+    const testDate = new Date(birthYear, birthMonth, birthDay);
+    if (
+      testDate.getFullYear() !== birthYear ||
+      testDate.getMonth() !== birthMonth ||
+      testDate.getDate() !== birthDay
+    ) {
+      return '';
+    }
+
+    const ref = refDate instanceof Date ? refDate : new Date(refDate);
+    if (isNaN(ref.getTime())) return '';
+
+    // Birthdate cannot be in the future
+    if (testDate.getTime() > ref.getTime()) {
+      return '';
+    }
+
+    let age = ref.getFullYear() - birthYear;
+    const refMonth = ref.getMonth();
+    const refDay = ref.getDate();
+
+    if (refMonth < birthMonth || (refMonth === birthMonth && refDay < birthDay)) {
+      age--;
+    }
+
+    return age >= 0 && age <= 130 ? age : '';
+  } catch {
+    return '';
+  }
+};
+

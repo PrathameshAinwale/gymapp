@@ -34,6 +34,12 @@ class Gym extends Model
         'logo',
         'website',
         'gst_number',
+        'upi_id',
+        'bank_details',
+        'terms_and_conditions',
+        'footer_text',
+        'signatory_text',
+        'tax_rate',
         'subscription_expires_at',
         'notes',
     ];

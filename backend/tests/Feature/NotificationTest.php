@@ -31,6 +31,8 @@ class NotificationTest extends TestCase
 
     public function test_all_13_notification_scenarios()
     {
+        Carbon::setTestNow(Carbon::parse('2026-10-13 12:00:00', 'Asia/Kolkata'));
+
         // Setup Gym A and Gym B
         $gymA = Gym::create(['name' => 'Gym Alpha Test', 'phone' => '9999990001']);
         $gymB = Gym::create(['name' => 'Gym Beta Test', 'phone' => '9999990002']);

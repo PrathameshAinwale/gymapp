@@ -35,6 +35,7 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { getWhatsAppUrl } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
+import { normalizePackageType } from '../common/MembershipPlanModal';
 
 export const MemberProfileView = ({
   member,
@@ -93,27 +94,105 @@ export const MemberProfileView = ({
 
   const totalPaidTillDate = memberInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
-  // Active Packages Breakdown across different package types
-  const activePackagesByType = useMemo(() => {
+  // Subscriptions & Packages Breakdown (Active by package type, Upcoming chained, Expired)
+  const plansBreakdown = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const map = {};
+
+    // If backend provided pre-computed activePlans on member object
+    if (member?.activePlans?.length > 0 || member?.upcomingPlans?.length > 0 || member?.expiredPlans?.length > 0) {
+      return {
+        active: member.activePlans || [],
+        upcoming: member.upcomingPlans || [],
+        expired: member.expiredPlans || []
+      };
+    }
+
+    const activeMap = {};
+    const upcoming = [];
+    const expired = [];
+
     (memberInvoices || []).forEach((inv) => {
       if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
-      const type = inv.packageType || inv.package_type || inv.category || 'Gym-Cardio';
-      const endStr = (inv.endDate || inv.end_date || inv.expiryDate || inv.expiry_date || '').split('T')[0];
-      if (endStr && endStr >= todayStr) {
-        if (!map[type] || endStr > map[type].endDate) {
-          map[type] = {
-            packageType: type,
-            planName: inv.planName || inv.plan_name || inv.title || type,
-            startDate: (inv.startDate || inv.start_date || inv.date || '').split('T')[0],
-            endDate: endStr
-          };
+
+      const itemsToProcess = Array.isArray(inv.packages) && inv.packages.length > 0
+        ? inv.packages
+        : [inv];
+
+      itemsToProcess.forEach((itemRow) => {
+        let rawType = itemRow.packageType || itemRow.package_type || itemRow.category || inv.packageType || inv.package_type || inv.category;
+        const itemName = itemRow.name || itemRow.planName || itemRow.plan_name || itemRow.title || inv.planName || inv.plan_name || inv.title || '';
+        if (!rawType && itemName) {
+          const combo = itemName.toLowerCase();
+          if (combo.includes('pt') || combo.includes('personal training')) {
+            rawType = 'Personal Training';
+          } else if (combo.includes('massage') || combo.includes('recovery') || combo.includes('spa')) {
+            rawType = 'Massage';
+          }
         }
-      }
+        const type = normalizePackageType(rawType || 'Gym-Cardio');
+
+        const startStr = (itemRow.startDate || itemRow.start_date || inv.startDate || inv.start_date || inv.date || '').split('T')[0] || todayStr;
+        let endStr = (itemRow.endDate || itemRow.end_date || itemRow.expiryDate || itemRow.expiry_date || inv.endDate || inv.end_date || inv.expiryDate || inv.expiry_date || '').split('T')[0];
+
+        if (!endStr && startStr) {
+          try {
+            const d = new Date(startStr);
+            d.setDate(d.getDate() + 30);
+            endStr = d.toISOString().split('T')[0];
+          } catch (_) {}
+        }
+        if (!endStr) return;
+
+        const planName = itemName || `${type} Package`;
+        const planItem = {
+          packageType: type,
+          planName,
+          startDate: startStr,
+          endDate: endStr,
+          invoiceNumber: inv.id || inv.invoiceNumber,
+          status: 'Active'
+        };
+
+        if (startStr && startStr > todayStr) {
+          planItem.status = 'Upcoming';
+          upcoming.push(planItem);
+        } else if (endStr < todayStr) {
+          planItem.status = 'Expired';
+          expired.push(planItem);
+        } else {
+          planItem.status = 'Active';
+          if (!activeMap[type] || endStr > activeMap[type].endDate) {
+            activeMap[type] = planItem;
+          }
+        }
+      });
     });
-    return Object.values(map);
-  }, [memberInvoices]);
+
+    if (!activeMap['Gym-Cardio'] && (member?.expiryDate || member?.expiry_date)) {
+      const exp = (member.expiryDate || member.expiry_date).split('T')[0];
+      const start = (member.startDate || member.start_date || member.joinDate || member.join_date || todayStr).split('T')[0];
+      const fallbackItem = {
+        packageType: 'Gym-Cardio',
+        planName: member.planName || member.plan_name || 'Gym Membership',
+        startDate: start,
+        endDate: exp,
+        status: exp >= todayStr ? 'Active' : 'Expired'
+      };
+      if (exp >= todayStr) {
+        activeMap['Gym-Cardio'] = fallbackItem;
+      } else {
+        expired.push(fallbackItem);
+      }
+    }
+
+    return {
+      active: Object.values(activeMap),
+      upcoming,
+      expired
+    };
+  }, [member, memberInvoices]);
+
+  const activePackagesByType = plansBreakdown.active;
 
   // Calculate Dues
   const duesAmount = (() => {
@@ -341,29 +420,89 @@ export const MemberProfileView = ({
               </div>
             </div>
 
-            {/* Active Service Packages Breakdown (When member has multiple packages) */}
-            {activePackagesByType.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 space-y-2">
+            {/* Active Service Packages Breakdown (Grouped by Package Type with Start & End Dates) */}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Active Packages ({activePackagesByType.length})</span>
+                  <span>Active Subscriptions ({activePackagesByType.length})</span>
                 </span>
+              </div>
+
+              {activePackagesByType.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {activePackagesByType.map((pkg) => (
-                    <div key={pkg.packageType} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
-                      <div className="min-w-0 pr-2">
-                        <span className="font-bold text-slate-900 block truncate">{pkg.packageType}</span>
+                    <div key={pkg.packageType} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between text-xs space-y-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className="font-bold text-slate-900 truncate">{pkg.packageType}</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800">Active</span>
+                        </div>
                         <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] text-emerald-700 font-semibold block">Valid Till</span>
-                        <span className="font-bold font-mono text-emerald-800 text-[11px]">{formatDate(pkg.endDate)}</span>
+                      <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                        <span className="text-[10px] text-slate-400">Duration</span>
+                        <span className="font-bold font-mono text-emerald-800 text-[10.5px]">
+                          {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center">
+                  No active packages currently enrolled.
+                </div>
+              )}
+
+              {/* Upcoming / Chained Packages */}
+              {plansBreakdown.upcoming.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-sky-700 uppercase tracking-wider block">
+                    Upcoming (Chained) Subscriptions
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {plansBreakdown.upcoming.map((pkg, idx) => (
+                      <div key={idx} className="p-2.5 rounded-xl bg-sky-50/50 border border-sky-200 flex items-center justify-between text-xs">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-bold text-slate-900 block truncate">{pkg.packageType}</span>
+                          <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[9px] text-sky-600 font-bold block uppercase">Upcoming</span>
+                          <span className="font-mono text-[10px] font-bold text-sky-950">
+                            {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Expired Packages */}
+              {plansBreakdown.expired.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Past / Expired Plans
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {plansBreakdown.expired.slice(0, 3).map((pkg, idx) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-50/70 border border-slate-200 flex items-center justify-between text-xs opacity-75">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-medium text-slate-700 block truncate">{pkg.packageType}: {pkg.planName}</span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono text-slate-400 text-[10px]">
+                            {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 3. INVOICES & BILLING HISTORY TABLE */}
@@ -658,9 +797,11 @@ export const MemberProfileView = ({
             <div className="p-6 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <h3 className="font-bold text-lg text-slate-900">{gymInfo?.name || 'ArchFit Athletic Club'}</h3>
-                    <p className="text-xs text-slate-500">{gymInfo?.address || 'Mumbai, Maharashtra'}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">GSTIN: {gymInfo?.gstin || '27AAPCP1234F1Z8'}</p>
+                    <h3 className="font-bold text-lg text-slate-900">{gymInfo?.name || 'Fitness Club'}</h3>
+                    {gymInfo?.address && <p className="text-xs text-slate-500">{gymInfo.address}</p>}
+                    {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
+                      <p className="text-[11px] text-slate-400 font-mono">GSTIN: {gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</p>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="font-mono text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
