@@ -48,7 +48,7 @@ export const SettingsManager = () => {
   const DEFAULT_PAYROLL_ATTENDANCE = {
     member: {
       auto_checkout: true,
-      auto_checkout_hours: 'shift',
+      auto_checkout_hours: 2,
       late_mark_minutes: 0,
       workout_window_alert: true,
     },
@@ -76,16 +76,30 @@ export const SettingsManager = () => {
   };
 
   const [payrollConfig, setPayrollConfig] = useState(() => {
-    return gymInfo?.payrollAttendanceSettings || gymInfo?.payroll_attendance_settings || DEFAULT_PAYROLL_ATTENDANCE;
+    const raw = gymInfo?.payrollAttendanceSettings || gymInfo?.payroll_attendance_settings;
+    const parsed = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+    const initial = { ...DEFAULT_PAYROLL_ATTENDANCE, ...(parsed || {}) };
+    if (initial.member && (initial.member.auto_checkout_hours === 'shift' || !initial.member.auto_checkout_hours)) {
+      initial.member.auto_checkout_hours = 2;
+    }
+    return initial;
   });
   const [isSavingPayroll, setIsSavingPayroll] = useState(false);
 
   useEffect(() => {
     if (gymInfo?.payrollAttendanceSettings || gymInfo?.payroll_attendance_settings) {
-      setPayrollConfig((prev) => ({
-        ...DEFAULT_PAYROLL_ATTENDANCE,
-        ...(gymInfo.payrollAttendanceSettings || gymInfo.payroll_attendance_settings),
-      }));
+      const raw = gymInfo.payrollAttendanceSettings || gymInfo.payroll_attendance_settings;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      setPayrollConfig((prev) => {
+        const next = {
+          ...DEFAULT_PAYROLL_ATTENDANCE,
+          ...parsed,
+        };
+        if (next.member && (next.member.auto_checkout_hours === 'shift' || !next.member.auto_checkout_hours)) {
+          next.member.auto_checkout_hours = 2;
+        }
+        return next;
+      });
     }
   }, [gymInfo]);
 
@@ -692,7 +706,7 @@ export const SettingsManager = () => {
               <div className="text-sm font-bold text-slate-800 mt-0.5">
                 {gymInfo?.maxMembers ? `${gymInfo.maxMembers} Athletes` : 'Unlimited Athletes'}
                 <span className="text-xs font-normal text-slate-500">
-                  {' '}• {(gymInfo?.maxBranches && gymInfo.maxBranches > 1) ? `${gymInfo.maxBranches} Gyms` : (currentTier?.toLowerCase() === 'platinum' ? '3 Gyms' : '1 Gym')}
+                  {' '}• {gymInfo?.maxBranches && gymInfo.maxBranches > 1 ? `${gymInfo.maxBranches} Gyms` : (currentTier?.toLowerCase() === 'platinum' ? '3 Gyms' : '1 Gym')}
                 </span>
               </div>
             </div>
@@ -1142,9 +1156,9 @@ export const SettingsManager = () => {
         </div>
       </form>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════════════════════════════════════════════════════ */}
       {/* OWNER ACCOUNT & PASSWORD SECURITY                         */}
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════════════════════════════════════════════════════ */}
       <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -1444,7 +1458,7 @@ export const SettingsManager = () => {
                             <span>Switching Workspace...</span>
                           </>
                         ) : (
-                          <span>Switch to this Gym â†’</span>
+                          <span>Switch to this Gym →</span>
                         )}
                       </button>
                     )}
@@ -1474,9 +1488,9 @@ export const SettingsManager = () => {
       </div>
       </div>
       ) : activeSettingsTab === 'consent' ? (
-        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        /* ══════════════════════════════════════════════════════════ */
         /* TAB 2: DIGITAL CONSENT & WAIVER BUILDER                   */
-        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        /* ══════════════════════════════════════════════════════════ */
         <div className="space-y-4 sm:space-y-6">
           {/* Top Info & Action Card */}
           <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1731,9 +1745,9 @@ export const SettingsManager = () => {
           </div>
         </div>
       ) : (
-        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        /* ══════════════════════════════════════════════════════════ */
         /* TAB 3: PAYROLL & ATTENDANCE POLICY RULES                   */
-        /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+        /* ══════════════════════════════════════════════════════════ */
         <div className="space-y-5 animate-fadeIn">
           {/* Header Action Bar */}
           <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1775,9 +1789,9 @@ export const SettingsManager = () => {
             </div>
           </div>
 
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           {/* 1. MEMBER ATTENDANCE & AUTO CHECK-OUT SECTION             */}
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-emerald-100/70">
               <div className="flex items-center gap-2.5">
@@ -1826,24 +1840,21 @@ export const SettingsManager = () => {
                         Auto Check-Out Time:
                       </label>
                       <select
-                        value={payrollConfig.member?.auto_checkout_hours ?? 'shift'}
-                        onChange={(e) => handleUpdateRoleSetting('member', 'auto_checkout_hours', e.target.value === 'shift' ? 'shift' : Number(e.target.value))}
+                        value={payrollConfig.member?.auto_checkout_hours && payrollConfig.member.auto_checkout_hours !== 'shift' ? Number(payrollConfig.member.auto_checkout_hours) : 2}
+                        onChange={(e) => handleUpdateRoleSetting('member', 'auto_checkout_hours', Number(e.target.value) || 2)}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
                       >
-                        <option value="shift">As per Assigned Shift (End Time in Profile)</option>
                         <option value={1}>1.0 Hour (60 mins)</option>
                         <option value={1.5}>1.5 Hours (90 mins)</option>
-                        <option value={2}>2.0 Hours (120 mins - Standard)</option>
+                        <option value={2}>2.0 Hours (120 mins - Default)</option>
                         <option value={2.5}>2.5 Hours (150 mins)</option>
                         <option value={3}>3.0 Hours (180 mins)</option>
                         <option value={4}>4.0 Hours (240 mins)</option>
                       </select>
                     </div>
-                    {payrollConfig.member?.auto_checkout_hours === 'shift' && (
-                      <p className="text-[10px] text-emerald-600 font-medium text-right">
-                        Auto check-out triggers at shift end time in user profile.
-                      </p>
-                    )}
+                    <p className="text-[10px] text-emerald-600 font-medium text-right">
+                      Auto check-out triggers {payrollConfig.member?.auto_checkout_hours && payrollConfig.member.auto_checkout_hours !== 'shift' ? payrollConfig.member.auto_checkout_hours : 2} hours after member check-in punch.
+                    </p>
                   </div>
                 )}
               </div>
@@ -1869,9 +1880,9 @@ export const SettingsManager = () => {
             </div>
           </div>
 
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           {/* 2. TRAINER & FITNESS COACH SECTION                        */}
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           <div className="bg-white border border-purple-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-purple-100/70">
               <div className="flex items-center gap-2.5">
@@ -1971,9 +1982,9 @@ export const SettingsManager = () => {
             </div>
           </div>
 
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           {/* 3. FACILITY MANAGER SECTION                               */}
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           <div className="bg-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-blue-100/70">
               <div className="flex items-center gap-2.5">
@@ -2071,9 +2082,9 @@ export const SettingsManager = () => {
             </div>
           </div>
 
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           {/* 4. ACCOUNTANT & FRONT-DESK SECTION                        */}
-          {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ════════════════════════════════════════════════════════ */}
           <div className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100/70">
               <div className="flex items-center gap-2.5">

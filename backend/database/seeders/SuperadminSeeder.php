@@ -15,7 +15,7 @@ class SuperadminSeeder extends Seeder
         $superadmin = User::updateOrCreate(
             ['email' => 'archdevops360@gmail.com'],
             [
-                'name' => 'Arch DevOps Superadmin',
+                'name' => 'Prathamesh',
                 'password' => Hash::make('111111'),
                 'initial_password' => Hash::make('111111'),
                 'role' => 'superadmin',

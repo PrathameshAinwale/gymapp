@@ -44,7 +44,7 @@ class InvoiceController extends Controller
             ->keyBy('reference_no');
 
         $owner = User::where('gym_id', $gymId)->where('role', 'owner')->first();
-        $defaultOwnerName = $owner ? $owner->name : 'Staff';
+        $defaultOwnerName = $owner ? $owner->name : 'Prathamesh';
 
         $invoices = $invoicesList->map(function ($inv) use ($inflowMap, $owner, $defaultOwnerName) {
             $matchingInflow = $inflowMap->get($inv->invoice_number);
@@ -73,7 +73,7 @@ class InvoiceController extends Controller
             }
 
             $cleanName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $rawCreator);
-            $createdByName = trim($cleanName) ?: $defaultOwnerName;
+            $createdByName = (trim($cleanName) && stripos($cleanName, 'arch devops') === false) ? trim($cleanName) : $defaultOwnerName;
             $creatorRole = ucfirst(strtolower($creatorRole));
 
             return [

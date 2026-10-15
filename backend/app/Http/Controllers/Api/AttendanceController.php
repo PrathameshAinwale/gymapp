@@ -234,7 +234,7 @@ class AttendanceController extends Controller
         if (empty($shiftString)) return null;
 
         // 1. Prefer timing inside parentheses: (06:00 AM - 02:00 PM)
-        if (preg_match('/\(\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*[-â€“to]+\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*\)/i', $shiftString, $m)) {
+        if (preg_match('/\(\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*[-–to]+\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*\)/i', $shiftString, $m)) {
             return [
                 'start' => trim($m[1]),
                 'end'   => trim($m[2]),
@@ -242,7 +242,7 @@ class AttendanceController extends Controller
         }
 
         // 2. Direct range without parentheses: 06:00 AM - 02:00 PM
-        if (preg_match('/([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*[-â€“to]+\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)/i', $shiftString, $m)) {
+        if (preg_match('/([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*[-–to]+\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)/i', $shiftString, $m)) {
             return [
                 'start' => trim($m[1]),
                 'end'   => trim($m[2]),
@@ -273,7 +273,7 @@ class AttendanceController extends Controller
             // 1. Members Auto Check-Out
             $memberSettings = $settings['member'] ?? ['auto_checkout' => true, 'auto_checkout_hours' => 2];
             if (!empty($memberSettings['auto_checkout'])) {
-                $isShiftBased = (($memberSettings['auto_checkout_hours'] ?? null) === 'shift' || ($memberSettings['auto_checkout_hours'] ?? null) === 'shifts');
+                $isShiftBased = false; // Members do not use shifts; they use workout duration hours (default 2 hrs)
                 $maxHours = (float)($memberSettings['auto_checkout_hours'] ?? 2);
                 $maxMinutes = (int)($maxHours * 60);
 

@@ -937,12 +937,12 @@ export const AttendanceTracker = () => {
                     <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
                       <div>
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch In</span>
-                        <span className="font-semibold text-slate-800">{stf.checkInTime || 'â€”'}</span>
+                        <span className="font-semibold text-slate-800">{stf.checkInTime || '—'}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch Out</span>
                         <span className="font-semibold text-slate-800">
-                          {stf.checkOutTime || (isOnDuty ? 'In Progress' : 'â€”')}
+                          {stf.checkOutTime || (isOnDuty ? 'In Progress' : '—')}
                         </span>
                       </div>
                       <div className="text-right">
@@ -1039,10 +1039,10 @@ export const AttendanceTracker = () => {
                             </div>
                           </td>
                           <td className="py-3.5 px-5 text-emerald-700 font-semibold">
-                            {stf.checkInTime || 'â€”'}
+                            {stf.checkInTime || '—'}
                           </td>
                           <td className="py-3.5 px-5 text-slate-700 font-semibold">
-                            {stf.checkOutTime || (isOnDuty ? '--' : 'â€”')}
+                            {stf.checkOutTime || (isOnDuty ? '--' : '—')}
                           </td>
                           <td className="py-3.5 px-5 text-slate-600">
                             {stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}
@@ -1134,7 +1134,7 @@ export const AttendanceTracker = () => {
             >
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({m.planName || 'Member'} â€¢ ID: {m.id})
+                  {m.name} ({m.planName || 'Member'} • ID: {m.id})
                 </option>
               ))}
             </select>

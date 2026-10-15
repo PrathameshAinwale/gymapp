@@ -9,7 +9,7 @@ export const defaultAccounts = [
     userId: 1,
     gymId: 1,
     gym_id: 1,
-    name: "Vikramaditya Singhania",
+    name: "Prathamesh",
     role: "superadmin",
     roleLabel: "Superadmin & General Director",
     email: "owner@archfit.in",
@@ -185,12 +185,12 @@ export const AuthProvider = ({ children }) => {
           let userRole = res.user.role || 'superadmin';
           if (userRole === 'owner') userRole = 'superadmin';
           const gymId = res.user.gym_id || res.user.gymId || res.user.gym?.id || null;
-          const gymName = res.user.gym?.name || (res.user.name + "'s Gym");
+          const gymName = res.user.gym?.name || 'PulseFit Gym';
           setCurrentUser((prev) => ({
             ...(prev || {}),
             id: `usr-${userRole}-${res.user.id}`,
             userId: res.user.id,
-            name: res.user.name,
+            name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : 'Prathamesh',
             email: res.user.email,
             role: userRole,
             gym_id: gymId,
@@ -339,7 +339,7 @@ export const AuthProvider = ({ children }) => {
         let userRole = res.user.role || 'superadmin';
         if (userRole === 'owner') userRole = 'superadmin';
         const gymId = res.user.gym_id || res.user.gymId || (res.user.gym ? res.user.gym.id : null);
-        const gymName = res.user.gym?.name || (res.user.name + "'s Gym");
+        const gymName = res.user.gym?.name || 'PulseFit Gym';
 
         const roleLabel =
           userRole === 'superadmin' || userRole === 'owner'
@@ -367,7 +367,7 @@ export const AuthProvider = ({ children }) => {
         const backendUser = {
           id: `usr-${userRole}-${res.user.id}`,
           userId: res.user.id,
-          name: res.user.name,
+          name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : 'Prathamesh',
           email: res.user.email,
           role: userRole,
           roleLabel: roleLabel,

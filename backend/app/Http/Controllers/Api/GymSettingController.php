@@ -14,7 +14,7 @@ class GymSettingController extends Controller
         return [
             'member' => [
                 'auto_checkout' => true,
-                'auto_checkout_hours' => 'shift',
+                'auto_checkout_hours' => 2,
                 'late_mark_minutes' => 0,
             ],
             'trainer' => [
@@ -83,7 +83,7 @@ class GymSettingController extends Controller
                     'email' => $gym->email ?? '',
                     'website' => $gym->website ?? '',
                     'operatingHours' => $gym->operating_hours ?? '',
-                    'currency' => $gym->currency ?? 'â‚¹',
+                    'currency' => $gym->currency ?? '₹',
                     'gstNumber' => $gym->gst_number ?? '',
                     'gstin' => $gym->gst_number ?? '',
                     'gst_number' => $gym->gst_number ?? '',
@@ -155,14 +155,14 @@ class GymSettingController extends Controller
                     'currency' => $setting->currency ?? '₹',
                     'is_fallback' => true,
                     'isFallback' => true,
-                    'payrollAttendanceSettings' => self::getDefaultPayrollAttendanceSettings(),
-                    'payroll_attendance_settings' => self::getDefaultPayrollAttendanceSettings(),
-                    'deviceIp' => '192.168.1.201',
-                    'device_ip' => '192.168.1.201',
-                    'essl_device_ip' => '192.168.1.201',
-                    'devicePort' => 4370,
-                    'device_port' => 4370,
-                    'essl_device_port' => 4370,
+                    'payrollAttendanceSettings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'payroll_attendance_settings' => !empty($setting->payroll_attendance_settings) ? (is_string($setting->payroll_attendance_settings) ? json_decode($setting->payroll_attendance_settings, true) : $setting->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
+                    'deviceIp' => (\Illuminate\Support\Facades\Schema::hasTable('biometric_devices') && \Illuminate\Support\Facades\Schema::hasColumn('biometric_devices', 'ip_address')) ? (\Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201')) : ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'device_ip' => (\Illuminate\Support\Facades\Schema::hasTable('biometric_devices') && \Illuminate\Support\Facades\Schema::hasColumn('biometric_devices', 'ip_address')) ? (\Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201')) : ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'essl_device_ip' => (\Illuminate\Support\Facades\Schema::hasTable('biometric_devices') && \Illuminate\Support\Facades\Schema::hasColumn('biometric_devices', 'ip_address')) ? (\Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($setting->essl_device_ip ?? '192.168.1.201')) : ($setting->essl_device_ip ?? '192.168.1.201'),
+                    'devicePort' => (int)($setting->essl_device_port ?? 4370),
+                    'device_port' => (int)($setting->essl_device_port ?? 4370),
+                    'essl_device_port' => (int)($setting->essl_device_port ?? 4370),
                 ]
             ]);
         }
@@ -257,7 +257,7 @@ class GymSettingController extends Controller
                 $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
                 $setting->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
             }
-            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: 'â‚¹';
+            if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
             $setting->save();
         }
 
@@ -458,7 +458,7 @@ class GymSettingController extends Controller
             'billing_cycle' => $primaryGym->billing_cycle ?? 'Annual',
             'subscription_expires_at' => $primaryGym->subscription_expires_at,
             'status' => 'Active',
-            'currency' => $primaryGym->currency ?? 'â‚¹',
+            'currency' => $primaryGym->currency ?? '₹',
             'operating_hours' => $request->operating_hours ?: ($primaryGym->operating_hours ?? 'Mon-Sat: 6:00 AM - 10:30 PM'),
             'logo' => $request->logo ?: ($primaryGym->logo ?? null),
             'max_members' => $primaryGym->max_members,

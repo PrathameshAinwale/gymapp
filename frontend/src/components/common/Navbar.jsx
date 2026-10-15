@@ -42,7 +42,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const gymName = gymInfo?.name || currentUser?.gymName || currentUser?.gym_name || '';
+  const gymName = gymInfo?.name || (currentUser?.gymName && !currentUser.gymName.includes('Arch DevOps') ? currentUser.gymName : 'PulseFit Gym');
   const gymLogo = gymInfo?.logo || '';
 
   const getRoleBadge = () => {
@@ -253,6 +253,23 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
               )}
             </div>
           )}
+          {/* Logged-in Staff / Owner Real Name Pill */}
+          {currentUser && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 shadow-2xs">
+              <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+                {(currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : 'Prathamesh').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex flex-col text-left leading-none min-w-0 max-w-[120px] md:max-w-[150px]">
+                <span className="text-xs font-bold text-slate-800 truncate" title={currentUser?.name}>
+                  {currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : 'Prathamesh'}
+                </span>
+                <span className="text-[9px] font-semibold text-slate-400 capitalize">
+                  {currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : currentRole || 'Staff'}
+                </span>
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={logout}

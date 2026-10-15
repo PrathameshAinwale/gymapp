@@ -861,7 +861,7 @@ class OperationsController extends Controller
             'reference_no' => $invNum,
             'user_id' => $billedUserId,
             'member_name' => ($transfer->to_member_name ?? 'Recipient') . " (Transfer from " . ($transfer->from_member_name ?? 'Source') . ")",
-            'plan_name' => "Transfer Fee: " . ($transfer->from_member_name ?? 'Source') . " â†’ " . ($transfer->to_member_name ?? 'Recipient'),
+            'plan_name' => "Transfer Fee: " . ($transfer->from_member_name ?? 'Source') . " → " . ($transfer->to_member_name ?? 'Recipient'),
             'title' => "Membership Transfer Fee - " . ($transfer->to_member_name ?? 'Recipient'),
             'category' => 'Membership Transfer',
             'amount' => $transferFee,
@@ -1212,7 +1212,7 @@ class OperationsController extends Controller
 
                 $advNotes = $adv->notes ? $adv->notes . ' | ' : '';
                 $remarkNote = !empty($request->notes) ? " ({$request->notes})" : (!empty($request->remarks) ? " ({$request->remarks})" : '');
-                $advNotes .= "Payroll deduction â‚¹" . number_format($portionToDeduct, 2) . " applied{$remarkNote} on " . now()->toDateString();
+                $advNotes .= "Payroll deduction ₹" . number_format($portionToDeduct, 2) . " applied{$remarkNote} on " . now()->toDateString();
 
                 $newStatus = ($newRepaid >= (float)$adv->amount) ? 'Repaid' : 'Partially Repaid';
 
