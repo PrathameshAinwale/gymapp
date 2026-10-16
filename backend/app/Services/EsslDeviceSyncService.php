@@ -88,9 +88,9 @@ class EsslDeviceSyncService
                 shell_exec("python \"{$scriptPath}\" --delete --user-id {$oldTargetId} --ip {$deviceIp} --port {$devicePort}");
             }
 
-            // Privilege: 14 for manager/owner/superadmin, 0 for trainer/accounts/member
+            // Privilege 0 ensures physical machine menu is never locked, allowing owner to set manual password
             $roleLower = strtolower($user->role ?? 'member');
-            $privilege = in_array($roleLower, ['manager', 'admin', 'superadmin', 'owner']) ? 14 : 0;
+            $privilege = 0;
 
             $cleanName = escapeshellarg(substr($user->name, 0, 24));
             $targetId = escapeshellarg($bioUserId);

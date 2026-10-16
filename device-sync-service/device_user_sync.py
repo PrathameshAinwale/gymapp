@@ -322,12 +322,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine privilege based on role if privilege is default 0
+    # Standard privilege 0 ensures physical machine menu is never locked, allowing owner to set manual password
     privilege_val = args.privilege
-    if privilege_val == 0 and args.role:
-        role_lower = str(args.role).lower()
-        if role_lower in ["manager", "admin", "superadmin", "owner"]:
-            privilege_val = 14  # Device administrator
 
     if args.list:
         res = list_users(ip=args.ip, port=args.port)

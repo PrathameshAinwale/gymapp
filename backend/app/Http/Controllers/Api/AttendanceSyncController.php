@@ -312,7 +312,8 @@ class AttendanceSyncController extends Controller
 
         $users = $query->take(50)->get()->map(function ($u) {
             $roleLower = strtolower($u->role ?? 'member');
-            $privilege = in_array($roleLower, ['manager', 'admin', 'superadmin', 'owner']) ? 14 : 0;
+            // Privilege 0 ensures physical machine menu is never locked, allowing owner to set manual password
+            $privilege = 0;
             return [
                 'id' => $u->id,
                 'user_id' => (string)($u->biometric_user_id ?: $u->id),
