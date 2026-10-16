@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\BiometricDevice;
 use App\Models\BiometricLog;
+use App\Models\Gym;
 use App\Models\MemberProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -19,6 +20,18 @@ class AdmsController extends Controller
      * - GET:  Device Handshake / Device Registration / Options query
      * - POST: Attendance Punch Upload (table=ATTLOG) & Operations
      */
+    /**
+     * Resolve gym_id safely without hardcoding or failing foreign key constraints.
+     */
+    protected function getSafeGymId(?User $user = null, ?BiometricDevice $device = null, ?Request $request = null): ?int
+    {
+        $candidate = $user?->gym_id ?? $device?->gym_id ?? ($request ? $this->resolveGymId($request) : null);
+        if ($candidate && Gym::where('id', $candidate)->exists()) {
+            return (int) $candidate;
+        }
+        return Gym::first()?->id ?? null;
+    }
+
     public function cdata(Request $request)
     {
         $sn = $request->query('SN', $request->query('sn', 'UNKNOWN-SN'));
@@ -26,7 +39,7 @@ class AdmsController extends Controller
         $deviceIp = $request->ip();
 
         // Ensure or update BiometricDevice record
-        $device = $this->resolveDevice($sn, $deviceIp);
+        $device = $this->resolveDevice($sn, $deviceIp, $request);
 
         // ── 1. GET Request: Handshake & Configuration ──
         if ($request->isMethod('get')) {
@@ -64,7 +77,7 @@ class AdmsController extends Controller
                 $line = trim($line);
                 if (empty($line)) continue;
 
-                $success = $this->processPunchLine($line, $device, $deviceIp);
+                $success = $this->processPunchLine($line, $device, $deviceIp, $request);
                 if ($success) {
                     $processedCount++;
                 }
@@ -94,7 +107,7 @@ class AdmsController extends Controller
         $sn = $request->query('SN', $request->query('sn', 'UNKNOWN-SN'));
         $deviceIp = $request->ip();
 
-        $device = $this->resolveDevice($sn, $deviceIp);
+        $device = $this->resolveDevice($sn, $deviceIp, $request);
         if ($device) {
             $device->update([
                 'last_sync' => 'Just now (Heartbeat)',
@@ -134,10 +147,10 @@ class AdmsController extends Controller
         $sn = $request->input('sn', 'eSSL-MANUAL-TEST');
         $deviceIp = $request->ip();
 
-        $device = $this->resolveDevice($sn, $deviceIp);
+        $device = $this->resolveDevice($sn, $deviceIp, $request);
 
         $line = "{$pin}\t{$timeStr}\t0\t1\t0\t0\t0";
-        $success = $this->processPunchLine($line, $device, $deviceIp);
+        $success = $this->processPunchLine($line, $device, $deviceIp, $request);
 
         if ($success) {
             if ($device) {
@@ -163,7 +176,7 @@ class AdmsController extends Controller
      * - Tab delimited: PIN \t Date Time \t Status \t VerifyType \t WorkCode \t Reserved1 \t Reserved2
      * - Space delimited: PIN Date Time Status VerifyType
      */
-    protected function processPunchLine(string $line, ?BiometricDevice $device, string $deviceIp): bool
+    protected function processPunchLine(string $line, ?BiometricDevice $device, string $deviceIp, ?Request $request = null): bool
     {
         $parts = preg_split('/[\t\s]+/', $line);
         if (count($parts) < 2) {
@@ -192,8 +205,9 @@ class AdmsController extends Controller
         $user = $this->findUserByPin($pin);
         if (!$user) {
             // Log unrecognized punch attempt
+            $gymId = $this->getSafeGymId(null, $device, $request);
             BiometricLog::create([
-                'gym_id' => $device?->gym_id ?? 1,
+                'gym_id' => $gymId,
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $device?->name ?? 'eSSL Biometric Gate',
                 'person_name' => "Unrecognized (PIN #{$pin})",
@@ -210,8 +224,9 @@ class AdmsController extends Controller
 
         // Check if membership is expired
         if ($profile && $profile->status === 'Expired') {
+            $gymId = $this->getSafeGymId($user, $device, $request);
             BiometricLog::create([
-                'gym_id' => $user->gym_id ?? $device?->gym_id ?? 1,
+                'gym_id' => $gymId,
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $device?->name ?? 'eSSL Biometric Gate',
                 'person_name' => $user->name,
@@ -253,8 +268,9 @@ class AdmsController extends Controller
                 'status' => 'Completed',
             ]);
 
+            $gymId = $this->getSafeGymId($user, $device, $request);
             BiometricLog::create([
-                'gym_id' => $user->gym_id ?? $device?->gym_id ?? 1,
+                'gym_id' => $gymId,
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $deviceName,
                 'person_name' => $user->name,
@@ -283,8 +299,9 @@ class AdmsController extends Controller
                 $profile->save();
             }
 
+            $gymId = $this->getSafeGymId($user, $device, $request);
             BiometricLog::create([
-                'gym_id' => $user->gym_id ?? $device?->gym_id ?? 1,
+                'gym_id' => $gymId,
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $deviceName,
                 'person_name' => $user->name,
@@ -307,19 +324,37 @@ class AdmsController extends Controller
         $cleanPin = trim($pin);
         $cleanPinWithoutPrefix = str_replace(['mem-', 'user-'], '', $cleanPin);
 
-        // 1. Direct ID match
+        // 1. Direct match by biometric_user_id on users table
+        $user = User::where('biometric_user_id', $cleanPin)->first();
+        if ($user) return $user;
+
+        // 2. Match by biometric_user_id on member_profiles table
+        $profile = MemberProfile::where('biometric_user_id', $cleanPin)->first();
+        if ($profile && $profile->user) {
+            return $profile->user;
+        }
+
+        // 3. Direct numeric ID match in users table
         if (is_numeric($cleanPinWithoutPrefix)) {
             $user = User::find((int)$cleanPinWithoutPrefix);
             if ($user) return $user;
         }
 
-        // 2. Match by qr_pass_code in member_profiles
+        // 4. Match by member_profiles ID
+        if (is_numeric($cleanPinWithoutPrefix)) {
+            $profile = MemberProfile::find((int)$cleanPinWithoutPrefix);
+            if ($profile && $profile->user) {
+                return $profile->user;
+            }
+        }
+
+        // 5. Match by qr_pass_code in member_profiles
         $profile = MemberProfile::where('qr_pass_code', $cleanPin)->first();
         if ($profile && $profile->user) {
             return $profile->user;
         }
 
-        // 3. Match by phone number
+        // 6. Match by phone number
         $user = User::where('phone', $cleanPin)->first();
         if ($user) return $user;
 
@@ -329,32 +364,60 @@ class AdmsController extends Controller
     /**
      * Find or auto-register BiometricDevice by Serial Number
      */
-    protected function resolveDevice(string $sn, string $ip): ?BiometricDevice
+    protected function resolveDevice(string $sn, string $ip, ?Request $request = null): ?BiometricDevice
     {
-        if (empty($sn) || $sn === 'UNKNOWN-SN') {
-            return BiometricDevice::first();
+        // 1. Direct match by serial number if provided
+        if (!empty($sn) && $sn !== 'UNKNOWN-SN') {
+            $device = BiometricDevice::where('serial_no', $sn)->first();
+            if ($device) {
+                $device->update([
+                    'ip_address' => $ip,
+                    'status' => 'Connected & Online',
+                ]);
+                return $device;
+            }
         }
 
-        $device = BiometricDevice::where('serial_no', $sn)->first();
-        if (!$device) {
-            $device = BiometricDevice::create([
-                'gym_id' => 1,
-                'name' => "eSSL Biometric ({$sn})",
-                'ip_address' => $ip,
-                'serial_no' => $sn,
-                'location' => 'Main Entrance',
-                'status' => 'Connected & Online',
-                'total_punches_today' => 0,
-                'pulse_duration_sec' => 5,
-                'last_sync' => 'Just now',
-            ]);
-        } else {
-            $device->update([
-                'ip_address' => $ip,
-                'status' => 'Connected & Online',
-            ]);
+        // 2. Match by IP if provided and not loopback
+        if (!empty($ip) && $ip !== '127.0.0.1') {
+            $device = BiometricDevice::where('ip_address', $ip)->first();
+            if ($device) {
+                if (!empty($sn) && $sn !== 'UNKNOWN-SN' && empty($device->serial_no)) {
+                    $device->serial_no = $sn;
+                }
+                $device->status = 'Connected & Online';
+                $device->save();
+                return $device;
+            }
         }
 
-        return $device;
+        // 3. Reuse existing configured device if one exists
+        $existing = BiometricDevice::first();
+        if ($existing) {
+            $updates = ['status' => 'Connected & Online'];
+            if (!empty($ip) && $ip !== '127.0.0.1') {
+                $updates['ip_address'] = $ip;
+            }
+            if (!empty($sn) && $sn !== 'UNKNOWN-SN' && empty($existing->serial_no)) {
+                $updates['serial_no'] = $sn;
+            }
+            $existing->update($updates);
+            return $existing;
+        }
+
+        // 4. Create new device with safely validated gym_id
+        $gymId = $this->getSafeGymId(null, null, $request);
+
+        return BiometricDevice::create([
+            'gym_id' => $gymId,
+            'name' => "eSSL Biometric ({$sn})",
+            'ip_address' => $ip,
+            'serial_no' => $sn,
+            'location' => 'Main Entrance',
+            'status' => 'Connected & Online',
+            'total_punches_today' => 0,
+            'pulse_duration_sec' => 5,
+            'last_sync' => 'Just now',
+        ]);
     }
 }
