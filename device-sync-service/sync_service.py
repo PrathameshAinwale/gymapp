@@ -399,6 +399,59 @@ class DeviceSyncManager:
         except Exception as e:
             logger.debug(f"User reconciliation check error: {e}")
 
+    def sync_pending_users_to_machine(self):
+        """Fetches pending users from Laravel and enrolls them on the physical eSSL machine."""
+        try:
+            from device_user_sync import push_single_user
+            api_base = self.config.get("api_base_url", "http://127.0.0.1:8000/api").rstrip("/")
+            pending_url = f"{api_base}/attendance/pending-users"
+            api_token = self.config.get("api_token", "")
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "X-Collector-Token": api_token,
+                "Accept": "application/json"
+            }
+            res = requests.get(pending_url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                users = data.get("users", [])
+                if not users:
+                    return
+
+                ip = self.config.get("device_ip", "192.168.1.201")
+                port = int(self.config.get("device_port", 4370))
+                synced_ids = []
+
+                for u in users:
+                    uid_str = str(u.get("user_id", ""))
+                    name_str = str(u.get("name", ""))
+                    priv = int(u.get("privilege", 0))
+                    card_val = int(u.get("card", 0))
+
+                    if not uid_str:
+                        continue
+
+                    push_res = push_single_user(
+                        user_id=uid_str,
+                        name=name_str,
+                        card=card_val,
+                        privilege=priv,
+                        ip=ip,
+                        port=port
+                    )
+
+                    if push_res.get("success"):
+                        synced_ids.append(u.get("id", uid_str))
+                        logger.info(f"Two-Way Sync: Enrolled {name_str} (ID: {uid_str}) on biometric terminal {ip}:{port}.")
+                    else:
+                        logger.warning(f"Failed to enroll user {name_str} on machine: {push_res.get('message')}")
+
+                if synced_ids:
+                    ack_url = f"{api_base}/attendance/mark-users-synced"
+                    requests.post(ack_url, json={"user_ids": synced_ids}, headers=headers, timeout=10)
+        except Exception as e:
+            logger.debug(f"User enrollment sync error: {e}")
+
     def check_config_updates(self):
         """Dynamically reloads config.json and switches hardware adapter target IP/port on the fly."""
         try:
@@ -427,6 +480,14 @@ class DeviceSyncManager:
         self.check_config_updates()
 
         self.sync_cycle_count += 1
+
+        # Check and enroll pending members/staff onto the eSSL hardware (every 3 cycles = ~30 seconds, or first cycle)
+        if self.sync_cycle_count % 3 == 0 or self.sync_cycle_count == 1:
+            try:
+                self.sync_pending_users_to_machine()
+            except Exception as user_err:
+                logger.debug(f"Pending user sync skipped: {user_err}")
+
         # Periodically reconcile machine users with Laravel (every 6 cycles = ~60 seconds)
         if self.sync_cycle_count % 6 == 0:
             try:

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Models\MemberProfile;
 
 class AttendanceSyncController extends Controller
 {
@@ -282,5 +284,81 @@ class AttendanceSyncController extends Controller
         $result = app(\App\Services\EsslDeviceSyncService::class)->reconcileWithMachineUsers($machineUsers, $gymId);
 
         return response()->json($result);
+    }
+
+    /**
+     * Get pending users that need to be enrolled onto the physical eSSL machine.
+     */
+    public function getPendingUsers(Request $request)
+    {
+        $token = $request->bearerToken() ?: ($request->header('X-Collector-Token') ?: $request->header('X-Device-Token'));
+        $device = DB::table('biometric_devices')->where('api_token', $token)->first();
+        if (!$device) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized Device'], 401);
+        }
+
+        $gymId = $device->gym_id;
+
+        // Fetch users who are active and not yet marked as synced to hardware
+        $query = User::where(function ($q) {
+            $q->where('synced_to_device', 0)
+              ->orWhereNull('synced_to_device');
+        })->whereIn('role', ['member', 'trainer', 'manager', 'accountant', 'staff']);
+
+        if ($gymId && $gymId > 0) {
+            $query->where('gym_id', $gymId);
+        }
+
+        $users = $query->take(50)->get()->map(function ($u) {
+            $roleLower = strtolower($u->role ?? 'member');
+            $privilege = in_array($roleLower, ['manager', 'admin', 'superadmin', 'owner']) ? 14 : 0;
+            return [
+                'id' => $u->id,
+                'user_id' => (string)($u->biometric_user_id ?: $u->id),
+                'name' => substr($u->name, 0, 24),
+                'role' => $roleLower,
+                'privilege' => $privilege,
+                'card' => 0,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'users' => $users,
+        ]);
+    }
+
+    /**
+     * Mark users as successfully enrolled on the physical eSSL machine.
+     */
+    public function markUsersSynced(Request $request)
+    {
+        $token = $request->bearerToken() ?: ($request->header('X-Collector-Token') ?: $request->header('X-Device-Token'));
+        $device = DB::table('biometric_devices')->where('api_token', $token)->first();
+        if (!$device) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized Device'], 401);
+        }
+
+        $userIds = $request->input('user_ids', []);
+        if (!empty($userIds)) {
+            User::whereIn('id', $userIds)
+                ->orWhereIn('biometric_user_id', $userIds)
+                ->update([
+                    'synced_to_device' => 1,
+                    'device_synced_at' => now(),
+                ]);
+
+            MemberProfile::whereIn('user_id', $userIds)
+                ->orWhereIn('biometric_user_id', $userIds)
+                ->update([
+                    'synced_to_device' => 1,
+                    'device_synced_at' => now(),
+                ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated_count' => count($userIds),
+        ]);
     }
 }
