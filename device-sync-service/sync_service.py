@@ -400,9 +400,9 @@ class DeviceSyncManager:
             logger.debug(f"User reconciliation check error: {e}")
 
     def sync_pending_users_to_machine(self):
-        """Fetches pending users from Laravel and enrolls them on the physical eSSL machine."""
+        """Fetches pending users and deletions from Laravel and syncs them to the physical eSSL machine."""
         try:
-            from device_user_sync import push_single_user
+            from device_user_sync import push_single_user, delete_single_user
             api_base = self.config.get("api_base_url", "http://127.0.0.1:8000/api").rstrip("/")
             pending_url = f"{api_base}/attendance/pending-users"
             api_token = self.config.get("api_token", "")
@@ -415,13 +415,33 @@ class DeviceSyncManager:
             if res.status_code == 200:
                 data = res.json()
                 users = data.get("users", [])
-                if not users:
+                deletions = data.get("deletions", [])
+                if not users and not deletions:
                     return
 
                 ip = self.config.get("device_ip", "192.168.1.201")
                 port = int(self.config.get("device_port", 4370))
                 synced_ids = []
+                processed_del_ids = []
 
+                # 1. Process deletions first to clear slots if needed
+                for d in deletions:
+                    bio_id = str(d.get("biometric_user_id", "")).strip()
+                    del_name = str(d.get("user_name", "") or "").strip()
+                    rec_id = d.get("id")
+                    if not bio_id:
+                        continue
+                    try:
+                        del_res = delete_single_user(user_id=bio_id, name=del_name, ip=ip, port=port)
+                        if del_res.get("success"):
+                            processed_del_ids.append(rec_id or bio_id)
+                            logger.info(f"Two-Way Sync: Removed user {del_name} (ID: {bio_id}) from machine {ip}:{port}.")
+                        else:
+                            logger.warning(f"Failed to remove user {bio_id} from machine: {del_res.get('message')}")
+                    except Exception as de:
+                        logger.warning(f"Error deleting user {bio_id} on machine: {de}")
+
+                # 2. Process user enrollments and updates
                 for u in users:
                     uid_str = str(u.get("user_id", ""))
                     name_str = str(u.get("name", ""))
@@ -442,13 +462,13 @@ class DeviceSyncManager:
 
                     if push_res.get("success"):
                         synced_ids.append(u.get("id", uid_str))
-                        logger.info(f"Two-Way Sync: Enrolled {name_str} (ID: {uid_str}) on biometric terminal {ip}:{port}.")
+                        logger.info(f"Two-Way Sync: Enrolled/Updated {name_str} (ID: {uid_str}) on biometric terminal {ip}:{port}.")
                     else:
                         logger.warning(f"Failed to enroll user {name_str} on machine: {push_res.get('message')}")
 
-                if synced_ids:
+                if synced_ids or processed_del_ids:
                     ack_url = f"{api_base}/attendance/mark-users-synced"
-                    requests.post(ack_url, json={"user_ids": synced_ids}, headers=headers, timeout=10)
+                    requests.post(ack_url, json={"user_ids": synced_ids, "deletion_ids": processed_del_ids}, headers=headers, timeout=10)
         except Exception as e:
             logger.debug(f"User enrollment sync error: {e}")
 

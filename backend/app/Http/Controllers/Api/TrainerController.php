@@ -176,7 +176,14 @@ class TrainerController extends Controller
             'shifts' => $request->shifts ?? null,
             'joining_date' => $request->joining_date ?? null,
             'salary' => $request->salary ?? $request->monthly_salary ?? $request->monthlySalary ?? null,
+            'biometric_user_id' => $request->input('biometric_user_id', $request->input('biometricUserId')),
+            'synced_to_device' => 0,
         ]);
+
+        if (!$user->biometric_user_id) {
+            $user->biometric_user_id = (string)$user->id;
+            $user->save();
+        }
 
         $certifications = $request->certifications;
         if (is_string($certifications)) {
@@ -260,12 +267,16 @@ class TrainerController extends Controller
         $oldBioId = (string)($user->biometric_user_id ?: $user->id);
 
         // Editable personal/contact details
-        if ($request->has('name') && filled($request->name)) $user->name = $request->name;
+        if ($request->has('name') && filled($request->name)) {
+            $user->name = $request->name;
+            $user->synced_to_device = 0;
+        }
         if ($request->has('email')) $user->email = filled($request->email) ? $request->email : null;
         if ($request->has('phone') && filled($request->phone)) $user->phone = $request->phone;
         if ($request->has('avatar')) $user->avatar = $request->avatar;
         if ($request->has('biometric_user_id') || $request->has('biometricUserId')) {
             $user->biometric_user_id = (string)$request->input('biometric_user_id', $request->input('biometricUserId'));
+            $user->synced_to_device = 0;
         }
         $user->save();
 
@@ -315,6 +326,16 @@ class TrainerController extends Controller
     {
         $numericId = str_replace('trn-', '', $id);
         $user = User::where('role', 'trainer')->findOrFail($numericId);
+
+        $bioId = (string)($user->biometric_user_id ?: $user->id);
+        if (\Illuminate\Support\Facades\Schema::hasTable('biometric_deletions')) {
+            \Illuminate\Support\Facades\DB::table('biometric_deletions')->insert([
+                'biometric_user_id' => $bioId,
+                'user_name' => $user->name,
+                'gym_id' => $user->gym_id,
+                'created_at' => now(),
+            ]);
+        }
 
         // Synchronize deletion with physical eSSL Biometric Terminal over LAN
         $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->deleteUser($user);

@@ -770,9 +770,13 @@ class MemberController extends Controller
 
             // eSSL Biometric User ID (defaults to user ID if not provided)
             $biometricId = $request->input('biometric_user_id', $request->input('biometricUserId', (string)$user->id));
+            $user->biometric_user_id = $biometricId;
+            $user->synced_to_device = 0;
+            $user->save();
 
             $profile->fill([
                 'biometric_user_id' => $biometricId,
+                'synced_to_device' => 0,
                 'plan_id' => $planId,
                 'trainer_id' => $trainerId,
                 'executive' => $rawExecutive,
@@ -1366,6 +1370,9 @@ class MemberController extends Controller
             }
         });
 
+        $user->update(['synced_to_device' => 0]);
+        $profile->update(['synced_to_device' => 0]);
+
         // Synchronize member update with eSSL Biometric Terminal over LAN
         $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'push', $oldBioId ?? null);
 
@@ -1384,6 +1391,16 @@ class MemberController extends Controller
         $numericId = str_replace('mem-', '', $id);
         $user = User::where('role', 'member')->findOrFail($numericId);
         $profile = MemberProfile::where('user_id', $user->id)->first();
+
+        $bioId = (string)($profile?->biometric_user_id ?: $user->biometric_user_id ?: $user->id);
+        if (\Illuminate\Support\Facades\Schema::hasTable('biometric_deletions')) {
+            \Illuminate\Support\Facades\DB::table('biometric_deletions')->insert([
+                'biometric_user_id' => $bioId,
+                'user_name' => $user->name,
+                'gym_id' => $user->gym_id,
+                'created_at' => now(),
+            ]);
+        }
 
         // Automatically delete member from eSSL Biometric Terminal over LAN
         $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'delete');

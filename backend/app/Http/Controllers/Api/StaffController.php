@@ -285,6 +285,8 @@ class StaffController extends Controller
             $responseData['activeClientsCount'] = 0;
         }
 
+        $user->update(['synced_to_device' => 0]);
+
         // Automatically register staff into eSSL Biometric Terminal over LAN
         $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user);
         $responseData['device_sync'] = $deviceSyncResult;
@@ -434,6 +436,8 @@ class StaffController extends Controller
             $responseData['monthly_salary'] = $profile->monthly_salary;
         }
 
+        $user->update(['synced_to_device' => 0]);
+
         // Synchronize updated staff details with eSSL Biometric Terminal over LAN
         $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user, $oldBioId);
         $responseData['device_sync'] = $deviceSyncResult;
@@ -460,6 +464,16 @@ class StaffController extends Controller
         // Protect superadmin and owner accounts from deletion
         if (in_array($user->role, ['superadmin', 'owner'])) {
             return response()->json(['success' => false, 'message' => 'Cannot delete superadmin or owner account.'], 403);
+        }
+
+        $bioId = (string)($user->biometric_user_id ?: $user->id);
+        if (\Illuminate\Support\Facades\Schema::hasTable('biometric_deletions')) {
+            \Illuminate\Support\Facades\DB::table('biometric_deletions')->insert([
+                'biometric_user_id' => $bioId,
+                'user_name' => $user->name,
+                'gym_id' => $user->gym_id,
+                'created_at' => now(),
+            ]);
         }
 
         // Synchronize deletion with physical eSSL Biometric Terminal over LAN

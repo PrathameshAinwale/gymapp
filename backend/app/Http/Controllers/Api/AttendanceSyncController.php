@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use App\Models\User;
 use App\Models\MemberProfile;
@@ -322,14 +323,27 @@ class AttendanceSyncController extends Controller
             ];
         });
 
+        // Fetch pending deletions
+        $deletions = [];
+        if (Schema::hasTable('biometric_deletions')) {
+            $delQuery = DB::table('biometric_deletions');
+            if ($gymId && $gymId > 0) {
+                $delQuery->where(function ($q) use ($gymId) {
+                    $q->where('gym_id', $gymId)->orWhereNull('gym_id');
+                });
+            }
+            $deletions = $delQuery->take(50)->get(['id', 'biometric_user_id', 'user_name']);
+        }
+
         return response()->json([
             'success' => true,
             'users' => $users,
+            'deletions' => $deletions,
         ]);
     }
 
     /**
-     * Mark users as successfully enrolled on the physical eSSL machine.
+     * Mark users as successfully enrolled or deleted on the physical eSSL machine.
      */
     public function markUsersSynced(Request $request)
     {
@@ -356,9 +370,17 @@ class AttendanceSyncController extends Controller
                 ]);
         }
 
+        $deletionIds = $request->input('deletion_ids', []);
+        if (!empty($deletionIds) && Schema::hasTable('biometric_deletions')) {
+            DB::table('biometric_deletions')->whereIn('id', $deletionIds)
+                ->orWhereIn('biometric_user_id', $deletionIds)
+                ->delete();
+        }
+
         return response()->json([
             'success' => true,
             'updated_count' => count($userIds),
+            'deleted_count' => count($deletionIds),
         ]);
     }
 }
