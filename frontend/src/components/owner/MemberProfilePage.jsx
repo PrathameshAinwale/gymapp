@@ -754,21 +754,19 @@ export const MemberProfilePage = ({
             </div>
 
             {plansBreakdown.active.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {plansBreakdown.active.map((pkg, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/60 to-teal-50/30 border border-emerald-200/70 shadow-2xs">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                        {pkg.packageType}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        Active
-                      </span>
+                  <div key={idx} className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center justify-between text-xs">
+                    <div className="min-w-0 pr-2">
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="truncate">{pkg.packageType}</span>
+                        <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-bold shrink-0">Active</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
                     </div>
-                    <div className="text-xs font-bold text-slate-700 truncate">{pkg.planName}</div>
-                    <div className="mt-2 pt-2 border-t border-emerald-100/80 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-medium">Duration:</span>
-                      <span className="font-bold text-emerald-950 font-mono">
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-emerald-600 font-semibold block">Duration</span>
+                      <span className="font-bold font-mono text-emerald-900 text-[10px]">
                         {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
                       </span>
                     </div>

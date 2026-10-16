@@ -203,11 +203,12 @@ export const RecordPaymentModal = ({
       }
 
       // Default Trainer
-      if (trainers && trainers.length > 0) {
+      if (targetMember?.trainerId && trainers && trainers.length > 0) {
         const defaultTrainer =
-          trainers.find((t) => String(t.id) === String(targetMember?.trainerId)) ||
-          trainers[0];
-        setSelectedTrainerId(String(defaultTrainer.id));
+          trainers.find((t) => String(t.id) === String(targetMember?.trainerId));
+        if (defaultTrainer) setSelectedTrainerId(String(defaultTrainer.id));
+      } else {
+        setSelectedTrainerId('');
       }
 
       // Default Package Row
@@ -339,7 +340,7 @@ export const RecordPaymentModal = ({
   }, [currentMember, invoices]);
 
   const currentTrainer = useMemo(
-    () => trainers.find((t) => String(t.id) === String(selectedTrainerId)) || trainers[0] || null,
+    () => trainers.find((t) => String(t.id) === String(selectedTrainerId)) || null,
     [trainers, selectedTrainerId]
   );
 
@@ -393,12 +394,7 @@ export const RecordPaymentModal = ({
     }
   };
 
-  // Package Row Handlers
   const handlePackageTypeChange = (rowId, newType) => {
-    const isPt = newType === 'Personal Training' || newType === 'pt';
-    if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
-      setSelectedTrainerId(trainers[0].id);
-    }
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
 
@@ -440,8 +436,6 @@ export const RecordPaymentModal = ({
         if (found && membershipStartDate) {
           const calculated = computeCombinedPlanEndDate(membershipStartDate, found, currentMember?.expiryDate);
           if (calculated) setMembershipEndDate(calculated);
-        } else if (isPt && trainers && trainers.length > 0 && !selectedTrainerId) {
-          setSelectedTrainerId(trainers[0].id);
         }
 
         return {
@@ -740,6 +734,14 @@ export const RecordPaymentModal = ({
     const validPackages = selectedPackages.filter((r) => r.packageId && (Number(r.price) >= 0));
     if (validPackages.length === 0) {
       addToast('Please select at least one package with a plan.', 'error');
+      return;
+    }
+
+    // Compulsory Trainer Validation for Personal Training Packages
+    const isPtRowCheck = (r) => (normalizePackageType(r.packageType) === 'Personal Training') && r.packageId;
+    const hasPtPackageSelected = selectedPackages.some(isPtRowCheck);
+    if (hasPtPackageSelected && !selectedTrainerId) {
+      addToast('Please select a trainer for the Personal Training package. Trainer selection is compulsory.', 'error');
       return;
     }
 
@@ -1423,14 +1425,19 @@ export const RecordPaymentModal = ({
 
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                             <div className="sm:col-span-7">
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                Assigned Coach *
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                                <span>Assigned Coach / Trainer</span>
+                                <span className="text-rose-500 font-extrabold">* (Compulsory)</span>
                               </label>
                               <select
+                                required
                                 value={selectedTrainerId}
                                 onChange={(e) => setSelectedTrainerId(e.target.value)}
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                                className={`w-full px-3 py-2 bg-white border ${
+                                  !selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-indigo-500'
+                                } rounded-xl text-xs font-medium text-slate-900 focus:outline-none cursor-pointer`}
                               >
+                                <option value="">-- Choose Coach / Trainer (Required) * --</option>
                                 {trainers && trainers.length > 0 ? (
                                   trainers.map((t) => (
                                     <option key={t.id} value={t.id}>
@@ -1441,6 +1448,11 @@ export const RecordPaymentModal = ({
                                   <option value="">No coaches available</option>
                                 )}
                               </select>
+                              {!selectedTrainerId && (
+                                <span className="text-[10px] text-rose-500 font-semibold mt-1 block">
+                                  Trainer selection is compulsory for Personal Training.
+                                </span>
+                              )}
                             </div>
 
                             <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">

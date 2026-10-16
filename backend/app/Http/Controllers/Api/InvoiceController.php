@@ -200,6 +200,37 @@ class InvoiceController extends Controller
         }
 
         $packagesList = $request->input('packages');
+        $hasPtPackage = false;
+        $ptTrainerId = $request->trainer_id ?? $request->trainerId ?? null;
+
+        if (is_array($packagesList) && count($packagesList) > 0) {
+            foreach ($packagesList as $pkg) {
+                $checkType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? $pkg['packageType'] ?? 'Gym-Cardio');
+                if ($checkType === 'Personal Training') {
+                    $hasPtPackage = true;
+                    if (!empty($pkg['trainer_id'] ?? $pkg['trainerId'] ?? null)) {
+                        $ptTrainerId = $pkg['trainer_id'] ?? $pkg['trainerId'];
+                    }
+                }
+            }
+        } else {
+            $rawPackageType = $request->package_type ?? $request->packageType ?? $request->category ?? $plan?->package_type ?? 'Gym-Cardio';
+            if (\App\Services\PlanChainingService::normalizePackageType($rawPackageType) === 'Personal Training') {
+                $hasPtPackage = true;
+            }
+        }
+
+        if ($hasPtPackage && empty($ptTrainerId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Trainer selection is compulsory for Personal Training packages.',
+                'errors' => [
+                    'trainer_id' => ['Please select a trainer for the Personal Training package.'],
+                    'trainerId' => ['Please select a trainer for the Personal Training package.']
+                ]
+            ], 422);
+        }
+
         $items = [];
         $grossTotal = 0;
         $discountTotal = (float)($request->discount ?? $request->discount_amount ?? $request->discountAmount ?? 0);
@@ -247,7 +278,7 @@ class InvoiceController extends Controller
                     'net_amount' => $pkgNet,
                     'start_date' => $pkgStart,
                     'end_date' => $pkgEnd,
-                    'trainer_id' => $pkg['trainer_id'] ?? $pkg['trainerId'] ?? null,
+                    'trainer_id' => $pkg['trainer_id'] ?? $pkg['trainerId'] ?? ($pkgType === 'Personal Training' ? $ptTrainerId : null),
                     'pt_sessions' => (int)($pkg['pt_sessions'] ?? $pkg['ptSessions'] ?? 0),
                 ];
             }
@@ -274,7 +305,7 @@ class InvoiceController extends Controller
                 'net_amount' => max(0, $itemPrice - $itemDisc),
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'trainer_id' => $request->trainer_id ?? $request->trainerId ?? null,
+                'trainer_id' => $request->trainer_id ?? $request->trainerId ?? ($packageType === 'Personal Training' ? $ptTrainerId : null),
                 'pt_sessions' => (int)($request->pt_sessions ?? $request->ptSessions ?? 0),
             ];
         }
@@ -308,7 +339,7 @@ class InvoiceController extends Controller
         $invoice = DB::transaction(function () use (
             $gymId, $invoiceNo, $user, $planId, $packageType, $items, $paidAmount, $totalAmount,
             $duesAmount, $date, $startDate, $endDate, $dueDate, $method, $status,
-            $creatorId, $creatorName, $invoiceTitle, $plan
+            $creatorId, $creatorName, $invoiceTitle, $plan, $hasPtPackage, $ptTrainerId
         ) {
             // 1. Concurrency Safety: Lock user row
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
@@ -378,6 +409,15 @@ class InvoiceController extends Controller
                 ];
                 if ($planId) {
                     $updateData['plan_id'] = $planId;
+                }
+                if ($hasPtPackage && $ptTrainerId) {
+                    $numericTrainerId = (int)preg_replace('/[^0-9]/', '', (string)$ptTrainerId);
+                    if ($numericTrainerId > 0) {
+                        $updateData['trainer_id'] = $numericTrainerId;
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('member_profiles', 'training_type')) {
+                            $updateData['training_type'] = 'pt';
+                        }
+                    }
                 }
                 $lockedUser->memberProfile->update($updateData);
 

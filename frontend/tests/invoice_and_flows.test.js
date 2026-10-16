@@ -1507,4 +1507,61 @@ test('30. Paid balance dues and fee receipts are excluded from Active Subscripti
   assert.ok(!filtered.some(p => p.packageType === 'Due Payment'), 'Due Payment must not be in active packages');
 });
 
+test('31. Personal Training package requires compulsory trainer assignment and blocks invoice creation without trainer', () => {
+  const isPtRowCheck = (r) => {
+    const cleanType = String(r.packageType || r.package_type || '').trim().toLowerCase();
+    return (cleanType === 'personal training' || cleanType === 'pt') && Boolean(r.packageId);
+  };
 
+  const validateInvoiceSubmission = ({ selectedPackages, selectedTrainerId }) => {
+    const hasPt = (selectedPackages || []).some(isPtRowCheck);
+    if (hasPt && !selectedTrainerId) {
+      return { isValid: false, error: 'Please select a trainer for the Personal Training package. Trainer selection is compulsory.' };
+    }
+    return { isValid: true, error: null };
+  };
+
+  // Case 1: PT package with empty trainer -> BLOCKED
+  const ptWithoutTrainer = {
+    selectedPackages: [
+      { id: 'pkg-1', packageType: 'Personal Training', packageId: 'pt-101', price: 5000 }
+    ],
+    selectedTrainerId: ''
+  };
+  const result1 = validateInvoiceSubmission(ptWithoutTrainer);
+  assert.equal(result1.isValid, false);
+  assert.match(result1.error, /Trainer selection is compulsory/i);
+
+  // Case 2: PT package with trainer selected -> VALID
+  const ptWithTrainer = {
+    selectedPackages: [
+      { id: 'pkg-1', packageType: 'Personal Training', packageId: 'pt-101', price: 5000 }
+    ],
+    selectedTrainerId: 'trn-42'
+  };
+  const result2 = validateInvoiceSubmission(ptWithTrainer);
+  assert.equal(result2.isValid, true);
+  assert.equal(result2.error, null);
+
+  // Case 3: Gym-Cardio package without trainer -> VALID (not compulsory for standard gym memberships)
+  const cardioWithoutTrainer = {
+    selectedPackages: [
+      { id: 'pkg-1', packageType: 'Gym-Cardio', packageId: 'gc-101', price: 3000 }
+    ],
+    selectedTrainerId: ''
+  };
+  const result3 = validateInvoiceSubmission(cardioWithoutTrainer);
+  assert.equal(result3.isValid, true);
+
+  // Case 4: Multi-package with Gym-Cardio + PT without trainer -> BLOCKED
+  const multiWithPtNoTrainer = {
+    selectedPackages: [
+      { id: 'pkg-1', packageType: 'Gym-Cardio', packageId: 'gc-101', price: 3000 },
+      { id: 'pkg-2', packageType: 'Personal Training', packageId: 'pt-101', price: 5000 }
+    ],
+    selectedTrainerId: ''
+  };
+  const result4 = validateInvoiceSubmission(multiWithPtNoTrainer);
+  assert.equal(result4.isValid, false);
+  assert.match(result4.error, /Trainer selection is compulsory/i);
+});

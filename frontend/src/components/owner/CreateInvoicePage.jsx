@@ -653,11 +653,6 @@ export const CreateInvoicePage = ({
 
   // Package row handlers
   const handlePackageTypeChange = (rowId, newType) => {
-    const isPt = newType === 'Personal Training' || newType === 'pt';
-    if (isPt && trainers.length > 0 && !selectedTrainerId) {
-      setSelectedTrainerId(trainers[0].id);
-    }
-
     const available = getPackagesForType(newType, plans, ptPlans, recoveryPlans);
     const firstPlan = available[0] || null;
 
@@ -933,6 +928,14 @@ export const CreateInvoicePage = ({
       return;
     }
 
+    // Compulsory Trainer Validation for Personal Training Packages
+    const isPtRowCheck = (r) => (normalizePackageType(r.packageType) === 'Personal Training') && r.packageId;
+    const hasPtPackageSelected = selectedPackages.some(isPtRowCheck);
+    if (hasPtPackageSelected && !selectedTrainerId) {
+      addToast('Please select a trainer for the Personal Training package. Trainer selection is compulsory.', 'error');
+      return;
+    }
+
     if (totalCalculatedAmount <= 0) {
       addToast('Total bill amount must be greater than ₹0.', 'error');
       return;
@@ -1016,6 +1019,10 @@ export const CreateInvoicePage = ({
             memberId: currentMember?.id,
             member_name: memberName,
             memberName: memberName,
+            trainer_id: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
+            trainerId: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
+            trainer_name: hasPt ? (currentTrainer?.name || null) : null,
+            trainerName: hasPt ? (currentTrainer?.name || null) : null,
             plan_id: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
             planId: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
             plan_name: invoiceTitle,
@@ -1046,6 +1053,7 @@ export const CreateInvoicePage = ({
             expiryDate: targetExpiryDate,
             packages: selectedPackages.map((pkg) => {
               const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+              const isPkgPt = isPtRow(pkg);
               return {
                 name: pkgObj?.name || pkg.packageType,
                 plan_id: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
@@ -1056,7 +1064,11 @@ export const CreateInvoicePage = ({
                 start_date: pkg.startDate || targetStartDate,
                 startDate: pkg.startDate || targetStartDate,
                 end_date: pkg.expiryDate || targetExpiryDate,
-                endDate: pkg.expiryDate || targetExpiryDate
+                endDate: pkg.expiryDate || targetExpiryDate,
+                trainer_id: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
+                trainerId: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
+                trainer_name: isPkgPt ? (currentTrainer?.name || null) : null,
+                trainerName: isPkgPt ? (currentTrainer?.name || null) : null
               };
             }),
             is_gst_included: isGstIncluded,
@@ -1900,21 +1912,30 @@ export const CreateInvoicePage = ({
                   {isPt && (
                     <div className="pt-2 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Assign PT Coach / Trainer
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                          <span>Assign PT Coach / Trainer</span>
+                          <span className="text-rose-500 font-extrabold">* (Compulsory)</span>
                         </label>
                         <select
+                          required
                           value={selectedTrainerId}
                           onChange={(e) => setSelectedTrainerId(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                          className={`w-full px-3 py-2 bg-white border ${
+                            !selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-emerald-500'
+                          } rounded-xl text-xs text-slate-900 font-medium focus:outline-none cursor-pointer`}
                         >
-                          <option value="">-- Choose Coach --</option>
+                          <option value="">-- Choose Coach / Trainer (Required) * --</option>
                           {trainers.map((t) => (
                             <option key={t.id} value={t.id}>
                               {t.name} ({t.specialty || 'Personal Trainer'})
                             </option>
                           ))}
                         </select>
+                        {!selectedTrainerId && (
+                          <span className="text-[10px] text-rose-500 font-semibold mt-1 block">
+                            Trainer selection is compulsory for Personal Training.
+                          </span>
+                        )}
                       </div>
 
                       {currentTrainer && (

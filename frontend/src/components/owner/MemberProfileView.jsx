@@ -471,19 +471,19 @@ export const MemberProfileView = ({
               </div>
 
               {activePackagesByType.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {activePackagesByType.map((pkg) => (
-                    <div key={pkg.packageType} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between text-xs space-y-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <div key={pkg.packageType} className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center justify-between text-xs">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="font-bold text-slate-900 truncate">{pkg.packageType}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800">Active</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">Active</span>
                         </div>
                         <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
                       </div>
-                      <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                        <span className="text-[10px] text-slate-400">Duration</span>
-                        <span className="font-bold font-mono text-emerald-800 text-[10.5px]">
+                      <div className="text-right shrink-0">
+                        <span className="text-[9px] text-emerald-700 font-bold block uppercase">Duration</span>
+                        <span className="font-bold font-mono text-emerald-950 text-[10px]">
                           {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
                         </span>
                       </div>
