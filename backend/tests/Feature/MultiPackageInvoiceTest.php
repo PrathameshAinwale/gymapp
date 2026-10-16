@@ -20,6 +20,7 @@ class MultiPackageInvoiceTest extends TestCase
     protected Gym $gym;
     protected User $owner;
     protected User $member;
+    protected User $trainer;
     protected Plan $gymPlan;
     protected Plan $ptPlan;
     protected Plan $massagePlan;
@@ -48,6 +49,13 @@ class MultiPackageInvoiceTest extends TestCase
             'name' => 'Aarav Sharma',
             'phone' => '9876543210',
             'email' => 'aarav@fitnessclub.test',
+        ]);
+
+        $this->trainer = User::factory()->create([
+            'role' => 'trainer',
+            'gym_id' => 1,
+            'name' => 'Coach Vikram',
+            'email' => 'vikram@fitnessclub.test',
         ]);
 
         MemberProfile::create([
@@ -90,6 +98,10 @@ class MultiPackageInvoiceTest extends TestCase
      */
     public function test_two_packages_in_one_request_creates_exactly_one_invoice_with_two_items_and_one_inflow(): void
     {
+        $startDate = now()->toDateString();
+        $gymEnd = now()->addYear()->subDay()->toDateString();
+        $ptEnd = now()->addMonths(3)->subDay()->toDateString();
+
         $payload = [
             'gym_id' => 1,
             'user_id' => $this->member->id,
@@ -105,17 +117,18 @@ class MultiPackageInvoiceTest extends TestCase
                     'name' => 'Gym-Cardio Annual',
                     'price' => 12000,
                     'discount' => 1000,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-10-14',
+                    'start_date' => $startDate,
+                    'end_date' => $gymEnd,
                 ],
                 [
                     'package_type' => 'Personal Training',
                     'plan_id' => $this->ptPlan->id,
                     'name' => 'Personal Training 24 Sessions',
+                    'trainer_id' => $this->trainer->id,
                     'price' => 8000,
                     'discount' => 1000,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-01-14',
+                    'start_date' => $startDate,
+                    'end_date' => $ptEnd,
                 ]
             ],
         ];
@@ -151,6 +164,11 @@ class MultiPackageInvoiceTest extends TestCase
      */
     public function test_three_packages_of_mixed_types_creates_single_invoice_with_three_items(): void
     {
+        $startDate = now()->toDateString();
+        $gymEnd = now()->addYear()->subDay()->toDateString();
+        $ptEnd = now()->addMonths(3)->subDay()->toDateString();
+        $spaEnd = now()->addMonth()->subDay()->toDateString();
+
         $payload = [
             'gym_id' => 1,
             'user_id' => $this->member->id,
@@ -164,24 +182,25 @@ class MultiPackageInvoiceTest extends TestCase
                     'plan_id' => $this->gymPlan->id,
                     'name' => 'Gym-Cardio Annual',
                     'price' => 12000,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-10-14',
+                    'start_date' => $startDate,
+                    'end_date' => $gymEnd,
                 ],
                 [
                     'package_type' => 'Personal Training',
                     'plan_id' => $this->ptPlan->id,
                     'name' => 'Personal Training 24 Sessions',
+                    'trainer_id' => $this->trainer->id,
                     'price' => 8000,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-01-14',
+                    'start_date' => $startDate,
+                    'end_date' => $ptEnd,
                 ],
                 [
                     'package_type' => 'Massage',
                     'plan_id' => $this->massagePlan->id,
                     'name' => 'Recovery & Spa 1 Month',
                     'price' => 2500,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2026-11-14',
+                    'start_date' => $startDate,
+                    'end_date' => $spaEnd,
                 ]
             ],
         ];
@@ -205,6 +224,9 @@ class MultiPackageInvoiceTest extends TestCase
      */
     public function test_single_package_submission_still_works(): void
     {
+        $startDate = now()->toDateString();
+        $expiryDate = now()->addYear()->subDay()->toDateString();
+
         $payload = [
             'gym_id' => 1,
             'user_id' => $this->member->id,
@@ -214,8 +236,8 @@ class MultiPackageInvoiceTest extends TestCase
             'total_amount' => 12000,
             'pending_amount' => 0,
             'payment_method' => 'UPI',
-            'start_date' => '2026-10-15',
-            'expiry_date' => '2027-10-14',
+            'start_date' => $startDate,
+            'expiry_date' => $expiryDate,
         ];
 
         $response = $this->actingAs($this->owner)->postJson('/api/v1/invoices', $payload);
@@ -259,15 +281,19 @@ class MultiPackageInvoiceTest extends TestCase
      */
     public function test_register_member_with_two_packages_returns_identical_invoice_matching_fetch(): void
     {
+        $startDate = now()->toDateString();
+        $gymEnd = now()->addYear()->subDay()->toDateString();
+        $ptEnd = now()->addMonths(3)->subDay()->toDateString();
+
         $payload = [
             'gym_id' => 1,
             'name' => 'Rohan Sen',
             'phone' => '9811223344',
             'email' => 'rohan.sen@example.test',
             'password' => 'pass1234',
-            'joinDate' => '2026-10-15',
-            'startDate' => '2026-10-15',
-            'expiryDate' => '2027-10-14',
+            'joinDate' => $startDate,
+            'startDate' => $startDate,
+            'expiryDate' => $gymEnd,
             'amount' => 19000,
             'totalAmount' => 20000,
             'discountAmount' => 1000,
@@ -280,17 +306,18 @@ class MultiPackageInvoiceTest extends TestCase
                     'name' => 'Gym-Cardio Annual',
                     'price' => 12000,
                     'discount' => 1000,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-10-14',
+                    'start_date' => $startDate,
+                    'end_date' => $gymEnd,
                 ],
                 [
                     'package_type' => 'Personal Training',
                     'plan_id' => $this->ptPlan->id,
                     'name' => 'Personal Training 24 Sessions',
+                    'trainer_id' => $this->trainer->id,
                     'price' => 8000,
                     'discount' => 0,
-                    'start_date' => '2026-10-15',
-                    'end_date' => '2027-01-14',
+                    'start_date' => $startDate,
+                    'end_date' => $ptEnd,
                 ]
             ],
         ];
@@ -327,7 +354,7 @@ class MultiPackageInvoiceTest extends TestCase
         $this->assertArrayHasKey('Personal Training', $breakdown['activeGrouped']);
 
         // Both packages keep independent end dates
-        $this->assertEquals('2027-10-14', $breakdown['activeGrouped']['Gym-Cardio']['endDate']);
-        $this->assertEquals('2027-01-14', $breakdown['activeGrouped']['Personal Training']['endDate']);
+        $this->assertEquals($gymEnd, $breakdown['activeGrouped']['Gym-Cardio']['endDate']);
+        $this->assertEquals($ptEnd, $breakdown['activeGrouped']['Personal Training']['endDate']);
     }
 }

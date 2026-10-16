@@ -20,6 +20,7 @@ class CreateInvoicePersistenceTest extends TestCase
     protected Gym $gym;
     protected User $owner;
     protected User $member;
+    protected User $trainer;
     protected Plan $plan;
 
     protected function setUp(): void
@@ -52,6 +53,13 @@ class CreateInvoicePersistenceTest extends TestCase
             'status' => 'Active',
             'join_date' => now()->toDateString(),
             'expiry_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->trainer = User::factory()->create([
+            'role' => 'trainer',
+            'gym_id' => 1,
+            'name' => 'Coach Kabir',
+            'email' => 'kabir@archfit.test',
         ]);
 
         $this->plan = Plan::create([
@@ -161,6 +169,7 @@ class CreateInvoicePersistenceTest extends TestCase
             'user_id' => $this->member->id,
             'plan_name' => '1-on-1 Personal Training',
             'package_type' => 'Personal Training',
+            'trainer_id' => $this->trainer->id,
             'amount' => 8000,
             'total_amount' => 8000,
             'dues_amount' => 0,
@@ -266,6 +275,7 @@ class CreateInvoicePersistenceTest extends TestCase
                 [
                     'package_type' => 'Personal Training',
                     'plan_name' => '24 Sessions Personal Training',
+                    'trainer_id' => $this->trainer->id,
                     'start_date' => $ptStart,
                     'end_date' => $ptEnd,
                     'amount' => 7000,

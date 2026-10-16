@@ -113,8 +113,9 @@ class PromiseDateAndStatusSyncTest extends TestCase
 
     public function test_promise_date_validation_in_member_registration(): void
     {
-        $start = '2026-10-15';
-        $expiry = '2026-11-15';
+        $start = now()->toDateString();
+        $expiry = now()->addDays(31)->toDateString();
+        $dayBeforeExpiry = now()->addDays(30)->toDateString();
 
         // 1. Promise date on start date is permitted
         $resStart = $this->actingAs($this->owner, 'sanctum')->postJson('/api/v1/members', [
@@ -142,7 +143,7 @@ class PromiseDateAndStatusSyncTest extends TestCase
             'plan_amount' => 1000,
             'paid_amount' => 500,
             'dues_amount' => 500,
-            'due_date' => '2026-11-14',
+            'due_date' => $dayBeforeExpiry,
         ]);
         $resDayBefore->assertStatus(201);
 
@@ -222,8 +223,9 @@ class PromiseDateAndStatusSyncTest extends TestCase
             'email' => 'inv.member@example.test',
         ]);
 
-        $start = '2026-10-15';
-        $expiry = '2026-11-15';
+        $start = now()->toDateString();
+        $expiry = now()->addDays(31)->toDateString();
+        $dayBeforeExpiry = now()->addDays(30)->toDateString();
 
         MemberProfile::create([
             'user_id' => $member->id,
@@ -263,7 +265,7 @@ class PromiseDateAndStatusSyncTest extends TestCase
             'amount' => 1000,
             'paid_amount' => 400,
             'balance_due' => 600,
-            'balance_due_date' => '2026-11-14',
+            'balance_due_date' => $dayBeforeExpiry,
             'start_date' => $start,
             'end_date' => $expiry,
             'payment_status' => 'Partial',
