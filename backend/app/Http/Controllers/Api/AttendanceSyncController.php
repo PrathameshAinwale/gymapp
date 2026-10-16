@@ -304,7 +304,7 @@ class AttendanceSyncController extends Controller
         $query = User::where(function ($q) {
             $q->where('synced_to_device', 0)
               ->orWhereNull('synced_to_device');
-        })->whereIn('role', ['member', 'trainer', 'manager', 'accountant', 'staff']);
+        })->whereIn('role', ['member', 'trainer', 'manager', 'accounts', 'accountant', 'staff', 'receptionist', 'admin']);
 
         if ($gymId && $gymId > 0) {
             $query->where('gym_id', $gymId);
