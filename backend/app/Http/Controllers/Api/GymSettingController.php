@@ -549,11 +549,39 @@ class GymSettingController extends Controller
             ]);
         }
 
+        // Check if the device recently synced via Background Sync Service or ADMS
+        try {
+            $device = \Illuminate\Support\Facades\DB::table('biometric_devices')
+                ->where('ip_address', $ip)
+                ->orWhere('id', 1)
+                ->first();
+
+            if ($device) {
+                $lastSync = $device->last_successful_sync_at ?? ($device->last_sync ?? null);
+                if ($lastSync && \Carbon\Carbon::parse($lastSync)->diffInMinutes(now()) <= 15) {
+                    return response()->json([
+                        'success' => true,
+                        'connected' => true,
+                        'latency_ms' => $latency,
+                        'message' => "Device is active via Background Sync Service (last synced " . \Carbon\Carbon::parse($lastSync)->diffForHumans() . ").",
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // Check if $ip is a private LAN address (192.168.x, 10.x, 172.16.x)
+        $isPrivate = !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        $cloudNote = '';
+        if ($isPrivate) {
+            $cloudNote = " Note: {$ip} is a private local gym IP. If this application is hosted on the cloud (e.g. Hostinger), cloud servers cannot ping your gym's local Wi-Fi directly. Attendance syncs via the local Windows Background Sync Service (pointing to your Hostinger URL) or ADMS push.";
+        }
+
         return response()->json([
             'success' => false,
             'connected' => false,
             'latency_ms' => $latency,
-            'message' => "Could not reach {$ip}:{$port}. " . ($errstr ? "({$errstr})" : 'Connection timed out') . ". Please verify terminal power and local network connection.",
+            'message' => "Could not reach {$ip}:{$port}. " . ($errstr ? "({$errstr})" : 'Connection timed out') . ".{$cloudNote}",
         ]);
     }
 }
+
