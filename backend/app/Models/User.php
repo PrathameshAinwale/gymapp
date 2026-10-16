@@ -30,6 +30,9 @@ class User extends Authenticatable
         'salary',
         'deductions',
         'shifts',
+        'biometric_user_id',
+        'synced_to_device',
+        'device_synced_at',
     ];
 
     protected $hidden = [

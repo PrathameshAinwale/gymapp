@@ -23,7 +23,8 @@ class StaffController extends Controller
         $selectCols = [
             'id', 'name', 'email', 'role', 'phone', 'avatar', 'gym_id',
             'must_change_password', 'created_at',
-            'dob', 'joining_date', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts'
+            'dob', 'joining_date', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts',
+            'biometric_user_id', 'synced_to_device'
         ];
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
@@ -48,6 +49,9 @@ class StaffController extends Controller
             $arr = $u->toArray();
             $arr['plain_password'] = '••••••••';
             $arr['password'] = '••••••••';
+            $arr['biometric_user_id'] = $u->biometric_user_id ?: (string)$u->id;
+            $arr['biometricUserId'] = $u->biometric_user_id ?: (string)$u->id;
+            $arr['synced_to_device'] = (bool)$u->synced_to_device;
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {
@@ -156,6 +160,8 @@ class StaffController extends Controller
             'blood_group'    => 'nullable|string|max:10',
             'bloodGroup'     => 'nullable|string|max:10',
             'address'        => 'nullable|string',
+            'biometric_user_id' => 'nullable|string|max:50',
+            'biometricUserId'   => 'nullable|string|max:50',
         ], [
             'name.required' => 'Staff full name is required.',
             'name.min' => 'Name must be at least 2 characters.',
@@ -189,6 +195,7 @@ class StaffController extends Controller
             'salary'               => $validated['salary'] ?? null,
             'shifts'               => $validated['shifts'] ?? null,
             'must_change_password' => false,
+            'biometric_user_id'    => $request->input('biometric_user_id', $request->input('biometricUserId')),
         ];
 
 
@@ -230,9 +237,16 @@ class StaffController extends Controller
             $user = User::create($userData);
         }
 
+        if (empty($user->biometric_user_id)) {
+            $user->update(['biometric_user_id' => (string)$user->id]);
+        }
+
         $responseData = $user->toArray();
         $responseData['password'] = $validated['password'];
         $responseData['plain_password'] = $validated['password'];
+        $responseData['biometric_user_id'] = $user->biometric_user_id;
+        $responseData['biometricUserId'] = $user->biometric_user_id;
+        $responseData['synced_to_device'] = (bool)$user->synced_to_device;
 
         // If creating a trainer account, create corresponding TrainerProfile
         if ($validated['role'] === 'trainer') {
@@ -271,7 +285,11 @@ class StaffController extends Controller
             $responseData['activeClientsCount'] = 0;
         }
 
-                return response()->json([
+        // Automatically register staff into eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user);
+        $responseData['device_sync'] = $deviceSyncResult;
+
+        return response()->json([
             'success' => true,
             'message' => "Staff account created for {$user->name} as {$user->role}.",
             'data'    => $responseData,
@@ -337,6 +355,8 @@ class StaffController extends Controller
             'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ]);
 
+        $oldBioId = (string)($user->biometric_user_id ?: $user->id);
+
         if (isset($validated['name']))  $user->name  = $validated['name'];
         if (array_key_exists('email', $validated)) $user->email = !empty($validated['email']) ? $validated['email'] : null;
         if (isset($validated['phone'])) $user->phone = $validated['phone'];
@@ -350,6 +370,11 @@ class StaffController extends Controller
         if (array_key_exists('salary', $validated)) $user->salary = $validated['salary'];
         if (array_key_exists('shifts', $validated)) $user->shifts = $validated['shifts'];
 
+        $bioIdInput = $request->input('biometric_user_id', $request->input('biometricUserId'));
+        if (!empty($bioIdInput)) {
+            $user->biometric_user_id = (string)$bioIdInput;
+        }
+
         // Update password if provided
         if (!empty($validated['password'])) {
             $user->password = Hash::make($validated['password']);
@@ -360,6 +385,9 @@ class StaffController extends Controller
         $responseData = $user->toArray();
         $responseData['plain_password'] = '••••••••';
         $responseData['password'] = '••••••••';
+        $responseData['biometric_user_id'] = $user->biometric_user_id ?: (string)$user->id;
+        $responseData['biometricUserId'] = $user->biometric_user_id ?: (string)$user->id;
+        $responseData['synced_to_device'] = (bool)$user->synced_to_device;
 
         // If user is a trainer or trainer fields provided, update / create TrainerProfile
         if ($user->role === 'trainer' || ($validated['role'] ?? '') === 'trainer' || $request->has('specialty')) {
@@ -377,9 +405,18 @@ class StaffController extends Controller
                 $profile->certifications = $certs;
             }
             if ($request->has('salary') || $request->has('monthly_salary')) {
-                $profile->monthly_salary = $request->salary ?? $request->monthly_salary;
+                $sal = $request->input('monthly_salary', $request->input('salary'));
+                if ($sal !== null && $sal !== '') {
+                    $profile->monthly_salary = (float)$sal;
+                }
             }
-            if ($request->has('age')) $profile->age = $request->age;
+            if ($profile->monthly_salary === null) {
+                $profile->monthly_salary = $user->salary ?? 0;
+            }
+            if ($profile->rating === null) {
+                $profile->rating = 5.0;
+            }
+            if ($request->has('age')) $profile->age = $request->age ? (int)$request->age : null;
             if ($request->has('gender')) $profile->gender = $request->gender;
             if ($request->has('blood_group') || $request->has('bloodGroup')) {
                 $profile->blood_group = $request->blood_group ?? $request->bloodGroup;
@@ -396,6 +433,10 @@ class StaffController extends Controller
             $responseData['monthlySalary'] = $profile->monthly_salary;
             $responseData['monthly_salary'] = $profile->monthly_salary;
         }
+
+        // Synchronize updated staff details with eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user, $oldBioId);
+        $responseData['device_sync'] = $deviceSyncResult;
 
         return response()->json([
             'success' => true,
@@ -421,6 +462,9 @@ class StaffController extends Controller
             return response()->json(['success' => false, 'message' => 'Cannot delete superadmin or owner account.'], 403);
         }
 
+        // Synchronize deletion with physical eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->deleteUser($user);
+
         if ($user->role === 'trainer') {
             TrainerProfile::where('user_id', $user->id)->delete();
         }
@@ -428,7 +472,11 @@ class StaffController extends Controller
         $userName = $user->name;
         $user->delete();
 
-        return response()->json(['success' => true, 'message' => "Staff account for {$userName} deleted."]);
+        return response()->json([
+            'success'     => true,
+            'message'     => "Staff account for {$userName} deleted from system and biometric machine.",
+            'device_sync' => $deviceSyncResult
+        ]);
     }
 
     }

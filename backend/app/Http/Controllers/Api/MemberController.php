@@ -1402,67 +1402,11 @@ class MemberController extends Controller
      */
     protected function syncMemberToEsslDevice(User $user, ?MemberProfile $profile, string $action = 'push', ?string $oldBioId = null): ?array
     {
-        try {
-            $bioUserId = (string)($profile?->biometric_user_id ?: $user->id);
-            if ($profile && empty($profile->biometric_user_id)) {
-                $profile->update(['biometric_user_id' => $bioUserId]);
-            }
-
-            $candidatePaths = [
-                base_path('../device-sync-service/device_user_sync.py'),
-                'C:\\Users\\ARCH\\Desktop\\gymapp\\device-sync-service\\device_user_sync.py',
-                'C:\\Users\\ARCH\\Desktop\\essl\\device-sync-service\\device_user_sync.py',
-            ];
-            $scriptPath = null;
-            foreach ($candidatePaths as $p) {
-                if (file_exists($p)) {
-                    $scriptPath = $p;
-                    break;
-                }
-            }
-
-            if (!$scriptPath) {
-                return null;
-            }
-
-            $device = \Illuminate\Support\Facades\DB::table('biometric_devices')
-                ->where('status', 'online')
-                ->orWhere('is_active', 1)
-                ->first();
-            $deviceIp = $device?->ip_address ?: '192.168.1.201';
-            $devicePort = $device?->port ?: 4370;
-
-            if ($action === 'delete') {
-                $targetId = escapeshellarg($bioUserId);
-                $cmd = "python \"{$scriptPath}\" --delete --user-id {$targetId} --ip {$deviceIp} --port {$devicePort}";
-                $output = shell_exec($cmd);
-                return json_decode($output, true);
-            }
-
-            // Action: push / update
-            // If biometric user ID changed, delete old user from device first
-            if ($oldBioId && $oldBioId !== $bioUserId) {
-                $oldTargetId = escapeshellarg($oldBioId);
-                shell_exec("python \"{$scriptPath}\" --delete --user-id {$oldTargetId} --ip {$deviceIp} --port {$devicePort}");
-            }
-
-            $cleanMemberName = escapeshellarg(substr($user->name, 0, 24));
-            $targetId = escapeshellarg($bioUserId);
-            $cmd = "python \"{$scriptPath}\" --push --user-id {$targetId} --name {$cleanMemberName} --ip {$deviceIp} --port {$devicePort}";
-            $output = shell_exec($cmd);
-            $result = json_decode($output, true);
-
-            if (!empty($result['success']) && $profile) {
-                $profile->update([
-                    'synced_to_device' => true,
-                    'device_synced_at' => now(),
-                ]);
-            }
-
-            return $result;
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("eSSL device sync failed ({$action}) for user {$user->id}: " . $e->getMessage());
-            return null;
+        $syncService = app(\App\Services\EsslDeviceSyncService::class);
+        if ($action === 'delete') {
+            return $syncService->deleteUser($user, $profile?->biometric_user_id);
         }
+
+        return $syncService->pushUser($user, $oldBioId);
     }
 }

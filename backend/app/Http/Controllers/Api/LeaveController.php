@@ -233,9 +233,6 @@ class LeaveController extends Controller
         $gymId = $this->resolveGymId($request);
         $year  = (int) ($request->query('year') ?: 2026);
 
-        // Run unexcused absence check for unpaid leave & salary deductions
-        self::processUnpaidLeavesForAbsentStaff();
-
         // Fetch all staff and trainers (strictly exclude members and owners)
         $staffQuery = User::whereIn('role', ['trainer', 'manager', 'accounts', 'staff']);
         if ($gymId && $gymId > 0) {
@@ -482,6 +479,11 @@ class LeaveController extends Controller
             $daysInMonth = Carbon::parse($date, $tz)->daysInMonth ?: 30;
 
             $isToday = ($date === $now->toDateString());
+            if ($isToday) {
+                // Today is active and in-progress. Never auto-mark absences for today.
+                // Attendance records are ONLY created when users physically punch in on the eSSL biometric terminal.
+                return [];
+            }
             $processed = [];
 
             // Eligible staff and trainers
@@ -490,18 +492,6 @@ class LeaveController extends Controller
                 ->get();
 
             foreach ($staffUsers as $stf) {
-                // If today, check if their shift timing has passed
-                if ($isToday && !empty($stf->shifts)) {
-                    $shiftTimings = \App\Http\Controllers\Api\AttendanceController::parseShiftTimings($stf->shifts);
-                    if ($shiftTimings && !empty($shiftTimings['end'])) {
-                        $shiftEnd = Carbon::parse($date . ' ' . $shiftTimings['end'], $tz);
-                        if ($now->lessThan($shiftEnd)) {
-                            // Staff's shift has not finished yet today
-                            continue;
-                        }
-                    }
-                }
-
                 // Check if staff member checked in on this date
                 $checkedIn = \App\Models\Attendance::where('user_id', $stf->id)
                     ->whereDate('date', $date)
@@ -523,15 +513,6 @@ class LeaveController extends Controller
                     continue; // Excused paid leave
                 }
 
-                // Check if attendance is already recorded for this date
-                $existingAtt = \App\Models\Attendance::where('user_id', $stf->id)
-                    ->whereDate('date', $date)
-                    ->first();
-
-                if ($existingAtt && $existingAtt->status === 'Unpaid Leave') {
-                    continue; // Already processed
-                }
-
                 // Check if staff has any remaining paid leave balance
                 $totalRemaining = (float) LeaveBalance::where('user_id', $stf->id)
                     ->where('year', $year)
@@ -546,25 +527,7 @@ class LeaveController extends Controller
                     }
                     $perDaySalary = round($monthlySalary / $daysInMonth, 2);
 
-                    // 1. Mark Attendance as 'Unpaid Leave'
-                    \App\Models\Attendance::updateOrCreate(
-                        [
-                            'user_id' => $stf->id,
-                            'date'    => $date,
-                        ],
-                        [
-                            'member_name'    => $stf->name,
-                            'plan_name'      => ucfirst($stf->role),
-                            'member_avatar'  => $stf->avatar,
-                            'status'         => 'Unpaid Leave',
-                            'check_in_time'  => null,
-                            'check_out_time' => null,
-                            'duration'       => '0h 0m',
-                            'gate'           => 'Auto-Absence System',
-                        ]
-                    );
-
-                    // 2. Create Unpaid Leave record in leave_requests
+                    // Create Unpaid Leave record in leave_requests only (NEVER insert into attendances table)
                     LeaveRequest::updateOrCreate(
                         [
                             'user_id'    => $stf->id,

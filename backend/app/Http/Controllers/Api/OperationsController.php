@@ -1045,11 +1045,6 @@ class OperationsController extends Controller
         $gymId = $this->resolveGymId($request);
         $currentMonth = $request->query('month') ?? now()->format('F Y');
 
-        // Check for unexcused staff absence (0 remaining leaves & no check-in) -> Mark Unpaid Leave & Deduct Salary
-        try {
-            \App\Http\Controllers\Api\LeaveController::processUnpaidLeavesForAbsentStaff();
-        } catch (\Throwable $e) {}
-
         // Auto-provision or update current month's payroll for all staff and trainers if gymId is available
         if ($gymId) {
             $staffUsers = User::where('gym_id', $gymId)

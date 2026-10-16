@@ -54,7 +54,8 @@ import {
   UserCheck,
   Filter,
   ChevronDown,
-  Plus
+  Plus,
+  Fingerprint
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -238,7 +239,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     certifications: '',
     gender: 'Male',
     blood_group: '',
-    address: ''
+    address: '',
+    biometric_user_id: ''
   });
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -267,7 +269,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     certifications: '',
     gender: 'Male',
     blood_group: '',
-    address: ''
+    address: '',
+    biometric_user_id: ''
   });
 
   // Compress image file to reasonable dimensions (~800px) and quality (0.7) to prevent network aborts and quota errors
@@ -541,7 +544,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         gender: formData.gender,
         blood_group: formData.blood_group,
         address: formData.address,
-        monthly_salary: formData.salary
+        monthly_salary: formData.salary,
+        biometric_user_id: formData.biometric_user_id ? String(formData.biometric_user_id).trim() : null,
+        biometricUserId: formData.biometric_user_id ? String(formData.biometric_user_id).trim() : null
       });
 
       if (formData.phone) saveStaffPassword(formData.phone, formData.password);
@@ -578,7 +583,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         certifications: '',
         gender: 'Male',
         blood_group: '',
-        address: ''
+        address: '',
+        biometric_user_id: ''
       });
 
       addToast(`${formData.role === 'trainer' ? 'Coach' : 'Staff member'} ${newAcc.name} added successfully!`, 'success');
@@ -613,7 +619,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       certifications: Array.isArray(stf.certifications) ? stf.certifications.join(', ') : (stf.certifications || ''),
       gender: stf.gender || 'Male',
       blood_group: stf.blood_group || stf.bloodGroup || '',
-      address: stf.address || ''
+      address: stf.address || '',
+      biometric_user_id: stf.biometric_user_id || stf.biometricUserId || ''
     });
     setShowEditPassword(false);
   };
@@ -680,7 +687,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         pan_card: editFormData.pan_card || null,
         pan_image: editFormData.pan_image || null,
         salary: editFormData.salary ? Number(editFormData.salary) : null,
-        shifts: editFormData.shifts || null
+        shifts: editFormData.shifts || null,
+        biometric_user_id: editFormData.biometric_user_id ? String(editFormData.biometric_user_id).trim() : null,
+        biometricUserId: editFormData.biometric_user_id ? String(editFormData.biometric_user_id).trim() : null
       };
 
       if (editFormData.role === 'trainer') {
@@ -691,7 +700,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         payload.gender = editFormData.gender;
         payload.blood_group = editFormData.blood_group;
         payload.address = editFormData.address;
-        payload.monthly_salary = editFormData.salary ? Number(editFormData.salary) : null;
+        payload.monthly_salary = editFormData.salary ? Number(editFormData.salary) : 0;
       }
 
       if (editFormData.password) {
@@ -963,6 +972,13 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                             <div className="font-bold text-slate-900 truncate">{stf.name}</div>
                             <div className="text-[10px] text-slate-400 font-mono truncate">{stf.email}</div>
                             {stf.phone && <div className="text-[10px] text-slate-500">{stf.phone}</div>}
+                            {(stf.biometric_user_id || stf.biometricUserId) && (
+                              <div className="text-[10px] text-emerald-700 font-mono flex items-center gap-1 mt-0.5" title="Enrolled Biometric Hardware PIN">
+                                <Fingerprint className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>PIN: {stf.biometric_user_id || stf.biometricUserId}</span>
+                                {stf.synced_to_device && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" title="Synced to eSSL Device" />}
+                              </div>
+                            )}
                             {isTrainer && stf.specialty && (
                               <div className="text-[10px] text-purple-700 font-semibold truncate flex items-center gap-1 mt-0.5">
                                 <Award className="w-3 h-3 text-purple-600 shrink-0" />
@@ -1298,8 +1314,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             </div>
           </div>
 
-          {/* Salary & Shifts */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Salary, Shifts & Biometric PIN */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Monthly Salary (₹)</label>
               <div className="relative">
@@ -1354,6 +1370,22 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   <option value={formData.shifts}>{formData.shifts}</option>
                 )}
               </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1" title="Fingerprint / PIN enrolled on eSSL Biometric Machine">
+                Biometric PIN (eSSL)
+              </label>
+              <div className="relative">
+                <Fingerprint className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="e.g. 9221 (Hardware PIN)"
+                  value={formData.biometric_user_id}
+                  onChange={(e) => setFormData({ ...formData, biometric_user_id: e.target.value.replace(/[^0-9]/g, '') })}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-semibold focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -1991,8 +2023,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
             </div>
 
-            {/* Salary & Shifts */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Salary, Shifts & Biometric PIN */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Monthly Salary (₹)</label>
                 <div className="relative">
@@ -2046,6 +2078,22 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     <option value={editFormData.shifts}>{editFormData.shifts}</option>
                   )}
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1" title="Fingerprint / PIN enrolled on eSSL Biometric Machine">
+                  Biometric PIN (eSSL)
+                </label>
+                <div className="relative">
+                  <Fingerprint className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="e.g. 9221 (Hardware PIN)"
+                    value={editFormData.biometric_user_id}
+                    onChange={(e) => setEditFormData({ ...editFormData, biometric_user_id: e.target.value.replace(/[^0-9]/g, '') })}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-semibold focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
             </div>
 

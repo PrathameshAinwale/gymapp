@@ -20,7 +20,7 @@ return new class extends Migration
             });
         }
 
-        // 2. Biometric sync columns on member_profiles
+        // 2. Biometric sync columns on member_profiles and users
         if (Schema::hasTable('member_profiles')) {
             Schema::table('member_profiles', function (Blueprint $table) {
                 if (!Schema::hasColumn('member_profiles', 'biometric_user_id')) {
@@ -30,6 +30,20 @@ return new class extends Migration
                     $table->boolean('synced_to_device')->default(false)->after('biometric_user_id');
                 }
                 if (!Schema::hasColumn('member_profiles', 'device_synced_at')) {
+                    $table->timestamp('device_synced_at')->nullable()->after('synced_to_device');
+                }
+            });
+        }
+
+        if (Schema::hasTable('users')) {
+            Schema::table('users', function (Blueprint $table) {
+                if (!Schema::hasColumn('users', 'biometric_user_id')) {
+                    $table->string('biometric_user_id')->nullable()->after('role');
+                }
+                if (!Schema::hasColumn('users', 'synced_to_device')) {
+                    $table->boolean('synced_to_device')->default(false)->after('biometric_user_id');
+                }
+                if (!Schema::hasColumn('users', 'device_synced_at')) {
                     $table->timestamp('device_synced_at')->nullable()->after('synced_to_device');
                 }
             });
@@ -59,12 +73,34 @@ return new class extends Migration
             });
         }
 
-        // 5. Port column on biometric_devices
+        // 5. Port, api_token, and is_active columns on biometric_devices
         if (Schema::hasTable('biometric_devices')) {
             Schema::table('biometric_devices', function (Blueprint $table) {
                 if (!Schema::hasColumn('biometric_devices', 'port')) {
                     $table->integer('port')->nullable()->default(4370)->after('ip_address');
                 }
+                if (!Schema::hasColumn('biometric_devices', 'api_token')) {
+                    $table->string('api_token', 255)->nullable()->after('port');
+                }
+                if (!Schema::hasColumn('biometric_devices', 'is_active')) {
+                    $table->boolean('is_active')->default(true)->after('api_token');
+                }
+            });
+        }
+
+        // 6. Attendance transactions ledger table
+        if (!Schema::hasTable('attendance_transactions')) {
+            Schema::create('attendance_transactions', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('biometric_device_id')->nullable()->index();
+                $table->unsignedBigInteger('member_profile_id')->nullable()->index();
+                $table->string('biometric_user_id')->nullable()->index();
+                $table->timestamp('punched_at');
+                $table->string('punch_direction')->default('check_in');
+                $table->string('punch_type')->nullable();
+                $table->string('transaction_hash', 64)->unique();
+                $table->text('raw_metadata')->nullable();
+                $table->timestamp('created_at')->useCurrent();
             });
         }
     }

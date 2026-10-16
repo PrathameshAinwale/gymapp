@@ -383,54 +383,6 @@ export const AttendanceTracker = () => {
         </div>
       </div>
 
-      {/* eSSL Biometric ADMS Cloud Integration Live Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3.5 sm:p-4 border border-slate-800 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="relative p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
-              <Fingerprint className="w-6 h-6" />
-              <span className="absolute top-1 right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide">
-                  eSSL Biometric Turnstile Gateway (ADMS Protocol)
-                </h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Online &amp; Listening
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Active Receiver: <code className="text-blue-300 bg-blue-950/60 px-1 py-0.5 rounded text-[10px]">/iclock/cdata</code> Â· Machine Mode: <strong className="text-amber-300">ADMS Cloud Push</strong> Â· Live attendance punches sync directly to database.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-            <button
-              type="button"
-              onClick={() => setIsBiometricModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 border border-blue-400/40 text-blue-200 text-xs font-semibold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
-            >
-              <Server className="w-3.5 h-3.5 text-blue-300" />
-              <span>Machine Settings Guide</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSimulateModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs flex items-center gap-1.5"
-            >
-              <Radio className="w-3.5 h-3.5" />
-              <span>Test Biometric Punch</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* INTERACTIVE DATE TRACKER CONTROL BAR */}
       <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -481,8 +433,8 @@ export const AttendanceTracker = () => {
                 type="button"
                 onClick={() => setSelectedDate(todayIso)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isToday
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                   }`}
               >
                 Today
@@ -492,8 +444,8 @@ export const AttendanceTracker = () => {
                 type="button"
                 onClick={() => setSelectedDate(yesterdayIso)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isYesterday
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                   }`}
               >
                 Yesterday
@@ -551,8 +503,8 @@ export const AttendanceTracker = () => {
               type="button"
               onClick={() => setActiveTab('members')}
               className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'members'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               Members ({dayMemberAttendance.length})
@@ -561,8 +513,8 @@ export const AttendanceTracker = () => {
               type="button"
               onClick={() => setActiveTab('staff')}
               className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'staff'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               Trainer Shifts ({dayStaffAttendance.length})
@@ -632,8 +584,8 @@ export const AttendanceTracker = () => {
                 type="button"
                 onClick={() => setShowFilterModal(true)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${activeFiltersCount > 0
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
               >
                 <Filter className="w-3.5 h-3.5" />
@@ -905,15 +857,14 @@ export const AttendanceTracker = () => {
                         <div className="text-[10px] text-slate-500 mt-0.5 truncate">{stf.role}</div>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${
-                          stf.status === 'Unpaid Leave'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : isOnDuty
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : isPunchedOut
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${stf.status === 'Unpaid Leave'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : isOnDuty
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : isPunchedOut
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}
                       >
                         {stf.status === 'Unpaid Leave' ? (
                           <XCircle className="w-2.5 h-2.5 text-rose-600" />
@@ -1308,8 +1259,8 @@ export const AttendanceTracker = () => {
                     type="button"
                     onClick={() => setSelectedDate(todayIso)}
                     className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${selectedDate === todayIso
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                   >
                     Today
@@ -1318,8 +1269,8 @@ export const AttendanceTracker = () => {
                     type="button"
                     onClick={() => setSelectedDate(yesterdayIso)}
                     className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${selectedDate === yesterdayIso
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                   >
                     Yesterday
@@ -1348,8 +1299,8 @@ export const AttendanceTracker = () => {
                       type="button"
                       onClick={() => setStatusFilter(opt.val)}
                       className={`py-2 px-2 text-center rounded-xl text-xs font-semibold border transition-all cursor-pointer ${statusFilter === opt.val
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                     >
                       {opt.label}

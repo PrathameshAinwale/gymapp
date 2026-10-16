@@ -143,44 +143,93 @@ class AttendanceSyncController extends Controller
                     $planName = ucfirst($userObj->role) . ' Shift';
                 }
 
-                $existingAtt = DB::table('attendances')
+                // An open session MUST have a valid check_in_time and no check_out_time
+                $openAtt = DB::table('attendances')
                     ->where('user_id', $userObj->id)
                     ->where('date', $dateStr)
+                    ->whereNotNull('check_in_time')
+                    ->whereNull('check_out_time')
                     ->latest('id')
                     ->first();
 
                 $direction = strtolower($item['punch_direction'] ?? '');
 
-                if (!$existingAtt) {
-                    DB::table('attendances')->insert([
-                        'user_id'        => $userObj->id,
-                        'member_name'    => $userObj->name ?? ($isStaff ? ucfirst($userObj->role) : 'Member'),
-                        'member_avatar'  => $userObj->avatar ?? null,
-                        'plan_name'      => $planName,
-                        'check_in_time'  => $timeStr,
-                        'check_out_time' => null,
-                        'punch_out_time' => null,
-                        'duration'       => '--',
-                        'date'           => $dateStr,
-                        'status'         => $isStaff ? 'On Duty' : 'Inside Gym',
-                        'gate'           => $device->name ?? 'Turnstile Gate',
-                        'created_at'     => now(),
-                        'updated_at'     => now(),
-                    ]);
-                } else if ($direction === 'check_out' || (empty($existingAtt->check_out_time) && $punchedAtCarbon->diffInMinutes(Carbon::parse($dateStr . ' ' . $existingAtt->check_in_time)) >= 1)) {
-                    $in = Carbon::parse($dateStr . ' ' . $existingAtt->check_in_time);
-                    $mins = max(0, $in->diffInMinutes($punchedAtCarbon));
-                    $h = intdiv($mins, 60);
-                    $m = $mins % 60;
-                    $duration = $h > 0 ? "{$h}h {$m}m" : "{$m}m";
+                if ($openAtt) {
+                    $in = Carbon::parse($dateStr . ' ' . $openAtt->check_in_time);
+                    $diffSecs = $in->diffInSeconds($punchedAtCarbon);
 
-                    DB::table('attendances')->where('id', $existingAtt->id)->update([
-                        'check_out_time' => $timeStr,
-                        'punch_out_time' => $timeStr,
-                        'duration'       => $duration,
-                        'status'         => $isStaff ? 'Completed Shift' : 'Completed',
-                        'updated_at'     => now(),
-                    ]);
+                    // Ignore accidental double-punches within 30 seconds of check-in unless explicitly check_out
+                    if ($diffSecs >= 30 || $direction === 'check_out') {
+                        $mins = max(0, $in->diffInMinutes($punchedAtCarbon));
+                        $h = intdiv($mins, 60);
+                        $m = $mins % 60;
+                        $duration = $h > 0 ? "{$h}h {$m}m" : "{$m}m";
+
+                        DB::table('attendances')->where('id', $openAtt->id)->update([
+                            'check_out_time' => $timeStr,
+                            'punch_out_time' => $timeStr,
+                            'duration'       => $duration,
+                            'status'         => $isStaff ? 'Completed Shift' : 'Completed',
+                            'updated_at'     => now(),
+                        ]);
+                    }
+                } else {
+                    // Check if an empty/absent/unpaid leave placeholder row exists for today:
+                    $blankAtt = DB::table('attendances')
+                        ->where('user_id', $userObj->id)
+                        ->where('date', $dateStr)
+                        ->whereNull('check_in_time')
+                        ->latest('id')
+                        ->first();
+
+                    if ($blankAtt) {
+                        // User was previously marked absent/unpaid by auto system, but is now punching IN!
+                        DB::table('attendances')->where('id', $blankAtt->id)->update([
+                            'member_name'    => $userObj->name ?? ($isStaff ? ucfirst($userObj->role) : 'Member'),
+                            'member_avatar'  => $userObj->avatar ?? null,
+                            'plan_name'      => $planName,
+                            'check_in_time'  => $timeStr,
+                            'check_out_time' => null,
+                            'punch_out_time' => null,
+                            'duration'       => '--',
+                            'status'         => $isStaff ? 'On Duty' : 'Inside Gym',
+                            'gate'           => $device->name ?? 'Turnstile Gate',
+                            'updated_at'     => now(),
+                        ]);
+                    } else {
+                        // Check if user checked out recently (< 30s) to debounce rapid re-punches
+                        $lastAtt = DB::table('attendances')
+                            ->where('user_id', $userObj->id)
+                            ->where('date', $dateStr)
+                            ->latest('id')
+                            ->first();
+
+                        $shouldInsert = true;
+                        if ($lastAtt && !empty($lastAtt->check_out_time)) {
+                            $lastOut = Carbon::parse($dateStr . ' ' . $lastAtt->check_out_time);
+                            if ($lastOut->diffInSeconds($punchedAtCarbon) < 30) {
+                                $shouldInsert = false;
+                            }
+                        }
+
+                        if ($shouldInsert) {
+                            DB::table('attendances')->insert([
+                                'user_id'        => $userObj->id,
+                                'member_name'    => $userObj->name ?? ($isStaff ? ucfirst($userObj->role) : 'Member'),
+                                'member_avatar'  => $userObj->avatar ?? null,
+                                'plan_name'      => $planName,
+                                'check_in_time'  => $timeStr,
+                                'check_out_time' => null,
+                                'punch_out_time' => null,
+                                'duration'       => '--',
+                                'date'           => $dateStr,
+                                'status'         => $isStaff ? 'On Duty' : 'Inside Gym',
+                                'gate'           => $device->name ?? 'Turnstile Gate',
+                                'created_at'     => now(),
+                                'updated_at'     => now(),
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -212,5 +261,26 @@ class AttendanceSyncController extends Controller
             'unmatched'  => $unmatched,
             'total'      => count($records)
         ]);
+    }
+
+    /**
+     * Reconcile users from the physical eSSL biometric machine into Laravel.
+     * When members or staff are deleted directly on the eSSL machine,
+     * they are removed/deactivated from the system to maintain two-way synchronization.
+     */
+    public function reconcileUsers(Request $request)
+    {
+        $token = $request->bearerToken() ?: ($request->header('X-Collector-Token') ?: $request->header('X-Device-Token'));
+        $device = null;
+        if ($token) {
+            $device = DB::table('biometric_devices')->where('api_token', $token)->first();
+        }
+
+        $gymId = $device?->gym_id ?: $request->input('gym_id');
+        $machineUsers = $request->input('machine_users', $request->input('users', []));
+
+        $result = app(\App\Services\EsslDeviceSyncService::class)->reconcileWithMachineUsers($machineUsers, $gymId);
+
+        return response()->json($result);
     }
 }

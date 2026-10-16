@@ -209,6 +209,7 @@ class DeviceSyncManager:
 
         self.backoff_delay = 5
         self.max_backoff = 60
+        self.sync_cycle_count = 0
 
     def load_config(self) -> Dict[str, Any]:
         full_path = os.path.join(BASE_DIR, self.config_path)
@@ -371,6 +372,33 @@ class DeviceSyncManager:
         except Exception:
             pass
 
+    def reconcile_users_with_laravel(self):
+        """Periodically reconciles machine users with Laravel to delete users removed on machine."""
+        try:
+            from device_user_sync import list_users
+            ip = self.config.get("device_ip", "192.168.1.201")
+            port = int(self.config.get("device_port", 4370))
+            listed = list_users(ip=ip, port=port)
+            if not listed.get("success"):
+                return
+
+            api_base = self.config.get("api_base_url", "http://127.0.0.1:8000/api").rstrip("/")
+            reconcile_url = f"{api_base}/attendance/reconcile-machine-users"
+            api_token = self.config.get("api_token", "")
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "X-Collector-Token": api_token,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            res = requests.post(reconcile_url, json={"machine_users": listed.get("users", [])}, headers=headers, timeout=10)
+            if res.status_code in (200, 201):
+                data = res.json()
+                if data.get("deleted_from_system_count", 0) > 0:
+                    logger.info(f"Two-Way Sync: Reconciled machine users. Deleted {data.get('deleted_from_system_count')} user(s) from system that were removed on hardware.")
+        except Exception as e:
+            logger.debug(f"User reconciliation check error: {e}")
+
     def check_config_updates(self):
         """Dynamically reloads config.json and switches hardware adapter target IP/port on the fly."""
         try:
@@ -397,6 +425,14 @@ class DeviceSyncManager:
         """Executes a single end-to-end sync cycle."""
         # 0. Check for dynamic Machine IP / Port configuration changes
         self.check_config_updates()
+
+        self.sync_cycle_count += 1
+        # Periodically reconcile machine users with Laravel (every 6 cycles = ~60 seconds)
+        if self.sync_cycle_count % 6 == 0:
+            try:
+                self.reconcile_users_with_laravel()
+            except Exception as rec_err:
+                logger.debug(f"Periodic reconciliation check skipped: {rec_err}")
 
         device_id = self.config.get("device_id", 1)
         excel_path = self.config.get("excel_file_path", r"C:\Users\ARCH\essl_attendance.xlsx")

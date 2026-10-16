@@ -52,6 +52,9 @@ class TrainerController extends Controller
                     'shifts' => $user->shifts,
                     'joiningDate' => $user->joining_date,
                     'joining_date' => $user->joining_date,
+                    'biometricUserId' => $user->biometric_user_id ?: (string)$user->id,
+                    'biometric_user_id' => $user->biometric_user_id ?: (string)$user->id,
+                    'synced_to_device' => (bool)$user->synced_to_device,
                 ];
             });
 
@@ -109,6 +112,9 @@ class TrainerController extends Controller
                 'shifts' => $user->shifts,
                 'joiningDate' => $user->joining_date,
                 'joining_date' => $user->joining_date,
+                'biometricUserId' => $user->biometric_user_id ?: (string)$user->id,
+                'biometric_user_id' => $user->biometric_user_id ?: (string)$user->id,
+                'synced_to_device' => (bool)$user->synced_to_device,
                 'clients' => $clients,
                 'classes' => $user->taughtClasses,
             ]
@@ -194,10 +200,17 @@ class TrainerController extends Controller
             'address' => $request->address,
         ]);
 
+        // Synchronize trainer account with eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user);
+
+        $showData = $this->show('trn-' . $user->id)->original['data'];
+        $showData['device_sync'] = $deviceSyncResult;
+
         return response()->json([
             'success' => true,
             'message' => 'Trainer added successfully',
-            'data' => $this->show('trn-' . $user->id)->original['data'],
+            'data' => $showData,
+            'device_sync' => $deviceSyncResult,
         ], 201);
     }
 
@@ -244,11 +257,16 @@ class TrainerController extends Controller
             ], 422);
         }
 
+        $oldBioId = (string)($user->biometric_user_id ?: $user->id);
+
         // Editable personal/contact details
         if ($request->has('name') && filled($request->name)) $user->name = $request->name;
         if ($request->has('email')) $user->email = filled($request->email) ? $request->email : null;
         if ($request->has('phone') && filled($request->phone)) $user->phone = $request->phone;
         if ($request->has('avatar')) $user->avatar = $request->avatar;
+        if ($request->has('biometric_user_id') || $request->has('biometricUserId')) {
+            $user->biometric_user_id = (string)$request->input('biometric_user_id', $request->input('biometricUserId'));
+        }
         $user->save();
 
         // Editable profile credentials
@@ -279,10 +297,17 @@ class TrainerController extends Controller
 
         $profile->save();
 
+        // Synchronize updated trainer profile with eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->pushUser($user, $oldBioId);
+
+        $showData = $this->show('trn-' . $user->id)->original['data'];
+        $showData['device_sync'] = $deviceSyncResult;
+
         return response()->json([
             'success' => true,
             'message' => 'Trainer profile updated successfully',
-            'data' => $this->show('trn-' . $user->id)->original['data'],
+            'data' => $showData,
+            'device_sync' => $deviceSyncResult,
         ]);
     }
 
@@ -290,11 +315,17 @@ class TrainerController extends Controller
     {
         $numericId = str_replace('trn-', '', $id);
         $user = User::where('role', 'trainer')->findOrFail($numericId);
+
+        // Synchronize deletion with physical eSSL Biometric Terminal over LAN
+        $deviceSyncResult = app(\App\Services\EsslDeviceSyncService::class)->deleteUser($user);
+
+        TrainerProfile::where('user_id', $user->id)->delete();
         $user->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Trainer removed successfully'
+            'message' => 'Trainer removed successfully from system and biometric machine',
+            'device_sync' => $deviceSyncResult
         ]);
     }
 }

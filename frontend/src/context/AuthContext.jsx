@@ -575,7 +575,9 @@ export const AuthProvider = ({ children }) => {
     gender,
     blood_group,
     address,
-    monthly_salary
+    monthly_salary,
+    biometric_user_id,
+    biometricUserId
   }) => {
     const activeGymId = gym_id || gymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || 1;
     const roleNormalized = (role || 'trainer').toLowerCase();
@@ -607,7 +609,9 @@ export const AuthProvider = ({ children }) => {
         gender: gender || null,
         blood_group: blood_group || null,
         address: address || null,
-        monthly_salary: salary ? Number(salary) : (monthly_salary ? Number(monthly_salary) : null)
+        monthly_salary: salary ? Number(salary) : (monthly_salary ? Number(monthly_salary) : null),
+        biometric_user_id: biometric_user_id || biometricUserId || null,
+        biometricUserId: biometric_user_id || biometricUserId || null
       });
       if (res?.data) {
         backendUser = res.data;

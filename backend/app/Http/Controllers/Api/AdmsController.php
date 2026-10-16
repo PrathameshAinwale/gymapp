@@ -145,7 +145,7 @@ class AdmsController extends Controller
         $pin = trim($request->input('pin'));
         $timeStr = $request->input('time', now()->toDateTimeString());
         $sn = $request->input('sn', 'eSSL-MANUAL-TEST');
-        $deviceIp = $request->ip();
+        $deviceIp = $request->ip() ?: '127.0.0.1';
 
         $device = $this->resolveDevice($sn, $deviceIp, $request);
 
@@ -239,21 +239,29 @@ class AdmsController extends Controller
             return true; // Return true to acknowledge punch to machine, even though access was denied
         }
 
-        // 2. Check if currently checked in today (Inside Gym)
+        // 2. Check if currently checked in today (open session)
         $existing = Attendance::where('user_id', $user->id)
             ->whereDate('date', $dateStr)
-            ->where('status', 'Inside Gym')
+            ->whereNotNull('check_in_time')
+            ->whereNull('check_out_time')
+            ->latest('id')
             ->first();
 
         $deviceName = $device?->name ?? 'eSSL Biometric Turnstile';
+        $isStaff = ($user->role && $user->role !== 'member');
 
         if ($existing) {
-            // Member is already inside: Auto Check-Out
+            // Member or Staff is already inside: Auto Check-Out
             $duration = '--';
             if ($existing->check_in_time) {
                 try {
-                    $in = Carbon::parse($existing->date . ' ' . $existing->check_in_time);
+                    $dateOnly = $existing->date instanceof \Illuminate\Support\Carbon ? $existing->date->toDateString() : substr((string)$existing->date, 0, 10);
+                    $in = Carbon::parse($dateOnly . ' ' . $existing->check_in_time);
                     $out = Carbon::parse($dateStr . ' ' . $timeStr);
+                    // Debounce: ignore accidental duplicate punch within 30 seconds of check-in
+                    if ($out->diffInSeconds($in) < 30) {
+                        return true;
+                    }
                     $mins = max(0, $in->diffInMinutes($out));
                     $h = intdiv($mins, 60);
                     $m = $mins % 60;
@@ -265,7 +273,7 @@ class AdmsController extends Controller
                 'check_out_time' => $timeStr,
                 'punch_out_time' => $timeStr,
                 'duration' => $duration,
-                'status' => 'Completed',
+                'status' => $isStaff ? 'Completed Shift' : 'Completed',
             ]);
 
             $gymId = $this->getSafeGymId($user, $device, $request);
@@ -274,24 +282,60 @@ class AdmsController extends Controller
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $deviceName,
                 'person_name' => $user->name,
-                'person_type' => 'Active Member',
+                'person_type' => $isStaff ? ucfirst($user->role) : 'Active Member',
                 'verification_mode' => 'eSSL Biometric Punch-Out',
                 'result' => 'Access Granted (Check-Out)',
                 'gate_trigger' => 'Exit Turnstile Unlocked',
                 'event_time' => $punchTime->format('h:i:s A'),
             ]);
         } else {
-            // Member is entering: Record Check-In
-            Attendance::create([
-                'user_id' => $user->id,
-                'member_name' => $user->name,
-                'member_avatar' => $user->avatar,
-                'plan_name' => $profile?->plan?->name ?? 'Active Plan',
-                'check_in_time' => $timeStr,
-                'date' => $dateStr,
-                'status' => 'Inside Gym',
-                'gate' => $deviceName,
-            ]);
+            $planName = $profile?->plan?->name ?? ($isStaff ? ucfirst($user->role) . ' Shift' : 'Active Plan');
+
+            // Check if an empty/absent/unpaid leave placeholder row exists for today:
+            $blankAtt = Attendance::where('user_id', $user->id)
+                ->whereDate('date', $dateStr)
+                ->whereNull('check_in_time')
+                ->latest('id')
+                ->first();
+
+            if ($blankAtt) {
+                $blankAtt->update([
+                    'member_name' => $user->name,
+                    'member_avatar' => $user->avatar,
+                    'plan_name' => $planName,
+                    'check_in_time' => $timeStr,
+                    'check_out_time' => null,
+                    'punch_out_time' => null,
+                    'duration' => '--',
+                    'status' => $isStaff ? 'On Duty' : 'Inside Gym',
+                    'gate' => $deviceName,
+                ]);
+            } else {
+                // Debounce: check if recently punched out within last 30 seconds
+                $lastAtt = Attendance::where('user_id', $user->id)
+                    ->whereDate('date', $dateStr)
+                    ->latest('id')
+                    ->first();
+
+                if ($lastAtt && !empty($lastAtt->check_out_time)) {
+                    $lastOut = Carbon::parse($dateStr . ' ' . $lastAtt->check_out_time);
+                    if ($punchTime->diffInSeconds($lastOut) < 30) {
+                        return true;
+                    }
+                }
+
+                // Member or Staff is entering: Record Check-In
+                Attendance::create([
+                    'user_id' => $user->id,
+                    'member_name' => $user->name,
+                    'member_avatar' => $user->avatar,
+                    'plan_name' => $planName,
+                    'check_in_time' => $timeStr,
+                    'date' => $dateStr,
+                    'status' => $isStaff ? 'On Duty' : 'Inside Gym',
+                    'gate' => $deviceName,
+                ]);
+            }
 
             if ($profile) {
                 $profile->increment('attendance_streak');
@@ -305,7 +349,7 @@ class AdmsController extends Controller
                 'device_id' => 'bio-dev-' . ($device?->id ?? 1),
                 'device_name' => $deviceName,
                 'person_name' => $user->name,
-                'person_type' => 'Active Member',
+                'person_type' => $isStaff ? ucfirst($user->role) : 'Active Member',
                 'verification_mode' => 'eSSL Biometric Punch-In',
                 'result' => 'Access Granted (Check-In)',
                 'gate_trigger' => 'Entry Turnstile Unlocked',

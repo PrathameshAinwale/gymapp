@@ -396,13 +396,6 @@ class AttendanceController extends Controller
                 }
             }
 
-            // Check for unexcused staff absence (0 remaining leaves & no check-in) -> Mark Unpaid Leave & Deduct Salary
-            try {
-                \App\Http\Controllers\Api\LeaveController::processUnpaidLeavesForAbsentStaff();
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning("Unpaid leave check error: " . $e->getMessage());
-            }
-
             return $updatedCount;
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning("Auto check-out error: " . $e->getMessage());
