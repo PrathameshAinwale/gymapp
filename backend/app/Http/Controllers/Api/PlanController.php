@@ -169,11 +169,14 @@ class PlanController extends Controller
         $period = $request->period ?? ($durationMonths > 1 ? "{$durationMonths} Months" : 'Monthly');
         $packageType = $this->normalizePackageType($request->package_type ?? $request->packageType);
 
+        $rawSessions = $request->sessions !== null ? (string)$request->sessions : null;
+        $cleanSessions = $rawSessions ? preg_replace('/\.[\d]+/', '', $rawSessions) : null;
+
         $plan = Plan::create([
             'gym_id' => $gymId,
             'name' => $request->name,
             'package_type' => $packageType,
-            'sessions' => $request->sessions ?? null,
+            'sessions' => $cleanSessions,
             'price' => $request->price,
             'discount' => $request->discount ?? 0,
             'max_discount' => $request->max_discount ?? $request->maxDiscount ?? 0,
@@ -238,7 +241,10 @@ class PlanController extends Controller
         if ($request->has('package_type') || $request->has('packageType')) {
             $plan->package_type = $this->normalizePackageType($request->package_type ?? $request->packageType);
         }
-        if ($request->has('sessions')) $plan->sessions = $request->sessions;
+        if ($request->has('sessions')) {
+            $rawSessions = $request->sessions !== null ? (string)$request->sessions : null;
+            $plan->sessions = $rawSessions ? preg_replace('/\.[\d]+/', '', $rawSessions) : null;
+        }
         if ($request->has('price')) $plan->price = $request->price;
         if ($request->has('discount')) $plan->discount = $request->discount;
         if ($request->has('max_discount') || $request->has('maxDiscount')) {

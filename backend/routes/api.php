@@ -177,8 +177,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     });
 
-    // â”€â”€ Public Branding & Platform Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Public Branding & Platform Catalog
     Route::get('/gym-info', [GymSettingController::class, 'show']);
+
+    // Public Invoice View & PDF Download
+    Route::get('/public/invoices/{invoice_number}/download', [InvoiceController::class, 'publicDownloadPdf']);
+    Route::get('/public/invoices/{invoice_number}/view', [InvoiceController::class, 'publicView']);
 
     Route::prefix('platform')->group(function () {
         Route::get('/pages', [SuperadminController::class, 'indexPages']);
@@ -256,6 +260,8 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
         Route::post('/invoices', [InvoiceController::class, 'store']);
         Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
         Route::patch('/invoices/{id}', [InvoiceController::class, 'update']);
+        Route::post('/invoices/{id}/upload-pdf', [InvoiceController::class, 'uploadPdf']);
+        Route::get('/invoices/{id}/download-pdf', [InvoiceController::class, 'downloadPdf']);
 
         // Operating Expenses & Cash Flow
         Route::apiResource('expenses', ExpenseController::class);

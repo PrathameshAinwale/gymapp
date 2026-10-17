@@ -614,6 +614,7 @@ export const WhatsAppAutomation = () => {
       '{{portal_url}}': window.location.origin,
       '{{invoice_number}}': sampleOverrides.invoiceNumber || 'INV-2026-8492',
       '{{invoice_no}}': sampleOverrides.invoiceNumber || 'INV-2026-8492',
+      '{{invoice_url}}': sampleOverrides.invoiceUrl || (window.location.origin + '/invoices/INV-2026-8492.pdf'),
       '{{paid_amount}}': sampleOverrides.paidAmount || '₹3,500.00',
       '{{total_amount}}': sampleOverrides.totalAmount || '₹3,500.00',
       '{{start_date}}': sampleOverrides.startDate || '17 Oct 2026',
@@ -1944,247 +1945,217 @@ export const WhatsAppAutomation = () => {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* MODAL: CREATE / EDIT TEMPLATE                             */}
       {/* ══════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE / EDIT TEMPLATE                             */}
+      {/* ══════════════════════════════════════════════════════════ */}
       {isEditorOpen && (
         <Modal
           isOpen={isEditorOpen}
           onClose={() => setIsEditorOpen(false)}
           title={editingTemplate ? 'Edit WhatsApp Template' : 'Create WhatsApp Template'}
-          maxWidth="max-w-4xl"
+          maxWidth="max-w-2xl"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Form (7 Columns) */}
-            <form onSubmit={handleSaveTemplate} className="lg:col-span-7 space-y-4">
+          <form onSubmit={handleSaveTemplate} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Template Title</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Member Birthday Wishes, 7-Day Renewal"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Template Title</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Member Birthday Wishes, 7-Day Renewal"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => {
-                      const newCat = e.target.value;
-                      setFormData({
-                        ...formData,
-                        category: newCat,
-                        timing_trigger: getDefaultTiming(newCat)
-                      });
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    <option value="new_plan">New Gym Membership Plan / Offer 🚀</option>
-                    <option value="birthday">Member Birthday Celebration Perk 🎂</option>
-                    <option value="expiry_reminder">Expiry Reminder (1–7 Days)</option>
-                    <option value="membership_expired">Overdue / Expired</option>
-                    <option value="welcome">Welcome & Onboarding Pack</option>
-                    <option value="fee_due">Payment & Fee Due Notice</option>
-                    <option value="absentee">Inactivity Check-in</option>
-                    <option value="custom">General Announcement / Promotion</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Audience</label>
-                  <select
-                    value={formData.target_role}
-                    onChange={(e) => setFormData({ ...formData, target_role: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
-                  >
-                    <option value="all">Everyone / All Users ({getRecipientCountForRole('all')} recipients)</option>
-                    <option value="member">Members Only ({getRecipientCountForRole('member')} recipients)</option>
-                    <option value="trainer">Trainers & Coaches ({getRecipientCountForRole('trainer')} recipients)</option>
-                    <option value="staff">Staff Employees (5 recipients)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Birthday Single Master Template Notice */}
-              {formData.category === 'birthday' && (
-                <div className="p-3 rounded-xl bg-pink-50 border border-pink-200 text-xs text-pink-950 flex items-start gap-2.5">
-                  <Cake className="w-4 h-4 text-pink-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-pink-900">Single Master Birthday Template:</span>
-                    <p className="text-[11px] text-pink-800 mt-0.5 leading-snug">
-                      You only write <strong>one</strong> template for all members. Do <strong>not</strong> create separate templates or triggers for different people. Simply write <code className="bg-pink-100 text-pink-900 px-1 py-0.2 rounded font-mono font-bold">&#123;&#123;name&#125;&#125;</code> in your message. Whenever any member's birthday is today in the database, this template triggers automatically and personalizes the greeting with their name.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Timing Trigger Selector */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Trigger Condition / Dispatch Timing</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Category</label>
                 <select
-                  value={formData.timing_trigger}
-                  onChange={(e) => setFormData({ ...formData, timing_trigger: e.target.value })}
+                  value={formData.category}
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    setFormData({
+                      ...formData,
+                      category: newCat,
+                      timing_trigger: getDefaultTiming(newCat)
+                    });
+                  }}
                   className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="on_birthday">🎂 Auto-Trigger on Member/Coach Birthday (Daily Scan)</option>
-                  <option value="on_new_plan">🚀 1-Click Broadcast on New Membership Plan Launch</option>
-                  <option value="days_before_expiry_7">⏰ 7 Days Before Membership Expiry</option>
-                  <option value="days_before_expiry_3">⚠️ 3 Days Before Membership Expiry</option>
-                  <option value="on_signup">🎉 Automatically on New Registration / Sign-up</option>
-                  <option value="on_dues_pending">💳 When Membership Fee / Dues are Pending</option>
-                  <option value="manual">📢 Manual / 1-Click On Demand Broadcast</option>
+                  <option value="new_plan">New Gym Membership Plan / Offer 🚀</option>
+                  <option value="birthday">Member Birthday Celebration Perk 🎂</option>
+                  <option value="expiry_reminder">Expiry Reminder (1–7 Days)</option>
+                  <option value="membership_expired">Overdue / Expired</option>
+                  <option value="welcome">Welcome & Onboarding Pack</option>
+                  <option value="fee_due">Payment & Fee Due Notice</option>
+                  <option value="absentee">Inactivity Check-in</option>
+                  <option value="custom">General Announcement / Promotion</option>
                 </select>
               </div>
 
-              {/* Variable Chips Insertion Bar */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700">Click to Insert Dynamic Placeholders</label>
-                  <span className="text-[10px] text-emerald-700 font-semibold">Auto-personalized for each member</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  {[
-                    { tag: '{{name}}', label: 'Name' },
-                    { tag: '{{gym_name}}', label: 'Gym Name' },
-                    { tag: '{{gym_address}}', label: 'Gym Location' },
-                    { tag: '{{gym_timing}}', label: 'Gym Hours' },
-                    { tag: '{{role}}', label: 'Role' },
-                    { tag: '{{plan_name}}', label: 'Plan Name' },
-                    { tag: '{{invoice_number}}', label: 'Invoice #' },
-                    { tag: '{{paid_amount}}', label: 'Paid Amount' },
-                    { tag: '{{total_amount}}', label: 'Total Bill' },
-                    { tag: '{{dues_amount}}', label: 'Dues' },
-                    { tag: '{{payment_method}}', label: 'Payment Mode' },
-                    { tag: '{{qr_pass_code}}', label: 'Turnstile QR' },
-                    { tag: '{{start_date}}', label: 'Start Date' },
-                    { tag: '{{expiry_date}}', label: 'Expiry Date' },
-                    { tag: '{{due_date}}', label: 'Due Date' },
-                    { tag: '{{days_left}}', label: 'Days Left' },
-                    { tag: '{{date}}', label: 'Today Date' },
-                    { tag: '{{portal_url}}', label: 'Portal Link' }
-                  ].map((chip) => (
-                    <button
-                      key={chip.tag}
-                      type="button"
-                      onClick={() => handleInsertVariable(chip.tag)}
-                      className="px-2 py-1 rounded-md bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 text-[11px] font-mono font-semibold transition-colors border border-slate-200 hover:border-emerald-300 cursor-pointer"
-                    >
-                      + {chip.tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Message Body Textarea */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Message Content (WhatsApp Formatted)</label>
-                <textarea
-                  ref={textareaRef}
-                  required
-                  rows={6}
-                  placeholder="Compose your message here. Tip: Use *bold*, _italics_, and dynamic placeholders..."
-                  value={formData.message_body}
-                  onChange={(e) => setFormData({ ...formData, message_body: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 font-sans leading-relaxed"
-                />
-              </div>
-
-              {/* Switches */}
-              <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-white border-slate-300"
-                  />
-                  <span>Active & Ready to Dispatch</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_auto_enabled}
-                    onChange={(e) => setFormData({ ...formData, is_auto_enabled: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-white border-slate-300"
-                  />
-                  <span>Enable Auto-Trigger for Matching Members</span>
-                </label>
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditorOpen(false)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Audience</label>
+                <select
+                  value={formData.target_role}
+                  onChange={(e) => setFormData({ ...formData, target_role: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                 >
-                  Cancel
+                  <option value="all">Everyone / All Users ({getRecipientCountForRole('all')} recipients)</option>
+                  <option value="member">Members Only ({getRecipientCountForRole('member')} recipients)</option>
+                  <option value="trainer">Trainers & Coaches ({getRecipientCountForRole('trainer')} recipients)</option>
+                  <option value="staff">Staff Employees (5 recipients)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Birthday Single Master Template Notice */}
+            {formData.category === 'birthday' && (
+              <div className="p-3 rounded-xl bg-pink-50 border border-pink-200 text-xs text-pink-950 flex items-start gap-2.5">
+                <Cake className="w-4 h-4 text-pink-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-pink-900">Single Master Birthday Template:</span>
+                  <p className="text-[11px] text-pink-800 mt-0.5 leading-snug">
+                    You only write <strong>one</strong> template for all members. Simply click the <strong className="text-pink-900 font-semibold">+ 👤 Member Name</strong> button below. When it is any member's birthday, the message is sent automatically with their real name.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Timing Trigger Selector */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Trigger Condition / Dispatch Timing</label>
+              <select
+                value={formData.timing_trigger}
+                onChange={(e) => setFormData({ ...formData, timing_trigger: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                <option value="on_birthday">🎂 Auto-Trigger on Member/Coach Birthday (Daily Scan)</option>
+                <option value="on_new_plan">🚀 1-Click Broadcast on New Membership Plan Launch</option>
+                <option value="days_before_expiry_7">⏰ 7 Days Before Membership Expiry</option>
+                <option value="days_before_expiry_3">⚠️ 3 Days Before Membership Expiry</option>
+                <option value="on_signup">🎉 Automatically on New Registration / Sign-up</option>
+                <option value="on_dues_pending">💳 When Membership Fee / Dues are Pending</option>
+                <option value="manual">📢 Manual / 1-Click On Demand Broadcast</option>
+              </select>
+            </div>
+
+            {/* Simple Click to Add Details into Message */}
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Click to Insert Member or Gym Details into Message</span>
+                </label>
+                <span className="text-[11px] text-emerald-700 font-medium">
+                  👆 Click any button below to insert it at your cursor
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { tag: '{{name}}', label: '👤 Member Name', desc: 'Member Full Name' },
+                  { tag: '{{gym_name}}', label: '🏋️ Gym Name', desc: 'Gym Name' },
+                  { tag: '{{gym_address}}', label: '📍 Gym Location', desc: 'Gym Address & City' },
+                  { tag: '{{gym_timing}}', label: '⏰ Gym Timings', desc: 'Working Hours' },
+                  { tag: '{{plan_name}}', label: '🏷️ Plan Name', desc: 'Membership Plan' },
+                  { tag: '{{start_date}}', label: '📅 Start Date', desc: 'Membership Start Date' },
+                  { tag: '{{expiry_date}}', label: '⏳ Expiry Date', desc: 'Valid Until Date' },
+                  { tag: '{{invoice_number}}', label: '🧾 Invoice No', desc: 'Invoice Number' },
+                  { tag: '{{invoice_url}}', label: '📄 Invoice PDF Link', desc: 'Link to download Invoice PDF' },
+                  { tag: '{{total_amount}}', label: '💰 Total Bill', desc: 'Total Package Cost' },
+                  { tag: '{{paid_amount}}', label: '💵 Paid Amount', desc: 'Amount Paid' },
+                  { tag: '{{dues_amount}}', label: '⚠️ Balance Due', desc: 'Pending Dues' },
+                  { tag: '{{due_date}}', label: '📅 Due Date', desc: 'Payment Due Date' },
+                  { tag: '{{payment_method}}', label: '💳 Payment Mode', desc: 'UPI / Cash / Card' },
+                  { tag: '{{qr_pass_code}}', label: '📱 Turnstile QR', desc: 'Gate Pass QR Code' },
+                  { tag: '{{portal_url}}', label: '🔗 Member Portal', desc: 'App Login Link' },
+                  { tag: '{{date}}', label: '🗓️ Today Date', desc: 'Current Date' },
+                ].map((chip) => (
+                  <button
+                    key={chip.tag}
+                    type="button"
+                    onClick={() => handleInsertVariable(chip.tag)}
+                    title={`Click to insert ${chip.label} into your message (${chip.desc})`}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-600 hover:text-white text-slate-700 text-xs font-semibold shadow-2xs border border-slate-200 hover:border-emerald-600 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                  >
+                    <span>+</span>
+                    <span>{chip.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-2">
+                When sending to a member, each button you added will automatically be filled with their real details.
+              </p>
+            </div>
+
+            {/* Message Body Textarea */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Message Content (WhatsApp Formatted)</label>
+              <textarea
+                ref={textareaRef}
+                required
+                rows={7}
+                placeholder="Compose your message here. Tip: Use *bold*, _italics_, and click any button above to insert details..."
+                value={formData.message_body}
+                onChange={(e) => setFormData({ ...formData, message_body: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 font-sans leading-relaxed"
+              />
+            </div>
+
+            {/* Switches */}
+            <div className="flex items-center gap-6 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium">
+                <input
+                  type="checkbox"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-white border-slate-300"
+                />
+                <span>Active & Ready to Dispatch</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium">
+                <input
+                  type="checkbox"
+                  checked={formData.is_auto_enabled}
+                  onChange={(e) => setFormData({ ...formData, is_auto_enabled: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-white border-slate-300"
+                />
+                <span>Enable Auto-Trigger for Matching Members</span>
+              </label>
+            </div>
+
+            {/* Modal Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsEditorOpen(false)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isSaving ? 'Saving...' : editingTemplate ? 'Update Template' : 'Save Template'}
                 </button>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSaving ? 'Saving...' : editingTemplate ? 'Update Template' : 'Save Template'}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={handleSaveAndBroadcastNow}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                    title="Save template and immediately broadcast to intended recipients with 1 click"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Save & 1-Click Send to All ({getRecipientCountForRole(formData.target_role)})</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveAndBroadcastNow}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Save template and immediately broadcast to intended recipients with 1 click"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Save & 1-Click Send to All ({getRecipientCountForRole(formData.target_role)})</span>
+                </button>
               </div>
-            </form>
-
-            {/* Right Phone Mockup Preview (5 Columns) */}
-            <div className="lg:col-span-5 flex flex-col items-center">
-              <div className="w-full max-w-sm rounded-[2.5rem] bg-slate-900 border-4 border-slate-300 shadow-xl p-3 flex flex-col h-[480px]">
-                {/* Phone Speaker Notch */}
-                <div className="w-20 h-3 bg-slate-700 rounded-full mx-auto mb-2"></div>
-
-                {/* WhatsApp Chat Header */}
-                <div className="bg-[#075E54] text-white px-3.5 py-2.5 rounded-t-2xl flex items-center gap-2 shadow-xs">
-                  <div className="w-7 h-7 rounded-full bg-[#128C7E] flex items-center justify-center font-bold text-xs text-white">
-                    PF
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold leading-tight">{gymInfo?.name || 'Our Gym'}</div>
-                    <div className="text-[10px] text-emerald-100">WhatsApp Business</div>
-                  </div>
-                </div>
-
-                {/* WhatsApp Chat Background & Bubble */}
-                <div className="flex-1 bg-[#ECE5DD] rounded-b-2xl p-3 overflow-y-auto flex flex-col justify-end space-y-2 border-t border-emerald-900/20">
-                  <div className="self-center bg-white/90 shadow-2xs px-2.5 py-0.5 rounded text-[9px] font-medium text-slate-600 mb-1">
-                    TODAY
-                  </div>
-
-                  {/* Chat Bubble */}
-                  <div className="self-end max-w-[90%] bg-[#DCF8C6] border border-[#c1e7a4] text-slate-900 rounded-2xl rounded-tr-sm p-3 shadow-xs">
-                    <div className="text-[11px] text-slate-900 font-sans whitespace-pre-line leading-relaxed">
-                      {renderPreviewText(formData.message_body || 'Type your message on the left to see live preview...')}
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-end gap-1 text-[9px] text-slate-500">
-                      <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <CheckCheck className="w-3 h-3 text-[#34B7F1]" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <span className="text-[10px] text-slate-400 mt-2 font-medium">Live WhatsApp Render Simulation</span>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
 

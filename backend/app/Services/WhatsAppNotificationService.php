@@ -53,6 +53,7 @@ class WhatsAppNotificationService
             '{{custom_note}}'   => $data['custom_note'] ?? '',
             '{{invoice_number}}' => $data['invoice_number'] ?? '',
             '{{invoice_no}}'     => $data['invoice_number'] ?? '',
+            '{{invoice_url}}'    => $data['invoice_url'] ?? '',
             '{{paid_amount}}'    => isset($data['paid_amount']) ? (is_numeric($data['paid_amount']) ? '₹' . number_format((float) $data['paid_amount'], 2) : $data['paid_amount']) : '',
             '{{total_amount}}'   => isset($data['total_amount']) ? (is_numeric($data['total_amount']) ? '₹' . number_format((float) $data['total_amount'], 2) : $data['total_amount']) : '',
             '{{start_date}}'     => $data['start_date'] ?? '',
@@ -69,10 +70,11 @@ class WhatsAppNotificationService
     }
 
     /**
-     * Dispatch an outbound message via the configured WhatsApp Gateway (UltraMsg, Meta, or Custom).
+     * Dispatch an outbound message via the configured WhatsApp Gateway (UltraMsg, Meta, MSG91, or Custom).
      * If no gateway keys are configured, falls back to simulated delivery with direct wa_link.
+     * Optionally dispatches document attachments (such as official invoice PDFs).
      */
-    public static function dispatchViaGateway(string $phone, string $message, ?int $gymId = null): array
+    public static function dispatchViaGateway(string $phone, string $message, ?int $gymId = null, ?array $attachment = null): array
     {
         $cleanPhone = self::cleanPhone($phone);
         if (!$cleanPhone) {
@@ -109,6 +111,22 @@ class WhatsAppNotificationService
 
                 $json = $response->json();
                 $isSent = $response->successful() && (!isset($json['error']) || empty($json['error']));
+
+                // If document attachment is present, dispatch document outbound to UltraMsg
+                if ($isSent && $attachment && !empty($attachment['url'])) {
+                    try {
+                        $docEndpoint = "https://api.ultramsg.com/" . trim($settings->instance_id) . "/messages/document";
+                        Http::timeout(12)->asForm()->post($docEndpoint, [
+                            'token'    => trim($settings->api_token),
+                            'to'       => '+' . $cleanPhone,
+                            'filename' => $attachment['filename'] ?? 'Invoice.pdf',
+                            'document' => $attachment['url'],
+                            'caption'  => $attachment['caption'] ?? 'Official Invoice Receipt',
+                        ]);
+                    } catch (\Throwable $docEx) {
+                        Log::info("UltraMsg document attachment dispatch note: " . $docEx->getMessage());
+                    }
+                }
 
                 return [
                     'success'  => $isSent,
@@ -147,6 +165,28 @@ class WhatsAppNotificationService
                     ]);
 
                 $isSent = $response->successful();
+
+                // If document attachment is present, dispatch document outbound to Meta
+                if ($isSent && $attachment && !empty($attachment['url'])) {
+                    try {
+                        Http::timeout(12)
+                            ->withToken(trim($settings->api_token))
+                            ->post($endpoint, [
+                                'messaging_product' => 'whatsapp',
+                                'recipient_type'    => 'individual',
+                                'to'                => $cleanPhone,
+                                'type'              => 'document',
+                                'document'          => [
+                                    'link'     => $attachment['url'],
+                                    'caption'  => $attachment['caption'] ?? 'Official Invoice Receipt',
+                                    'filename' => $attachment['filename'] ?? 'Invoice.pdf',
+                                ],
+                            ]);
+                    } catch (\Throwable $docEx) {
+                        Log::info("Meta document attachment dispatch note: " . $docEx->getMessage());
+                    }
+                }
+
                 return [
                     'success'  => $isSent,
                     'status'   => $isSent ? 'sent' : 'failed',
@@ -196,6 +236,34 @@ class WhatsAppNotificationService
 
                 $json = $response->json();
                 $isSent = $response->successful() && (!isset($json['status']) || $json['status'] === 'success' || (isset($json['type']) && $json['type'] === 'success'));
+
+                // If document attachment is present, dispatch document outbound to MSG91
+                if ($isSent && $attachment && !empty($attachment['url'])) {
+                    try {
+                        Http::timeout(12)
+                            ->withHeaders([
+                                'authkey'      => trim($settings->api_token),
+                                'Content-Type' => 'application/json',
+                            ])
+                            ->post($endpoint, [
+                                'integrated_number' => $cleanIntegratedNumber,
+                                'recipient_number'  => $cleanPhone,
+                                'content_type'      => 'document',
+                                'attachment'        => [
+                                    'link'     => $attachment['url'],
+                                    'caption'  => $attachment['caption'] ?? 'Official Invoice PDF',
+                                    'filename' => $attachment['filename'] ?? 'Invoice.pdf',
+                                ],
+                                'document'          => [
+                                    'link'     => $attachment['url'],
+                                    'caption'  => $attachment['caption'] ?? 'Official Invoice PDF',
+                                    'filename' => $attachment['filename'] ?? 'Invoice.pdf',
+                                ],
+                            ]);
+                    } catch (\Throwable $docEx) {
+                        Log::info("MSG91 document attachment dispatch note: " . $docEx->getMessage());
+                    }
+                }
 
                 return [
                     'success'  => $isSent,
@@ -299,6 +367,16 @@ class WhatsAppNotificationService
             $invoice = \App\Models\Invoice::where('user_id', $user->id)->latest('id')->first();
         }
 
+        // Automatically ensure official Invoice PDF is generated and saved
+        $invoiceUrl = null;
+        if ($invoice) {
+            try {
+                $invoiceUrl = \App\Services\InvoicePdfService::ensurePdf($invoice);
+            } catch (\Throwable $e) {
+                Log::warning("Invoice PDF generation note in sendWelcomeMessage: " . $e->getMessage());
+            }
+        }
+
         $planName = $profile?->plan?->name ?: ($invoice?->plan?->name ?: 'Gym Membership');
         $expDate = $profile?->expiry_date ? Carbon::parse($profile->expiry_date)->format('d M Y') : ($invoice?->end_date ? Carbon::parse($invoice->end_date)->format('d M Y') : 'Active');
         $startDate = $profile?->join_date ? Carbon::parse($profile->join_date)->format('d M Y') : ($invoice?->start_date ? Carbon::parse($invoice->start_date)->format('d M Y') : Carbon::today()->format('d M Y'));
@@ -352,6 +430,7 @@ class WhatsAppNotificationService
             'qr_pass_code'   => $profile?->qr_pass_code ?? '',
             'date'           => Carbon::today()->format('d M Y'),
             'invoice_number' => $invoiceNo,
+            'invoice_url'    => $invoiceUrl ?: url("api/public/invoices/{$invoiceNo}/download"),
             'paid_amount'    => $paidAmount,
             'total_amount'   => $totalAmount,
             'dues_amount'    => $formattedDues,
@@ -359,7 +438,23 @@ class WhatsAppNotificationService
             'payment_method' => $paymentMethod,
         ]);
 
-        $dispatchResult = self::dispatchViaGateway($user->phone ?? '', $rendered, $gymId);
+        // If template doesn't include {{invoice_url}}, append direct official invoice PDF download link
+        if ($invoiceUrl && !str_contains($rendered, $invoiceUrl)) {
+            $rendered .= "\n\n📄 *Official Invoice Receipt PDF:*\n" . $invoiceUrl;
+        }
+
+        // Prepare document attachment for gateway
+        $attachment = null;
+        if ($invoiceUrl) {
+            $attachment = [
+                'type'     => 'document',
+                'url'      => $invoiceUrl,
+                'filename' => "Invoice_{$invoiceNo}.pdf",
+                'caption'  => "Official Invoice Receipt #{$invoiceNo}",
+            ];
+        }
+
+        $dispatchResult = self::dispatchViaGateway($user->phone ?? '', $rendered, $gymId, $attachment);
 
         // Store log in database
         $log = WhatsAppLog::create([

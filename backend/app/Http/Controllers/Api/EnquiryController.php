@@ -464,10 +464,11 @@ class EnquiryController extends Controller
             ]);
         }
 
-        // Expiry calculation
-        $durationMonths = $plan?->duration_months ?? 1;
+        // Expiry calculation: 30 days per month, inclusive of start date
+        $durationMonths = (int)($plan?->duration_months ?? 1);
         $offerDays = (int)($plan?->offer_days ?? 0);
-        $expiry = now()->addMonths($durationMonths);
+        $totalDays = max(1, $durationMonths * 30);
+        $expiry = now()->addDays($totalDays - 1);
         if ($offerDays > 0) {
             $expiry = $expiry->addDays($offerDays);
         }

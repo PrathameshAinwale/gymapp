@@ -1942,8 +1942,15 @@ export const RecordPaymentModal = ({
                     type="number"
                     min={1}
                     max={120}
+                    step={1}
+                    onKeyDown={(e) => {
+                      if (e.key === '.' || e.key === ',') e.preventDefault();
+                    }}
                     value={quickPlanForm.sessions}
-                    onChange={(e) => setQuickPlanForm({ ...quickPlanForm, sessions: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const val = String(e.target.value).replace(/[.,]/g, '');
+                      setQuickPlanForm({ ...quickPlanForm, sessions: val ? Math.floor(Number(val)) : '' });
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   />
                 </div>

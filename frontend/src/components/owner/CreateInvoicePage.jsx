@@ -457,18 +457,18 @@ export const CreateInvoicePage = ({
     return latestEnd;
   };
 
-  // Compute row-level chaining parameters (default start date = day after previous plan, min start = day after)
+  // Compute row-level chaining parameters (default start date = day after previous plan, open to custom start date)
   const getRowChainingInfo = (pkgRow, currentRows = null) => {
     const todayStr = getTodayDateStr();
     const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
     const latestEnd = getLatestEndDateForPackageType(selectedMemberId, pkgType, pkgRow?.id, currentRows);
 
-    if (latestEnd && latestEnd >= todayStr) {
+    if (latestEnd) {
       const chainedStart = addDaysIso(latestEnd, 1);
       return {
         isChained: true,
         latestEnd,
-        minStartDate: chainedStart,
+        minStartDate: '',
         defaultStartDate: chainedStart,
         message: `Current ${pkgType} ends on ${formatDateDisplay(latestEnd)}. Chains from ${formatDateDisplay(chainedStart)}.`
       };
@@ -477,7 +477,7 @@ export const CreateInvoicePage = ({
     return {
       isChained: false,
       latestEnd: null,
-      minStartDate: todayStr,
+      minStartDate: '',
       defaultStartDate: todayStr,
       message: `No active ${pkgType} plan found. Starts ${formatDateDisplay(todayStr)} by default.`
     };
@@ -570,21 +570,21 @@ export const CreateInvoicePage = ({
       const latestEnd = getLatestEndDateForPackageType(targetMemberId, pkgType, row.id, updated);
 
       let isChained = false;
-      let minStartDate = todayStr;
+      let minStartDate = '';
       let defaultStartDate = todayStr;
       let chainingMessage = `No active ${pkgType} plan found. Starts ${formatDateDisplay(todayStr)} by default.`;
 
-      if (latestEnd && latestEnd >= todayStr) {
+      if (latestEnd) {
         const chainedStart = addDaysIso(latestEnd, 1);
         isChained = true;
-        minStartDate = chainedStart;
+        minStartDate = '';
         defaultStartDate = chainedStart;
         chainingMessage = `Current ${pkgType} ends on ${formatDateDisplay(latestEnd)}. Chains from ${formatDateDisplay(chainedStart)}.`;
       }
 
       const planObj = getPackageObject(row.packageType, row.packageId);
       let effectiveStart = '';
-      if (row.isCustomStartDate && row.startDate && row.startDate >= minStartDate) {
+      if (row.isCustomStartDate && row.startDate) {
         effectiveStart = row.startDate;
       } else {
         effectiveStart = defaultStartDate;
@@ -789,6 +789,67 @@ export const CreateInvoicePage = ({
   const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
   const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
 
+  // Handles payment method amount change ensuring entered amount never exceeds total payable price
+  const handlePaymentChange = (method, rawValue) => {
+    const sanitized = sanitizeDecimal(rawValue);
+    if (sanitized === '') {
+      if (method === 'cash') setCashAmount('');
+      if (method === 'upi') setUpiAmount('');
+      if (method === 'transfer') setAccountTransferAmount('');
+      return;
+    }
+
+    const currentCash = method === 'cash' ? 0 : parseAmount(cashAmount);
+    const currentUpi = method === 'upi' ? 0 : parseAmount(upiAmount);
+    const currentTransfer = method === 'transfer' ? 0 : parseAmount(accountTransferAmount);
+    const otherTotal = currentCash + currentUpi + currentTransfer;
+
+    const maxAllowed = Math.max(0, Math.round((totalCalculatedAmount - otherTotal) * 100) / 100);
+    const num = parseFloat(sanitized);
+
+    if (!isNaN(num) && num > maxAllowed) {
+      const clamped = maxAllowed > 0 ? String(maxAllowed) : '';
+      if (method === 'cash') setCashAmount(clamped);
+      if (method === 'upi') setUpiAmount(clamped);
+      if (method === 'transfer') setAccountTransferAmount(clamped);
+      if (num > maxAllowed && totalCalculatedAmount > 0) {
+        addToast(`Payment amount cannot exceed total payable price of ₹${totalCalculatedAmount.toLocaleString('en-IN')}`, 'info');
+      }
+    } else {
+      if (method === 'cash') setCashAmount(sanitized);
+      if (method === 'upi') setUpiAmount(sanitized);
+      if (method === 'transfer') setAccountTransferAmount(sanitized);
+    }
+  };
+
+  // Auto-trim payments if total bill decreases below entered payments
+  useEffect(() => {
+    if (totalCalculatedAmount >= 0 && totalEnteredPaid > totalCalculatedAmount) {
+      let excess = Math.round((totalEnteredPaid - totalCalculatedAmount) * 100) / 100;
+      if (accountTransferAmount && excess > 0) {
+        const curr = parseAmount(accountTransferAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setAccountTransferAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+      if (upiAmount && excess > 0) {
+        const curr = parseAmount(upiAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setUpiAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+      if (cashAmount && excess > 0) {
+        const curr = parseAmount(cashAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setCashAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+    }
+  }, [totalCalculatedAmount]);
+
   // Live GST breakdown:
   // - If GST is ticked: Base amount + CGST (9%) + SGST (9%) = targetAmount
   // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
@@ -938,6 +999,11 @@ export const CreateInvoicePage = ({
 
     if (totalCalculatedAmount <= 0) {
       addToast('Total bill amount must be greater than ₹0.', 'error');
+      return;
+    }
+
+    if (totalEnteredPaid > totalCalculatedAmount) {
+      addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
       return;
     }
 
@@ -1866,7 +1932,6 @@ export const CreateInvoicePage = ({
                       <input
                         type="date"
                         required
-                        min={rowChaining.minStartDate}
                         value={pkgRow.startDate || rowChaining.defaultStartDate}
                         onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
@@ -1881,7 +1946,7 @@ export const CreateInvoicePage = ({
                       <input
                         type="date"
                         required
-                        min={pkgRow.startDate || rowChaining.minStartDate}
+                        min={pkgRow.startDate || undefined}
                         value={pkgRow.expiryDate || ''}
                         onChange={(e) => handlePackageExpiryDateChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
@@ -2000,22 +2065,22 @@ export const CreateInvoicePage = ({
             </div>
           </div>
 
-          {/* 3 Payment Methods: Cash, UPI, Account Transfer */}
+          {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact & Unified ₹ Layout) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
             {/* 1. Cash */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+            <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
               <span className="text-xs font-bold text-slate-800 block">Cash</span>
               <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                  <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                   <input
                     type="text"
                     inputMode="decimal"
                     onKeyDown={(e) => preventNonNumericKey(e, true)}
                     value={cashAmount}
-                    onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
+                    onChange={(e) => handlePaymentChange('cash', e.target.value)}
                     placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
+                    className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                   />
                 </div>
                 <button
@@ -2023,10 +2088,10 @@ export const CreateInvoicePage = ({
                   title="Pay remaining in Cash"
                   onClick={() => {
                     const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                     setCashAmount(rem > 0 ? String(rem) : '');
                   }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
                 </button>
@@ -2034,19 +2099,19 @@ export const CreateInvoicePage = ({
             </div>
 
             {/* 2. UPI */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+            <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
               <span className="text-xs font-bold text-slate-800 block">UPI</span>
               <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                  <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                   <input
                     type="text"
                     inputMode="decimal"
                     onKeyDown={(e) => preventNonNumericKey(e, true)}
                     value={upiAmount}
-                    onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
+                    onChange={(e) => handlePaymentChange('upi', e.target.value)}
                     placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
+                    className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                   />
                 </div>
                 <button
@@ -2054,10 +2119,10 @@ export const CreateInvoicePage = ({
                   title="Pay remaining via UPI"
                   onClick={() => {
                     const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                     setUpiAmount(rem > 0 ? String(rem) : '');
                   }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
                 </button>
@@ -2065,19 +2130,19 @@ export const CreateInvoicePage = ({
             </div>
 
             {/* 3. Account Transfer */}
-            <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+            <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
               <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
               <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                  <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                   <input
                     type="text"
                     inputMode="decimal"
                     onKeyDown={(e) => preventNonNumericKey(e, true)}
                     value={accountTransferAmount}
-                    onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
+                    onChange={(e) => handlePaymentChange('transfer', e.target.value)}
                     placeholder="0"
-                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
+                    className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                   />
                 </div>
                 <button
@@ -2085,10 +2150,10 @@ export const CreateInvoicePage = ({
                   title="Pay remaining via Account Transfer"
                   onClick={() => {
                     const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
-                    const rem = Math.max(0, totalCalculatedAmount - other);
+                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                     setAccountTransferAmount(rem > 0 ? String(rem) : '');
                   }}
-                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
                 </button>

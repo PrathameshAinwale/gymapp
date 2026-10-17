@@ -369,12 +369,12 @@ class PlanChainingService
         // Parse days from period if specified (e.g. "45 Days")
         if (preg_match('/(\d+)\s*days?/i', $periodStr, $matches)) {
             $days = (int)$matches[1];
-            $end = $start->copy()->addDays(max(1, $days));
+            $end = $start->copy()->addDays(max(1, $days) - 1);
         } else {
-            // Standard 30 days per month count: e.g. 1 month = 30 days (13 Oct -> 12 Nov)
+            // Standard 30 days per month count, inclusive of start date (e.g. 1-11 -> 30-11, 24-11 -> 23-12)
             $monthsCount = max(1, $months);
             $totalDays = $monthsCount * 30;
-            $end = $start->copy()->addDays($totalDays);
+            $end = $start->copy()->addDays($totalDays - 1);
         }
 
         if ($bonus > 0) {
@@ -393,12 +393,6 @@ class PlanChainingService
         $today = self::getTodayIst();
         $startStr = substr((string)$startDateStr, 0, 10);
         $chosenStart = Carbon::createFromFormat('Y-m-d', $startStr, self::TIMEZONE)->startOfDay();
-
-        if ($chosenStart->toDateString() < $today->toDateString()) {
-            throw ValidationException::withMessages([
-                'start_date' => ["The start date ({$chosenStart->toDateString()}) cannot be in the past."],
-            ]);
-        }
 
         $normalizedType = self::normalizePackageType($packageType);
         $latestEnd = self::getLatestPlanEndDate($userId, $normalizedType, $gymId);

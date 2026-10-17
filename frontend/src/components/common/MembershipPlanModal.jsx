@@ -277,11 +277,11 @@ export function MembershipPlanModal({
         period: formData.period || '1 Month',
         duration_months: Number(formData.durationMonths) || 1,
         durationMonths: Number(formData.durationMonths) || 1,
-        sessions: formData.sessions.trim() || null,
-        price: Number(formData.price) || 0,
-        discount: Number(formData.discount) || 0,
-        max_discount: Number(formData.maxDiscount) || 0,
-        maxDiscount: Number(formData.maxDiscount) || 0,
+        sessions: formData.sessions ? (String(formData.sessions).includes('.') ? String(formData.sessions).split('.')[0].trim() : String(formData.sessions).trim()) : null,
+        price: parseFloat(formData.price) || 0,
+        discount: parseFloat(formData.maxDiscount || formData.discount || 0) || 0,
+        max_discount: parseFloat(formData.maxDiscount || 0) || 0,
+        maxDiscount: parseFloat(formData.maxDiscount || 0) || 0,
         offer: formData.offer.trim() || null,
         offer_days: Number(formData.offerDays) || 0,
         offerDays: Number(formData.offerDays) || 0,
@@ -400,15 +400,18 @@ export function MembershipPlanModal({
 
           {/* Typeable input shown only if custom duration is selected */}
           {isCustomDuration && (
-            <div className="mt-2">
+            <div className="mt-2 relative">
               <input
                 type="text"
                 autoFocus
-                placeholder="Type custom duration (e.g. 45 Days, 18 Months)"
+                placeholder="e.g. 3 Months"
                 value={formData.period}
                 onChange={(e) => handlePeriodTextChange(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-2xs"
+                className="w-full pl-3 pr-28 py-2 bg-white border border-emerald-400 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-2xs"
               />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-medium pointer-events-none select-none">
+                Enter Months
+              </span>
             </div>
           )}
         </div>
@@ -420,13 +423,22 @@ export function MembershipPlanModal({
               <Dumbbell className="w-3 h-3 text-emerald-600" />
               <span>Sessions</span>
             </label>
-            <span className="text-[10px] text-slate-400">e.g. 12 Sessions, or Unlimited</span>
+            <span className="text-[10px] text-slate-400">Whole numbers only (no decimals)</span>
           </div>
           <input
             type="text"
             placeholder="e.g. Unlimited, 12 Sessions, or 1"
             value={formData.sessions}
-            onChange={(e) => setFormData({ ...formData, sessions: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === '.' || e.key === ',') {
+                e.preventDefault();
+              }
+            }}
+            onChange={(e) => {
+              const val = e.target.value;
+              const cleanVal = val.includes('.') ? val.split('.')[0] : val.replace(/,/g, '');
+              setFormData({ ...formData, sessions: cleanVal });
+            }}
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
           />
         </div>
@@ -440,12 +452,11 @@ export function MembershipPlanModal({
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
               <input
-                type="number"
+                type="text"
                 required
-                min="0"
                 inputMode="decimal"
-                placeholder="2499"
-                value={formData.price}
+                placeholder="2499.00"
+                value={formData.price !== undefined && formData.price !== null ? formData.price : ''}
                 onKeyDown={(e) => preventNonNumericKey(e, true)}
                 onChange={(e) => setFormData({ ...formData, price: sanitizeDecimal(e.target.value) })}
                 className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
@@ -460,11 +471,10 @@ export function MembershipPlanModal({
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
               <input
-                type="number"
-                min="0"
+                type="text"
                 inputMode="decimal"
-                placeholder="0 (Unlimited)"
-                value={formData.maxDiscount || ''}
+                placeholder="0.00 (Unlimited)"
+                value={formData.maxDiscount !== undefined && formData.maxDiscount !== null ? formData.maxDiscount : ''}
                 onKeyDown={(e) => preventNonNumericKey(e, true)}
                 onChange={(e) => setFormData({ ...formData, maxDiscount: sanitizeDecimal(e.target.value) })}
                 className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono font-bold"

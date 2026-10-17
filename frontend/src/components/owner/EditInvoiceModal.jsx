@@ -26,6 +26,7 @@ import {
   sanitizeDecimal,
   preventNonNumericKey
 } from '../../utils/validation';
+import { calculatePlanExpiryDate } from '../../utils/dateUtils';
 
 export const EditInvoiceModal = ({
   isOpen,
@@ -157,13 +158,10 @@ export const EditInvoiceModal = ({
       const paid = Number(formData.amount) || 0;
       const newPending = Math.max(0, planPrice - paid);
 
-      // Compute suggested expiry date from startDate
-      let newExpiry = formData.expiryDate;
-      const baseDate = formData.startDate ? new Date(formData.startDate) : new Date();
-      if (!isNaN(baseDate.getTime())) {
-        baseDate.setMonth(baseDate.getMonth() + durationMonths);
-        newExpiry = baseDate.toISOString().split('T')[0];
-      }
+      // Compute suggested expiry date from startDate using standard 30-day rule
+      const periodStr = chosenPlan.period || (chosenPlan.validityDays ? `${chosenPlan.validityDays} Days` : '');
+      const bonusDays = Number(chosenPlan.offerDays || chosenPlan.offer_days) || 0;
+      const newExpiry = calculatePlanExpiryDate(formData.startDate || new Date().toISOString().split('T')[0], durationMonths, periodStr, bonusDays) || formData.expiryDate;
 
       setFormData((prev) => ({
         ...prev,

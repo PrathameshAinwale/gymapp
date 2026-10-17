@@ -777,4 +777,199 @@ class InvoiceController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Upload an externally/client-generated PDF blob for an invoice.
+     */
+    public function uploadPdf(Request $request, $id)
+    {
+        $cleanId = str_replace('inv-', '', $id);
+        $invoice = Invoice::where('id', $cleanId)
+            ->orWhere('invoice_number', $id)
+            ->orWhere('invoice_number', $cleanId)
+            ->first();
+
+        if (!$invoice) {
+            return response()->json(['success' => false, 'message' => 'Invoice not found'], 404);
+        }
+
+        if ($request->hasFile('pdf')) {
+            $url = \App\Services\InvoicePdfService::saveUploadedPdf($invoice, $request->file('pdf'));
+            return response()->json([
+                'success' => true,
+                'message' => 'Invoice PDF uploaded successfully',
+                'invoice_url' => $url,
+            ]);
+        }
+
+        // If no file uploaded, generate and ensure backend PDF
+        $url = \App\Services\InvoicePdfService::ensurePdf($invoice);
+        return response()->json([
+            'success' => true,
+            'message' => 'Invoice PDF generated and stored',
+            'invoice_url' => $url,
+        ]);
+    }
+
+    /**
+     * Download or view the official PDF receipt for an invoice.
+     */
+    public function downloadPdf($id)
+    {
+        $cleanId = str_replace('inv-', '', $id);
+        $invoice = Invoice::where('id', $cleanId)
+            ->orWhere('invoice_number', $id)
+            ->orWhere('invoice_number', $cleanId)
+            ->first();
+
+        if (!$invoice) {
+            abort(404, 'Invoice record not found.');
+        }
+
+        \App\Services\InvoicePdfService::ensurePdf($invoice);
+        $cleanNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->invoice_number);
+        $filePath = storage_path('app/public/invoices/' . $cleanNo . '.pdf');
+
+        if (!file_exists($filePath)) {
+            \App\Services\InvoicePdfService::saveToFile($invoice);
+        }
+
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Invoice_' . $cleanNo . '.pdf"',
+        ]);
+    }
+
+    /**
+     * Public endpoint to download or stream invoice PDF without login requirements.
+     */
+    public function publicDownloadPdf($invoice_number)
+    {
+        return $this->downloadPdf($invoice_number);
+    }
+
+    /**
+     * Public responsive HTML receipt view for mobile/desktop.
+     */
+    public function publicView($invoice_number)
+    {
+        $cleanNo = str_replace('inv-', '', $invoice_number);
+        $invoice = Invoice::with(['gym', 'user.memberProfile', 'plan'])
+            ->where('invoice_number', $invoice_number)
+            ->orWhere('invoice_number', $cleanNo)
+            ->orWhere('id', $cleanNo)
+            ->first();
+
+        if (!$invoice) {
+            abort(404, 'Official Invoice not found.');
+        }
+
+        $pdfUrl = \App\Services\InvoicePdfService::ensurePdf($invoice);
+        $gym = $invoice->gym ?: \App\Models\Gym::first();
+        $gymName = $gym ? $gym->name : 'Fitness Club';
+        $gymAddress = $gym ? $gym->address : 'Main Facility Center';
+        $user = $invoice->user;
+        $status = strtolower($invoice->status ?? ($invoice->pending_amount > 0 ? 'pending' : 'paid'));
+
+        // Return clean printable HTML view with auto-print & download button
+        $html = '<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Invoice - ' . htmlspecialchars($invoice->invoice_number) . '</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 20px; }
+        .invoice-card { max-width: 650px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; overflow: hidden; }
+        .header { background: #064e3b; color: #fff; padding: 24px; }
+        .header h1 { margin: 0 0 6px 0; font-size: 22px; }
+        .header p { margin: 0; font-size: 13px; opacity: 0.9; }
+        .content { padding: 24px; }
+        .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        .meta-label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 3px; }
+        .meta-val { font-weight: bold; color: #1e293b; }
+        .badge-paid { display: inline-block; padding: 4px 10px; background: #dcfce7; color: #15803d; border-radius: 9999px; font-weight: bold; font-size: 12px; }
+        .badge-pending { display: inline-block; padding: 4px 10px; background: #fee2e2; color: #b91c1c; border-radius: 9999px; font-weight: bold; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+        th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+        .totals { margin-left: auto; max-width: 280px; margin-bottom: 24px; font-size: 13px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 6px 0; }
+        .totals-row.bold { font-weight: bold; border-top: 1px solid #e2e8f0; margin-top: 6px; padding-top: 8px; font-size: 15px; }
+        .actions { display: flex; gap: 12px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+        .btn { flex: 1; text-align: center; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 13px; text-decoration: none; cursor: pointer; border: none; }
+        .btn-primary { background: #059669; color: #fff; }
+        .btn-secondary { background: #e2e8f0; color: #334155; }
+        @media print { .actions { display: none; } body { background: #fff; padding: 0; } .invoice-card { box-shadow: none; border: none; } }
+    </style>
+</head>
+<body>
+    <div class="invoice-card">
+        <div class="header">
+            <h1>' . htmlspecialchars($gymName) . '</h1>
+            <p>Official Membership Tax Invoice & Payment Receipt | ' . htmlspecialchars($gymAddress) . '</p>
+        </div>
+        <div class="content">
+            <div class="meta-grid">
+                <div>
+                    <div class="meta-label">Invoice Number</div>
+                    <div class="meta-val">#' . htmlspecialchars($invoice->invoice_number) . '</div>
+                </div>
+                <div>
+                    <div class="meta-label">Status</div>
+                    <div>' . ($status === 'paid' ? '<span class="badge-paid">PAID & VERIFIED</span>' : '<span class="badge-pending">PENDING DUES</span>') . '</div>
+                </div>
+                <div>
+                    <div class="meta-label">Billed To Member</div>
+                    <div class="meta-val">' . htmlspecialchars($user?->name ?: 'Member') . ' (' . htmlspecialchars($user?->phone ?: '') . ')</div>
+                </div>
+                <div>
+                    <div class="meta-label">Date & Mode</div>
+                    <div class="meta-val">' . htmlspecialchars($invoice->date ? $invoice->date->format('d M Y') : date('d M Y')) . ' | ' . htmlspecialchars($invoice->payment_method ?: 'UPI') . '</div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item Description</th>
+                        <th>Validity Period</th>
+                        <th style="text-align: right;">Amount (INR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>' . htmlspecialchars($invoice->plan?->name ?: 'Gym Membership Plan') . '</strong></td>
+                        <td>' . htmlspecialchars($invoice->start_date ? $invoice->start_date->format('d M Y') : 'Active') . ' to ' . htmlspecialchars($invoice->end_date ? $invoice->end_date->format('d M Y') : 'Active') . '</td>
+                        <td style="text-align: right;">Rs. ' . number_format((float)($invoice->total_amount ?: $invoice->amount), 2) . '</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="totals">
+                <div class="totals-row">
+                    <span>Total Package Bill:</span>
+                    <span>Rs. ' . number_format((float)($invoice->total_amount ?: $invoice->amount), 2) . '</span>
+                </div>
+                <div class="totals-row">
+                    <span>Amount Paid:</span>
+                    <span style="color: #059669; font-weight: bold;">Rs. ' . number_format((float)$invoice->amount, 2) . '</span>
+                </div>
+                <div class="totals-row bold">
+                    <span>Pending Dues:</span>
+                    <span style="color: ' . ($invoice->pending_amount > 0 ? '#dc2626' : '#0f172a') . ';">Rs. ' . number_format((float)($invoice->pending_amount ?? 0), 2) . '</span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="' . htmlspecialchars(url('api/public/invoices/' . $invoice->invoice_number . '/download')) . '" class="btn btn-primary" download>📥 Download Official PDF</a>
+                <button onclick="window.print()" class="btn btn-secondary">🖨️ Print Receipt</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>';
+
+        return response($html)->header('Content-Type', 'text/html');
+    }
 }

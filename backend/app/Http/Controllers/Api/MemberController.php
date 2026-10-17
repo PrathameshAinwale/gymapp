@@ -365,7 +365,7 @@ class MemberController extends Controller
             'weight' => 'nullable|numeric',
             'target_weight' => 'nullable|numeric',
             'targetWeight' => 'nullable|numeric',
-            'height' => 'nullable|numeric',
+            'height' => 'nullable|numeric|max:300',
             'age' => 'nullable|integer',
             'dob' => 'nullable|date|before_or_equal:today',
             'date_of_birth' => 'nullable|date|before_or_equal:today',
@@ -556,14 +556,6 @@ class MemberController extends Controller
                 $pkgStart = !empty($pkg['start_date']) ? \Illuminate\Support\Carbon::parse($pkg['start_date'])->toDateString() : null;
                 $pkgEnd = !empty($pkg['end_date']) ? \Illuminate\Support\Carbon::parse($pkg['end_date'])->toDateString() : null;
 
-                if ($pkgStart && $pkgStart < $todayStr) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Start date cannot be in the past for {$pkgName} ({$pkgStart}).",
-                        'errors' => ['packages' => ["Start date cannot be in the past for {$pkgName}."]]
-                    ], 422);
-                }
-
                 if ($pkgStart && $pkgEnd && $pkgEnd < $pkgStart) {
                     return response()->json([
                         'success' => false,
@@ -614,14 +606,6 @@ class MemberController extends Controller
         $joinDate = $rawJoin ? \Illuminate\Support\Carbon::parse($rawJoin)->toDateString() : now()->toDateString();
         $rawExpiry = $request->expiry_date ?? $request->expiryDate;
 
-        if ($joinDate < $todayStr && !$numTargetId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Start date cannot be in the past.',
-                'errors' => ['start_date' => ['Start date cannot be in the past.']]
-            ], 422);
-        }
-
         if ($rawExpiry) {
             $expiryDate = \Illuminate\Support\Carbon::parse($rawExpiry)->toDateString();
             if ($expiryDate < $joinDate) {
@@ -636,11 +620,8 @@ class MemberController extends Controller
                 $startCarbon = \Illuminate\Support\Carbon::parse($joinDate);
                 $durationMonths = (int)($plan->duration_months ?? 1);
                 $offerDays = (int)($plan->offer_days ?? 0);
-                if ($startCarbon->day === 1) {
-                    $expiry = $startCarbon->copy()->addMonths($durationMonths - 1)->endOfMonth();
-                } else {
-                    $expiry = $startCarbon->copy()->addDays($durationMonths * 30);
-                }
+                $totalDays = max(1, $durationMonths * 30);
+                $expiry = $startCarbon->copy()->addDays($totalDays - 1);
                 if ($offerDays > 0) {
                     $expiry = $expiry->addDays($offerDays);
                 }
@@ -1163,6 +1144,7 @@ class MemberController extends Controller
             'DOB' => 'nullable|date|before_or_equal:today',
             'dues_amount' => 'nullable|numeric|min:0',
             'duesAmount' => 'nullable|numeric|min:0',
+            'height' => 'nullable|numeric|max:300',
         ], [
             'name.min' => 'Name must be at least 2 characters.',
             'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
@@ -1175,6 +1157,7 @@ class MemberController extends Controller
             'DOB.before_or_equal' => 'Date of birth cannot be in the future.',
             'dues_amount.min' => 'Dues amount cannot be negative.',
             'duesAmount.min' => 'Dues amount cannot be negative.',
+            'height.max' => 'Height cannot exceed 300 cm.',
         ]);
 
         if ($validator->fails()) {

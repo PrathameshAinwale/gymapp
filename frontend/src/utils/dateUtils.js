@@ -124,11 +124,11 @@ export const recordMatchesDate = (recordDateOrObj, targetIso) => {
 
 /**
  * Calculate Plan Expiry Date based on gym business rules:
- * - If starting on the 1st of the month:
- *   Plan ends on the last day of the target month (e.g. 1-10-26 ends on 31-10-26 for 31-day month,
- *   or 30-11-26 for 30-day month).
- * - Otherwise (if starting on any different date):
- *   Membership expires after 30 days (or durationMonths * 30 days).
+ * - Every month is calculated as 30 days.
+ * - Start date is inclusive:
+ *   - 1st of month: 1-11-26 -> 30-11-26 (one day before 1-12-26).
+ *   - Any other day: 24-11-26 -> 23-12-26 (one day before 24-12-26).
+ *   - General formula: start date + (durationMonths * 30 - 1) days.
  * - Plus any bonus offer days if applicable.
  */
 export const calculatePlanExpiryDate = (startDateStr, durationMonths = 1, periodStr = '', offerDays = 0) => {
@@ -144,17 +144,20 @@ export const calculatePlanExpiryDate = (startDateStr, durationMonths = 1, period
     }
     if (isNaN(start.getTime())) return '';
 
-    let end;
+    let end = new Date(start.getTime());
     const matchDays = (periodStr || '').match(/(\d+)\s*Days?/i);
     if (matchDays) {
-      end = new Date(start.getTime());
-      end.setDate(end.getDate() + parseInt(matchDays[1], 10));
+      const days = parseInt(matchDays[1], 10);
+      const totalDays = Math.max(1, days);
+      end.setDate(end.getDate() + (totalDays - 1));
     } else {
       const matchMonths = (periodStr || '').match(/(\d+)\s*Months?/i);
       const months = Number(durationMonths) || (matchMonths ? parseInt(matchMonths[1], 10) : 1);
-      // Fixed 30 days per month count regardless of calendar month length
-      end = new Date(start.getTime());
-      end.setDate(end.getDate() + (months * 30));
+      // Fixed 30 days per month count regardless of calendar month length, inclusive of start date
+      // e.g. start date 1-11-2026 -> 30-11-2026 (day before 1-12-2026)
+      // e.g. start date 24-11-2026 -> 23-12-2026 (day before 24-12-2026)
+      const totalDays = Math.max(1, months * 30);
+      end.setDate(end.getDate() + (totalDays - 1));
     }
 
     const bonus = Number(offerDays) || 0;

@@ -344,12 +344,12 @@ export const AddMemberPage = ({
     const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
     const latestEnd = getPrecedingEndDateForType(pkgType, pkgRow?.id, currentRows);
 
-    if (latestEnd && latestEnd >= todayStr) {
+    if (latestEnd) {
       const chainedStart = addDaysIso(latestEnd, 1);
       return {
         isChained: true,
         latestEnd,
-        minStartDate: chainedStart,
+        minStartDate: '',
         defaultStartDate: chainedStart,
         message: `Chained from ${formatDateDisplay(chainedStart)} (previous ${pkgType} ends ${formatDateDisplay(latestEnd)})`
       };
@@ -357,11 +357,11 @@ export const AddMemberPage = ({
 
     const package1Start = currentRows?.[0]?.startDate || membershipStartDate;
     const baseDate = package1Start || formData.joinDate || todayStr;
-    const freshStart = baseDate >= todayStr ? baseDate : todayStr;
+    const freshStart = baseDate || todayStr;
     return {
       isChained: false,
       latestEnd: null,
-      minStartDate: todayStr,
+      minStartDate: '',
       defaultStartDate: freshStart,
       message: `Starts ${formatDateDisplay(freshStart)} by default`
     };
@@ -379,10 +379,9 @@ export const AddMemberPage = ({
 
       let effectiveStart = '';
       if (i === 0) {
-        const candidate = row.startDate || membershipStartDate || baseJoin;
-        effectiveStart = (candidate >= chaining.minStartDate) ? candidate : chaining.minStartDate;
+        effectiveStart = row.startDate || membershipStartDate || baseJoin || todayStr;
       } else {
-        if (row.isCustomStartDate && row.startDate && row.startDate >= chaining.minStartDate) {
+        if (row.isCustomStartDate && row.startDate) {
           effectiveStart = row.startDate;
         } else {
           effectiveStart = chaining.defaultStartDate;
@@ -395,7 +394,7 @@ export const AddMemberPage = ({
         ...row,
         startDate: effectiveStart,
         endDate: calculatedEnd,
-        minStartDate: chaining.minStartDate,
+        minStartDate: '',
         chainingMessage: chaining.message,
         isChained: chaining.isChained,
       });
@@ -415,7 +414,7 @@ export const AddMemberPage = ({
       startDate: getTodayDateStr(),
       endDate: '',
       isCustomStartDate: false,
-      minStartDate: getTodayDateStr(),
+      minStartDate: '',
       chainingMessage: `Starts ${formatDateDisplay(getTodayDateStr())} by default`
     }
   ]);
@@ -920,6 +919,68 @@ export const AddMemberPage = ({
   const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
   const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
 
+  // Handles payment method amount change ensuring entered amount never exceeds total payable price
+  const handlePaymentChange = (method, rawValue) => {
+    const sanitized = sanitizeDecimal(rawValue);
+    if (sanitized === '') {
+      if (method === 'cash') setCashAmount('');
+      if (method === 'upi') setUpiAmount('');
+      if (method === 'transfer') setAccountTransferAmount('');
+      return;
+    }
+
+    const currentCash = method === 'cash' ? 0 : parseAmount(cashAmount);
+    const currentUpi = method === 'upi' ? 0 : parseAmount(upiAmount);
+    const currentTransfer = method === 'transfer' ? 0 : parseAmount(accountTransferAmount);
+    const otherTotal = currentCash + currentUpi + currentTransfer;
+
+    // Remaining capacity so sum of all payments never exceeds totalCalculatedAmount
+    const maxAllowed = Math.max(0, Math.round((totalCalculatedAmount - otherTotal) * 100) / 100);
+    const num = parseFloat(sanitized);
+
+    if (!isNaN(num) && num > maxAllowed) {
+      const clamped = maxAllowed > 0 ? String(maxAllowed) : '';
+      if (method === 'cash') setCashAmount(clamped);
+      if (method === 'upi') setUpiAmount(clamped);
+      if (method === 'transfer') setAccountTransferAmount(clamped);
+      if (num > maxAllowed && totalCalculatedAmount > 0) {
+        addToast(`Payment amount cannot exceed total payable price of ₹${totalCalculatedAmount.toLocaleString('en-IN')}`, 'info');
+      }
+    } else {
+      if (method === 'cash') setCashAmount(sanitized);
+      if (method === 'upi') setUpiAmount(sanitized);
+      if (method === 'transfer') setAccountTransferAmount(sanitized);
+    }
+  };
+
+  // Auto-trim payments if total package fees decrease below current entered payments
+  useEffect(() => {
+    if (totalCalculatedAmount >= 0 && totalEnteredPaid > totalCalculatedAmount) {
+      let excess = Math.round((totalEnteredPaid - totalCalculatedAmount) * 100) / 100;
+      if (accountTransferAmount && excess > 0) {
+        const curr = parseAmount(accountTransferAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setAccountTransferAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+      if (upiAmount && excess > 0) {
+        const curr = parseAmount(upiAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setUpiAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+      if (cashAmount && excess > 0) {
+        const curr = parseAmount(cashAmount);
+        const red = Math.min(curr, excess);
+        const next = Math.max(0, Math.round((curr - red) * 100) / 100);
+        setCashAmount(next > 0 ? String(next) : '');
+        excess -= red;
+      }
+    }
+  }, [totalCalculatedAmount]);
+
   // Live GST breakdown:
   // - If GST is ticked: Base amount + CGST (9%) + SGST (9%) = targetAmount
   // - If GST is disabled: Flat payment without GST, no CGST / SGST bifurcation
@@ -1360,6 +1421,11 @@ export const AddMemberPage = ({
       return;
     }
 
+    if (formData.height && Number(formData.height) > 300) {
+      addToast('Height cannot exceed 300 cm.', 'error');
+      return;
+    }
+
     if (!isUpgradeMode && duplicatePhoneMember) {
       addToast(`Member already exists with this mobile number (${duplicatePhoneMember.name} - ${duplicatePhoneMember.phone || formData.phone})`, 'error');
       return;
@@ -1435,6 +1501,12 @@ export const AddMemberPage = ({
       const finalStartDate = membershipStartDate || todayStr;
       const finalExpiryDate = membershipEndDate || fallbackExpiry || todayStr;
       const finalJoinDate = formData.joinDate || finalStartDate;
+
+      if (totalEnteredPaid > totalCalculatedAmount) {
+        addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
+        setIsCreatingMember(false);
+        return;
+      }
 
       if (calculatedBalanceDue > 0) {
         if (!balanceDueDate) {
@@ -1626,6 +1698,21 @@ export const AddMemberPage = ({
         date: finalJoinDate || todayStr,
         createdByName: formData.executive?.trim() || currentUser?.name || 'Staff'
       });
+
+      // Background sync: Ensure client-rendered PDF is uploaded to backend invoice storage
+      try {
+        const invTarget = savedInvoice?.invoiceNumber || createdMember?.invoiceNumber || createdMember?.invoice_number;
+        if (invTarget) {
+          const { blob, fileName } = generateInvoicePdf({ invoice: savedInvoice, member: formData, gymInfo });
+          if (blob) {
+            const pdfFormData = new FormData();
+            pdfFormData.append('pdf', blob, fileName || `Invoice_${invTarget}.pdf`);
+            api.invoices.uploadPdf(invTarget, pdfFormData).catch(() => {});
+          }
+        }
+      } catch (pdfSyncErr) {
+        // Non-blocking fallback: backend InvoicePdfService automatically generates PDF
+      }
 
       setNewlyCreatedCredentials({
         name: formData.name,
@@ -2401,16 +2488,20 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Age</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-700">Age</label>
+                <span className="text-[10px] text-slate-400 font-medium flex items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5 text-slate-400" />
+                  <span>Auto from DOB</span>
+                </span>
+              </div>
               <input
-                type="number"
-                min={5}
-                max={120}
-                placeholder="e.g. 25"
-                disabled={isUpgradeMode && !isEditMode}
-                value={formData.age ?? ''}
-                onChange={(e) => setFormData({ ...formData, age: sanitizeDigits(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+                type="text"
+                readOnly
+                disabled
+                placeholder="Auto-calculated from DOB"
+                value={formData.dob ? (formData.age !== '' ? `${formData.age} yrs` : (calculateAgeFromDob(formData.dob) !== '' ? `${calculateAgeFromDob(formData.dob)} yrs` : '')) : ''}
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-xs font-mono cursor-not-allowed select-none"
               />
             </div>
 
@@ -2434,20 +2525,20 @@ export const AddMemberPage = ({
                   <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
                   <span>eSSL Biometric User ID</span>
                 </label>
-                <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                  Auto Sync
+                <span className="text-[9px] text-slate-500 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5 text-slate-400" />
+                  <span>Locked</span>
                 </span>
               </div>
               <input
                 type="text"
-                disabled={isUpgradeMode && !isEditMode}
-                placeholder="Auto (or custom machine ID)"
-                value={formData.biometricUserId || ''}
-                onChange={(e) => setFormData({ ...formData, biometricUserId: e.target.value.replace(/\D/g, '') })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs font-mono focus:bg-white focus:outline-none focus:border-blue-500"
+                readOnly
+                disabled
+                value={formData.biometricUserId ? `ID: ${formData.biometricUserId}` : 'Auto-Assigned on Save'}
+                className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-mono cursor-not-allowed select-none"
               />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Auto-registers member into eSSL X2008 terminal over LAN on Save.
+              <p className="text-[9.5px] text-slate-400 mt-0.5">
+                Automatically assigned by eSSL biometric machine system.
               </p>
             </div>
 
@@ -2752,7 +2843,6 @@ export const AddMemberPage = ({
                           <input
                             type="date"
                             required
-                            min={pkgRow.minStartDate || getTodayDateStr()}
                             value={pkgRow.startDate || (idx === 0 ? membershipStartDate : getTodayDateStr())}
                             onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
@@ -2941,14 +3031,42 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Height (cm)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-700">Height (cm)</label>
+                <span className="text-[10px] text-slate-400 font-medium">Max 300 cm</span>
+              </div>
               <input
                 type="number"
+                min={1}
+                max={300}
                 placeholder="e.g. 175"
                 value={formData.height ?? ''}
-                onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setFormData({ ...formData, height: '' });
+                    return;
+                  }
+                  const num = Number(val);
+                  if (!isNaN(num)) {
+                    if (num > 300) {
+                      setFormData({ ...formData, height: '300' });
+                    } else if (num < 0) {
+                      setFormData({ ...formData, height: '' });
+                    } else {
+                      setFormData({ ...formData, height: val });
+                    }
+                  }
+                }}
+                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none font-mono ${
+                  formData.height && Number(formData.height) > 300 ? 'border-rose-400 bg-rose-50' : 'border-slate-200 focus:border-emerald-500'
+                }`}
               />
+              {formData.height && Number(formData.height) > 300 && (
+                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  Height cannot exceed 300 cm.
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -3042,22 +3160,22 @@ export const AddMemberPage = ({
               </div>
             </div>
 
-            {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact 3-column grid with titles on top) */}
+            {/* 3 Payment Methods: Cash, UPI, Account Transfer (Compact & Unified ₹ Layout) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
               {/* 1. Cash */}
-              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
                 <span className="text-xs font-bold text-slate-800 block">Cash</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                    <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={cashAmount ?? ''}
-                      onChange={(e) => setCashAmount(sanitizeDecimal(e.target.value))}
+                      onChange={(e) => handlePaymentChange('cash', e.target.value)}
                       placeholder="0"
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all text-right"
+                      className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                     />
                   </div>
                   <button
@@ -3065,10 +3183,10 @@ export const AddMemberPage = ({
                     title="Pay remaining in Cash"
                     onClick={() => {
                       const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
-                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                       setCashAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -3076,19 +3194,19 @@ export const AddMemberPage = ({
               </div>
 
               {/* 2. UPI */}
-              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
                 <span className="text-xs font-bold text-slate-800 block">UPI</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                    <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={upiAmount ?? ''}
-                      onChange={(e) => setUpiAmount(sanitizeDecimal(e.target.value))}
+                      onChange={(e) => handlePaymentChange('upi', e.target.value)}
                       placeholder="0"
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 transition-all text-right"
+                      className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                     />
                   </div>
                   <button
@@ -3096,10 +3214,10 @@ export const AddMemberPage = ({
                     title="Pay remaining via UPI"
                     onClick={() => {
                       const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
-                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                       setUpiAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -3107,19 +3225,19 @@ export const AddMemberPage = ({
               </div>
 
               {/* 3. Account Transfer */}
-              <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
+              <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-1.5">
                 <span className="text-xs font-bold text-slate-800 block">Account Transfer</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-400 transition-all flex-1 max-w-[150px] shadow-2xs">
+                    <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
                       value={accountTransferAmount ?? ''}
-                      onChange={(e) => setAccountTransferAmount(sanitizeDecimal(e.target.value))}
+                      onChange={(e) => handlePaymentChange('transfer', e.target.value)}
                       placeholder="0"
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-400 transition-all text-right"
+                      className="w-full bg-transparent text-xs font-bold font-mono text-slate-900 focus:outline-none text-left p-0"
                     />
                   </div>
                   <button
@@ -3127,10 +3245,10 @@ export const AddMemberPage = ({
                     title="Pay remaining via Account Transfer"
                     onClick={() => {
                       const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
-                      const rem = Math.max(0, totalCalculatedAmount - other);
+                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
                       setAccountTransferAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>

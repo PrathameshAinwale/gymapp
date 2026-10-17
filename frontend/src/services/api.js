@@ -1115,6 +1115,17 @@ export const api = {
       });
       return handleResponse(res);
     },
+    uploadPdf: async (id, formData) => {
+      const headers = getHeaders();
+      delete headers['Content-Type'];
+      const res = await apiFetch(`${API_BASE_URL}/invoices/${id}/upload-pdf`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      return handleResponse(res);
+    },
+    getDownloadUrl: (id) => `${API_BASE_URL}/invoices/${id}/download-pdf`,
   },
 
   // Expenses Endpoints
