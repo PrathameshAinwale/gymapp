@@ -51,6 +51,17 @@ class WhatsAppNotificationService
             '{{portal_url}}'    => $data['portal_url'] ?? config('app.url', 'https://archfit.archenterprises.co.in'),
             '{{qr_pass_code}}'  => $data['qr_pass_code'] ?? '',
             '{{custom_note}}'   => $data['custom_note'] ?? '',
+            '{{invoice_number}}' => $data['invoice_number'] ?? '',
+            '{{invoice_no}}'     => $data['invoice_number'] ?? '',
+            '{{paid_amount}}'    => isset($data['paid_amount']) ? (is_numeric($data['paid_amount']) ? '₹' . number_format((float) $data['paid_amount'], 2) : $data['paid_amount']) : '',
+            '{{total_amount}}'   => isset($data['total_amount']) ? (is_numeric($data['total_amount']) ? '₹' . number_format((float) $data['total_amount'], 2) : $data['total_amount']) : '',
+            '{{start_date}}'     => $data['start_date'] ?? '',
+            '{{due_date}}'       => $data['due_date'] ?? '',
+            '{{payment_method}}' => $data['payment_method'] ?? 'UPI/Cash',
+            '{{gym_address}}'   => $data['gym_address'] ?? 'Main Facility Center',
+            '{{gym_location}}'  => $data['gym_address'] ?? 'Main Facility Center',
+            '{{gym_timing}}'    => $data['gym_timing'] ?? 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
+            '{{gym_hours}}'     => $data['gym_timing'] ?? 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
         ];
 
         $rendered = str_replace(array_keys($placeholders), array_values($placeholders), $template);
@@ -163,6 +174,9 @@ class WhatsAppNotificationService
                     : "https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/";
 
                 $cleanIntegratedNumber = preg_replace('/\D/', '', $settings->phone_number_id);
+                if (strlen($cleanIntegratedNumber) === 10) {
+                    $cleanIntegratedNumber = '91' . $cleanIntegratedNumber;
+                }
 
                 $response = Http::timeout(12)
                     ->withHeaders([
@@ -171,7 +185,9 @@ class WhatsAppNotificationService
                     ])
                     ->post($endpoint, [
                         'integrated_number' => $cleanIntegratedNumber,
+                        'recipient_number'  => $cleanPhone,
                         'content_type'      => 'text',
+                        'text'              => $message,
                         'payload'           => [
                             'to'   => $cleanPhone,
                             'text' => $message,
@@ -247,7 +263,7 @@ class WhatsAppNotificationService
     /**
      * Send automatic Welcome WhatsApp notification when a new member joins.
      */
-    public static function sendWelcomeMessage(User $user, ?MemberProfile $profile = null, ?int $gymId = null): array
+    public static function sendWelcomeMessage(User $user, ?MemberProfile $profile = null, ?int $gymId = null, $invoice = null): array
     {
         $gymId = $gymId ?: ($user->gym_id ?: 1);
         $settings = WhatsAppSetting::forGym($gymId);
@@ -257,8 +273,16 @@ class WhatsAppNotificationService
         }
 
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
+        $gymSetting = GymSetting::first();
+        $gymName = $gym ? $gym->name : ($gymSetting?->name ?? 'Fitness Club');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
+
+        // Resolve Gym Address/Location & Operating Hours
+        $gymAddress = $gym?->address ?: ($gymSetting?->address ?: 'Main Facility Center');
+        if ($gym?->city && !str_contains($gymAddress, $gym->city)) {
+            $gymAddress .= ', ' . $gym->city;
+        }
+        $gymTiming = $gym?->operating_hours ?: ($gymSetting?->operating_hours ?: 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM');
 
         // Locate active welcome template
         $template = WhatsAppTemplate::where('category', 'welcome')
@@ -270,29 +294,69 @@ class WhatsAppNotificationService
             })
             ->first();
 
-        $messageBody = $template?->message_body ?: 
-            "*Welcome to the {{gym_name}} Family, {{name}}!*\n\n" .
-            "We are thrilled to accompany you on your fitness journey! Your *{{plan_name}}* membership is now active.\n\n" .
-            "Quick Gym Guide:\n" .
-            "• Turnstile QR Code: {{qr_pass_code}}\n" .
-            "• Operating Hours: Mon-Sat 5:30 AM - 11:00 PM | Sun 6:00 AM - 8:00 PM\n" .
-            "• Locker & Shower Amenities: Included\n" .
-            "• Access Portal: {{portal_url}}\n\n" .
-            "See you on the gym floor! Let's crush your goals together!";
+        // If no invoice passed, attempt to fetch the member's latest invoice
+        if (!$invoice) {
+            $invoice = \App\Models\Invoice::where('user_id', $user->id)->latest('id')->first();
+        }
 
-        $planName = $profile?->plan?->name ?: 'Gym Membership';
-        $expDate = $profile?->expiry_date ? Carbon::parse($profile->expiry_date)->format('d M Y') : 'Active';
+        $planName = $profile?->plan?->name ?: ($invoice?->plan?->name ?: 'Gym Membership');
+        $expDate = $profile?->expiry_date ? Carbon::parse($profile->expiry_date)->format('d M Y') : ($invoice?->end_date ? Carbon::parse($invoice->end_date)->format('d M Y') : 'Active');
+        $startDate = $profile?->join_date ? Carbon::parse($profile->join_date)->format('d M Y') : ($invoice?->start_date ? Carbon::parse($invoice->start_date)->format('d M Y') : Carbon::today()->format('d M Y'));
+
+        $invoiceNo = $invoice?->invoice_number ?: ('INV-' . date('Y') . '-' . rand(1000, 9999));
+        $paidAmount = $invoice?->amount !== null ? (float)$invoice->amount : ($profile?->paid_amount ?? 0);
+        $totalAmount = $invoice?->total_amount !== null ? (float)$invoice->total_amount : ($profile?->total_amount ?? $paidAmount);
+        $duesAmount = $invoice?->pending_amount !== null ? (float)$invoice->pending_amount : ($profile?->dues_amount ?? 0);
+        $formattedDues = $duesAmount > 0 ? ('₹' . number_format($duesAmount, 2)) : '₹0.00 (Fully Paid)';
+        $dueDate = $duesAmount > 0
+            ? ($invoice?->due_date ? Carbon::parse($invoice->due_date)->format('d M Y') : ($profile?->due_date ? Carbon::parse($profile->due_date)->format('d M Y') : 'Immediate'))
+            : 'N/A (Settled)';
+        $paymentMethod = $invoice?->payment_method ?: 'UPI/Cash';
+
+        $defaultMessageBody =
+            "*Welcome to the {{gym_name}} Family, {{name}}!* 🏋️‍♂️🎉\n" .
+            "We are thrilled to welcome you aboard!\n\n" .
+            "📍 *Gym & Facility Details:*\n" .
+            "• Gym Name: *{{gym_name}}*\n" .
+            "• Location: {{gym_address}}\n" .
+            "• Operating Hours: {{gym_timing}}\n\n" .
+            "🏷️ *Plan & Membership Details:*\n" .
+            "• Plan Enrolled: *{{plan_name}}*\n" .
+            "• Start Date: {{start_date}}\n" .
+            "• Valid Until: {{expiry_date}}\n" .
+            "• Turnstile Access Pass: *{{qr_pass_code}}*\n\n" .
+            "🧾 *Invoice & Payment Summary:*\n" .
+            "• Invoice Number: #{{invoice_number}}\n" .
+            "• Total Package Bill: {{total_amount}}\n" .
+            "• Amount Paid: {{paid_amount}} ({{payment_method}})\n" .
+            "• Pending Dues: {{dues_amount}}\n" .
+            "• Due Date: {{due_date}}\n\n" .
+            "See you on the gym floor! Let's crush your fitness goals together! 🚀\n" .
+            "— Team *{{gym_name}}*";
+
+        $messageBody = $template?->message_body ?: $defaultMessageBody;
 
         $rendered = self::renderMessage($messageBody, [
-            'name'         => $user->name,
-            'gym_name'     => $gymName,
-            'role'         => 'Member',
-            'phone'        => $user->phone,
-            'plan_name'    => $planName,
-            'expiry_date'  => $expDate,
-            'portal_url'   => $portalUrl,
-            'qr_pass_code' => $profile?->qr_pass_code ?? '',
-            'date'         => Carbon::today()->format('d M Y'),
+            'name'           => $user->name,
+            'gym_name'       => $gymName,
+            'gym_address'    => $gymAddress,
+            'gym_location'   => $gymAddress,
+            'gym_timing'     => $gymTiming,
+            'gym_hours'      => $gymTiming,
+            'role'           => 'Member',
+            'phone'          => $user->phone,
+            'plan_name'      => $planName,
+            'expiry_date'    => $expDate,
+            'start_date'     => $startDate,
+            'portal_url'     => $portalUrl,
+            'qr_pass_code'   => $profile?->qr_pass_code ?? '',
+            'date'           => Carbon::today()->format('d M Y'),
+            'invoice_number' => $invoiceNo,
+            'paid_amount'    => $paidAmount,
+            'total_amount'   => $totalAmount,
+            'dues_amount'    => $formattedDues,
+            'due_date'       => $dueDate,
+            'payment_method' => $paymentMethod,
         ]);
 
         $dispatchResult = self::dispatchViaGateway($user->phone ?? '', $rendered, $gymId);

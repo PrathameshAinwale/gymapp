@@ -1037,50 +1037,65 @@ class SuperadminController extends Controller
     }
 
     /**
-     * Get Master Platform WhatsApp Automation & Gateway settings
+     * Get Master or per-Gym WhatsApp Automation & Gateway settings
      */
     public function getWhatsAppSettings(Request $request)
     {
-        $settings = \App\Models\WhatsAppSetting::whereNull('gym_id')->first()
-            ?: \App\Models\WhatsAppSetting::first();
+        $gymId = $request->query('gym_id');
 
-        if (!$settings) {
-            $settings = \App\Models\WhatsAppSetting::create([
-                'gym_id'             => null,
-                'provider'           => 'msg91',
-                'is_enabled'         => true,
-                'instance_id'        => null,
-                'api_token'          => null,
-                'phone_number_id'    => null,
-                'api_url'            => null,
-                'auto_send_welcome'  => true,
-                'auto_send_birthday' => true,
-                'auto_send_expiry'   => true,
-                'auto_send_dues'     => true,
-            ]);
+        // Fetch all registered gyms with individual WhatsApp setup telemetry
+        $gyms = Gym::select('id', 'name', 'city', 'phone', 'email', 'package', 'status')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        $gymSettings = \App\Models\WhatsAppSetting::whereNotNull('gym_id')
+            ->get()
+            ->keyBy('gym_id');
+
+        $gymsWithStatus = $gyms->map(function ($g) use ($gymSettings) {
+            $s = $gymSettings->get($g->id);
+            $hasCredentials = !empty($s?->api_token) && (!empty($s?->instance_id) || !empty($s?->phone_number_id) || !empty($s?->api_url));
+            return [
+                'id'            => $g->id,
+                'name'          => $g->name,
+                'city'          => $g->city,
+                'phone'         => $g->phone,
+                'email'         => $g->email,
+                'package'       => $g->package,
+                'status'        => $g->status,
+                'is_configured' => (bool)$hasCredentials,
+                'provider'      => $s?->provider ?? 'none',
+                'is_enabled'    => $s ? (bool)$s->is_enabled : false,
+            ];
+        });
+
+        // Determine target gym
+        $targetGymId = null;
+        if ($gymId !== null && $gymId !== '') {
+            $targetGymId = (int)$gymId;
+        } elseif ($gyms->isNotEmpty()) {
+            $targetGymId = (int)$gyms->first()->id;
         }
 
+        $activeSetting = \App\Models\WhatsAppSetting::forGym($targetGymId);
+        $selectedGym = $targetGymId ? Gym::select('id', 'name', 'city', 'phone', 'email', 'package', 'status')->find($targetGymId) : null;
+
         return response()->json([
-            'success' => true,
-            'data'    => $settings,
+            'success'      => true,
+            'data'         => $activeSetting,
+            'selected_gym' => $selectedGym,
+            'gyms'         => $gymsWithStatus,
         ]);
     }
 
     /**
-     * Update Master Platform WhatsApp Automation & Gateway settings
+     * Update individual per-Gym WhatsApp Automation & Gateway settings
      */
     public function updateWhatsAppSettings(Request $request)
     {
-        $settings = \App\Models\WhatsAppSetting::whereNull('gym_id')->first()
-            ?: \App\Models\WhatsAppSetting::first();
-
-        if (!$settings) {
-            $settings = new \App\Models\WhatsAppSetting();
-            $settings->gym_id = null;
-        }
-
         $validated = $request->validate([
-            'provider'           => 'required|string|in:msg91,ultramsg,meta,custom,none',
+            'gym_id'             => 'nullable|integer',
+            'provider'           => 'required|string|in:ultramsg,msg91,meta,custom,none',
             'is_enabled'         => 'nullable|boolean',
             'instance_id'        => 'nullable|string|max:255',
             'api_token'          => 'nullable|string',
@@ -1092,50 +1107,50 @@ class SuperadminController extends Controller
             'auto_send_dues'     => 'nullable|boolean',
         ]);
 
+        $gymId = $request->input('gym_id') ?: $request->query('gym_id');
+        $gym = $gymId ? Gym::find($gymId) : null;
+
+        $settings = \App\Models\WhatsAppSetting::forGym($gymId ? (int)$gymId : null);
         $settings->fill($validated);
-        $settings->gym_id = null;
+        if ($gymId) {
+            $settings->gym_id = (int)$gymId;
+        }
         $settings->save();
 
-        // Also update existing gym rows so they inherit master settings
-        \App\Models\WhatsAppSetting::whereNotNull('gym_id')->update([
-            'provider'           => $settings->provider,
-            'is_enabled'         => $settings->is_enabled,
-            'instance_id'        => $settings->instance_id,
-            'api_token'          => $settings->api_token,
-            'phone_number_id'    => $settings->phone_number_id,
-            'api_url'            => $settings->api_url,
-            'auto_send_welcome'  => $settings->auto_send_welcome,
-            'auto_send_birthday' => $settings->auto_send_birthday,
-            'auto_send_expiry'   => $settings->auto_send_expiry,
-            'auto_send_dues'     => $settings->auto_send_dues,
-        ]);
+        $gymName = $gym ? $gym->name : 'Platform Master';
 
         return response()->json([
             'success' => true,
-            'message' => 'Platform WhatsApp Automation & Gateway settings saved successfully by Superadmin!',
+            'message' => "WhatsApp Gateway & Automation settings for {$gymName} saved successfully!",
             'data'    => $settings,
+            'gym'     => $gym,
         ]);
     }
 
     /**
-     * Send a live test WhatsApp message from Superadmin
+     * Send a live test WhatsApp message for a specific gym
      */
     public function testWhatsAppMessage(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string',
+            'phone'  => 'required|string',
+            'gym_id' => 'nullable|integer',
         ]);
 
         $phone = $request->input('phone');
-        $testMsg = "Hello from *ArchFit Superadmin*! 🚀\n\nThis is a test notification confirming that the platform-wide WhatsApp gateway is fully active and connected!";
+        $gymId = $request->input('gym_id') ?: $request->query('gym_id');
+        $gym = $gymId ? Gym::find($gymId) : null;
+        $gymName = $gym ? $gym->name : 'ArchFit Superadmin';
 
-        $result = \App\Services\WhatsAppNotificationService::dispatchViaGateway($phone, $testMsg, null);
+        $testMsg = "Hello from *{$gymName}* WhatsApp Gateway! 🚀\n\nThis is a live test notification verifying that the WhatsApp automation engine for *{$gymName}* is successfully configured and active!";
+
+        $result = \App\Services\WhatsAppNotificationService::dispatchViaGateway($phone, $testMsg, $gymId ? (int)$gymId : null);
 
         return response()->json([
             'success' => $result['success'] ?? true,
             'message' => ($result['status'] ?? '') === 'sent'
-                ? 'Test WhatsApp message dispatched successfully via gateway!'
-                : 'Test WhatsApp message processed.',
+                ? "Test WhatsApp message dispatched successfully via {$gymName}'s gateway!"
+                : "Test WhatsApp message processed for {$gymName}.",
             'result'  => $result,
         ]);
     }

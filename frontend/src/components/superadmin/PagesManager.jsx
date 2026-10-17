@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
@@ -101,102 +102,77 @@ export const PagesManager = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-16">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-            <FileText className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>About &amp; Legal Content Management</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Edit the live text and contact details for Privacy Policy, Terms &amp; Conditions, and Help &amp; Support displayed across the platform.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={loadPages}
-          disabled={loading}
-          title="Reload page data"
-          className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
-        </button>
-      </div>
+    <div className="space-y-4 animate-fadeIn pb-16">
 
       {toastMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fadeIn shadow-xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fadeIn shadow-xs">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           <span>{toastMsg}</span>
         </div>
       )}
 
       {/* Page Selectors */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200">
+      <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200">
         <button
           type="button"
           onClick={() => handleSelectPage('privacy-policy')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeSlug === 'privacy-policy'
-              ? 'bg-white text-indigo-700 shadow-xs'
+              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/90'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <Shield className="w-4 h-4" />
+          <Shield className={`w-3.5 h-3.5 ${activeSlug === 'privacy-policy' ? 'text-indigo-600' : 'text-slate-400'}`} />
           <span>Privacy Policy</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectPage('terms-conditions')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeSlug === 'terms-conditions'
-              ? 'bg-white text-indigo-700 shadow-xs'
+              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/90'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <FileText className="w-4 h-4" />
+          <FileText className={`w-3.5 h-3.5 ${activeSlug === 'terms-conditions' ? 'text-indigo-600' : 'text-slate-400'}`} />
           <span>Terms and Conditions</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectPage('help-support')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeSlug === 'help-support'
-              ? 'bg-white text-indigo-700 shadow-xs'
+              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/90'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
           }`}
         >
-          <LifeBuoy className="w-4 h-4" />
+          <LifeBuoy className={`w-3.5 h-3.5 ${activeSlug === 'help-support' ? 'text-indigo-600' : 'text-slate-400'}`} />
           <span>Help and Support</span>
         </button>
       </div>
 
       {/* Editor Form */}
       {loading ? (
-        <div className="p-16 rounded-2xl bg-white border border-slate-200/80 flex flex-col items-center justify-center gap-3 shadow-xs">
-          <RotateCw className="w-6 h-6 animate-spin text-indigo-600" />
+        <div className="p-12 rounded-xl bg-white border border-slate-200/80 flex flex-col items-center justify-center gap-2.5 shadow-xs">
+          <RotateCw className="w-5 h-5 animate-spin text-emerald-600" />
           <span className="text-xs font-bold text-slate-500">Loading page editor...</span>
         </div>
       ) : (
-        <form onSubmit={handleSave} className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+        <form onSubmit={handleSave} className="p-4 sm:p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
                 Editing: {activeSlug === 'privacy-policy' ? 'Privacy Policy' : activeSlug === 'terms-conditions' ? 'Terms & Conditions' : 'Help & Support'}
               </h3>
-              <p className="text-xs text-slate-500">Slug key: <code className="text-indigo-600 font-mono font-semibold">{activeSlug}</code></p>
+              <p className="text-xs text-slate-500 mt-0.5">Slug key: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono font-semibold">{activeSlug}</code></p>
             </div>
 
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-black shadow-md shadow-indigo-500/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Saving Changes...' : 'Save & Publish Live'}</span>
@@ -211,7 +187,7 @@ export const PagesManager = () => {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-bold"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-slate-900 font-bold"
             />
           </div>
 
@@ -280,13 +256,13 @@ export const PagesManager = () => {
               <div className="pt-2 border-t border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
+                    <HelpCircle className="w-3.5 h-3.5 text-slate-700" />
                     <span>Frequently Asked Questions ({faqs.length})</span>
                   </span>
                   <button
                     type="button"
                     onClick={handleAddFaq}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-black text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Add FAQ</span>
@@ -297,7 +273,7 @@ export const PagesManager = () => {
                   {faqs.map((faq, idx) => (
                     <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 relative">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-black text-indigo-600 uppercase">FAQ #{idx + 1}</span>
+                        <span className="text-[10px] font-black text-emerald-700 uppercase">FAQ #{idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveFaq(idx)}
@@ -313,7 +289,7 @@ export const PagesManager = () => {
                         placeholder="Question (e.g. How do I setup biometric machines?)"
                         value={faq.question}
                         onChange={(e) => handleUpdateFaq(idx, 'question', e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:bg-white focus:border-indigo-500"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-semibold focus:outline-none focus:bg-white focus:border-slate-900"
                       />
 
                       <textarea
@@ -321,7 +297,7 @@ export const PagesManager = () => {
                         placeholder="Answer..."
                         value={faq.answer}
                         onChange={(e) => handleUpdateFaq(idx, 'answer', e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:bg-white focus:border-indigo-500"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:bg-white focus:border-slate-900"
                       />
                     </div>
                   ))}
@@ -339,7 +315,7 @@ export const PagesManager = () => {
                   type="date"
                   value={metadata.last_updated || ''}
                   onChange={(e) => setMetadata({ ...metadata, last_updated: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 />
               </div>
               <div>
@@ -349,7 +325,7 @@ export const PagesManager = () => {
                   placeholder="e.g. 2.1"
                   value={metadata.version || ''}
                   onChange={(e) => setMetadata({ ...metadata, version: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 />
               </div>
             </div>
@@ -364,7 +340,7 @@ export const PagesManager = () => {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Enter page text sections, terms, and policies..."
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-mono leading-relaxed focus:bg-white focus:outline-none focus:border-indigo-500"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-mono leading-relaxed focus:bg-white focus:outline-none focus:border-slate-900"
             />
             <p className="text-[11px] text-slate-500 mt-1">
               Supports markdown headers (### Section Title) and bullet lists (- Bullet Item).
@@ -375,7 +351,7 @@ export const PagesManager = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-black shadow-md shadow-indigo-500/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5 inline mr-1.5" />
               <span>{isSaving ? 'Saving Changes...' : 'Save & Publish Live'}</span>

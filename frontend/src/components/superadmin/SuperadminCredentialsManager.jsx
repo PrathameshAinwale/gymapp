@@ -151,73 +151,28 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn w-full">
-      {/* Overview Banner - Light Shades */}
-      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-sm">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-indigo-100/60 via-purple-100/30 to-transparent rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-3 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
-              <ShieldCheck className="w-full h-full" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-heading">
-                  Superadmin Credentials & Security
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  ROOT PRIVILEGE
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Configure master login details required to authenticate at <code className="text-indigo-600 font-mono font-semibold">/superadmin</code>
-              </p>
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-              <UserCheck className="w-5 h-5" />
-            </div>
-            <div className="text-xs">
-              <div className="text-slate-500 text-[10px] font-mono uppercase tracking-wider font-semibold">Active Login Identity</div>
-              <div className="text-slate-900 font-bold font-mono truncate max-w-[200px] sm:max-w-none">
-                {superUser?.email || 'admin@example.com'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Security Warning Notice */}
-        <div className="mt-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-800 text-xs">
-          <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-          <div className="leading-relaxed">
-            <strong className="text-amber-900 font-bold">Critical Access Notice:</strong> Any changes made here take effect immediately for the next login at <code className="font-mono text-amber-900 font-bold">/superadmin</code>. Ensure you securely store your updated credentials.
-          </div>
-        </div>
-      </div>
+    <div className="space-y-4 animate-fadeIn w-full">
 
       {/* Two Column Grid for Password and Email Updates */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
         {/* ══════════════════════════════════════════════════════════ */}
         {/* CARD 1: CHANGE SUPERADMIN PASSWORD                         */}
         {/* ══════════════════════════════════════════════════════════ */}
-        <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 inset-x-0 h-1 bg-indigo-600" />
           
           <div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                <Lock className="w-4 h-4" />
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Lock className="w-3.5 h-3.5" />
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              <h3 className="text-sm sm:text-base font-bold text-slate-950 tracking-tight">
                 Change Superadmin Password
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Verify your current password, then specify and confirm your new password for <code className="text-indigo-600 font-mono font-medium">/superadmin</code> login.
+            <p className="text-xs text-slate-500 mb-3.5 leading-relaxed">
+              Verify your current password, then specify and confirm your new password for <code className="text-slate-900 font-mono font-medium">/superadmin</code> login.
             </p>
 
             {pwdError && (
@@ -329,7 +284,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
               <button
                 type="submit"
                 disabled={pwdLoading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {pwdLoading ? (
                   <>
@@ -350,20 +305,20 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
         {/* ══════════════════════════════════════════════════════════ */}
         {/* CARD 2: CHANGE SUPERADMIN EMAIL                            */}
         {/* ══════════════════════════════════════════════════════════ */}
-        <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 inset-x-0 h-1 bg-emerald-600" />
           
           <div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
-                <Mail className="w-4 h-4" />
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                <Mail className="w-3.5 h-3.5" />
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              <h3 className="text-sm sm:text-base font-bold text-slate-950 tracking-tight">
                 Change Superadmin Login Email
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Verify your current password, then specify and confirm your new email for <code className="text-purple-600 font-mono font-medium">/superadmin</code> login.
+            <p className="text-xs text-slate-500 mb-3.5 leading-relaxed">
+              Verify your current password, then specify and confirm your new email for <code className="text-emerald-700 font-mono font-medium">/superadmin</code> login.
             </p>
 
             {emailError && (
@@ -459,7 +414,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
               <button
                 type="submit"
                 disabled={emailLoading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-500 hover:via-pink-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {emailLoading ? (
                   <>

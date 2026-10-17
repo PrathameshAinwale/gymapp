@@ -78,4 +78,9 @@ class Gym extends Model
     {
         return $this->hasMany(User::class, 'gym_id')->where('role', 'trainer');
     }
+
+    public function whatsappSetting()
+    {
+        return $this->hasOne(WhatsAppSetting::class, 'gym_id');
+    }
 }

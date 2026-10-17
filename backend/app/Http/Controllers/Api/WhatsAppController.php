@@ -63,6 +63,10 @@ class WhatsAppController extends Controller
     public function indexTemplates(Request $request)
     {
         $gymId = $this->resolveGymId($request);
+        if ($gymId) {
+            self::ensureDefaultTemplatesExist($gymId);
+        }
+
         $category = $request->query('category');
         $targetRole = $request->query('target_role') ?: $request->query('role');
         $status = $request->query('status');
@@ -1146,6 +1150,114 @@ class WhatsAppController extends Controller
                 : 'Test WhatsApp message prepared.',
             'result'  => $result,
         ]);
+    }
+
+    /**
+     * Ensure standard production templates exist for a given gym.
+     */
+    public static function ensureDefaultTemplatesExist(int $gymId): void
+    {
+        $hasTemplates = WhatsAppTemplate::where('gym_id', $gymId)->exists();
+        if ($hasTemplates) {
+            return;
+        }
+
+        $defaultTemplates = [
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'Member Welcome & Official Invoice Receipt',
+                'category'        => 'welcome',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'on_signup',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Welcome to the {{gym_name}} Family, {{name}}!* 🏋️‍♂️🎉\nWe are thrilled to welcome you aboard!\n\n📍 *Gym & Facility Details:*\n• Gym Name: *{{gym_name}}*\n• Location: {{gym_address}}\n• Operating Hours: {{gym_timing}}\n\n🏷️ *Plan & Membership Details:*\n• Plan Enrolled: *{{plan_name}}*\n• Start Date: {{start_date}}\n• Valid Until: {{expiry_date}}\n• Turnstile Access Pass: *{{qr_pass_code}}*\n\n🧾 *Invoice & Payment Summary:*\n• Invoice Number: #{{invoice_number}}\n• Total Package Bill: {{total_amount}}\n• Amount Paid: {{paid_amount}} ({{payment_method}})\n• Pending Dues: {{dues_amount}}\n• Due Date: {{due_date}}\n\nSee you on the gym floor! Let's crush your fitness goals together! 🚀\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'Member Birthday Celebration Perk',
+                'category'        => 'birthday',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'on_birthday',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Happy Birthday {{name}}!* 🎂🎉\n\nWishing you boundless strength, great health, and many more PRs this year from the entire team at *{{gym_name}}*!\n\n🎁 *Your Birthday Perk:*\nDrop by reception today for a complimentary recovery shake / 1-day guest pass for a buddy! Enjoy your special day!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'Coach & Staff Birthday Greeting',
+                'category'        => 'birthday',
+                'target_role'     => 'trainer',
+                'timing_trigger'  => 'on_birthday',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Happy Birthday Coach {{name}}!* 🎂✨\n\nThank you for the energy, dedication, and inspirational guidance you bring to *{{gym_name}}* every single day!\n\nWishing you an incredible year ahead filled with personal triumphs and milestones! Enjoy your day!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => '7-Day Membership Expiry Renewal Notice',
+                'category'        => 'expiry_reminder',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'days_before_expiry_7',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "Hi *{{name}}*,\n\nYour *{{gym_name}}* membership for the *{{plan_name}}* plan is scheduled to expire in *{{days_left}} days* on *{{expiry_date}}*.\n\nDon't let your hard-earned progress pause! Renew your plan this week at the front desk or via UPI to lock in continuous access and exclusive renewal benefits.\n\nReach out if you need assistance!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => '3-Day Urgent Renewal Reminder',
+                'category'        => 'expiry_reminder',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'days_before_expiry_3',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Urgent Notice for {{name}}* ⚠️\n\nYour fitness membership at *{{gym_name}}* expires in just *{{days_left}} days* ({{expiry_date}}).\n\nAvoid turnstile access deactivation — renew today and keep smashing your fitness goals! Contact reception now.\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'Membership Fee / Outstanding Dues Notice',
+                'category'        => 'fee_due',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'on_dues_pending',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Payment Reminder Notice* 💳\n\nDear *{{name}}*,\n\nThis is a friendly reminder from *{{gym_name}}* regarding an outstanding dues balance on your account:\n• Invoice: #{{invoice_number}}\n• Plan: {{plan_name}}\n• Pending Balance: *{{dues_amount}}*\n• Due Date: {{due_date}}\n\nKindly clear the payment at the front desk or via UPI to maintain seamless workout access. Thank you for your cooperation!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'We Miss You - 7-Day Inactivity Check-in',
+                'category'        => 'absentee',
+                'target_role'     => 'member',
+                'timing_trigger'  => 'manual',
+                'is_active'       => true,
+                'is_auto_enabled' => true,
+                'message_body'    => "*Hey {{name}}, we miss you on the gym floor!* 🏋️\n\nConsistency is the secret to real fitness breakthroughs. We noticed it's been over a week since your last check-in at *{{gym_name}}*.\n\nNeed a workout reset or routine refresher? Drop by today — the iron is waiting for you! Let's get back on track!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'New Gym Membership Plan Launch Announcement',
+                'category'        => 'new_plan',
+                'target_role'     => 'all',
+                'timing_trigger'  => 'on_new_plan',
+                'is_active'       => true,
+                'is_auto_enabled' => false,
+                'message_body'    => "*Exciting Announcement from {{gym_name}}!* 🚀\n\nHello {{name}},\n\nWe are thrilled to unveil our brand-new membership plan: *{{plan_name}}*! 🏋️‍♂️✨\n\nEnjoy upgraded state-of-the-art workout facilities, elite personal coaching, and premium amenities designed to fast-track your health journey.\n\n🔥 *Special Launch Offer*: Upgrade or enroll this week to lock in founder pricing!\n\n📲 Visit front desk or explore at {{portal_url}}\nLet's crush your goals together!\n— Team *{{gym_name}}*",
+            ],
+            [
+                'gym_id'          => $gymId,
+                'name'            => 'General Gym Announcement & Notice',
+                'category'        => 'custom',
+                'target_role'     => 'all',
+                'timing_trigger'  => 'manual',
+                'is_active'       => true,
+                'is_auto_enabled' => false,
+                'message_body'    => "*Announcement from {{gym_name}}* 📢\n\nHello {{name}},\n\nWe have exciting updates regarding our schedule, equipment upgrades, and upcoming fitness challenges! Check out the details on your athlete dashboard or visit the front desk.\n\nStay strong, stay committed!\n— Team *{{gym_name}}*",
+            ],
+        ];
+
+        foreach ($defaultTemplates as $tpl) {
+            WhatsAppTemplate::create($tpl);
+        }
     }
 }
 

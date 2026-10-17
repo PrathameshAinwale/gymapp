@@ -611,7 +611,19 @@ export const WhatsAppAutomation = () => {
       '{{date}}': new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       '{{trainer_name}}': 'Coach Alex Rivers',
       '{{phone}}': sampleOverrides.phone || '+91 98765 43210',
-      '{{portal_url}}': window.location.origin
+      '{{portal_url}}': window.location.origin,
+      '{{invoice_number}}': sampleOverrides.invoiceNumber || 'INV-2026-8492',
+      '{{invoice_no}}': sampleOverrides.invoiceNumber || 'INV-2026-8492',
+      '{{paid_amount}}': sampleOverrides.paidAmount || '₹3,500.00',
+      '{{total_amount}}': sampleOverrides.totalAmount || '₹3,500.00',
+      '{{start_date}}': sampleOverrides.startDate || '17 Oct 2026',
+      '{{due_date}}': sampleOverrides.dueDate || '24 Oct 2026',
+      '{{payment_method}}': sampleOverrides.paymentMethod || 'UPI',
+      '{{qr_pass_code}}': sampleOverrides.qrPassCode || 'QR-8956-2026',
+      '{{gym_address}}': sampleOverrides.gymAddress || gymInfo?.address || 'Plot 42, Hiranandani Business Park, Powai, Mumbai',
+      '{{gym_location}}': sampleOverrides.gymAddress || gymInfo?.address || 'Plot 42, Hiranandani Business Park, Powai, Mumbai',
+      '{{gym_timing}}': sampleOverrides.gymTiming || gymInfo?.operating_hours || 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
+      '{{gym_hours}}': sampleOverrides.gymTiming || gymInfo?.operating_hours || 'Mon-Sat: 5:30 AM - 11:00 PM | Sun: 6:00 AM - 8:00 PM',
     };
 
     let result = templateText || '';
@@ -1529,7 +1541,8 @@ export const WhatsAppAutomation = () => {
                     const templateObj = whatsappTemplates.find(
                       (t) => String(t.id) === String(selectedTemplateForBroadcast)
                     );
-                    const waLink = person.phone ? getWhatsAppUrl(person.phone, rendered) : null;
+                    const rendered = templateObj ? renderPreviewText(templateObj.message_body, { name: person.name, role: person.role || 'Member', phone: person.phone, plan: person.planName || person.plan_name }) : '';
+                    const waLink = person.phone && rendered ? getWhatsAppUrl(person.phone, rendered) : null;
 
                     return (
                       <div
@@ -2035,11 +2048,20 @@ export const WhatsAppAutomation = () => {
                   {[
                     { tag: '{{name}}', label: 'Name' },
                     { tag: '{{gym_name}}', label: 'Gym Name' },
+                    { tag: '{{gym_address}}', label: 'Gym Location' },
+                    { tag: '{{gym_timing}}', label: 'Gym Hours' },
                     { tag: '{{role}}', label: 'Role' },
                     { tag: '{{plan_name}}', label: 'Plan Name' },
-                    { tag: '{{expiry_date}}', label: 'Expiry Date' },
-                    { tag: '{{days_left}}', label: 'Days Left' },
+                    { tag: '{{invoice_number}}', label: 'Invoice #' },
+                    { tag: '{{paid_amount}}', label: 'Paid Amount' },
+                    { tag: '{{total_amount}}', label: 'Total Bill' },
                     { tag: '{{dues_amount}}', label: 'Dues' },
+                    { tag: '{{payment_method}}', label: 'Payment Mode' },
+                    { tag: '{{qr_pass_code}}', label: 'Turnstile QR' },
+                    { tag: '{{start_date}}', label: 'Start Date' },
+                    { tag: '{{expiry_date}}', label: 'Expiry Date' },
+                    { tag: '{{due_date}}', label: 'Due Date' },
+                    { tag: '{{days_left}}', label: 'Days Left' },
                     { tag: '{{date}}', label: 'Today Date' },
                     { tag: '{{portal_url}}', label: 'Portal Link' }
                   ].map((chip) => (

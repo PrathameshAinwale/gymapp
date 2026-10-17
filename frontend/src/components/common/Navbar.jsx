@@ -170,7 +170,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
         </div>
 
         {/* Right: Profile + Sign Out */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-1 shrink-0">
           {/* Action Alerts & Notification Bell (Staff/Owner only) */}
           <div className="mr-2 sm:mr-3.5">
             <NotificationBell onNavigateToMembersWithFilter={onNavigateToMembersWithFilter} />
@@ -251,22 +251,6 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
                   </div>
                 </div>
               )}
-            </div>
-          )}
-          {/* Logged-in Staff / Owner Real Name Pill */}
-          {currentUser && (
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 shadow-2xs">
-              <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
-                {(currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : (currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : 'Staff')).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex flex-col text-left leading-none min-w-0 max-w-[120px] md:max-w-[150px]">
-                <span className="text-xs font-bold text-slate-800 truncate" title={currentUser?.name}>
-                  {currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops') ? currentUser.name : (currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : 'Staff')}
-                </span>
-                <span className="text-[9px] font-semibold text-slate-400 capitalize">
-                  {currentRole === 'superadmin' ? 'Superadmin' : currentRole === 'owner' ? 'Owner' : currentRole || 'Staff'}
-                </span>
-              </div>
             </div>
           )}
 

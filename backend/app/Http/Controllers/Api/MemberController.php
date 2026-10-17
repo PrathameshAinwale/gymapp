@@ -1030,10 +1030,10 @@ class MemberController extends Controller
         // 4. Automatically register new member into eSSL Biometric Terminal over LAN
         $deviceSyncResult = $this->syncMemberToEsslDevice($user, $profile, 'push');
 
-        // Automatically dispatch WhatsApp Welcome Notification to the new member
+        // Automatically dispatch WhatsApp Welcome Notification with Invoice Receipt to the new member
         $whatsappResult = null;
         try {
-            $whatsappResult = \App\Services\WhatsAppNotificationService::sendWelcomeMessage($user, $profile, $gymId);
+            $whatsappResult = \App\Services\WhatsAppNotificationService::sendWelcomeMessage($user, $profile, $gymId, $primaryInvoice);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning("Auto WhatsApp welcome notification failed for user {$user->id}: " . $e->getMessage());
         }

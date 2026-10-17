@@ -1518,24 +1518,29 @@ export const api = {
       return handleResponse(res);
     },
 
-    // Master Platform WhatsApp Automation & Gateway Control
-    getWhatsAppSettings: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-settings`, { headers: getHeaders() });
+    // Facility & Platform WhatsApp Automation & Gateway Control
+    getWhatsAppSettings: async (gymId = null) => {
+      const qs = gymId ? `?gym_id=${encodeURIComponent(gymId)}` : '';
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-settings${qs}`, { headers: getHeaders() });
       return handleResponse(res);
     },
-    updateWhatsAppSettings: async (settingsData) => {
+    updateWhatsAppSettings: async (settingsData, gymId = null) => {
+      const payload = { ...settingsData };
+      if (gymId && !payload.gym_id) {
+        payload.gym_id = gymId;
+      }
       const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-settings`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(settingsData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
-    testWhatsAppMessage: async (phone) => {
+    testWhatsAppMessage: async (phone, gymId = null) => {
       const res = await apiFetch(`${API_BASE_URL}/superadmin/whatsapp-test`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, gym_id: gymId }),
       });
       return handleResponse(res);
     },

@@ -43,22 +43,36 @@ class WhatsAppSetting extends Model
      */
     public static function forGym(?int $gymId = null): self
     {
-        $setting = null;
         if ($gymId) {
             $setting = self::where('gym_id', $gymId)->first();
+            if (!$setting) {
+                $setting = self::create([
+                    'gym_id'             => $gymId,
+                    'provider'           => 'ultramsg',
+                    'is_enabled'         => true,
+                    'instance_id'        => null,
+                    'api_token'          => null,
+                    'phone_number_id'    => null,
+                    'api_url'            => null,
+                    'auto_send_welcome'  => true,
+                    'auto_send_birthday' => true,
+                    'auto_send_expiry'   => true,
+                    'auto_send_dues'     => true,
+                ]);
+            }
+            return $setting;
         }
-        if (!$setting) {
-            $setting = self::whereNull('gym_id')->orWhere('gym_id', 1)->first();
-        }
+
+        $setting = self::whereNull('gym_id')->first();
         if (!$setting) {
             $setting = self::create([
-                'gym_id'             => $gymId ?: 1,
-                'provider'           => env('WHATSAPP_PROVIDER', 'ultramsg'),
+                'gym_id'             => null,
+                'provider'           => 'ultramsg',
                 'is_enabled'         => true,
-                'instance_id'        => env('WHATSAPP_INSTANCE_ID', null),
-                'api_token'          => env('WHATSAPP_API_TOKEN', null),
-                'phone_number_id'    => env('WHATSAPP_PHONE_NUMBER_ID', null),
-                'api_url'            => env('WHATSAPP_API_URL', null),
+                'instance_id'        => null,
+                'api_token'          => null,
+                'phone_number_id'    => null,
+                'api_url'            => null,
                 'auto_send_welcome'  => true,
                 'auto_send_birthday' => true,
                 'auto_send_expiry'   => true,
