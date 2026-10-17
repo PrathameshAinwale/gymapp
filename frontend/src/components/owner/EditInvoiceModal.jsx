@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../common/Modal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { useGymData } from '../../context/GymDataContext';
 import {
   FileText,
@@ -19,7 +20,8 @@ import {
   Clock,
   Layers,
   ArrowRight,
-  BadgePercent
+  BadgePercent,
+  Trash2
 } from 'lucide-react';
 import {
   hasSqlInjection,
@@ -34,7 +36,7 @@ export const EditInvoiceModal = ({
   invoice,
   onUpdated
 }) => {
-  const { updateInvoice, members = [], plans = [], ptPlans = [], recoveryPlans = [], addToast, gymInfo } = useGymData();
+  const { updateInvoice, deleteInvoice, members = [], plans = [], ptPlans = [], recoveryPlans = [], addToast, gymInfo } = useGymData();
 
   // Resolve matching member to identify their current active package and profile details
   const targetMember = useMemo(() => {
@@ -99,6 +101,22 @@ export const EditInvoiceModal = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!invoice) return;
+    try {
+      setIsDeleting(true);
+      await deleteInvoice(invoice.id || invoice.invoiceNumber);
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (err) {
+      // toast shown by deleteInvoice
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const [errorMessage, setErrorMessage] = useState('');
 
   // Initialise form state when invoice opens
@@ -691,33 +709,58 @@ export const EditInvoiceModal = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer border border-rose-200 inline-flex items-center gap-1.5 transition-colors active:scale-95"
+            title="Delete this invoice"
           >
-            Cancel
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>Delete Invoice</span>
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-1.5"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Saving Changes...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Save &amp; Update Invoice</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-1.5"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving Changes...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Save &amp; Update Invoice</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
+
+      {/* CONFIRM INVOICE DELETION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
+        title="Delete Invoice"
+        itemType="invoice"
+        recordName={invoice?.id ? `#${invoice.id}` : 'this invoice'}
+        message={`Are you sure you want to permanently delete invoice #${invoice?.id || invoice?.invoiceNumber || ''}?`}
+        description="This will permanently delete the invoice, remove matching revenue billing inflow records, and recalculate member profile dues and facility access expiry."
+        confirmText="Yes, Delete Invoice"
+      />
     </Modal>
   );
 };

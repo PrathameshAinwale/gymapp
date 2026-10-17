@@ -110,16 +110,29 @@ class InvoicePdfService
         $items = [];
         if (!empty($invoice->items) && is_array($invoice->items)) {
             foreach ($invoice->items as $it) {
+                $pkgType = $it['packageType'] ?? ($it['package_type'] ?? 'Membership Plan');
+                $pkgName = $it['name'] ?? ($it['planName'] ?? '');
+                $displayName = $pkgType;
+                if ($pkgName && strcasecmp($pkgName, $pkgType) !== 0) {
+                    $displayName .= " ({$pkgName})";
+                }
+                $start = $it['startDate'] ?? ($it['start_date'] ?? $startDateStr);
+                $end = $it['endDate'] ?? ($it['end_date'] ?? $endDateStr);
                 $items[] = [
-                    'name'     => $it['name'] ?? ($it['packageType'] ?? 'Membership Plan'),
-                    'validity' => ($it['startDate'] ?? $startDateStr) . ' to ' . ($it['endDate'] ?? $endDateStr),
-                    'amount'   => (float)($it['price'] ?? ($it['amount'] ?? $totalAmount)),
+                    'name'     => $displayName,
+                    'validity' => "{$start} to {$end}",
+                    'amount'   => (float)($it['net_amount'] ?? ($it['price'] ?? ($it['amount'] ?? $totalAmount))),
                 ];
             }
         }
         if (empty($items)) {
+            $pkgType = $invoice->package_type ?: 'Gym-Cardio';
+            $displayName = $pkgType;
+            if ($planName && strcasecmp($planName, $pkgType) !== 0) {
+                $displayName .= " ({$planName})";
+            }
             $items[] = [
-                'name'     => $planName,
+                'name'     => $displayName,
                 'validity' => "{$startDateStr} to {$endDateStr}",
                 'amount'   => $totalAmount,
             ];

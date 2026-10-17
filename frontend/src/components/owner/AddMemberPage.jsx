@@ -1498,9 +1498,28 @@ export const AddMemberPage = ({
       const fallbackExpiry = computePlanEndDate(membershipStartDate || todayStr, chosenPlan);
 
       const finalPaymentMethod = getResolvedPaymentMethod();
-      const finalStartDate = membershipStartDate || todayStr;
-      const finalExpiryDate = membershipEndDate || fallbackExpiry || todayStr;
-      const finalJoinDate = formData.joinDate || finalStartDate;
+
+      // If packages are selected, calculate the true earliest start date and furthest end date
+      let earliestPkgStart = null;
+      let furthestPkgEnd = null;
+      if (validPackages.length > 0) {
+        validPackages.forEach((pkgRow) => {
+          if (pkgRow.startDate) {
+            if (!earliestPkgStart || pkgRow.startDate < earliestPkgStart) {
+              earliestPkgStart = pkgRow.startDate;
+            }
+          }
+          if (pkgRow.endDate) {
+            if (!furthestPkgEnd || pkgRow.endDate > furthestPkgEnd) {
+              furthestPkgEnd = pkgRow.endDate;
+            }
+          }
+        });
+      }
+
+      const finalStartDate = earliestPkgStart || membershipStartDate || todayStr;
+      const finalExpiryDate = furthestPkgEnd || membershipEndDate || fallbackExpiry || todayStr;
+      const finalJoinDate = earliestPkgStart || formData.joinDate || finalStartDate;
 
       if (totalEnteredPaid > totalCalculatedAmount) {
         addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
@@ -1525,7 +1544,11 @@ export const AddMemberPage = ({
       const additions = [];
       validPackages.forEach((pkgRow) => {
         const obj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
-        if (obj?.name) additions.push(obj.name);
+        const pType = normalizePackageType(pkgRow.packageType);
+        const pName = obj?.name || (pkgRow.packageType === 'pt' ? 'Personal Training' : 'Membership Plan');
+        if (pName) {
+          additions.push(`${pType} (${pName})`);
+        }
       });
 
       const packagesPayload = validPackages.map((pkgRow) => {
@@ -1569,7 +1592,7 @@ export const AddMemberPage = ({
         expiryDate: finalExpiryDate,
         membershipEndDate: finalExpiryDate,
         planId: chosenPlan?.id || null,
-        planName: chosenPlan?.name || (hasPtPackage ? 'PT Membership' : 'Gym Membership'),
+        planName: invoiceTitle,
         amount: effectivePaidAmount,
         paid_amount: effectivePaidAmount,
         paidAmount: effectivePaidAmount,
@@ -2062,12 +2085,19 @@ export const AddMemberPage = ({
                 {newlyCreatedCredentials.packages && newlyCreatedCredentials.packages.length > 1 && (
                   <div className="py-2 border-b border-slate-100 space-y-1.5">
                     <span className="text-[11px] font-bold text-slate-700">Packages Breakdown ({newlyCreatedCredentials.packages.length} items):</span>
-                    {newlyCreatedCredentials.packages.map((pkg, pIdx) => (
-                      <div key={pIdx} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded">
-                        <span className="text-slate-600 font-medium">{pkg.name || pkg.packageType}</span>
-                        <span className="font-mono text-slate-800 font-semibold">₹{Number(pkg.price || 0).toLocaleString('en-IN')}</span>
-                      </div>
-                    ))}
+                    {newlyCreatedCredentials.packages.map((pkg, pIdx) => {
+                      const pType = pkg.package_type || pkg.packageType;
+                      const pName = pkg.name || pkg.planName;
+                      const displayTitle = pType && pName && pType.toLowerCase() !== pName.toLowerCase()
+                        ? `${pType} (${pName})`
+                        : (pName || pType || 'Package');
+                      return (
+                        <div key={pIdx} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded">
+                          <span className="text-slate-600 font-medium">{displayTitle}</span>
+                          <span className="font-mono text-slate-800 font-semibold">₹{Number(pkg.price || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">

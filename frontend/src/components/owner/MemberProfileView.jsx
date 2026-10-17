@@ -27,9 +27,11 @@ import {
   Activity,
   X,
   Plus,
-  Coins
+  Coins,
+  Trash2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { PayDueModal } from './PayDueModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
@@ -66,6 +68,7 @@ export const MemberProfileView = ({
     gymInfo,
     calculateMemberStatus,
     getExpiryDaysDiff,
+    deleteInvoice,
     addToast
   } = useGymData();
   const { currentUser } = useAuth();
@@ -75,6 +78,24 @@ export const MemberProfileView = ({
   const [isPayDueOpen, setIsPayDueOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    try {
+      setIsDeletingInvoice(true);
+      await deleteInvoice(invoiceToDelete.id || invoiceToDelete.invoiceNumber);
+      if (selectedInvoice && (selectedInvoice.id === invoiceToDelete.id || selectedInvoice.invoiceNumber === invoiceToDelete.invoiceNumber)) {
+        setSelectedInvoice(null);
+      }
+      setInvoiceToDelete(null);
+    } catch (err) {
+      // toast shown by deleteInvoice
+    } finally {
+      setIsDeletingInvoice(false);
+    }
+  };
 
   if (!isOpen || !member) return null;
 
@@ -209,17 +230,22 @@ export const MemberProfileView = ({
       });
     });
 
-    if (!activeMap['Gym-Cardio'] && (member?.expiryDate || member?.expiry_date)) {
+    // Fallback: ONLY if member has NO invoice plans at all, inspect profile fields
+    const hasAnyPlans = Object.keys(activeMap).length > 0 || upcoming.length > 0 || expired.length > 0;
+    if (!hasAnyPlans && !activeMap['Gym-Cardio'] && (member?.expiryDate || member?.expiry_date)) {
       const exp = (member.expiryDate || member.expiry_date).split('T')[0];
       const start = (member.startDate || member.start_date || member.joinDate || member.join_date || todayStr).split('T')[0];
+      const isUpcoming = start > todayStr;
       const fallbackItem = {
         packageType: 'Gym-Cardio',
         planName: member.planName || member.plan_name || 'Gym Membership',
         startDate: start,
         endDate: exp,
-        status: (exp >= todayStr && !isMemberExpired) ? 'Active' : 'Expired'
+        status: isUpcoming ? 'Upcoming' : ((exp >= todayStr && !isMemberExpired) ? 'Active' : 'Expired')
       };
-      if (exp >= todayStr && !isMemberExpired) {
+      if (isUpcoming) {
+        upcoming.push(fallbackItem);
+      } else if (exp >= todayStr && !isMemberExpired) {
         activeMap['Gym-Cardio'] = fallbackItem;
       } else {
         expired.push(fallbackItem);

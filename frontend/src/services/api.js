@@ -1115,6 +1115,13 @@ export const api = {
       });
       return handleResponse(res);
     },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/invoices/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
     uploadPdf: async (id, formData) => {
       const headers = getHeaders();
       delete headers['Content-Type'];

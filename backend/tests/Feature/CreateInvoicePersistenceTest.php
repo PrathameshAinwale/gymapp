@@ -420,4 +420,98 @@ class CreateInvoicePersistenceTest extends TestCase
         $successResponse->assertSuccessful();
         $successResponse->assertJson(['success' => true]);
     }
+
+    public function test_delete_invoice_removes_revenue_billing_and_syncs_profile(): void
+    {
+        $invoice = Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-TEST-DELETE',
+            'user_id' => $this->member->id,
+            'plan_id' => $this->plan->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 3000,
+            'total_amount' => 5000,
+            'pending_amount' => 2000,
+            'date' => now()->toDateString(),
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
+            'status' => 'Pending',
+        ]);
+
+        RevenueBilling::create([
+            'gym_id' => 1,
+            'title' => 'Gym Membership Fee',
+            'category' => 'Membership Fee',
+            'type' => 'inflow',
+            'reference_no' => 'INV-TEST-DELETE',
+            'user_id' => $this->member->id,
+            'amount' => 3000,
+            'date' => now()->toDateString(),
+            'status' => 'Pending',
+        ]);
+
+        $this->member->memberProfile->update([
+            'dues_amount' => 2000,
+            'expiry_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $res = $this->actingAs($this->owner, 'sanctum')
+            ->deleteJson('/api/v1/invoices/' . $invoice->id);
+
+        $res->assertSuccessful();
+        $res->assertJson(['success' => true]);
+
+        // 1. Invoice must be deleted
+        $this->assertDatabaseMissing('invoices', ['id' => $invoice->id]);
+
+        // 2. Matching RevenueBilling inflow must be deleted
+        $this->assertDatabaseMissing('revenue_and_billings', ['reference_no' => 'INV-TEST-DELETE']);
+
+        // 3. Member profile dues must be updated to 0
+        $this->member->memberProfile->refresh();
+        $this->assertEquals(0, (float)$this->member->memberProfile->dues_amount);
+    }
+
+    public function test_delete_invoice_blocked_when_chained_plan_exists(): void
+    {
+        $today = now()->toDateString();
+        $firstEnd = now()->addDays(30)->toDateString();
+        $chainedStart = now()->addDays(31)->toDateString();
+        $chainedEnd = now()->addDays(60)->toDateString();
+
+        $firstInv = Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-CHAIN-1',
+            'user_id' => $this->member->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 3000,
+            'date' => $today,
+            'start_date' => $today,
+            'end_date' => $firstEnd,
+            'status' => 'Paid',
+        ]);
+
+        $chainedInv = Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-CHAIN-2',
+            'user_id' => $this->member->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 3000,
+            'date' => $chainedStart,
+            'start_date' => $chainedStart,
+            'end_date' => $chainedEnd,
+            'status' => 'Paid',
+        ]);
+
+        // Attempt to delete earlier invoice - must be rejected because chained plan depends on it
+        $res = $this->actingAs($this->owner, 'sanctum')
+            ->deleteJson('/api/v1/invoices/' . $firstInv->id);
+
+        $res->assertStatus(422);
+        $res->assertJson(['success' => false]);
+        $this->assertStringContainsString('subsequent chained plan', $res->json('message'));
+
+        // Earlier invoice still in database
+        $this->assertDatabaseHas('invoices', ['id' => $firstInv->id]);
+    }
 }

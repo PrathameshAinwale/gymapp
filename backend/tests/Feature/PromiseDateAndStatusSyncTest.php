@@ -175,7 +175,7 @@ class PromiseDateAndStatusSyncTest extends TestCase
             'plan_amount' => 1000,
             'paid_amount' => 500,
             'dues_amount' => 500,
-            'due_date' => '2026-11-16',
+            'due_date' => now()->addDays(35)->toDateString(),
         ]);
         $resAfter->assertStatus(422);
         $resAfter->assertJsonValidationErrors(['due_date']);
@@ -191,7 +191,7 @@ class PromiseDateAndStatusSyncTest extends TestCase
             'plan_amount' => 1000,
             'paid_amount' => 500,
             'dues_amount' => 500,
-            'due_date' => '2026-10-14',
+            'due_date' => now()->subDays(2)->toDateString(),
         ]);
         $resBefore->assertStatus(422);
         $resBefore->assertJsonValidationErrors(['due_date']);

@@ -220,6 +220,22 @@ class MemberController extends Controller
         $members = $query->latest()->get()->map(function ($user) {
             $profile = $user->memberProfile;
             $breakdown = \App\Services\PlanChainingService::getMemberPlansBreakdown($user);
+            $displayPlanName = null;
+            $latestInv = $user->invoices?->whereNotIn('status', ['Cancelled', 'Refunded'])->sortByDesc('id')->first();
+            if ($latestInv && !empty($latestInv->items) && count($latestInv->items) > 1) {
+                $displayPlanName = collect($latestInv->items)->map(function ($it) {
+                    $pType = $it['package_type'] ?? ($it['packageType'] ?? '');
+                    $pName = $it['name'] ?? ($it['planName'] ?? '');
+                    if ($pType && $pName && strcasecmp($pType, $pName) !== 0) {
+                        return "{$pType} ({$pName})";
+                    }
+                    return $pName ?: $pType;
+                })->implode(' + ');
+            }
+            if (!$displayPlanName) {
+                $displayPlanName = $profile?->plan?->name ?? 'Unassigned';
+            }
+
             return [
                 'id' => 'mem-' . $user->id,
                 'userId' => $user->id,
@@ -228,7 +244,7 @@ class MemberController extends Controller
                 'phone' => $user->phone,
                 'avatar' => $user->avatar,
                 'planId' => $profile?->plan ? 'plan-' . $profile->plan->id : null,
-                'planName' => $profile?->plan?->name ?? 'Unassigned',
+                'planName' => $displayPlanName,
                 'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status, $profile->join_date) : 'Active',
@@ -278,6 +294,22 @@ class MemberController extends Controller
         $profile = $user->memberProfile;
         $plansBreakdown = \App\Services\PlanChainingService::getMemberPlansBreakdown($user);
 
+        $displayPlanName = null;
+        $latestInv = $user->invoices?->whereNotIn('status', ['Cancelled', 'Refunded'])->sortByDesc('id')->first();
+        if ($latestInv && !empty($latestInv->items) && count($latestInv->items) > 1) {
+            $displayPlanName = collect($latestInv->items)->map(function ($it) {
+                $pType = $it['package_type'] ?? ($it['packageType'] ?? '');
+                $pName = $it['name'] ?? ($it['planName'] ?? '');
+                if ($pType && $pName && strcasecmp($pType, $pName) !== 0) {
+                    return "{$pType} ({$pName})";
+                }
+                return $pName ?: $pType;
+            })->implode(' + ');
+        }
+        if (!$displayPlanName) {
+            $displayPlanName = $profile?->plan?->name ?? 'Unassigned';
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -288,7 +320,7 @@ class MemberController extends Controller
                 'phone' => $user->phone,
                 'avatar' => $user->avatar,
                 'planId' => $profile?->plan ? 'plan-' . $profile->plan->id : null,
-                'planName' => $profile?->plan?->name ?? 'Unassigned',
+                'planName' => $displayPlanName,
                 'planDurationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'durationMonths' => (int)($profile?->plan?->duration_months ?? 0),
                 'status' => $profile ? self::computeMemberStatus($profile->expiry_date, $profile->status, $profile->join_date) : 'Active',
@@ -631,8 +663,12 @@ class MemberController extends Controller
             }
         }
 
-        // If packages array is provided, ensure expiryDate reflects the furthest end_date
+        // If packages array is provided, ensure expiryDate reflects furthest end_date and joinDate reflects earliest start_date
         if (is_array($packagesList) && count($packagesList) > 0) {
+            $minPkgStart = collect($packagesList)->pluck('start_date')->filter()->min();
+            if ($minPkgStart) {
+                $joinDate = \Illuminate\Support\Carbon::parse($minPkgStart)->toDateString();
+            }
             $maxPkgEnd = collect($packagesList)->pluck('end_date')->filter()->max();
             if ($maxPkgEnd && (!$expiryDate || $maxPkgEnd > $expiryDate)) {
                 $expiryDate = \Illuminate\Support\Carbon::parse($maxPkgEnd)->toDateString();
@@ -686,7 +722,7 @@ class MemberController extends Controller
         $emailVal = !empty($request->email) ? trim(strtolower($request->email)) : null;
 
         // 3. Perform all database writes atomically inside a transaction
-        [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice] = DB::transaction(function () use (
+        [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice, $resolvedPlanTitle] = DB::transaction(function () use (
             $numTargetId, $request, $emailVal, $plainPassword, $gymId, $plan,
             $rawKycDocNumber, $rawKycDocType, $planId, $trainerId, $rawExecutive,
             $rawTrainingType, $computedStatus, $joinDate, $expiryDate, $duesAmount,
@@ -880,7 +916,14 @@ class MemberController extends Controller
                 }
                 $invStatus = $invDues > 0 ? 'Pending' : 'Paid';
 
-                $invoiceTitle = implode(' + ', array_column($items, 'name')) ?: ($plan?->name ?? 'New Member Registration');
+                $invoiceTitle = collect($items)->map(function ($it) {
+                    $pType = $it['package_type'] ?? 'Gym-Cardio';
+                    $pName = $it['name'] ?? '';
+                    if ($pName && strcasecmp($pName, $pType) !== 0) {
+                        return "{$pType} ({$pName})";
+                    }
+                    return $pName ?: $pType;
+                })->implode(' + ') ?: ($plan?->name ?? 'New Member Registration');
 
                 $invPayload = [
                     'gym_id' => $gymId,
@@ -1005,7 +1048,7 @@ class MemberController extends Controller
                 Enquiry::where('id', $cleanEnqId)->delete();
             }
 
-            return [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice];
+            return [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice, $invoiceTitle ?? null];
         });
 
         // 4. Automatically register new member into eSSL Biometric Terminal over LAN
@@ -1034,7 +1077,7 @@ class MemberController extends Controller
                 'phone' => $user->phone,
                 'biometricUserId' => $profile->biometric_user_id,
                 'planId' => $plan ? 'plan-' . $plan->id : null,
-                'planName' => $plan?->name ?? 'Unassigned',
+                'planName' => $resolvedPlanTitle ?: ($plan?->name ?? 'Unassigned'),
                 'status' => $profile->status,
                 'joinDate' => $profile->join_date ? \Illuminate\Support\Carbon::parse($profile->join_date)->toDateString() : null,
                 'expiryDate' => $profile->expiry_date ? \Illuminate\Support\Carbon::parse($profile->expiry_date)->toDateString() : null,

@@ -260,6 +260,7 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
         Route::post('/invoices', [InvoiceController::class, 'store']);
         Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
         Route::patch('/invoices/{id}', [InvoiceController::class, 'update']);
+        Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
         Route::post('/invoices/{id}/upload-pdf', [InvoiceController::class, 'uploadPdf']);
         Route::get('/invoices/{id}/download-pdf', [InvoiceController::class, 'downloadPdf']);
 

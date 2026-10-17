@@ -95,6 +95,16 @@ const StaffAvatar = ({ src, alt, className = "w-8 h-8 rounded-full", iconClassNa
   );
 };
 
+export const ENQUIRY_FITNESS_GOALS = [
+  'Weight Loss & Fitness',
+  'Weight Loss & Fat Reduction',
+  'Muscle Building & Hypertrophy',
+  'Strength & Powerlifting',
+  'Athletic Conditioning',
+  'General Health & Wellness',
+  'Endurance & Stamina'
+];
+
 export const OwnerDashboard = ({
   setActiveTab,
   onOpenAddMember,
@@ -231,6 +241,19 @@ export const OwnerDashboard = ({
     ? `${currentUser.name} (${currentUser.role === 'owner' ? 'Owner' : 'Staff'})`
     : 'Pooja Sharma (Front Desk)';
 
+  const groupedPlans = useMemo(() => {
+    const groups = {};
+    (plans || []).forEach((p) => {
+      const rawType = p.package_type || p.packageType || p.category || 'Gym-Cardio';
+      const type = rawType.trim();
+      if (!groups[type]) {
+        groups[type] = [];
+      }
+      groups[type].push(p);
+    });
+    return groups;
+  }, [plans]);
+
   const [isAddEnquiryOpen, setIsAddEnquiryOpen] = useState(false);
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
   const [enquirySubmitError, setEnquirySubmitError] = useState(null);
@@ -245,6 +268,20 @@ export const OwnerDashboard = ({
     staffName: defaultStaffName,
     notes: ''
   });
+
+  const selectedInterestedPlanValue = useMemo(() => {
+    const current = enquiryFormData.interestedPlan || '';
+    if (!current) return '';
+    for (const [pkgType, group] of Object.entries(groupedPlans)) {
+      for (const p of group) {
+        const fullVal = `${pkgType} - ${p.name}`;
+        if (current === fullVal || current === p.name) {
+          return fullVal;
+        }
+      }
+    }
+    return current;
+  }, [enquiryFormData.interestedPlan, groupedPlans]);
 
   const getTodayFormatted = () => {
     const d = new Date();
@@ -2202,32 +2239,48 @@ export const OwnerDashboard = ({
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Interested Plan</label>
               <select
-                value={enquiryFormData.interestedPlan || ''}
+                value={selectedInterestedPlanValue}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, interestedPlan: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 <option value="">-- General / Not Decided --</option>
-                {plans && plans.length > 0 ? (
-                  plans.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name} (₹{p.price})
-                    </option>
+                {Object.keys(groupedPlans).length > 0 ? (
+                  Object.entries(groupedPlans).map(([packageType, groupPlans]) => (
+                    <optgroup key={packageType} label={packageType}>
+                      {groupPlans.map((p) => {
+                        const optVal = `${packageType} - ${p.name}`;
+                        return (
+                          <option key={p.id} value={optVal}>
+                            {p.name} (₹{Number(p.price || 0).toLocaleString('en-IN')})
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   ))
                 ) : (
                   <option value="" disabled>No membership plans added yet</option>
+                )}
+                {selectedInterestedPlanValue && !(plans || []).some(p => p.name === selectedInterestedPlanValue || `${p.package_type || p.packageType || 'Gym-Cardio'} - ${p.name}` === selectedInterestedPlanValue) && (
+                  <option value={selectedInterestedPlanValue}>{selectedInterestedPlanValue}</option>
                 )}
               </select>
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
-              <input
-                type="text"
-                value={enquiryFormData.goal}
+              <select
+                value={enquiryFormData.goal || ''}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, goal: e.target.value })}
-                placeholder="e.g. Weight Loss & Muscle Gain"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
-              />
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="">-- Select Fitness Goal --</option>
+                {ENQUIRY_FITNESS_GOALS.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+                {enquiryFormData.goal && !ENQUIRY_FITNESS_GOALS.includes(enquiryFormData.goal) && (
+                  <option value={enquiryFormData.goal}>{enquiryFormData.goal}</option>
+                )}
+              </select>
             </div>
           </div>
 

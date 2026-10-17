@@ -444,9 +444,10 @@ class PlanChainingService
 
     /**
      * Synchronize member_profiles.expiry_date with the furthest end_date across the member's non-cancelled invoices.
-     * Preserves existing profile expiry date for legacy invoices with null dates and prevents moving backwards.
+     * Preserves existing profile expiry date for legacy invoices with null dates and prevents moving backwards,
+     * unless $allowRollback is true (e.g. when an invoice is deleted or cancelled).
      */
-    public static function syncMemberProfileExpiry(int $userId): ?string
+    public static function syncMemberProfileExpiry(int $userId, bool $allowRollback = false): ?string
     {
         $profile = MemberProfile::where('user_id', $userId)->first();
         if (!$profile) {
@@ -491,6 +492,18 @@ class PlanChainingService
                 ? $profile->expiry_date->format('Y-m-d')
                 : substr((string)$profile->expiry_date, 0, 10))
             : null;
+
+        if ($allowRollback) {
+            $finalExpiry = $furthestInvoiceEndDate;
+            $newStatus = $finalExpiry
+                ? \App\Http\Controllers\Api\MemberController::computeMemberStatus($finalExpiry, $profile->status, $profile->join_date)
+                : ($profile->status === 'Active' ? 'Expired' : $profile->status);
+            $profile->update([
+                'expiry_date' => $finalExpiry,
+                'status' => $newStatus,
+            ]);
+            return $finalExpiry;
+        }
 
         $finalExpiry = $furthestInvoiceEndDate ?: $currentProfileExpiry;
 
@@ -694,8 +707,9 @@ class PlanChainingService
             }
         }
 
-        // Fallback: If no active Gym-Cardio plan found in invoices, inspect member_profiles
-        if (!isset($activeGrouped['Gym-Cardio']) && $user->memberProfile) {
+        // Fallback: ONLY if member has NO invoice plans at all, inspect member_profiles
+        $hasInvoicePlans = count($activePlans) > 0 || count($upcomingPlans) > 0 || count($expiredPlans) > 0;
+        if (!$hasInvoicePlans && !isset($activeGrouped['Gym-Cardio']) && $user->memberProfile) {
             $profile = $user->memberProfile;
             $profExp = $profile->expiry_date
                 ? ($profile->expiry_date instanceof \DateTimeInterface ? $profile->expiry_date->format('Y-m-d') : substr((string)$profile->expiry_date, 0, 10))
@@ -705,16 +719,20 @@ class PlanChainingService
                 : null;
 
             if ($profExp) {
+                $fallbackStart = $profJoin ?: $todayStr;
                 $fallbackItem = [
                     'packageType' => 'Gym-Cardio',
                     'planName' => $profile->plan?->name ?? 'Gym Membership',
-                    'startDate' => $profJoin ?: $todayStr,
+                    'startDate' => $fallbackStart,
                     'endDate' => $profExp,
                     'invoiceNumber' => null,
                     'amount' => (float)($profile->plan?->price ?? 0),
                 ];
 
-                if ($profExp >= $todayStr && !$isMemberExpired && $completedTransfers->isEmpty()) {
+                if ($fallbackStart > $todayStr) {
+                    $fallbackItem['status'] = 'Upcoming';
+                    $upcomingPlans[] = $fallbackItem;
+                } elseif ($profExp >= $todayStr && !$isMemberExpired && $completedTransfers->isEmpty()) {
                     $fallbackItem['status'] = 'Active';
                     $activeGrouped['Gym-Cardio'] = $fallbackItem;
                 } else {

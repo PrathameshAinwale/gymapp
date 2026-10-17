@@ -4,6 +4,7 @@ import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { PayDueModal } from './PayDueModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
@@ -40,7 +41,8 @@ import {
   ShieldCheck,
   RotateCw,
   Filter,
-  Edit2
+  Edit2,
+  Trash2
 } from 'lucide-react';
 
 export const InvoicesPage = ({
@@ -56,6 +58,7 @@ export const InvoicesPage = ({
     fetchInvoices,
     fetchMembers,
     fetchPlans,
+    deleteInvoice,
     addToast
   } = useGymData();
   const { currentUser } = useAuth();
@@ -113,6 +116,24 @@ export const InvoicesPage = ({
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [payingDueMember, setPayingDueMember] = useState(null);
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    try {
+      setIsDeletingInvoice(true);
+      await deleteInvoice(invoiceToDelete.id || invoiceToDelete.invoiceNumber);
+      if (selectedInvoice && (selectedInvoice.id === invoiceToDelete.id || selectedInvoice.invoiceNumber === invoiceToDelete.invoiceNumber)) {
+        setSelectedInvoice(null);
+      }
+      setInvoiceToDelete(null);
+    } catch (err) {
+      // Toast notification already shown by deleteInvoice
+    } finally {
+      setIsDeletingInvoice(false);
+    }
+  };
   const [copiedId, setCopiedId] = useState(null);
 
   // Active filters count
@@ -1819,6 +1840,20 @@ export const InvoicesPage = ({
                                           <span>Pay Due</span>
                                         </button>
                                       )}
+                                    
+
+                                        {/* 5. DELETE INVOICE BUTTON */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setInvoiceToDelete(inv);
+                                          }}
+                                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                          title="Delete Invoice"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                        </button>
                                     </div>
                                   </td>
                                 </tr>
@@ -1934,6 +1969,18 @@ export const InvoicesPage = ({
                   }
                   return null;
                 })()}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInvoiceToDelete(selectedInvoice);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
+                  title="Delete this invoice"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete</span>
+                </button>
 
                 {pdfPreviewUrl && (
                   <button
@@ -2287,6 +2334,20 @@ export const InvoicesPage = ({
             setSelectedInvoice((prev) => ({ ...prev, ...updated }));
           }
         }}
+      />
+
+      {/* CONFIRM INVOICE DELETION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(invoiceToDelete)}
+        onClose={() => setInvoiceToDelete(null)}
+        onConfirm={handleConfirmDeleteInvoice}
+        isDeleting={isDeletingInvoice}
+        title="Delete Invoice"
+        itemType="invoice"
+        recordName={invoiceToDelete?.id ? `#${invoiceToDelete.id}` : 'this invoice'}
+        message={`Are you sure you want to permanently delete invoice #${invoiceToDelete?.id || invoiceToDelete?.invoiceNumber || ''}?`}
+        description="This will permanently delete the invoice, remove matching revenue billing inflow records, and recalculate the member's profile dues and facility expiry date."
+        confirmText="Yes, Delete Invoice"
       />
 
     </div>

@@ -679,15 +679,24 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   // Pre-calculate rows and dynamic package card height
   const pkgColWidth = contentWidth - 45;
   const packageRows = packagesList.map((pkg) => {
-    const pkgName = pkg.name || pkg.planName || pkg.plan_name || pkg.packageType || 'Fitness Package';
+    // Package Type comes at the top, Plan Name comes at the bottom
+    const pkgType = pkg.packageType || pkg.package_type || 'Membership';
+    const pkgName = pkg.name || pkg.planName || pkg.plan_name || '';
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    const titleLines = wrapAndBreakText(doc, pkgName, pkgColWidth);
+    const titleLines = wrapAndBreakText(doc, pkgType, pkgColWidth);
 
     // Shared start/end date calculation across all package types
     const dateText = formatPackageDateRange(pkg, invoice, member);
 
-    const shortDesc = pkg.description || (pkg.packageType && pkg.packageType !== 'Membership' && !pkgName.toLowerCase().includes(pkg.packageType.toLowerCase()) ? pkg.packageType : '');
+    // Package Name comes at the bottom in place of package type
+    let shortDesc = '';
+    if (pkgName && pkgName.toLowerCase() !== pkgType.toLowerCase()) {
+      shortDesc = `Plan: ${pkgName}`;
+    } else if (pkg.description) {
+      shortDesc = pkg.description;
+    }
 
     const rowHeight = Math.max(titleLines.length * 4.5 + (dateText ? 4 : 0) + (shortDesc ? 3.5 : 0) + 4, 12);
     const priceVal = Number(pkg.price ?? (packagesList.length === 1 ? totalAmount : 0));
@@ -725,7 +734,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   let pkgY = curY + tableHeaderH + 1.5;
 
   packageRows.forEach((row, idx) => {
-    // Package Name
+    // Package Type at the top
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
@@ -733,7 +742,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
     let subY = pkgY + 4 + (row.titleLines.length - 1) * 4.5;
 
-    // Package Dates: Start Date and End Date directly below the package name in small, muted text
+    // Package Dates: Start Date and End Date directly below
     if (row.dateText) {
       subY += 4;
       doc.setFont('helvetica', 'normal');
@@ -742,7 +751,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
       doc.text(row.dateText, margin + 4, subY);
     }
 
-    // Optional short description (1 line in small text, no feature clutter)
+    // Package Name at the bottom
     if (row.shortDesc) {
       subY += 3.5;
       doc.setFont('helvetica', 'italic');

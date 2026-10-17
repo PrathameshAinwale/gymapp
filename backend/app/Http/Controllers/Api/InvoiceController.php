@@ -972,4 +972,102 @@ class InvoiceController extends Controller
 
         return response($html)->header('Content-Type', 'text/html');
     }
+
+    /**
+     * Delete an invoice, remove matching RevenueBilling records, and synchronize member profile dues and expiry.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $invoice = Invoice::where('invoice_number', $id)->first();
+        if (!$invoice && is_numeric($id)) {
+            $invoice = Invoice::find($id);
+        }
+        if (!$invoice) {
+            $cleanId = (int)preg_replace('/[^0-9]/', '', (string)$id);
+            if ($cleanId > 0) {
+                $invoice = Invoice::find($cleanId);
+            }
+        }
+
+        if (!$invoice) {
+            return response()->json([
+                'success' => false,
+                'message' => "Invoice '{$id}' not found.",
+            ], 404);
+        }
+
+        // Safety Check: Check if later chained invoices depend on this invoice
+        $cancelCheck = \App\Services\PlanChainingService::checkCanCancelOrDeleteInvoice($invoice);
+        if (!$cancelCheck['can_cancel']) {
+            return response()->json([
+                'success' => false,
+                'message' => $cancelCheck['message'],
+            ], 422);
+        }
+
+        $userId = $invoice->user_id;
+        $invoiceNumber = $invoice->invoice_number;
+
+        DB::transaction(function () use ($invoice, $userId, $invoiceNumber) {
+            // 1. Delete matching RevenueBilling inflow/outflow records
+            if ($invoiceNumber) {
+                \App\Models\RevenueBilling::where('reference_no', $invoiceNumber)->delete();
+            }
+
+            // 2. Remove stored PDF if exists
+            if (!empty($invoice->pdf_path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($invoice->pdf_path)) {
+                try {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($invoice->pdf_path);
+                } catch (\Throwable $e) {}
+            }
+
+            // 3. Delete the invoice
+            $invoice->delete();
+
+            // 4. Re-sync member profile dues and expiry if user exists
+            if ($userId) {
+                $user = User::find($userId);
+                if ($user && $user->memberProfile) {
+                    $remainingDues = (float)Invoice::where('user_id', $userId)
+                        ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
+                        ->sum('pending_amount');
+
+                    $nextDueDate = Invoice::where('user_id', $userId)
+                        ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
+                        ->where('pending_amount', '>', 0)
+                        ->whereNotNull('due_date')
+                        ->orderBy('due_date', 'asc')
+                        ->value('due_date');
+
+                    $latestRemainingInvoice = Invoice::where('user_id', $userId)
+                        ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
+                        ->orderByDesc('end_date')
+                        ->first();
+
+                    $profileUpdate = [
+                        'dues_amount' => $remainingDues,
+                        'due_date' => $remainingDues > 0 ? $nextDueDate : null,
+                    ];
+                    if ($latestRemainingInvoice && $latestRemainingInvoice->plan_id) {
+                        $profileUpdate['plan_id'] = $latestRemainingInvoice->plan_id;
+                    }
+                    $user->memberProfile->update($profileUpdate);
+
+                    // Synchronize master facility access expiry date with rollback permitted
+                    \App\Services\PlanChainingService::syncMemberProfileExpiry($userId, true);
+                }
+            }
+        });
+
+        // Invalidate backend caches
+        try {
+            \Illuminate\Support\Facades\Cache::flush();
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => "Invoice '{$invoiceNumber}' deleted successfully.",
+        ]);
+    }
 }
+

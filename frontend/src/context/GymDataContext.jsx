@@ -2961,6 +2961,35 @@ export const GymDataProvider = ({ children }) => {
     }
   };
 
+  // Delete Invoice Handler (Permanently deletes invoice and recalculates dues/profile)
+  const deleteInvoice = async (invoiceId) => {
+    let backup;
+    const cleanId = String(invoiceId || '').trim();
+    setInvoices((prev) => {
+      backup = prev;
+      return prev.filter((inv) => inv.id !== cleanId && inv.invoiceNumber !== cleanId && String(inv.numericId) !== cleanId);
+    });
+
+    try {
+      await api.invoices.delete(cleanId);
+      await Promise.allSettled([
+        fetchInvoices?.(),
+        fetchExpenses?.(),
+        fetchDashboardStats?.(),
+        fetchMembers?.()
+      ]);
+      addToast('Invoice deleted successfully', 'success');
+      return { success: true };
+    } catch (err) {
+      console.error('Invoice backend delete error:', err);
+      if (backup) {
+        setInvoices(backup);
+      }
+      addToast(`Failed to delete invoice: ${err.message}`, 'error');
+      throw err;
+    }
+  };
+
   // Expenses Handlers (Cash Outflow)
   const addExpense = async (expenseData) => {
     const tempId = `EXP-${Date.now()}`;
@@ -4219,6 +4248,7 @@ export const GymDataProvider = ({ children }) => {
     fetchEquipment,
     fetchInvoices,
     updateInvoice,
+    deleteInvoice,
     fetchExpenses,
     fetchProducts,
     fetchCommissions,
@@ -4354,7 +4384,7 @@ export const GymDataProvider = ({ children }) => {
     checkInMemberByQR, punchOutMember, toggleBookClass, toggleExerciseDone, toggleMealDone,
     incrementWater, decrementWater, logNewBodyMetrics,
     fetchAllFromBackend, fetchMembers, fetchTrainers, fetchPlans, fetchClasses, fetchAttendance,
-    fetchBiometricDevices, simulateBiometricPunch, fetchEquipment, fetchInvoices, updateInvoice,
+    fetchBiometricDevices, simulateBiometricPunch, fetchEquipment, fetchInvoices, updateInvoice, deleteInvoice,
     fetchExpenses, fetchProducts, fetchCommissions, fetchFreezes, fetchConsentForms, fetchPayroll,
     fetchPtSessions, fetchAdvanceRequests, fetchTrainerReviews, fetchGymInfo,
     branches, branchesData, fetchBranches, switchBranch, createBranch, fetchDashboardStats,

@@ -59,7 +59,14 @@ export const mapInvoiceRecord = (raw) => {
     memberPhone: raw.memberPhone || raw.member_phone || raw.phone || '',
     memberEmail: raw.memberEmail || raw.member_email || raw.email || '',
     planId: raw.planId || (raw.plan_id ? `plan-${raw.plan_id}` : null),
-    planName: raw.planName || raw.plan_name || (items.length > 0 ? items.map((i) => i.name).join(' + ') : 'Membership Plan'),
+    planName: raw.planName || raw.plan_name || (items.length > 0 ? items.map((i) => {
+      const type = i.packageType || i.package_type;
+      const name = i.name || i.planName;
+      if (type && name && type.toLowerCase() !== name.toLowerCase()) {
+        return `${type} (${name})`;
+      }
+      return name || type || 'Plan';
+    }).join(' + ') : 'Membership Plan'),
     packageType: raw.packageType || raw.package_type || (items[0]?.packageType || 'Gym-Cardio'),
     items,
     packages: items,

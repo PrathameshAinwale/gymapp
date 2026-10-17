@@ -54,6 +54,16 @@ import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 
+export const ENQUIRY_FITNESS_GOALS = [
+  'Weight Loss & Fitness',
+  'Weight Loss & Fat Reduction',
+  'Muscle Building & Hypertrophy',
+  'Strength & Powerlifting',
+  'Athletic Conditioning',
+  'General Health & Wellness',
+  'Endurance & Stamina'
+];
+
 export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const {
     enquiries,
@@ -199,6 +209,20 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     }
     return 'Warm';
   };
+
+  const groupedPlans = useMemo(() => {
+    const groups = {};
+    (plans || []).forEach((p) => {
+      const rawType = p.package_type || p.packageType || p.category || 'Gym-Cardio';
+      const type = rawType.trim();
+      if (!groups[type]) {
+        groups[type] = [];
+      }
+      groups[type].push(p);
+    });
+    return groups;
+  }, [plans]);
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -210,6 +234,34 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
     staffName: defaultStaffName,
     notes: ''
   });
+
+  const selectedCreateInterestedPlan = useMemo(() => {
+    const current = formData.interestedPlan || '';
+    if (!current) return '';
+    for (const [pkgType, group] of Object.entries(groupedPlans)) {
+      for (const p of group) {
+        const fullVal = `${pkgType} - ${p.name}`;
+        if (current === fullVal || current === p.name) {
+          return fullVal;
+        }
+      }
+    }
+    return current;
+  }, [formData.interestedPlan, groupedPlans]);
+
+  const selectedEditInterestedPlan = useMemo(() => {
+    const current = editingEnquiry?.interestedPlan || '';
+    if (!current) return '';
+    for (const [pkgType, group] of Object.entries(groupedPlans)) {
+      for (const p of group) {
+        const fullVal = `${pkgType} - ${p.name}`;
+        if (current === fullVal || current === p.name) {
+          return fullVal;
+        }
+      }
+    }
+    return current;
+  }, [editingEnquiry?.interestedPlan, groupedPlans]);
 
   // KPI Calculations based on unified statuses
   const totalCount = enquiries.length;
@@ -496,10 +548,15 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   };
 
   const prepareLeadForMemberConversion = (enquiry) => {
-    const matchedPlan = (plans || []).find((p) =>
-      p.name?.toLowerCase().trim() === (enquiry.interestedPlan || '').toLowerCase().trim() ||
-      p.id === enquiry.interestedPlan
-    ) || plans?.[0];
+    const matchedPlan = (plans || []).find((p) => {
+      const pName = p.name?.toLowerCase().trim();
+      const pType = (p.package_type || p.packageType || p.category || '').toLowerCase().trim();
+      const interested = (enquiry.interestedPlan || '').toLowerCase().trim();
+      return pName === interested ||
+             p.id === enquiry.interestedPlan ||
+             (pType && interested === `${pType} - ${pName}`) ||
+             (pName && interested.includes(pName));
+    }) || plans?.[0];
 
     const cleanNotes = (enquiry.notes || '').replace(/^\[[0-9]{2,4}[-/][0-9]{2}[-/][0-9]{2,4}\]\s*/, '').trim();
 
@@ -1166,32 +1223,48 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
             <div>
               <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
               <select
-                value={formData.interestedPlan || ''}
+                value={selectedCreateInterestedPlan}
                 onChange={(e) => setFormData({ ...formData, interestedPlan: e.target.value })}
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option value="">-- General / Not Decided --</option>
-                {plans && plans.length > 0 ? (
-                  plans.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name} (₹{p.price})
-                    </option>
+                {Object.keys(groupedPlans).length > 0 ? (
+                  Object.entries(groupedPlans).map(([packageType, groupPlans]) => (
+                    <optgroup key={packageType} label={packageType}>
+                      {groupPlans.map((p) => {
+                        const optVal = `${packageType} - ${p.name}`;
+                        return (
+                          <option key={p.id} value={optVal}>
+                            {p.name} (₹{Number(p.price || 0).toLocaleString('en-IN')})
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   ))
                 ) : (
                   <option value="" disabled>No membership plans added yet</option>
+                )}
+                {selectedCreateInterestedPlan && !(plans || []).some(p => p.name === selectedCreateInterestedPlan || `${p.package_type || p.packageType || 'Gym-Cardio'} - ${p.name}` === selectedCreateInterestedPlan) && (
+                  <option value={selectedCreateInterestedPlan}>{selectedCreateInterestedPlan}</option>
                 )}
               </select>
             </div>
 
             <div>
               <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Fitness Goal</label>
-              <input
-                type="text"
-                value={formData.goal}
+              <select
+                value={formData.goal || ''}
                 onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                placeholder="e.g. Weight Loss & Muscle Gain"
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                <option value="">-- Select Fitness Goal --</option>
+                {ENQUIRY_FITNESS_GOALS.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+                {formData.goal && !ENQUIRY_FITNESS_GOALS.includes(formData.goal) && (
+                  <option value={formData.goal}>{formData.goal}</option>
+                )}
+              </select>
             </div>
           </div>
 
@@ -1476,32 +1549,48 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
                 <select
-                  value={editingEnquiry.interestedPlan || ''}
+                  value={selectedEditInterestedPlan}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, interestedPlan: e.target.value })}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="">-- General / Not Decided --</option>
-                  {plans && plans.length > 0 ? (
-                    plans.map((p) => (
-                      <option key={p.id} value={p.name}>
-                        {p.name} (₹{p.price})
-                      </option>
+                  {Object.keys(groupedPlans).length > 0 ? (
+                    Object.entries(groupedPlans).map(([packageType, groupPlans]) => (
+                      <optgroup key={packageType} label={packageType}>
+                        {groupPlans.map((p) => {
+                          const optVal = `${packageType} - ${p.name}`;
+                          return (
+                            <option key={p.id} value={optVal}>
+                              {p.name} (₹{Number(p.price || 0).toLocaleString('en-IN')})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
                     ))
                   ) : (
                     <option value="" disabled>No membership plans added yet</option>
+                  )}
+                  {selectedEditInterestedPlan && !(plans || []).some(p => p.name === selectedEditInterestedPlan || `${p.package_type || p.packageType || 'Gym-Cardio'} - ${p.name}` === selectedEditInterestedPlan) && (
+                    <option value={selectedEditInterestedPlan}>{selectedEditInterestedPlan}</option>
                   )}
                 </select>
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Fitness Goal</label>
-                <input
-                  type="text"
-                  value={editingEnquiry.goal}
+                <select
+                  value={editingEnquiry.goal || ''}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, goal: e.target.value })}
-                  placeholder="e.g. Weight Loss & Muscle Gain"
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                />
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="">-- Select Fitness Goal --</option>
+                  {ENQUIRY_FITNESS_GOALS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                  {editingEnquiry.goal && !ENQUIRY_FITNESS_GOALS.includes(editingEnquiry.goal) && (
+                    <option value={editingEnquiry.goal}>{editingEnquiry.goal}</option>
+                  )}
+                </select>
               </div>
             </div>
 
