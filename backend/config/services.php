@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'essl' => [
+        'enabled'     => env('ESSL_SYNC_ENABLED', false),
+        'script_path' => env('ESSL_SCRIPT_PATH', base_path('device-sync-service/device_user_sync.py')),
+        'python_bin'  => env('ESSL_PYTHON_BIN', 'python'),
+    ],
+
 ];

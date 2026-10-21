@@ -88,25 +88,12 @@ Route::match(['get', 'post'], '/setup-database', function (Request $request) {
         return response($content, 200, ['Content-Type' => 'text/plain']);
     }
 
-    // Auto-fix DB_HOST=127.0.0.1 to localhost in existing .env (Linux shared hosts block 127.0.0.1 TCP socket)
-    if (file_exists(base_path('.env'))) {
-        $env = @file_get_contents(base_path('.env'));
-        if ($env && (str_contains($env, 'DB_HOST=127.0.0.1') || $request->has('fix_host'))) {
-            $targetHost = $request->query('db_host', 'localhost');
-            $env = preg_replace('/^DB_HOST=.*$/m', "DB_HOST={$targetHost}", $env);
-            @file_put_contents(base_path('.env'), $env);
-        }
-    }
-
     try {
         \Illuminate\Support\Facades\Artisan::call('config:clear');
     } catch (\Throwable $t) {}
 
     try {
-        $dbHost = env('DB_HOST', config('database.connections.mysql.host', 'localhost'));
-        if ($dbHost === '127.0.0.1' && PHP_OS_FAMILY !== 'Windows') {
-            $dbHost = 'localhost';
-        }
+        $dbHost = env('DB_HOST', config('database.connections.mysql.host', '127.0.0.1'));
         $dbName = env('DB_DATABASE', config('database.connections.mysql.database', 'gym_app_db'));
         $dbUser = env('DB_USERNAME', config('database.connections.mysql.username', 'root'));
         $dbPass = env('DB_PASSWORD', config('database.connections.mysql.password', ''));

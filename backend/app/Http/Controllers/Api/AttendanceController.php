@@ -14,8 +14,10 @@ class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        // Auto check-out members who have exceeded 2 hours
-        $this->autoCheckOutOverdueMembers();
+        // Auto check-out members who have exceeded 2 hours (throttled to at most once every 5 minutes to avoid polling DB exhaustion)
+        if (\Illuminate\Support\Facades\Cache::add('attendance_auto_checkout_lock', true, now()->addMinutes(5))) {
+            $this->autoCheckOutOverdueMembers();
+        }
 
         $gymId = $this->resolveGymId($request);
 

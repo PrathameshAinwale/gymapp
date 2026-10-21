@@ -11,15 +11,36 @@ use Illuminate\Support\Facades\Log;
 class EsslDeviceSyncService
 {
     /**
+     * Prevents repeated warning flood in logs when execution environment is incapable.
+     */
+    protected static bool $warnedUnavailable = false;
+
+    /**
+     * Check if CLI process execution (shell_exec) is enabled and available in this environment.
+     */
+    public function canExecuteCommands(): bool
+    {
+        if (!function_exists('shell_exec')) {
+            return false;
+        }
+
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+        return !in_array('shell_exec', $disabled, true);
+    }
+
+    /**
      * Resolve candidate filesystem paths to device_user_sync.py
      */
     public function resolveScriptPath(): ?string
     {
+        $configuredPath = config('services.essl.script_path');
+        if ($configuredPath && file_exists($configuredPath)) {
+            return $configuredPath;
+        }
+
         $candidatePaths = [
-            base_path('../device-sync-service/device_user_sync.py'),
             base_path('device-sync-service/device_user_sync.py'),
-            'C:\\Users\\ARCH\\Desktop\\gymapp\\device-sync-service\\device_user_sync.py',
-            'C:\\Users\\ARCH\\Desktop\\essl\\device-sync-service\\device_user_sync.py',
+            base_path('../device-sync-service/device_user_sync.py'),
         ];
 
         foreach ($candidatePaths as $path) {
@@ -29,6 +50,35 @@ class EsslDeviceSyncService
         }
 
         return null;
+    }
+
+    /**
+     * Check whether direct server-side biometric sync can execute on this machine.
+     */
+    public function isSyncAvailable(): bool
+    {
+        if (!config('services.essl.enabled', false)) {
+            return false;
+        }
+
+        if (!$this->canExecuteCommands()) {
+            if (!self::$warnedUnavailable) {
+                Log::warning("EsslDeviceSyncService: Process execution (shell_exec) is disabled in php.ini on this server. Direct biometric LAN sync skipped.");
+                self::$warnedUnavailable = true;
+            }
+            return false;
+        }
+
+        $scriptPath = $this->resolveScriptPath();
+        if (!$scriptPath) {
+            if (!self::$warnedUnavailable) {
+                Log::warning("EsslDeviceSyncService: Biometric sync script not found (configured: " . (config('services.essl.script_path') ?: 'none') . "). Direct biometric LAN sync skipped.");
+                self::$warnedUnavailable = true;
+            }
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -60,12 +110,6 @@ class EsslDeviceSyncService
     public function pushUser(User $user, ?string $oldBioId = null, int $card = 0): ?array
     {
         try {
-            $scriptPath = $this->resolveScriptPath();
-            if (!$scriptPath) {
-                Log::warning("EsslDeviceSyncService: script device_user_sync.py not found.");
-                return null;
-            }
-
             // Determine Biometric User ID (defaults to User ID if not set)
             $bioUserId = (string)($user->biometric_user_id ?: $user->id);
             if (empty($user->biometric_user_id)) {
@@ -78,14 +122,21 @@ class EsslDeviceSyncService
                 $memberProfile->update(['biometric_user_id' => $bioUserId]);
             }
 
+            if (!$this->isSyncAvailable()) {
+                return null;
+            }
+
+            $scriptPath = $this->resolveScriptPath();
+            $pythonBin  = config('services.essl.python_bin', 'python');
+
             $endpoint = $this->resolveDeviceEndpoint($user->gym_id);
-            $deviceIp = $endpoint['ip'];
-            $devicePort = $endpoint['port'];
+            $deviceIp = escapeshellarg($endpoint['ip']);
+            $devicePort = (int)$endpoint['port'];
 
             // If biometric user ID changed, delete the old slot on machine first
             if ($oldBioId && $oldBioId !== $bioUserId) {
                 $oldTargetId = escapeshellarg($oldBioId);
-                shell_exec("python \"{$scriptPath}\" --delete --user-id {$oldTargetId} --ip {$deviceIp} --port {$devicePort}");
+                shell_exec("{$pythonBin} " . escapeshellarg($scriptPath) . " --delete --user-id {$oldTargetId} --ip {$deviceIp} --port {$devicePort}");
             }
 
             // Privilege 0 ensures physical machine menu is never locked, allowing owner to set manual password
@@ -96,7 +147,7 @@ class EsslDeviceSyncService
             $targetId = escapeshellarg($bioUserId);
             $cardArg = (int)$card;
 
-            $cmd = "python \"{$scriptPath}\" --push --user-id {$targetId} --name {$cleanName} --privilege {$privilege} --role {$roleLower} --card {$cardArg} --ip {$deviceIp} --port {$devicePort}";
+            $cmd = "{$pythonBin} " . escapeshellarg($scriptPath) . " --push --user-id {$targetId} --name {$cleanName} --privilege {$privilege} --role {$roleLower} --card {$cardArg} --ip {$deviceIp} --port {$devicePort}";
             $output = shell_exec($cmd);
             $result = json_decode($output, true);
 
@@ -129,29 +180,31 @@ class EsslDeviceSyncService
     public function deleteUser(User $user, ?string $bioIdOverride = null): ?array
     {
         try {
-            $scriptPath = $this->resolveScriptPath();
-            if (!$scriptPath) {
-                return null;
-            }
-
-            $bioUserId = (string)($bioIdOverride ?: $user->biometric_user_id ?: $user->id);
-            $endpoint = $this->resolveDeviceEndpoint($user->gym_id);
-            $deviceIp = $endpoint['ip'];
-            $devicePort = $endpoint['port'];
-
-            $targetId = escapeshellarg($bioUserId);
-            $cleanName = escapeshellarg(substr($user->name, 0, 24));
-
-            $cmd = "python \"{$scriptPath}\" --delete --user-id {$targetId} --name {$cleanName} --ip {$deviceIp} --port {$devicePort}";
-            $output = shell_exec($cmd);
-            $result = json_decode($output, true);
-
             $user->update(['synced_to_device' => 0]);
 
             $memberProfile = $user->memberProfile ?? MemberProfile::where('user_id', $user->id)->first();
             if ($memberProfile) {
                 $memberProfile->update(['synced_to_device' => 0]);
             }
+
+            if (!$this->isSyncAvailable()) {
+                return null;
+            }
+
+            $scriptPath = $this->resolveScriptPath();
+            $pythonBin  = config('services.essl.python_bin', 'python');
+
+            $bioUserId = (string)($bioIdOverride ?: $user->biometric_user_id ?: $user->id);
+            $endpoint = $this->resolveDeviceEndpoint($user->gym_id);
+            $deviceIp = escapeshellarg($endpoint['ip']);
+            $devicePort = (int)$endpoint['port'];
+
+            $targetId = escapeshellarg($bioUserId);
+            $cleanName = escapeshellarg(substr($user->name, 0, 24));
+
+            $cmd = "{$pythonBin} " . escapeshellarg($scriptPath) . " --delete --user-id {$targetId} --name {$cleanName} --ip {$deviceIp} --port {$devicePort}";
+            $output = shell_exec($cmd);
+            $result = json_decode($output, true);
 
             return $result;
         } catch (\Throwable $e) {
