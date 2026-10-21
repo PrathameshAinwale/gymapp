@@ -953,6 +953,42 @@ export const AddMemberPage = ({
     }
   };
 
+  // Handles 'Full' click on any payment mode:
+  // - If switching modes or paying full: clears other modes and sets this mode to totalCalculatedAmount
+  // - If split payment in progress: fills remaining unpaid balance into this mode
+  const handleFullPayment = (targetMode) => {
+    const currentVal = targetMode === 'cash' ? parseAmount(cashAmount) :
+                       targetMode === 'upi' ? parseAmount(upiAmount) :
+                       parseAmount(accountTransferAmount);
+
+    const otherAmount = targetMode === 'cash' ? parseAmount(upiAmount) + parseAmount(accountTransferAmount) :
+                        targetMode === 'upi' ? parseAmount(cashAmount) + parseAmount(accountTransferAmount) :
+                        parseAmount(cashAmount) + parseAmount(upiAmount);
+
+    const rem = Math.max(0, Math.round((totalCalculatedAmount - otherAmount) * 100) / 100);
+
+    if (rem > 0 && currentVal === 0) {
+      if (targetMode === 'cash') setCashAmount(String(rem));
+      if (targetMode === 'upi') setUpiAmount(String(rem));
+      if (targetMode === 'transfer') setAccountTransferAmount(String(rem));
+    } else {
+      const fullStr = totalCalculatedAmount > 0 ? String(totalCalculatedAmount) : '';
+      if (targetMode === 'cash') {
+        setCashAmount(fullStr);
+        setUpiAmount('');
+        setAccountTransferAmount('');
+      } else if (targetMode === 'upi') {
+        setUpiAmount(fullStr);
+        setCashAmount('');
+        setAccountTransferAmount('');
+      } else if (targetMode === 'transfer') {
+        setAccountTransferAmount(fullStr);
+        setCashAmount('');
+        setUpiAmount('');
+      }
+    }
+  };
+
   // Auto-trim payments if total package fees decrease below current entered payments
   useEffect(() => {
     if (totalCalculatedAmount >= 0 && totalEnteredPaid > totalCalculatedAmount) {
@@ -3210,12 +3246,8 @@ export const AddMemberPage = ({
                   </div>
                   <button
                     type="button"
-                    title="Pay remaining in Cash"
-                    onClick={() => {
-                      const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
-                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                      setCashAmount(rem > 0 ? String(rem) : '');
-                    }}
+                    title="Pay full amount in Cash"
+                    onClick={() => handleFullPayment('cash')}
                     className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
@@ -3241,12 +3273,8 @@ export const AddMemberPage = ({
                   </div>
                   <button
                     type="button"
-                    title="Pay remaining via UPI"
-                    onClick={() => {
-                      const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
-                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                      setUpiAmount(rem > 0 ? String(rem) : '');
-                    }}
+                    title="Pay full amount via UPI"
+                    onClick={() => handleFullPayment('upi')}
                     className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
@@ -3272,12 +3300,8 @@ export const AddMemberPage = ({
                   </div>
                   <button
                     type="button"
-                    title="Pay remaining via Account Transfer"
-                    onClick={() => {
-                      const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
-                      const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                      setAccountTransferAmount(rem > 0 ? String(rem) : '');
-                    }}
+                    title="Pay full amount via Account Transfer"
+                    onClick={() => handleFullPayment('transfer')}
                     className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full

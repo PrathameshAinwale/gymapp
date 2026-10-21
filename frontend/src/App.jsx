@@ -74,6 +74,7 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
   const [createInvoiceInitialMember, setCreateInvoiceInitialMember] = useState(null);
+  const [editingInvoiceData, setEditingInvoiceData] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState(null);
@@ -115,6 +116,9 @@ function MainApp() {
     if (typeof newTab === 'function') {
       setActiveTab((prev) => {
         const resolved = newTab(prev);
+        if (resolved !== 'create-invoice') {
+          setEditingInvoiceData(null);
+        }
         if (resolved !== prev) {
           window.history.pushState(
             { tab: resolved, role: currentRole, app: 'gym' },
@@ -125,6 +129,9 @@ function MainApp() {
         return resolved;
       });
     } else {
+      if (newTab !== 'create-invoice') {
+        setEditingInvoiceData(null);
+      }
       if (newTab !== activeTab) {
         window.history.pushState(
           { tab: newTab, role: currentRole, app: 'gym' },
@@ -331,6 +338,12 @@ function MainApp() {
             onNavigateTab={handleNavigateTab}
             onNavigateToCreateInvoice={(member) => {
               setCreateInvoiceInitialMember(member || null);
+              setEditingInvoiceData(null);
+              handleNavigateTab('create-invoice');
+            }}
+            onNavigateToEditInvoice={(invoice) => {
+              setEditingInvoiceData(invoice);
+              setCreateInvoiceInitialMember(invoice?.member || invoice?.currentMember || null);
               handleNavigateTab('create-invoice');
             }}
           />
@@ -421,8 +434,10 @@ function MainApp() {
           <CreateInvoicePage
             initialMember={createInvoiceInitialMember}
             initialMemberId={createInvoiceInitialMember?.id}
+            editingInvoice={editingInvoiceData}
             onBack={() => {
               setCreateInvoiceInitialMember(null);
+              setEditingInvoiceData(null);
               if (window.history.length > 1) {
                 window.history.back();
               } else {
@@ -431,6 +446,7 @@ function MainApp() {
             }}
             onSuccess={() => {
               setCreateInvoiceInitialMember(null);
+              setEditingInvoiceData(null);
               handleNavigateTab('invoices');
             }}
             onNavigateTab={handleNavigateTab}
@@ -445,6 +461,12 @@ function MainApp() {
             onNavigateTab={handleNavigateTab}
             onNavigateToCreateInvoice={(member) => {
               setCreateInvoiceInitialMember(member || null);
+              setEditingInvoiceData(null);
+              handleNavigateTab('create-invoice');
+            }}
+            onNavigateToEditInvoice={(invoice) => {
+              setEditingInvoiceData(invoice);
+              setCreateInvoiceInitialMember(invoice?.member || invoice?.currentMember || null);
               handleNavigateTab('create-invoice');
             }}
           />
@@ -465,6 +487,12 @@ function MainApp() {
             }}
             onNavigateToCreateInvoice={(member) => {
               setCreateInvoiceInitialMember(member || null);
+              setEditingInvoiceData(null);
+              handleNavigateTab('create-invoice');
+            }}
+            onNavigateToEditInvoice={(invoice) => {
+              setEditingInvoiceData(invoice);
+              setCreateInvoiceInitialMember(invoice?.member || invoice?.currentMember || null);
               handleNavigateTab('create-invoice');
             }}
             onOpenMemberProfile={(memberId) => {

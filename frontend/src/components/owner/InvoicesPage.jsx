@@ -48,7 +48,8 @@ import {
 export const InvoicesPage = ({
   setActiveTab,
   onNavigateTab,
-  onNavigateToCreateInvoice
+  onNavigateToCreateInvoice,
+  onNavigateToEditInvoice
 }) => {
   const {
     invoices = [],
@@ -884,11 +885,10 @@ export const InvoicesPage = ({
             setStatusFilter('ALL');
             setActiveFilter('ALL');
           }}
-          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
-            activeFilter === 'ALL' && statusFilter === 'ALL'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${activeFilter === 'ALL' && statusFilter === 'ALL'
               ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
               : 'border-slate-200 hover:border-slate-300'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
@@ -915,11 +915,10 @@ export const InvoicesPage = ({
             setStatusFilter('paid');
             setActiveFilter('PAID');
           }}
-          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
-            statusFilter === 'paid' || activeFilter === 'PAID'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${statusFilter === 'paid' || activeFilter === 'PAID'
               ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20'
               : 'border-slate-200 hover:border-slate-300'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
@@ -965,11 +964,10 @@ export const InvoicesPage = ({
             setStatusFilter('pending');
             setActiveFilter('PENDING');
           }}
-          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${
-            statusFilter === 'pending' || activeFilter === 'PENDING'
+          className={`bg-white border rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs cursor-pointer transition-all active:scale-[0.98] flex flex-col justify-between ${statusFilter === 'pending' || activeFilter === 'PENDING'
               ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20'
               : 'border-slate-200 hover:border-slate-300'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
@@ -1075,8 +1073,8 @@ export const InvoicesPage = ({
               type="button"
               onClick={() => setShowFilterModal(true)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${activeFiltersCount > 0
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
             >
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
@@ -1317,8 +1315,8 @@ export const InvoicesPage = ({
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
                       className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
-                          ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
                     >
                       {mPreset.label}
@@ -1389,8 +1387,8 @@ export const InvoicesPage = ({
                       type="button"
                       onClick={() => setStatusFilter(st.id)}
                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${statusFilter.toLowerCase() === st.id.toLowerCase()
-                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-500/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                     >
                       {st.label}
@@ -1428,8 +1426,8 @@ export const InvoicesPage = ({
                       type="button"
                       onClick={() => setPaymentMethodFilter(pm.id)}
                       className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${paymentMethodFilter === pm.id
-                          ? 'bg-violet-600 border-violet-600 text-white shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-violet-600 border-violet-600 text-white shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                     >
                       {pm.label}
@@ -1634,8 +1632,8 @@ export const InvoicesPage = ({
                         toggleMemberDropdown(member.memberKey);
                       }}
                       className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${isExpanded
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                         }`}
                     >
                       <span>{isExpanded ? 'Hide' : `Invoices (${invoicesList.length})`}</span>
@@ -1772,11 +1770,16 @@ export const InvoicesPage = ({
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setEditingInvoice({
+                                          const payload = {
                                             ...inv,
                                             member,
                                             currentMember: member
-                                          });
+                                          };
+                                          if (onNavigateToEditInvoice) {
+                                            onNavigateToEditInvoice(payload);
+                                          } else {
+                                            setEditingInvoice(payload);
+                                          }
                                         }}
                                         className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title="Edit Invoice Details, Amount, or Payment Method"
@@ -1840,20 +1843,20 @@ export const InvoicesPage = ({
                                           <span>Pay Due</span>
                                         </button>
                                       )}
-                                    
 
-                                        {/* 5. DELETE INVOICE BUTTON */}
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setInvoiceToDelete(inv);
-                                          }}
-                                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
-                                          title="Delete Invoice"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                        </button>
+
+                                      {/* 5. DELETE INVOICE BUTTON */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setInvoiceToDelete(inv);
+                                        }}
+                                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                        title="Delete Invoice"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                      </button>
                                     </div>
                                   </td>
                                 </tr>
@@ -1921,7 +1924,16 @@ export const InvoicesPage = ({
 
                 <button
                   type="button"
-                  onClick={() => setEditingInvoice(selectedInvoice)}
+                  onClick={() => {
+                    const payload = selectedInvoice ? { ...selectedInvoice, member: selectedInvoiceMember, currentMember: selectedInvoiceMember } : null;
+                    if (!payload) return;
+                    setSelectedInvoice(null);
+                    if (onNavigateToEditInvoice) {
+                      onNavigateToEditInvoice(payload);
+                    } else {
+                      setEditingInvoice(payload);
+                    }
+                  }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
                   title="Edit invoice data and update revenue"
                 >
@@ -1998,38 +2010,125 @@ export const InvoicesPage = ({
             {/* AUTHENTIC GYM MEMBERSHIP RECEIPT SHEET */}
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-6 print:p-0 print:border-none">
 
-                {/* Gym Header Branding & Receipt Pill */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
-                      {(gymInfo?.name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '★'}
-                    </div>
-                    <div>
-                      <h2 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
-                        {gymInfo?.name || 'FITNESS CLUB'}
-                      </h2>
-                      {gymInfo?.address && (
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {gymInfo.address}
-                        </p>
-                      )}
-                      {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number || gymInfo?.phone) && (
-                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
-                          {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
-                            <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</strong></span>
-                          )}
-                          {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && gymInfo?.phone && (
-                            <span>•</span>
-                          )}
-                          {gymInfo?.phone && (
-                            <span>Phone: <strong className="text-slate-600">{gymInfo.phone}</strong></span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+              {/* Gym Header Branding & Receipt Pill */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
+                    {(gymInfo?.name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '★'}
                   </div>
+                  <div>
+                    <h2 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
+                      {gymInfo?.name || 'FITNESS CLUB'}
+                    </h2>
+                    {gymInfo?.address && (
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {gymInfo.address}
+                      </p>
+                    )}
+                    {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number || gymInfo?.phone) && (
+                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                        {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
+                          <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</strong></span>
+                        )}
+                        {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && gymInfo?.phone && (
+                          <span>•</span>
+                        )}
+                        {gymInfo?.phone && (
+                          <span>Phone: <strong className="text-slate-600">{gymInfo.phone}</strong></span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                  <div className="text-left sm:text-right shrink-0">
+                <div className="text-left sm:text-right shrink-0">
+                  {(() => {
+                    const selPending = Number(
+                      selectedInvoice.pendingAmount ??
+                      selectedInvoice.duesAmount ??
+                      selectedInvoice.dues_amount ??
+                      ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
+                        ? (selectedInvoiceMember?.duesAmount || 0)
+                        : 0)
+                    );
+                    const isPendingModal = (selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial' || selPending > 0;
+
+                    if (isPendingModal) {
+                      return (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1.5 shadow-2xs">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                          Pending {selPending > 0 ? `• ₹${selPending.toLocaleString('en-IN')} Due` : ''}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        Payment Verified
+                      </span>
+                    );
+                  })()}
+                  <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
+                    Receipt #{selectedInvoice.id?.toUpperCase()}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Issued: {selectedInvoice.date || 'Today'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Two-Column Info: Billed Member & Payment Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {/* Billed To Customer */}
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Member Information
+                  </span>
+                  <div className="font-bold text-slate-900 text-sm">
+                    {selectedInvoiceMember?.name || selectedInvoice.memberName}
+                  </div>
+                  <div className="text-slate-600 flex items-center gap-1.5 pt-0.5">
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'AF-M-101'}</strong></span>
+                  </div>
+                  <div className="text-slate-600 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Mobile: <strong className="text-slate-800">{selectedInvoiceMember?.phone || selectedInvoice.phone || 'N/A'}</strong></span>
+                  </div>
+                  {selectedInvoiceMember?.email && (
+                    <div className="text-slate-600 flex items-center gap-1.5 truncate">
+                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Email: {selectedInvoiceMember.email}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Details */}
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Payment Verification
+                  </span>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Receipt No:</span>
+                    <strong className="text-slate-900 font-mono">#{selectedInvoice.id?.toUpperCase()}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Date Paid:</span>
+                    <strong className="text-slate-800">{selectedInvoice.date || 'Today'}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Payment Mode:</span>
+                    <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI'}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Created / Billed By:</span>
+                    <strong className="text-slate-800 flex items-center gap-1 font-semibold text-xs">
+                      <User className="w-3 h-3 text-slate-400" />
+                      <span>{resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}</span>
+                    </strong>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                    <span className="text-slate-500">Settlement Status:</span>
                     {(() => {
                       const selPending = Number(
                         selectedInvoice.pendingAmount ??
@@ -2043,249 +2142,162 @@ export const InvoicesPage = ({
 
                       if (isPendingModal) {
                         return (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1.5 shadow-2xs">
+                          <strong className="text-amber-700 flex items-center gap-1 font-bold">
                             <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                            Pending {selPending > 0 ? `• ₹${selPending.toLocaleString('en-IN')} Due` : ''}
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                          Payment Verified
-                        </span>
-                      );
-                    })()}
-                    <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
-                      Receipt #{selectedInvoice.id?.toUpperCase()}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      Issued: {selectedInvoice.date || 'Today'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Two-Column Info: Billed Member & Payment Summary */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  {/* Billed To Customer */}
-                  <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Member Information
-                    </span>
-                    <div className="font-bold text-slate-900 text-sm">
-                      {selectedInvoiceMember?.name || selectedInvoice.memberName}
-                    </div>
-                    <div className="text-slate-600 flex items-center gap-1.5 pt-0.5">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Member ID: <strong className="text-slate-800">{selectedInvoiceMember?.id || selectedInvoice.memberId || 'AF-M-101'}</strong></span>
-                    </div>
-                    <div className="text-slate-600 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Mobile: <strong className="text-slate-800">{selectedInvoiceMember?.phone || selectedInvoice.phone || 'N/A'}</strong></span>
-                    </div>
-                    {selectedInvoiceMember?.email && (
-                      <div className="text-slate-600 flex items-center gap-1.5 truncate">
-                        <Mail className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Email: {selectedInvoiceMember.email}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Payment Details */}
-                  <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Payment Verification
-                    </span>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Receipt No:</span>
-                      <strong className="text-slate-900 font-mono">#{selectedInvoice.id?.toUpperCase()}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Date Paid:</span>
-                      <strong className="text-slate-800">{selectedInvoice.date || 'Today'}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Payment Mode:</span>
-                      <strong className="text-slate-800">{selectedInvoice.paymentMethod || 'UPI'}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Created / Billed By:</span>
-                      <strong className="text-slate-800 flex items-center gap-1 font-semibold text-xs">
-                        <User className="w-3 h-3 text-slate-400" />
-                        <span>{resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}</span>
-                      </strong>
-                    </div>
-                    <div className="flex justify-between pt-1 border-t border-slate-200/60">
-                      <span className="text-slate-500">Settlement Status:</span>
-                      {(() => {
-                        const selPending = Number(
-                          selectedInvoice.pendingAmount ??
-                          selectedInvoice.duesAmount ??
-                          selectedInvoice.dues_amount ??
-                          ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
-                            ? (selectedInvoiceMember?.duesAmount || 0)
-                            : 0)
-                        );
-                        const isPendingModal = (selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial' || selPending > 0;
-
-                        if (isPendingModal) {
-                          return (
-                            <strong className="text-amber-700 flex items-center gap-1 font-bold">
-                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Pending {selPending > 0 ? `(₹${selPending.toLocaleString('en-IN')} Due)` : ''}</span>
-                            </strong>
-                          );
-                        }
-                        return (
-                          <strong className="text-emerald-700 flex items-center gap-1 font-bold">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>Paid & Active</span>
+                            <span>Pending {selPending > 0 ? `(₹${selPending.toLocaleString('en-IN')} Due)` : ''}</span>
                           </strong>
                         );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Membership Plan Highlight Card (Modern Fitness Receipt format) */}
-                <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
-                        Active Membership Subscription
-                      </span>
-                      <h3 className="font-bold text-base sm:text-lg text-slate-900 mt-1">
-                        {selectedInvoice.planName || 'Comprehensive Gym Membership Pass'}
-                      </h3>
-                    </div>
-                    <div className="text-right">
-                      {(() => {
-                        const selPending = Number(
-                          selectedInvoice.pendingAmount ??
-                          selectedInvoice.duesAmount ??
-                          selectedInvoice.dues_amount ??
-                          ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
-                            ? (selectedInvoiceMember?.duesAmount || 0)
-                            : 0)
-                        );
-                        return (
-                          <>
-                            <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
-                            <span className="text-xl sm:text-2xl font-black text-slate-900">
-                              ₹{Number(selectedInvoice.totalAmount || (Number(selectedInvoice.amount || 0) + selPending)).toLocaleString('en-IN')}
-                            </span>
-                            {selPending > 0 && (
-                              <span className="text-[11px] font-bold text-rose-600 block mt-0.5">
-                                (₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')} Paid • ₹{selPending.toLocaleString('en-IN')} Pending)
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Included Privileges Checkmarks */}
-                  <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Full cardio, strength & free-weight floor access</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Turnstile QR Pass on Mobile App</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Locker, steam room & recovery zone facilities</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Complimentary InBody body composition scan</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Financial Summary & Amount in Words */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start text-xs">
-                  {/* Left: Notes and Words */}
-                  <div className="sm:col-span-7 bg-slate-50 p-4 rounded-xl border border-slate-200/70 space-y-2">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                      Amount In Words
-                    </span>
-                    <div className="font-bold text-slate-900 text-xs">
-                      Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
-                    </div>
-                    <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
-                      Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
-                    </p>
-                  </div>
-
-                  {/* Right: Tax Breakdown */}
-                  <div className="sm:col-span-5 space-y-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-slate-200">
-                    {(() => {
-                      if (Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true)) {
-                        const invTaxRate = Number(selectedInvoice.gstRate ?? selectedInvoice.taxRate ?? selectedInvoice.gst_rate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
-                        const invHalfTax = (invTaxRate / 2).toFixed(invTaxRate % 2 === 0 ? 0 : 1);
-                        const taxable = Math.round(Number(selectedInvoice.amount || 0) / (1 + (invTaxRate / 100)));
-                        const totalGst = Math.max(0, Number(selectedInvoice.amount || 0) - taxable);
-                        const cgst = Math.round(totalGst / 2);
-                        const sgst = totalGst - cgst;
-                        return (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Plan Base Fee:</span>
-                              <span className="font-semibold text-slate-800">
-                                ₹{taxable.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-slate-500 text-[11px]">
-                              <span>CGST ({invHalfTax}%):</span>
-                              <span>₹{cgst.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between text-slate-500 text-[11px]">
-                              <span>SGST ({invHalfTax}%):</span>
-                              <span>₹{sgst.toLocaleString('en-IN')}</span>
-                            </div>
-                          </>
-                        );
                       }
                       return (
-                        <div className="flex justify-between py-1">
-                          <span className="text-slate-500">Tax Type:</span>
-                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                            Non-GST Payment (No Tax Bifurcation)
-                          </span>
-                        </div>
+                        <strong className="text-emerald-700 flex items-center gap-1 font-bold">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Paid & Active</span>
+                        </strong>
                       );
                     })()}
-                    <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
-                      <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
-                      <span className="text-2xl font-black text-emerald-600 font-mono">
-                        ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Terms & Official Seal Signature */}
-                <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
-                  <div className="space-y-1">
-                    <p>• Membership passes are non-transferable & non-refundable once activated.</p>
-                    <p>• Turnstile QR Pass is required for gym floor access.</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[180px]">
-                    <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Digitally Verified</span>
-                    </div>
-                    <div className="font-bold text-slate-800 text-xs mt-0.5">
-                      {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}
-                    </div>
-                    <div className="text-[10px] text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
                   </div>
                 </div>
               </div>
+
+              {/* Membership Plan Highlight Card (Modern Fitness Receipt format) */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                      Active Membership Subscription
+                    </span>
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900 mt-1">
+                      {selectedInvoice.planName || 'Comprehensive Gym Membership Pass'}
+                    </h3>
+                  </div>
+                  <div className="text-right">
+                    {(() => {
+                      const selPending = Number(
+                        selectedInvoice.pendingAmount ??
+                        selectedInvoice.duesAmount ??
+                        selectedInvoice.dues_amount ??
+                        ((selectedInvoice.status || '').toLowerCase() === 'pending' || (selectedInvoice.status || '').toLowerCase() === 'partial'
+                          ? (selectedInvoiceMember?.duesAmount || 0)
+                          : 0)
+                      );
+                      return (
+                        <>
+                          <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
+                          <span className="text-xl sm:text-2xl font-black text-slate-900">
+                            ₹{Number(selectedInvoice.totalAmount || (Number(selectedInvoice.amount || 0) + selPending)).toLocaleString('en-IN')}
+                          </span>
+                          {selPending > 0 && (
+                            <span className="text-[11px] font-bold text-rose-600 block mt-0.5">
+                              (₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')} Paid • ₹{selPending.toLocaleString('en-IN')} Pending)
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Included Privileges Checkmarks */}
+                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Full cardio, strength & free-weight floor access</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Turnstile QR Pass on Mobile App</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Locker, steam room & recovery zone facilities</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Complimentary InBody body composition scan</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Summary & Amount in Words */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start text-xs">
+                {/* Left: Notes and Words */}
+                <div className="sm:col-span-7 bg-slate-50 p-4 rounded-xl border border-slate-200/70 space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Amount In Words
+                  </span>
+                  <div className="font-bold text-slate-900 text-xs">
+                    Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
+                  </div>
+                  <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                    Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
+                  </p>
+                </div>
+
+                {/* Right: Tax Breakdown */}
+                <div className="sm:col-span-5 space-y-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-slate-200">
+                  {(() => {
+                    if (Boolean(selectedInvoice.isGstIncluded ?? selectedInvoice.hasGst ?? selectedInvoice.gst_included ?? true)) {
+                      const invTaxRate = Number(selectedInvoice.gstRate ?? selectedInvoice.taxRate ?? selectedInvoice.gst_rate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18) || 18;
+                      const invHalfTax = (invTaxRate / 2).toFixed(invTaxRate % 2 === 0 ? 0 : 1);
+                      const taxable = Math.round(Number(selectedInvoice.amount || 0) / (1 + (invTaxRate / 100)));
+                      const totalGst = Math.max(0, Number(selectedInvoice.amount || 0) - taxable);
+                      const cgst = Math.round(totalGst / 2);
+                      const sgst = totalGst - cgst;
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Plan Base Fee:</span>
+                            <span className="font-semibold text-slate-800">
+                              ₹{taxable.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-500 text-[11px]">
+                            <span>CGST ({invHalfTax}%):</span>
+                            <span>₹{cgst.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-500 text-[11px]">
+                            <span>SGST ({invHalfTax}%):</span>
+                            <span>₹{sgst.toLocaleString('en-IN')}</span>
+                          </div>
+                        </>
+                      );
+                    }
+                    return (
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Tax Type:</span>
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                          Non-GST Payment (No Tax Bifurcation)
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
+                    <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
+                    <span className="text-2xl font-black text-emerald-600 font-mono">
+                      ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms & Official Seal Signature */}
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
+                <div className="space-y-1">
+                  <p>• Membership passes are non-transferable & non-refundable once activated.</p>
+                  <p>• Turnstile QR Pass is required for gym floor access.</p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[180px]">
+                  <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Digitally Verified</span>
+                  </div>
+                  <div className="font-bold text-slate-800 text-xs mt-0.5">
+                    {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}
+                  </div>
+                  <div className="text-[10px] text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                </div>
+              </div>
+            </div>
 
             {/* Bottom Actions */}
             <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">

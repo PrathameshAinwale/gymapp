@@ -618,8 +618,8 @@ export const RecordPaymentModal = ({
 
   const ptCommissionAmount = (hasPtPackage && currentTrainer)
     ? (commissionType === 'percent'
-        ? Math.round((totalPtPrice * (Number(ptCommissionPercent) || 0)) / 100)
-        : (Number(ptFixedCommission) || 0))
+      ? Math.round((totalPtPrice * (Number(ptCommissionPercent) || 0)) / 100)
+      : (Number(ptFixedCommission) || 0))
     : 0;
 
   const getResolvedPaymentMethod = () => {
@@ -1318,11 +1318,10 @@ export const RecordPaymentModal = ({
                           <div className="flex items-center justify-between mb-1">
                             <label className="block text-[11px] font-bold text-slate-700">Discount</label>
                             {maxPlanDiscount > 0 && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
-                                Number(pkgRow.discount) > maxPlanDiscount
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
                                   ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
                                   : 'bg-amber-50 text-amber-700 border-amber-200'
-                              }`}>
+                                }`}>
                                 Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
                               </span>
                             )}
@@ -1335,11 +1334,10 @@ export const RecordPaymentModal = ({
                             value={pkgRow.discount}
                             onKeyDown={(e) => preventNonNumericKey(e, true)}
                             onChange={(e) => handlePackageDiscountChange(pkgRow.id, e.target.value)}
-                            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                              maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
+                            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-mono text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount
                                 ? 'border-rose-500 ring-1 ring-rose-500 text-rose-700 bg-rose-50/40'
                                 : 'border-slate-200 focus:border-emerald-500'
-                            }`}
+                              }`}
                           />
                           {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
                             <p className="text-[10px] text-rose-600 font-bold mt-1">
@@ -1433,9 +1431,8 @@ export const RecordPaymentModal = ({
                                 required
                                 value={selectedTrainerId}
                                 onChange={(e) => setSelectedTrainerId(e.target.value)}
-                                className={`w-full px-3 py-2 bg-white border ${
-                                  !selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-indigo-500'
-                                } rounded-xl text-xs font-medium text-slate-900 focus:outline-none cursor-pointer`}
+                                className={`w-full px-3 py-2 bg-white border ${!selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-indigo-500'
+                                  } rounded-xl text-xs font-medium text-slate-900 focus:outline-none cursor-pointer`}
                               >
                                 <option value="">-- Choose Coach / Trainer (Required) * --</option>
                                 {trainers && trainers.length > 0 ? (
@@ -1470,18 +1467,16 @@ export const RecordPaymentModal = ({
                                   <button
                                     type="button"
                                     onClick={() => setCommissionType('percent')}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
-                                      commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
-                                    }`}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
+                                      }`}
                                   >
                                     %
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setCommissionType('fixed')}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
-                                      commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
-                                    }`}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
+                                      }`}
                                   >
                                     ₹
                                   </button>
@@ -1589,11 +1584,10 @@ export const RecordPaymentModal = ({
                   required
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none ${
-                    duplicateActivePlanInvoice
+                  className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none ${duplicateActivePlanInvoice
                       ? 'border-amber-400 ring-1 ring-amber-300'
                       : 'border-slate-200 focus:border-emerald-500'
-                  }`}
+                    }`}
                 />
 
                 {duplicateActivePlanInvoice && (
@@ -1629,11 +1623,17 @@ export const RecordPaymentModal = ({
                     </div>
                     <button
                       type="button"
-                      title="Pay remaining in Cash"
+                      title="Pay full amount in Cash"
                       onClick={() => {
                         const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
                         const rem = Math.max(0, totalCalculatedBill - other);
-                        setCashAmount(rem > 0 ? String(rem) : '');
+                        if (rem > 0 && !(Number(cashAmount) > 0)) {
+                          setCashAmount(String(rem));
+                        } else {
+                          setCashAmount(totalCalculatedBill > 0 ? String(totalCalculatedBill) : '');
+                          setUpiAmount('');
+                          setAccountTransferAmount('');
+                        }
                       }}
                       className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
@@ -1660,11 +1660,17 @@ export const RecordPaymentModal = ({
                     </div>
                     <button
                       type="button"
-                      title="Pay remaining via UPI"
+                      title="Pay full amount via UPI"
                       onClick={() => {
                         const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
                         const rem = Math.max(0, totalCalculatedBill - other);
-                        setUpiAmount(rem > 0 ? String(rem) : '');
+                        if (rem > 0 && !(Number(upiAmount) > 0)) {
+                          setUpiAmount(String(rem));
+                        } else {
+                          setUpiAmount(totalCalculatedBill > 0 ? String(totalCalculatedBill) : '');
+                          setCashAmount('');
+                          setAccountTransferAmount('');
+                        }
                       }}
                       className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
@@ -1691,11 +1697,17 @@ export const RecordPaymentModal = ({
                     </div>
                     <button
                       type="button"
-                      title="Pay remaining via Account Transfer"
+                      title="Pay full amount via Account Transfer"
                       onClick={() => {
                         const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
                         const rem = Math.max(0, totalCalculatedBill - other);
-                        setAccountTransferAmount(rem > 0 ? String(rem) : '');
+                        if (rem > 0 && !(Number(accountTransferAmount) > 0)) {
+                          setAccountTransferAmount(String(rem));
+                        } else {
+                          setAccountTransferAmount(totalCalculatedBill > 0 ? String(totalCalculatedBill) : '');
+                          setCashAmount('');
+                          setUpiAmount('');
+                        }
                       }}
                       className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
@@ -1874,11 +1886,11 @@ export const RecordPaymentModal = ({
                 prev.map((r) =>
                   r.id === quickAddTargetRowId
                     ? {
-                        ...r,
-                        packageType: createdType,
-                        packageId: String(created.id),
-                        price: Number(created.price) || 0
-                      }
+                      ...r,
+                      packageType: createdType,
+                      packageId: String(created.id),
+                      price: Number(created.price) || 0
+                    }
                     : r
                 )
               );

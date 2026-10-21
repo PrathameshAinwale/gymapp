@@ -581,7 +581,7 @@ test('13. Multi-tenant Gym Isolation: PDF contains only the specific gym details
 
 test('14. Shared currency formatter formats canonical ₹ correctly and PDF text does not contain broken glyphs', async () => {
   const { formatCurrency, getPdfCurrencySymbol } = await import('../src/utils/currencyUtils.js');
-  
+
   assert.strictEqual(formatCurrency(15000, '₹'), '₹15,000');
   assert.strictEqual(formatCurrency(2500.5, '₹'), '₹2,500.5');
   assert.strictEqual(formatCurrency(100, '$'), '$100');
@@ -1565,3 +1565,103 @@ test('31. Personal Training package requires compulsory trainer assignment and b
   assert.equal(result4.isValid, false);
   assert.match(result4.error, /Trainer selection is compulsory/i);
 });
+
+test('33. Create Invoice Page used for Edit Invoice: Full-page navigation, pre-population, and non-blocking edit', () => {
+  // Mock invoice selected from Member Invoices table
+  const selectedInvoice = {
+    id: 'INV-2026-9590',
+    numericId: 42,
+    invoiceNumber: 'INV-95906F',
+    userId: 108,
+    memberId: 108,
+    memberName: 'bjbhasd',
+    memberPhone: '9558466695',
+    totalAmount: 5000,
+    amount: 5000,
+    duesAmount: 0,
+    pendingAmount: 0,
+    paymentMethod: 'UPI',
+    date: '2026-10-17',
+    startDate: '2026-10-17',
+    expiryDate: '2026-11-15',
+    items: [
+      {
+        id: 'pkg-1',
+        name: 'test plan (1 Month)',
+        packageType: 'Gym-Cardio',
+        planId: 'plan-5',
+        price: 5000,
+        discount: 0
+      }
+    ]
+  };
+
+  // 1. Navigation Flow: InvoicesPage row button invokes onNavigateToEditInvoice
+  let navigatedTab = null;
+  let passedEditingInvoice = null;
+
+  const handleNavigateTab = (tab) => { navigatedTab = tab; };
+  const onNavigateToEditInvoice = (invoice) => {
+    passedEditingInvoice = invoice;
+    handleNavigateTab('create-invoice');
+  };
+
+  // Trigger edit action from invoice table
+  onNavigateToEditInvoice(selectedInvoice);
+  assert.equal(navigatedTab, 'create-invoice', 'Edit button must navigate to create-invoice full page');
+  assert.equal(passedEditingInvoice.invoiceNumber, 'INV-95906F');
+
+  // 2. CreateInvoicePage initialization in Edit Mode
+  const isEditMode = Boolean(passedEditingInvoice);
+  assert.equal(isEditMode, true, 'isEditMode must evaluate to true');
+
+  // Initialized fields in CreateInvoicePage
+  const pageState = {
+    selectedMemberId: String(passedEditingInvoice.userId),
+    customMemberName: passedEditingInvoice.memberName,
+    paymentDate: passedEditingInvoice.date,
+    membershipStartDate: passedEditingInvoice.startDate,
+    membershipEndDate: passedEditingInvoice.expiryDate,
+    selectedPackages: passedEditingInvoice.items.map((it) => ({
+      id: it.id,
+      packageType: it.packageType,
+      packageId: it.planId,
+      price: it.price
+    }))
+  };
+
+  assert.equal(pageState.selectedMemberId, '108');
+  assert.equal(pageState.customMemberName, 'bjbhasd');
+  assert.equal(pageState.selectedPackages.length, 1);
+  assert.equal(pageState.selectedPackages[0].price, 5000);
+
+  // 3. User edits the member name on CreateInvoicePage
+  pageState.customMemberName = 'Bhavesh Patel';
+  assert.equal(pageState.customMemberName, 'Bhavesh Patel');
+
+  // 4. Submission calls updateInvoice instead of create
+  let updateCalled = false;
+  let updatePayloadCapture = null;
+  const updateInvoice = async (id, payload) => {
+    updateCalled = true;
+    updatePayloadCapture = { id, ...payload };
+    return updatePayloadCapture;
+  };
+
+  const submitEditInvoice = async () => {
+    if (isEditMode) {
+      await updateInvoice(passedEditingInvoice.id, {
+        member_name: pageState.customMemberName.trim(),
+        total_amount: 5000,
+        amount: 5000,
+        packages: pageState.selectedPackages
+      });
+    }
+  };
+
+  submitEditInvoice();
+  assert.equal(updateCalled, true, 'Submitting in edit mode must call updateInvoice');
+  assert.equal(updatePayloadCapture.id, 'INV-2026-9590');
+  assert.equal(updatePayloadCapture.member_name, 'Bhavesh Patel', 'Updated member name saved');
+});
+

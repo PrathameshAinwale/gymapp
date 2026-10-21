@@ -109,7 +109,8 @@ export const OwnerDashboard = ({
   setActiveTab,
   onOpenAddMember,
   onOpenMemberProfile,
-  onNavigateToCreateInvoice
+  onNavigateToCreateInvoice,
+  onNavigateToEditInvoice
 }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
@@ -2370,6 +2371,10 @@ export const OwnerDashboard = ({
         onEditMember={(m) => {
           setSelectedProfileMember(null);
           setActiveTab?.('members');
+        }}
+        onNavigateToEditInvoice={(inv) => {
+          setSelectedProfileMember(null);
+          onNavigateToEditInvoice?.(inv);
         }}
       />
 

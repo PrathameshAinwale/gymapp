@@ -61,7 +61,8 @@ export const MemberProfileView = ({
   member,
   isOpen,
   onClose,
-  onEditMember
+  onEditMember,
+  onNavigateToEditInvoice
 }) => {
   const {
     invoices = [],
@@ -648,11 +649,17 @@ export const MemberProfileView = ({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingInvoice({
+                                  const payload = {
                                     ...inv,
                                     member,
                                     currentMember: member
-                                  });
+                                  };
+                                  if (onNavigateToEditInvoice) {
+                                    onClose?.();
+                                    onNavigateToEditInvoice(payload);
+                                  } else {
+                                    setEditingInvoice(payload);
+                                  }
                                 }}
                                 className="px-2 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1"
                                 title="Edit invoice details and amount"

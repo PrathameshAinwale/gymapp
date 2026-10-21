@@ -447,11 +447,17 @@ export const PayDueModal = ({
               </div>
               <button
                 type="button"
-                title="Pay remaining in Cash"
+                title="Pay full amount in Cash"
                 onClick={() => {
                   const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
                   const rem = Math.max(0, totalDue - other);
-                  setCashAmount(rem > 0 ? String(rem) : '');
+                  if (rem > 0 && !(Number(cashAmount) > 0)) {
+                    setCashAmount(String(rem));
+                  } else {
+                    setCashAmount(totalDue > 0 ? String(totalDue) : '');
+                    setUpiAmount('');
+                    setAccountTransferAmount('');
+                  }
                 }}
                 className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap"
               >
@@ -482,11 +488,17 @@ export const PayDueModal = ({
               </div>
               <button
                 type="button"
-                title="Pay remaining via UPI"
+                title="Pay full amount via UPI"
                 onClick={() => {
                   const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
                   const rem = Math.max(0, totalDue - other);
-                  setUpiAmount(rem > 0 ? String(rem) : '');
+                  if (rem > 0 && !(Number(upiAmount) > 0)) {
+                    setUpiAmount(String(rem));
+                  } else {
+                    setUpiAmount(totalDue > 0 ? String(totalDue) : '');
+                    setCashAmount('');
+                    setAccountTransferAmount('');
+                  }
                 }}
                 className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap"
               >
@@ -517,11 +529,17 @@ export const PayDueModal = ({
               </div>
               <button
                 type="button"
-                title="Pay remaining via Account Transfer"
+                title="Pay full amount via Account Transfer"
                 onClick={() => {
                   const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
                   const rem = Math.max(0, totalDue - other);
-                  setAccountTransferAmount(rem > 0 ? String(rem) : '');
+                  if (rem > 0 && !(Number(accountTransferAmount) > 0)) {
+                    setAccountTransferAmount(String(rem));
+                  } else {
+                    setAccountTransferAmount(totalDue > 0 ? String(totalDue) : '');
+                    setCashAmount('');
+                    setUpiAmount('');
+                  }
                 }}
                 className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap"
               >

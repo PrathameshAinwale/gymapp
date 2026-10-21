@@ -44,6 +44,7 @@ import {
 export const CreateInvoicePage = ({
   initialMember = null,
   initialMemberId = null,
+  editingInvoice = null,
   onBack,
   onNavigateTab,
   onSuccess,
@@ -65,6 +66,7 @@ export const CreateInvoicePage = ({
     fetchInvoices,
     fetchDashboardStats,
     updateMember,
+    updateInvoice,
     addCommissionRecord,
     recordPayment,
     addPlan,
@@ -76,26 +78,24 @@ export const CreateInvoicePage = ({
 
   const defaultHandledBy = (currentUser?.name && !currentUser.name.toLowerCase().includes('arch devops')) ? currentUser.name : (gymInfo?.name ? `${gymInfo.name} Staff` : 'Staff');
 
-  // Selected Member
+  const isEditMode = Boolean(editingInvoice);
+
+  // Selected Member & Member Name (Editable)
   const [selectedMemberId, setSelectedMemberId] = useState(
-    initialMember?.id || initialMemberId || ''
+    editingInvoice?.userId || editingInvoice?.user_id || editingInvoice?.memberId || initialMember?.id || initialMemberId || ''
   );
-  const [handledByStaffName, setHandledByStaffName] = useState(defaultHandledBy);
+  const [memberName, setMemberName] = useState(
+    editingInvoice?.memberName || editingInvoice?.member_name || initialMember?.name || ''
+  );
+  const [handledByStaffName, setHandledByStaffName] = useState(
+    editingInvoice?.createdByName || editingInvoice?.created_by_name || defaultHandledBy
+  );
   const [isPayingDueOpen, setIsPayingDueOpen] = useState(false);
 
-  useEffect(() => {
-    if (initialMember?.id) {
-      setSelectedMemberId(initialMember.id);
-    } else if (initialMemberId) {
-      setSelectedMemberId(initialMemberId);
-    }
-  }, [initialMember, initialMemberId]);
-
-  useEffect(() => {
-    if ((!handledByStaffName || handledByStaffName === 'Staff') && (currentUser?.name || defaultHandledBy)) {
-      setHandledByStaffName(currentUser?.name || defaultHandledBy);
-    }
-  }, [currentUser?.name, defaultHandledBy]);
+  // Current Member Object (Declared immediately after selectedMemberId to avoid TDZ ReferenceError)
+  const currentMember = useMemo(() => {
+    return members.find((m) => String(m.id) === String(selectedMemberId)) || null;
+  }, [members, selectedMemberId]);
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -201,9 +201,161 @@ export const CreateInvoicePage = ({
     }
   };
 
-  const currentMember = useMemo(() => {
-    return members.find((m) => String(m.id) === String(selectedMemberId)) || null;
-  }, [members, selectedMemberId]);
+  // 1. Initial Member Sync
+  useEffect(() => {
+    if (editingInvoice) return;
+    if (initialMember?.id) {
+      setSelectedMemberId(initialMember.id);
+      if (initialMember.name && !memberName) setMemberName(initialMember.name);
+    } else if (initialMemberId) {
+      setSelectedMemberId(initialMemberId);
+    }
+  }, [initialMember, initialMemberId, editingInvoice]);
+
+  // 2. Member Name Sync
+  useEffect(() => {
+    if (!isEditMode && currentMember?.name && !memberName) {
+      setMemberName(currentMember.name);
+    }
+  }, [currentMember, isEditMode, memberName]);
+
+  // 3. Staff default sync
+  useEffect(() => {
+    if ((!handledByStaffName || handledByStaffName === 'Staff') && (currentUser?.name || defaultHandledBy)) {
+      setHandledByStaffName(currentUser?.name || defaultHandledBy);
+    }
+  }, [currentUser?.name, defaultHandledBy]);
+
+  // 4. Auto-populate from editingInvoice when in edit mode
+  useEffect(() => {
+    if (!editingInvoice) return;
+
+    // A. Resolve matching member
+    const mId = editingInvoice.userId || editingInvoice.user_id || editingInvoice.memberId || editingInvoice.member_id;
+    const cleanNumId = mId ? String(mId).replace(/\D/g, '') : null;
+    const matchedMember = (editingInvoice.member || editingInvoice.currentMember) || (Array.isArray(members) ? members.find((m) =>
+      (mId && (m.id === mId || `mem-${m.userId}` === mId || `mem-${m.id}` === mId)) ||
+      (cleanNumId && (String(m.id).replace(/\D/g, '') === cleanNumId || String(m.userId) === cleanNumId)) ||
+      (editingInvoice.memberName && m.name?.trim().toLowerCase() === editingInvoice.memberName?.trim().toLowerCase()) ||
+      (editingInvoice.memberPhone && m.phone && m.phone.slice(-10) === editingInvoice.memberPhone.slice(-10))
+    ) : null);
+
+    const resolvedMemberId = matchedMember?.id || (cleanNumId ? `mem-${cleanNumId}` : (mId || ''));
+    if (resolvedMemberId) {
+      setSelectedMemberId(resolvedMemberId);
+    }
+
+    setMemberName(editingInvoice.memberName || editingInvoice.member_name || matchedMember?.name || '');
+
+    // B. Staff, dates, notes, dues
+    const invDate = editingInvoice.date ? String(editingInvoice.date).split('T')[0] : (editingInvoice.issueDate ? String(editingInvoice.issueDate).split('T')[0] : getTodayDateStr());
+    setPaymentDate(invDate);
+
+    const invDueDate = editingInvoice.dueDate ? String(editingInvoice.dueDate).split('T')[0] : (editingInvoice.due_date ? String(editingInvoice.due_date).split('T')[0] : '');
+    setBalanceDueDate(invDueDate);
+
+    if (editingInvoice.createdByName || editingInvoice.created_by_name) {
+      setHandledByStaffName(editingInvoice.createdByName || editingInvoice.created_by_name);
+    }
+    setNotes(editingInvoice.notes || '');
+
+    // C. GST status
+    setIsGstIncluded(Boolean(editingInvoice.isGstIncluded ?? editingInvoice.gst_included ?? editingInvoice.is_gst_included ?? true));
+
+    // D. Payment breakdown
+    const paid = Number(editingInvoice.amount ?? editingInvoice.paidAmount ?? editingInvoice.paid_amount ?? 0);
+    const payMethod = String(editingInvoice.paymentMethod || editingInvoice.payment_method || 'UPI').toUpperCase();
+
+    if (payMethod.includes('CASH') && (payMethod.includes('UPI') || payMethod.includes('TRANSFER') || payMethod.includes('BANK'))) {
+      const cashMatch = payMethod.match(/cash\s*\(?₹?([0-9,]+)\)?/i);
+      const upiMatch = payMethod.match(/upi\s*\(?₹?([0-9,]+)\)?/i);
+      const transferMatch = payMethod.match(/(transfer|bank|cheque)\s*\(?₹?([0-9,]+)\)?/i);
+      setCashAmount(cashMatch ? cashMatch[1].replace(/,/g, '') : '');
+      setUpiAmount(upiMatch ? upiMatch[1].replace(/,/g, '') : '');
+      setAccountTransferAmount(transferMatch ? transferMatch[2].replace(/,/g, '') : '');
+    } else if (payMethod.includes('CASH')) {
+      setCashAmount(paid > 0 ? String(paid) : '');
+      setUpiAmount('');
+      setAccountTransferAmount('');
+    } else if (payMethod.includes('TRANSFER') || payMethod.includes('CARD') || payMethod.includes('BANK') || payMethod.includes('CHEQUE')) {
+      setCashAmount('');
+      setUpiAmount('');
+      setAccountTransferAmount(paid > 0 ? String(paid) : '');
+    } else {
+      setCashAmount('');
+      setUpiAmount(paid > 0 ? String(paid) : '');
+      setAccountTransferAmount('');
+    }
+
+    // E. Dates & Packages
+    const invStartDate = editingInvoice.startDate || editingInvoice.start_date || invDate;
+    const invEndDate = editingInvoice.expiryDate || editingInvoice.expiry_date || editingInvoice.endDate || editingInvoice.end_date || '';
+
+    setMembershipStartDate(invStartDate);
+    setMembershipEndDate(invEndDate ? String(invEndDate).split('T')[0] : '');
+
+    let rawItems = [];
+    try {
+      if (Array.isArray(editingInvoice.items) && editingInvoice.items.length > 0) rawItems = editingInvoice.items;
+      else if (typeof editingInvoice.items === 'string') rawItems = JSON.parse(editingInvoice.items);
+      else if (Array.isArray(editingInvoice.packages) && editingInvoice.packages.length > 0) rawItems = editingInvoice.packages;
+      else if (typeof editingInvoice.packages === 'string') rawItems = JSON.parse(editingInvoice.packages);
+    } catch (_) {
+      rawItems = [];
+    }
+
+    if (rawItems.length > 0) {
+      const rows = rawItems.map((it, idx) => {
+        const rawPkgType = it.packageType || it.package_type || editingInvoice.packageType || editingInvoice.package_type || 'Gym-Cardio';
+        const pkgType = normalizePackageType(rawPkgType);
+        const rawPlanId = it.planId ?? it.plan_id ?? '';
+        const matchedPlan = (Array.isArray(plans) ? plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
+          (Array.isArray(ptPlans) ? ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
+          (Array.isArray(recoveryPlans) ? recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) : null) || null;
+
+        if (it.trainerId || it.trainer_id) {
+          setSelectedTrainerId(String(it.trainerId || it.trainer_id));
+        }
+
+        return {
+          id: `pkg-${idx}-${Date.now()}`,
+          packageType: pkgType,
+          packageId: matchedPlan?.id || rawPlanId || '',
+          price: Number(it.price ?? it.amount ?? matchedPlan?.price ?? 0),
+          discount: it.discount !== undefined && it.discount !== null ? String(it.discount) : '',
+          startDate: it.startDate || it.start_date || invStartDate,
+          expiryDate: it.endDate || it.end_date || it.expiryDate || it.expiry_date || invEndDate,
+          isCustomStartDate: Boolean(it.startDate && it.startDate !== invStartDate)
+        };
+      });
+      setSelectedPackages(rows);
+    } else {
+      const rawPkgType = editingInvoice.packageType || editingInvoice.package_type || 'Gym-Cardio';
+      const pkgType = normalizePackageType(rawPkgType);
+      const rawPlanId = editingInvoice.planId || editingInvoice.plan_id || '';
+      const matchedPlan = (Array.isArray(plans) ? plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
+        (Array.isArray(ptPlans) ? ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
+        (Array.isArray(recoveryPlans) ? recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) : null) || null;
+
+      const totalBilled = Number(editingInvoice.totalAmount ?? (paid + Number(editingInvoice.pendingAmount ?? 0)));
+      const invDiscount = Number(editingInvoice.discount || editingInvoice.discountAmount || 0);
+
+      if (editingInvoice.trainerId || editingInvoice.trainer_id) {
+        setSelectedTrainerId(String(editingInvoice.trainerId || editingInvoice.trainer_id));
+      }
+
+      setSelectedPackages([{
+        id: `pkg-0-${Date.now()}`,
+        packageType: pkgType,
+        packageId: matchedPlan?.id || rawPlanId || (plans[0]?.id || ''),
+        price: Number(matchedPlan?.price ?? totalBilled),
+        discount: invDiscount > 0 ? String(invDiscount) : '',
+        startDate: invStartDate,
+        expiryDate: invEndDate ? String(invEndDate).split('T')[0] : '',
+        isCustomStartDate: false
+      }]);
+    }
+  }, [editingInvoice]);
 
   // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
   const effectiveInvoiceStartDate = useMemo(() => {
@@ -612,18 +764,21 @@ export const CreateInvoicePage = ({
 
   // Synchronize start date whenever member changes
   useEffect(() => {
-    if (currentMember) {
+    if (!isEditMode && currentMember) {
       if (currentMember.trainerId) {
         setSelectedTrainerId(currentMember.trainerId);
       }
       setSelectedPackages((prev) => recalculatePackageRows(prev, currentMember.id));
     }
-  }, [currentMember]);
+  }, [currentMember, isEditMode]);
 
   // Handle Member Change
   const handleMemberChange = (newMemberId) => {
     setSelectedMemberId(newMemberId);
     const m = members.find((item) => String(item.id) === String(newMemberId));
+    if (m?.name) {
+      setMemberName(m.name);
+    }
     if (m?.trainerId) {
       setSelectedTrainerId(m.trainerId);
     }
@@ -636,7 +791,7 @@ export const CreateInvoicePage = ({
 
   // Sync first package row when plans load
   useEffect(() => {
-    if (plans.length > 0 && selectedPackages.length > 0 && !selectedPackages[0].packageId) {
+    if (!isEditMode && plans.length > 0 && selectedPackages.length > 0 && !selectedPackages[0].packageId) {
       const firstPlan = plans[0];
       const pkgType = normalizePackageType(firstPlan.packageType || firstPlan.package_type || 'Gym-Cardio');
       const initialRow = {
@@ -822,6 +977,42 @@ export const CreateInvoicePage = ({
     }
   };
 
+  // Handles 'Full' click on any payment mode:
+  // - If switching modes or paying full: clears other modes and sets this mode to totalCalculatedAmount
+  // - If split payment in progress: fills remaining unpaid balance into this mode
+  const handleFullPayment = (targetMode) => {
+    const currentVal = targetMode === 'cash' ? parseAmount(cashAmount) :
+                       targetMode === 'upi' ? parseAmount(upiAmount) :
+                       parseAmount(accountTransferAmount);
+
+    const otherAmount = targetMode === 'cash' ? parseAmount(upiAmount) + parseAmount(accountTransferAmount) :
+                        targetMode === 'upi' ? parseAmount(cashAmount) + parseAmount(accountTransferAmount) :
+                        parseAmount(cashAmount) + parseAmount(upiAmount);
+
+    const rem = Math.max(0, Math.round((totalCalculatedAmount - otherAmount) * 100) / 100);
+
+    if (rem > 0 && currentVal === 0) {
+      if (targetMode === 'cash') setCashAmount(String(rem));
+      if (targetMode === 'upi') setUpiAmount(String(rem));
+      if (targetMode === 'transfer') setAccountTransferAmount(String(rem));
+    } else {
+      const fullStr = totalCalculatedAmount > 0 ? String(totalCalculatedAmount) : '';
+      if (targetMode === 'cash') {
+        setCashAmount(fullStr);
+        setUpiAmount('');
+        setAccountTransferAmount('');
+      } else if (targetMode === 'upi') {
+        setUpiAmount(fullStr);
+        setCashAmount('');
+        setAccountTransferAmount('');
+      } else if (targetMode === 'transfer') {
+        setAccountTransferAmount(fullStr);
+        setCashAmount('');
+        setUpiAmount('');
+      }
+    }
+  };
+
   // Auto-trim payments if total bill decreases below entered payments
   useEffect(() => {
     if (totalCalculatedAmount >= 0 && totalEnteredPaid > totalCalculatedAmount) {
@@ -893,8 +1084,8 @@ export const CreateInvoicePage = ({
 
   const ptCommissionAmount = (hasPtPackage && currentTrainer)
     ? (commissionType === 'percent'
-        ? Math.round((totalPtPrice * (Number(ptCommissionPercent) || 0)) / 100)
-        : (Number(ptFixedCommission) || 0))
+      ? Math.round((totalPtPrice * (Number(ptCommissionPercent) || 0)) / 100)
+      : (Number(ptFixedCommission) || 0))
     : 0;
 
   // Current Itemized Invoice Title
@@ -977,7 +1168,7 @@ export const CreateInvoicePage = ({
       return;
     }
 
-    if (memberDueAmount > 0) {
+    if (!isEditMode && memberDueAmount > 0) {
       addToast(`Cannot create new invoice: Member "${currentMember?.name || 'Selected'}" has an outstanding due balance of ₹${memberDueAmount.toLocaleString('en-IN')}. Please settle the due balance first.`, 'error');
       setIsPayingDueOpen(true);
       return;
@@ -1032,10 +1223,10 @@ export const CreateInvoicePage = ({
 
     setIsSubmitting(true);
     try {
-      const memberName = currentMember?.name || 'Valued Member';
+      const finalMemberName = (memberName || currentMember?.name || 'Valued Member').trim();
       const cleanUserId = typeof currentMember?.id === 'string'
         ? parseInt(currentMember.id.replace(/\D/g, ''), 10) || 1
-        : Number(currentMember?.id) || 1;
+        : Number(currentMember?.id) || (editingInvoice?.userId || editingInvoice?.user_id || 1);
 
       const invoiceTitle = currentInvoiceTitle;
       const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt') && r.packageId;
@@ -1057,7 +1248,10 @@ export const CreateInvoicePage = ({
         ? (membershipRow ? (membershipRow.packageType || 'Membership Fee') : 'Membership Fee')
         : (hasPt ? 'Personal Training' : 'Recovery & Wellness');
 
-      const generatedInvoiceNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const generatedInvoiceNo = isEditMode
+        ? (editingInvoice.id || editingInvoice.invoiceNumber || editingInvoice.numericId)
+        : `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
       const targetExpiryDate = membershipRow?.expiryDate
         || ptRow?.expiryDate
@@ -1073,92 +1267,109 @@ export const CreateInvoicePage = ({
         || paymentDate
         || getTodayDateStr();
 
-      // 1. Record Invoice directly in Backend Database API
+      // 1. Record or Update Invoice in Backend Database API
       let backendInvoiceRef = generatedInvoiceNo;
       let savedInvoiceResponse = null;
 
-      try {
-        if (api.invoices?.create) {
-          const invPayload = {
-            user_id: cleanUserId,
-            member_id: currentMember?.id,
-            memberId: currentMember?.id,
-            member_name: memberName,
-            memberName: memberName,
-            trainer_id: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
-            trainerId: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
-            trainer_name: hasPt ? (currentTrainer?.name || null) : null,
-            trainerName: hasPt ? (currentTrainer?.name || null) : null,
-            plan_id: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
-            planId: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
-            plan_name: invoiceTitle,
-            planName: invoiceTitle,
-            title: `${memberName} - ${invoiceTitle}`,
-            category: mainCategory,
-            package_type: mainCategory,
-            packageType: mainCategory,
-            amount: effectivePaidAmount,
-            total_amount: totalCalculatedAmount,
-            totalAmount: totalCalculatedAmount,
-            dues_amount: calculatedBalanceDue,
-            duesAmount: calculatedBalanceDue,
-            pending_amount: calculatedBalanceDue,
-            pendingAmount: calculatedBalanceDue,
-            due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
-            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
-            payment_date: paymentDate || getTodayDateStr(),
-            date: paymentDate || getTodayDateStr(),
-            start_date: targetStartDate,
-            startDate: targetStartDate,
-            end_date: targetExpiryDate,
-            endDate: targetExpiryDate,
-            payment_method: resolvedPaymentMethodString,
-            paymentMethod: resolvedPaymentMethodString,
-            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
-            expiry_date: targetExpiryDate,
-            expiryDate: targetExpiryDate,
-            packages: selectedPackages.map((pkg) => {
-              const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
-              const isPkgPt = isPtRow(pkg);
-              return {
-                name: pkgObj?.name || pkg.packageType,
-                plan_id: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
-                planId: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
-                package_type: normalizePackageType(pkg.packageType),
-                packageType: normalizePackageType(pkg.packageType),
-                price: Number(pkg.price) || 0,
-                start_date: pkg.startDate || targetStartDate,
-                startDate: pkg.startDate || targetStartDate,
-                end_date: pkg.expiryDate || targetExpiryDate,
-                endDate: pkg.expiryDate || targetExpiryDate,
-                trainer_id: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
-                trainerId: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
-                trainer_name: isPkgPt ? (currentTrainer?.name || null) : null,
-                trainerName: isPkgPt ? (currentTrainer?.name || null) : null
-              };
-            }),
-            is_gst_included: isGstIncluded,
-            gst_rate: gstBreakdown.taxRate || 18,
-            gstRate: gstBreakdown.taxRate || 18,
-            gst_amount: gstBreakdown.totalGst,
-            taxable_amount: gstBreakdown.taxable,
-            notes: notes || `Recorded invoice: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
-            created_by: currentUser?.userId || currentUser?.id,
-            created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
+      const invPayload = {
+        user_id: cleanUserId,
+        userId: cleanUserId,
+        member_id: currentMember?.id || editingInvoice?.memberId,
+        memberId: currentMember?.id || editingInvoice?.memberId,
+        member_name: finalMemberName,
+        memberName: finalMemberName,
+        member_phone: currentMember?.phone || editingInvoice?.memberPhone || null,
+        memberPhone: currentMember?.phone || editingInvoice?.memberPhone || null,
+        member_email: currentMember?.email || editingInvoice?.memberEmail || null,
+        memberEmail: currentMember?.email || editingInvoice?.memberEmail || null,
+        trainer_id: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
+        trainerId: hasPt && selectedTrainerId ? Number(selectedTrainerId) : null,
+        trainer_name: hasPt ? (currentTrainer?.name || null) : null,
+        trainerName: hasPt ? (currentTrainer?.name || null) : null,
+        plan_id: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
+        planId: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
+        plan_name: invoiceTitle,
+        planName: invoiceTitle,
+        title: `${finalMemberName} - ${invoiceTitle}`,
+        category: mainCategory,
+        package_type: mainCategory,
+        packageType: mainCategory,
+        amount: effectivePaidAmount,
+        total_amount: totalCalculatedAmount,
+        totalAmount: totalCalculatedAmount,
+        dues_amount: calculatedBalanceDue,
+        duesAmount: calculatedBalanceDue,
+        pending_amount: calculatedBalanceDue,
+        pendingAmount: calculatedBalanceDue,
+        due_date: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        payment_date: paymentDate || getTodayDateStr(),
+        date: paymentDate || getTodayDateStr(),
+        start_date: targetStartDate,
+        startDate: targetStartDate,
+        end_date: targetExpiryDate,
+        endDate: targetExpiryDate,
+        payment_method: resolvedPaymentMethodString,
+        paymentMethod: resolvedPaymentMethodString,
+        status: calculatedBalanceDue > 0 ? (effectivePaidAmount > 0 ? 'Partial' : 'Pending') : 'Paid',
+        expiry_date: targetExpiryDate,
+        expiryDate: targetExpiryDate,
+        packages: selectedPackages.map((pkg) => {
+          const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+          const isPkgPt = isPtRow(pkg);
+          return {
+            name: pkgObj?.name || pkg.packageType,
+            plan_id: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
+            planId: pkg.packageId ? Number(String(pkg.packageId).replace(/[^0-9]/g, '')) : null,
+            package_type: normalizePackageType(pkg.packageType),
+            packageType: normalizePackageType(pkg.packageType),
+            price: Number(pkg.price) || 0,
+            discount: Number(pkg.discount) || 0,
+            start_date: pkg.startDate || targetStartDate,
+            startDate: pkg.startDate || targetStartDate,
+            end_date: pkg.expiryDate || targetExpiryDate,
+            endDate: pkg.expiryDate || targetExpiryDate,
+            trainer_id: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
+            trainerId: isPkgPt ? (selectedTrainerId ? Number(selectedTrainerId) : null) : null,
+            trainer_name: isPkgPt ? (currentTrainer?.name || null) : null,
+            trainerName: isPkgPt ? (currentTrainer?.name || null) : null
           };
+        }),
+        is_gst_included: isGstIncluded,
+        gst_rate: gstBreakdown.taxRate || 18,
+        gstRate: gstBreakdown.taxRate || 18,
+        gst_amount: gstBreakdown.totalGst,
+        taxable_amount: gstBreakdown.taxable,
+        notes: notes || `${isEditMode ? 'Updated' : 'Recorded'} invoice: ${invoiceTitle}${calculatedBalanceDue > 0 ? ` (Pending Balance Due: ₹${calculatedBalanceDue})` : ''}`,
+        created_by: currentUser?.userId || currentUser?.id,
+        created_by_name: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
+      };
 
-          const invRes = await api.invoices.create(invPayload);
-          if (invRes?.data?.invoiceNumber || invRes?.data?.id) {
-            backendInvoiceRef = invRes.data.invoiceNumber || invRes.data.id;
-            savedInvoiceResponse = invRes.data;
+      try {
+        if (isEditMode) {
+          const cleanInvId = editingInvoice.id || editingInvoice.numericId || editingInvoice.invoiceNumber;
+          if (updateInvoice) {
+            savedInvoiceResponse = await updateInvoice(cleanInvId, invPayload);
+          } else {
+            const invRes = await api.invoices.update(cleanInvId, invPayload);
+            savedInvoiceResponse = invRes?.data;
+          }
+          backendInvoiceRef = cleanInvId;
+        } else {
+          if (api.invoices?.create) {
+            const invRes = await api.invoices.create(invPayload);
+            if (invRes?.data?.invoiceNumber || invRes?.data?.id) {
+              backendInvoiceRef = invRes.data.invoiceNumber || invRes.data.id;
+              savedInvoiceResponse = invRes.data;
+            }
           }
         }
       } catch (invErr) {
-        console.warn('Backend invoice create note:', invErr);
-        if (recordPayment) {
+        console.warn('Backend invoice create/update note:', invErr);
+        if (!isEditMode && recordPayment) {
           await recordPayment({
             memberId: currentMember?.id,
-            memberName: memberName,
+            memberName: finalMemberName,
             planId: membershipPlanObj?.id || null,
             planName: invoiceTitle,
             amount: effectivePaidAmount,
@@ -1177,6 +1388,7 @@ export const CreateInvoicePage = ({
         try {
           if (api.members?.update) {
             const memberUpdateData = {
+              name: finalMemberName,
               status: 'Active',
               dues_amount: calculatedBalanceDue,
               due_date: calculatedBalanceDue > 0 ? balanceDueDate : null
@@ -1208,6 +1420,7 @@ export const CreateInvoicePage = ({
           const updatedDues = calculatedBalanceDue;
           const memberPayload = {
             ...currentMember,
+            name: finalMemberName,
             duesAmount: updatedDues,
             dues_amount: updatedDues,
             due_date: calculatedBalanceDue > 0 ? balanceDueDate : currentMember.dueDate,
@@ -1247,7 +1460,7 @@ export const CreateInvoicePage = ({
           await addCommissionRecord({
             trainerId: currentTrainer.id,
             trainerName: currentTrainer.name,
-            memberName: memberName,
+            memberName: finalMemberName,
             planName: ptPlanObj ? ptPlanObj.name : `1-on-1 PT Coaching`,
             sessionType: 'Personal Training (PT)',
             serviceType: 'Personal Training (PT)',
@@ -1271,40 +1484,44 @@ export const CreateInvoicePage = ({
         fetchDashboardStats?.()
       ]);
 
-      addToast(`Payment of ₹${effectivePaidAmount.toLocaleString('en-IN')} recorded & Invoice #${backendInvoiceRef} generated!`, 'success');
+      if (isEditMode) {
+        addToast(`Invoice #${backendInvoiceRef} updated successfully!`, 'success');
+      } else {
+        addToast(`Payment of ₹${effectivePaidAmount.toLocaleString('en-IN')} recorded & Invoice #${backendInvoiceRef} generated!`, 'success');
+      }
 
       // 5. Set receipt state for immediate download/WhatsApp share
       const mappedReceipt = savedInvoiceResponse
         ? mapInvoiceRecord(savedInvoiceResponse)
         : mapInvoiceRecord({
-            id: backendInvoiceRef,
-            invoiceNumber: backendInvoiceRef,
-            memberName: memberName,
-            phone: currentMember?.phone || '',
-            email: currentMember?.email || '',
-            planName: invoiceTitle,
-            amount: effectivePaidAmount,
-            totalAmount: totalCalculatedAmount,
-            duesAmount: calculatedBalanceDue,
-            dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
-            date: paymentDate || getTodayDateStr(),
-            paymentMethod: resolvedPaymentMethodString,
-            isGstIncluded,
-            status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
-            startDate: targetStartDate,
-            endDate: targetExpiryDate,
-            packages: selectedPackages.map((pkg) => {
-              const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
-              return {
-                name: pkgObj?.name || pkg.packageType,
-                packageType: pkg.packageType,
-                price: Number(pkg.price) || 0,
-                startDate: pkg.startDate || targetStartDate,
-                endDate: pkg.expiryDate || targetExpiryDate
-              };
-            }),
-            createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
-          });
+          id: backendInvoiceRef,
+          invoiceNumber: backendInvoiceRef,
+          memberName: memberName,
+          phone: currentMember?.phone || '',
+          email: currentMember?.email || '',
+          planName: invoiceTitle,
+          amount: effectivePaidAmount,
+          totalAmount: totalCalculatedAmount,
+          duesAmount: calculatedBalanceDue,
+          dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+          date: paymentDate || getTodayDateStr(),
+          paymentMethod: resolvedPaymentMethodString,
+          isGstIncluded,
+          status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+          startDate: targetStartDate,
+          endDate: targetExpiryDate,
+          packages: selectedPackages.map((pkg) => {
+            const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+            return {
+              name: pkgObj?.name || pkg.packageType,
+              packageType: pkg.packageType,
+              price: Number(pkg.price) || 0,
+              startDate: pkg.startDate || targetStartDate,
+              endDate: pkg.expiryDate || targetExpiryDate
+            };
+          }),
+          createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
+        });
 
       setCompletedInvoiceData(mappedReceipt);
     } catch (err) {
@@ -1470,16 +1687,16 @@ export const CreateInvoicePage = ({
               <span>Share on WhatsApp</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setCompletedInvoiceData(null);
-                setSelectedMemberId('');
-              }}
-              className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95"
-            >
-              + Create Another Invoice
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletedInvoiceData(null);
+                  setSelectedMemberId('');
+                }}
+                className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95"
+              >
+                + Create Another Invoice
+              </button>
           </div>
         </div>
       </div>
@@ -1505,14 +1722,21 @@ export const CreateInvoicePage = ({
             </button>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                Create Invoice & Collect Fee
+                {isEditMode ? `Edit Invoice & Bill: #${editingInvoice?.id || editingInvoice?.invoiceNumber || ''}` : 'Create Invoice & Collect Fee'}
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block">
-                Select member, configure multi-package services, apply discounts, and generate official GST invoice.
+                {isEditMode
+                  ? 'Update member name, packages, services, dates, dues, and payment records for this invoice.'
+                  : 'Select member, configure multi-package services, apply discounts, and generate official GST invoice.'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isEditMode && (
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Edit Mode
+              </span>
+            )}
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
               Tax Invoicing
             </span>
@@ -1533,13 +1757,12 @@ export const CreateInvoicePage = ({
               </h2>
             </div>
             {currentMember && (
-              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                currentMember.status === 'Active'
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${currentMember.status === 'Active'
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                   : currentMember.status === 'Expired'
-                  ? 'bg-rose-50 text-rose-800 border-rose-200'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}>
+                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
                 Status: {currentMember.status || 'Active'}
               </span>
             )}
@@ -1547,7 +1770,7 @@ export const CreateInvoicePage = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             {/* Member Search & Select */}
-            <div className="sm:col-span-8">
+            <div className="sm:col-span-5">
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
                 Choose Athlete / Member *
               </label>
@@ -1559,8 +1782,31 @@ export const CreateInvoicePage = ({
               />
             </div>
 
-            {/* Handled By Staff Executive */}
+            {/* Member Name (Editable) */}
             <div className="sm:col-span-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <span>Member Name *</span>
+                </label>
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Editable Field
+                </span>
+              </div>
+              <div className="relative">
+                <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={memberName}
+                  onChange={(e) => setMemberName(e.target.value)}
+                  placeholder="Enter or edit member name"
+                  required
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-emerald-300 focus:border-emerald-500 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+                />
+              </div>
+            </div>
+
+            {/* Handled By Staff Executive */}
+            <div className="sm:col-span-3">
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
                 Handled By Staff *
               </label>
@@ -1879,10 +2125,10 @@ export const CreateInvoicePage = ({
                             {p.sessions
                               ? `(${p.sessions} Sessions)`
                               : p.period
-                              ? `(${p.period})`
-                              : p.durationMonths
-                              ? `(${p.durationMonths} Mo)`
-                              : ''}{' '}
+                                ? `(${p.period})`
+                                : p.durationMonths
+                                  ? `(${p.durationMonths} Mo)`
+                                  : ''}{' '}
                             — ₹{Number(p.price || 0).toLocaleString('en-IN')}
                           </option>
                         ))}
@@ -1955,20 +2201,18 @@ export const CreateInvoicePage = ({
                   </div>
 
                   {/* Plan Chaining Status Message & Indicator */}
-                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2 shadow-2xs ${
-                    rowChaining.isChained
+                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2 shadow-2xs ${rowChaining.isChained
                       ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
                       : 'bg-slate-50 border-slate-200 text-slate-700'
-                  }`}>
+                    }`}>
                     <div className="flex items-center gap-1.5 font-medium">
                       <Sparkles className={`w-3.5 h-3.5 shrink-0 ${rowChaining.isChained ? 'text-emerald-600' : 'text-slate-400'}`} />
                       <span>{rowChaining.message}</span>
                     </div>
-                    <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${
-                      rowChaining.isChained
+                    <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${rowChaining.isChained
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                         : 'bg-white text-slate-600 border-slate-200'
-                    }`}>
+                      }`}>
                       {rowChaining.isChained ? '⚡ Chained (Day After)' : 'Fresh Plan'}
                     </span>
                   </div>
@@ -1985,9 +2229,8 @@ export const CreateInvoicePage = ({
                           required
                           value={selectedTrainerId}
                           onChange={(e) => setSelectedTrainerId(e.target.value)}
-                          className={`w-full px-3 py-2 bg-white border ${
-                            !selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-emerald-500'
-                          } rounded-xl text-xs text-slate-900 font-medium focus:outline-none cursor-pointer`}
+                          className={`w-full px-3 py-2 bg-white border ${!selectedTrainerId ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200' : 'border-slate-200 focus:border-emerald-500'
+                            } rounded-xl text-xs text-slate-900 font-medium focus:outline-none cursor-pointer`}
                         >
                           <option value="">-- Choose Coach / Trainer (Required) * --</option>
                           {trainers.map((t) => (
@@ -2085,12 +2328,8 @@ export const CreateInvoicePage = ({
                 </div>
                 <button
                   type="button"
-                  title="Pay remaining in Cash"
-                  onClick={() => {
-                    const other = (Number(upiAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                    setCashAmount(rem > 0 ? String(rem) : '');
-                  }}
+                  title="Pay full amount in Cash"
+                  onClick={() => handleFullPayment('cash')}
                   className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
@@ -2116,12 +2355,8 @@ export const CreateInvoicePage = ({
                 </div>
                 <button
                   type="button"
-                  title="Pay remaining via UPI"
-                  onClick={() => {
-                    const other = (Number(cashAmount) || 0) + (Number(accountTransferAmount) || 0);
-                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                    setUpiAmount(rem > 0 ? String(rem) : '');
-                  }}
+                  title="Pay full amount via UPI"
+                  onClick={() => handleFullPayment('upi')}
                   className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
@@ -2147,12 +2382,8 @@ export const CreateInvoicePage = ({
                 </div>
                 <button
                   type="button"
-                  title="Pay remaining via Account Transfer"
-                  onClick={() => {
-                    const other = (Number(cashAmount) || 0) + (Number(upiAmount) || 0);
-                    const rem = Math.max(0, Math.round((totalCalculatedAmount - other) * 100) / 100);
-                    setAccountTransferAmount(rem > 0 ? String(rem) : '');
-                  }}
+                  title="Pay full amount via Account Transfer"
+                  onClick={() => handleFullPayment('transfer')}
                   className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   Full
@@ -2167,11 +2398,10 @@ export const CreateInvoicePage = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-2.5">
                   <div
-                    className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${
-                      isGstIncluded
+                    className={`p-1.5 rounded-lg border transition-colors shrink-0 mt-0.5 sm:mt-0 ${isGstIncluded
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-slate-100 text-slate-500 border-slate-200'
-                    }`}
+                      }`}
                   >
                     <Receipt className="w-4 h-4" />
                   </div>
@@ -2179,11 +2409,10 @@ export const CreateInvoicePage = ({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-slate-900">GST</span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
-                          isGstIncluded
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${isGstIncluded
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                             : 'bg-slate-200 text-slate-700 border-slate-300'
-                        }`}
+                          }`}
                       >
                         {isGstIncluded ? 'GST Included' : 'GST Disabled (Non-GST)'}
                       </span>
@@ -2365,7 +2594,7 @@ export const CreateInvoicePage = ({
             Cancel
           </button>
 
-          {memberDueAmount > 0 ? (
+          {(!isEditMode && memberDueAmount > 0) ? (
             <button
               type="button"
               onClick={() => setIsPayingDueOpen(true)}
@@ -2384,12 +2613,12 @@ export const CreateInvoicePage = ({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Issuing Invoice & Recording Payment...</span>
+                  <span>{isEditMode ? 'Saving Changes...' : 'Issuing Invoice & Recording Payment...'}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Issue Invoice & Collect Fee</span>
+                  <span>{isEditMode ? 'Save & Update Invoice' : 'Issue Invoice & Collect Fee'}</span>
                 </>
               )}
             </button>

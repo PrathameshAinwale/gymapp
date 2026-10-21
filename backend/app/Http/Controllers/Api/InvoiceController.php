@@ -650,6 +650,21 @@ class InvoiceController extends Controller
             }
         }
 
+        if ($request->filled('user_id') || $request->filled('userId')) {
+            $numericUser = (int)preg_replace('/[^0-9]/', '', (string)($request->user_id ?? $request->userId));
+            if ($numericUser > 0) {
+                $invoiceUpdate['user_id'] = $numericUser;
+            }
+        }
+
+        if ($request->has('packages') || $request->has('items')) {
+            $invoiceUpdate['items'] = $request->packages ?? $request->items;
+        }
+
+        if ($request->filled('package_type') || $request->filled('packageType')) {
+            $invoiceUpdate['package_type'] = $request->package_type ?? $request->packageType;
+        }
+
         if ($request->filled('created_by_name') || $request->filled('createdByName')) {
             $invoiceUpdate['created_by_name'] = $request->created_by_name ?? $request->createdByName;
         }
@@ -674,6 +689,9 @@ class InvoiceController extends Controller
                 'member_name' => $memberName,
                 'title' => "{$memberName} - {$planName}",
             ];
+            if (isset($invoiceUpdate['user_id'])) {
+                $inflowData['user_id'] = $invoiceUpdate['user_id'];
+            }
             if ($request->filled('notes')) {
                 $inflowData['notes'] = $request->notes;
             }
@@ -685,8 +703,8 @@ class InvoiceController extends Controller
                     'gym_id' => $invoice->gym_id,
                     'type' => 'inflow',
                     'reference_no' => $invoice->invoice_number,
-                    'user_id' => $invoice->user_id,
-                    'category' => 'Membership Fee',
+                    'user_id' => $invoiceUpdate['user_id'] ?? $invoice->user_id,
+                    'category' => $invoiceUpdate['package_type'] ?? 'Membership Fee',
                     'created_by' => $invoice->created_by,
                     'created_by_name' => $invoice->created_by_name,
                 ]));
@@ -703,13 +721,30 @@ class InvoiceController extends Controller
             }
 
             // Update member user name and member profile dues if applicable
-            if ($invoice->user) {
-                $user = $invoice->user;
+            $targetUserId = $invoiceUpdate['user_id'] ?? $invoice->user_id;
+            $user = $invoice->user ?: \App\Models\User::find($targetUserId);
+            if ($user) {
+                $userUpdates = [];
                 if ($request->filled('member_name') || $request->filled('memberName')) {
                     $newName = trim((string)($request->member_name ?? $request->memberName));
                     if ($newName && $newName !== $user->name) {
-                        $user->update(['name' => $newName]);
+                        $userUpdates['name'] = $newName;
                     }
+                }
+                if ($request->filled('member_phone') || $request->filled('memberPhone')) {
+                    $newPhone = trim((string)($request->member_phone ?? $request->memberPhone));
+                    if ($newPhone && $newPhone !== $user->phone) {
+                        $userUpdates['phone'] = $newPhone;
+                    }
+                }
+                if ($request->filled('member_email') || $request->filled('memberEmail')) {
+                    $newEmail = trim((string)($request->member_email ?? $request->memberEmail));
+                    if ($newEmail && $newEmail !== $user->email) {
+                        $userUpdates['email'] = $newEmail;
+                    }
+                }
+                if (!empty($userUpdates)) {
+                    $user->update($userUpdates);
                 }
 
                 if ($user->memberProfile) {
@@ -744,6 +779,7 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\Cache::flush();
         } catch (\Throwable $e) {}
 
+        $invoice->refresh();
         $invoice->load(['user.memberProfile', 'plan', 'creator']);
 
         return response()->json([
