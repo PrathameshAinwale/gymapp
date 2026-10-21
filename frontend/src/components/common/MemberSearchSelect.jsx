@@ -9,7 +9,8 @@ export function MemberSearchSelect({
   required = false,
   disabled = false,
   className = '',
-  id = 'member-search-select'
+  id = 'member-search-select',
+  fallbackMember = null
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,9 +24,14 @@ export function MemberSearchSelect({
   const resolvedValue = typeof value === 'object' && value !== null && value.target ? value.target.value : value;
 
   // Find currently selected member
-  const selectedMember = members.find(
-    (m) => String(m.id) === String(resolvedValue) || cleanId(m.id) === cleanId(resolvedValue)
+  const matchedMember = members.find(
+    (m) =>
+      String(m.id) === String(resolvedValue) ||
+      `mem-${m.userId}` === String(resolvedValue) ||
+      `mem-${m.id}` === String(resolvedValue) ||
+      (cleanId(resolvedValue) && (cleanId(m.id) === cleanId(resolvedValue) || cleanId(m.userId) === cleanId(resolvedValue) || cleanId(m.user_id) === cleanId(resolvedValue)))
   );
+  const selectedMember = matchedMember || fallbackMember;
 
   // Handle outside click to close dropdown
   useEffect(() => {

@@ -11,6 +11,7 @@ import { Sidebar } from './components/common/Sidebar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { LogoutConfirmModal } from './components/common/LogoutConfirmModal';
 import { OwnerPageLoader } from './components/common/OwnerPageLoader';
+import { TopProgressBar } from './components/common/AppLoader';
 import { AboutPages } from './components/common/AboutPages';
 import { isTabAllowedForGym, resolveGymTier } from './components/superadmin/packagePlans';
 
@@ -561,21 +562,22 @@ export default function App() {
 
   const isSuperadmin = currentPath.startsWith('/superadmin');
 
-  if (isSuperadmin) {
-    return (
-      <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-900 text-white"><div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" /></div>}>
-        <SuperadminApp />
-      </Suspense>
-    );
-  }
-
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <GymDataProvider>
-          <MainApp />
-        </GymDataProvider>
-      </ToastProvider>
-    </AuthProvider>
+    <>
+      <TopProgressBar />
+      {isSuperadmin ? (
+        <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-900 text-white"><div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" /></div>}>
+          <SuperadminApp />
+        </Suspense>
+      ) : (
+        <AuthProvider>
+          <ToastProvider>
+            <GymDataProvider>
+              <MainApp />
+            </GymDataProvider>
+          </ToastProvider>
+        </AuthProvider>
+      )}
+    </>
   );
 }

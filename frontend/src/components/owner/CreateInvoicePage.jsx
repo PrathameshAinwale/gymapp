@@ -81,9 +81,14 @@ export const CreateInvoicePage = ({
   const isEditMode = Boolean(editingInvoice);
 
   // Selected Member & Member Name (Editable)
-  const [selectedMemberId, setSelectedMemberId] = useState(
-    editingInvoice?.userId || editingInvoice?.user_id || editingInvoice?.memberId || initialMember?.id || initialMemberId || ''
-  );
+  const [selectedMemberId, setSelectedMemberId] = useState(() => {
+    if (editingInvoice) {
+      const mId = editingInvoice.memberId || editingInvoice.userId || editingInvoice.user_id || editingInvoice.member_id;
+      const cleanNum = mId ? String(mId).replace(/\D/g, '') : '';
+      return (cleanNum ? `mem-${cleanNum}` : mId) || '';
+    }
+    return initialMember?.id || initialMemberId || '';
+  });
   const [memberName, setMemberName] = useState(
     editingInvoice?.memberName || editingInvoice?.member_name || initialMember?.name || ''
   );
@@ -94,8 +99,25 @@ export const CreateInvoicePage = ({
 
   // Current Member Object (Declared immediately after selectedMemberId to avoid TDZ ReferenceError)
   const currentMember = useMemo(() => {
-    return members.find((m) => String(m.id) === String(selectedMemberId)) || null;
-  }, [members, selectedMemberId]);
+    const fallbackMember = editingInvoice?.member || editingInvoice?.currentMember || (editingInvoice ? {
+      id: editingInvoice.memberId || (editingInvoice.userId ? `mem-${editingInvoice.userId}` : ''),
+      userId: editingInvoice.userId || editingInvoice.user_id,
+      name: editingInvoice.memberName || editingInvoice.member_name,
+      phone: editingInvoice.memberPhone || editingInvoice.member_phone,
+      email: editingInvoice.memberEmail || editingInvoice.member_email,
+      planName: editingInvoice.planName || editingInvoice.plan_name,
+      expiryDate: editingInvoice.expiryDate || editingInvoice.endDate
+    } : null);
+
+    if (!selectedMemberId) return fallbackMember;
+    const cleanNum = String(selectedMemberId).replace(/\D/g, '');
+    return members.find((m) =>
+      String(m.id) === String(selectedMemberId) ||
+      `mem-${m.userId}` === String(selectedMemberId) ||
+      `mem-${m.id}` === String(selectedMemberId) ||
+      (cleanNum && (String(m.id).replace(/\D/g, '') === cleanNum || String(m.userId) === cleanNum))
+    ) || fallbackMember;
+  }, [members, selectedMemberId, editingInvoice]);
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -230,8 +252,33 @@ export const CreateInvoicePage = ({
   useEffect(() => {
     if (!editingInvoice) return;
 
+    // Helper to find matching plan from plans, ptPlans, or recoveryPlans
+    const findPlan = (rawPlanId, rawPlanName) => {
+      const pIdStr = rawPlanId ? String(rawPlanId).trim() : '';
+      const cleanNum = pIdStr ? pIdStr.replace(/\D/g, '') : '';
+      const pNameLower = rawPlanName ? String(rawPlanName).trim().toLowerCase() : '';
+
+      const matchFn = (p) => {
+        if (!p) return false;
+        if (pIdStr && (String(p.id) === pIdStr || `plan-${p.id}` === pIdStr || `pt-${p.id}` === pIdStr || `rec-${p.id}` === pIdStr)) return true;
+        if (cleanNum && String(p.id).replace(/\D/g, '') === cleanNum) return true;
+        if (pNameLower && p.name && p.name.trim().toLowerCase() === pNameLower) return true;
+        return false;
+      };
+
+      const found = (Array.isArray(plans) ? plans.find(matchFn) : null) ||
+        (Array.isArray(ptPlans) ? ptPlans.find(matchFn) : null) ||
+        (Array.isArray(recoveryPlans) ? recoveryPlans.find(matchFn) : null) || null;
+
+      if (!found) return null;
+      return {
+        ...found,
+        packageType: found.packageType || found.package_type || found.category || 'Gym-Cardio'
+      };
+    };
+
     // A. Resolve matching member
-    const mId = editingInvoice.userId || editingInvoice.user_id || editingInvoice.memberId || editingInvoice.member_id;
+    const mId = editingInvoice.memberId || editingInvoice.userId || editingInvoice.user_id || editingInvoice.member_id;
     const cleanNumId = mId ? String(mId).replace(/\D/g, '') : null;
     const matchedMember = (editingInvoice.member || editingInvoice.currentMember) || (Array.isArray(members) ? members.find((m) =>
       (mId && (m.id === mId || `mem-${m.userId}` === mId || `mem-${m.id}` === mId)) ||
@@ -260,7 +307,7 @@ export const CreateInvoicePage = ({
     setNotes(editingInvoice.notes || '');
 
     // C. GST status
-    setIsGstIncluded(Boolean(editingInvoice.isGstIncluded ?? editingInvoice.gst_included ?? editingInvoice.is_gst_included ?? true));
+    setIsGstIncluded(Boolean(editingInvoice.isGstIncluded ?? editingInvoice.gst_included ?? editingInvoice.is_gst_included ?? false));
 
     // D. Payment breakdown
     const paid = Number(editingInvoice.amount ?? editingInvoice.paidAmount ?? editingInvoice.paid_amount ?? 0);
@@ -306,12 +353,13 @@ export const CreateInvoicePage = ({
 
     if (rawItems.length > 0) {
       const rows = rawItems.map((it, idx) => {
-        const rawPkgType = it.packageType || it.package_type || editingInvoice.packageType || editingInvoice.package_type || 'Gym-Cardio';
-        const pkgType = normalizePackageType(rawPkgType);
-        const rawPlanId = it.planId ?? it.plan_id ?? '';
-        const matchedPlan = (Array.isArray(plans) ? plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
-          (Array.isArray(ptPlans) ? ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
-          (Array.isArray(recoveryPlans) ? recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) : null) || null;
+        const rawPlanId = it.planId ?? it.plan_id ?? it.packageId ?? it.package_id ?? it.id ?? '';
+        const rawPlanName = it.name || it.planName || it.plan_name || it.title || '';
+        const matchedPlan = findPlan(rawPlanId, rawPlanName);
+
+        const rawPkgType = it.packageType || it.package_type || matchedPlan?.packageType || editingInvoice.packageType || editingInvoice.package_type || 'Gym-Cardio';
+        const pkgType = matchedPlan?.packageType || normalizePackageType(rawPkgType);
+        const resolvedPkgId = matchedPlan?.id || rawPlanId || '';
 
         if (it.trainerId || it.trainer_id) {
           setSelectedTrainerId(String(it.trainerId || it.trainer_id));
@@ -320,8 +368,9 @@ export const CreateInvoicePage = ({
         return {
           id: `pkg-${idx}-${Date.now()}`,
           packageType: pkgType,
-          packageId: matchedPlan?.id || rawPlanId || '',
-          price: Number(it.price ?? it.amount ?? matchedPlan?.price ?? 0),
+          packageId: resolvedPkgId,
+          planName: rawPlanName || matchedPlan?.name || '',
+          price: Number(it.price !== undefined && it.price !== null ? it.price : (it.amount ?? matchedPlan?.price ?? 0)),
           discount: it.discount !== undefined && it.discount !== null ? String(it.discount) : '',
           startDate: it.startDate || it.start_date || invStartDate,
           expiryDate: it.endDate || it.end_date || it.expiryDate || it.expiry_date || invEndDate,
@@ -330,15 +379,17 @@ export const CreateInvoicePage = ({
       });
       setSelectedPackages(rows);
     } else {
-      const rawPkgType = editingInvoice.packageType || editingInvoice.package_type || 'Gym-Cardio';
-      const pkgType = normalizePackageType(rawPkgType);
-      const rawPlanId = editingInvoice.planId || editingInvoice.plan_id || '';
-      const matchedPlan = (Array.isArray(plans) ? plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
-        (Array.isArray(ptPlans) ? ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) : null) ||
-        (Array.isArray(recoveryPlans) ? recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) : null) || null;
+      const rawPlanId = editingInvoice.planId || editingInvoice.plan_id || editingInvoice.packageId || editingInvoice.package_id || '';
+      const rawPlanName = editingInvoice.planName || editingInvoice.plan_name || editingInvoice.title || editingInvoice.name || '';
+      const matchedPlan = findPlan(rawPlanId, rawPlanName);
+
+      const rawPkgType = editingInvoice.packageType || editingInvoice.package_type || matchedPlan?.packageType || 'Gym-Cardio';
+      const pkgType = matchedPlan?.packageType || normalizePackageType(rawPkgType);
+      const resolvedPkgId = matchedPlan?.id || rawPlanId || (plans[0]?.id || '');
 
       const totalBilled = Number(editingInvoice.totalAmount ?? (paid + Number(editingInvoice.pendingAmount ?? 0)));
       const invDiscount = Number(editingInvoice.discount || editingInvoice.discountAmount || 0);
+      const planPrice = matchedPlan?.price ? Number(matchedPlan.price) : totalBilled;
 
       if (editingInvoice.trainerId || editingInvoice.trainer_id) {
         setSelectedTrainerId(String(editingInvoice.trainerId || editingInvoice.trainer_id));
@@ -347,15 +398,16 @@ export const CreateInvoicePage = ({
       setSelectedPackages([{
         id: `pkg-0-${Date.now()}`,
         packageType: pkgType,
-        packageId: matchedPlan?.id || rawPlanId || (plans[0]?.id || ''),
-        price: Number(matchedPlan?.price ?? totalBilled),
+        packageId: resolvedPkgId,
+        planName: rawPlanName || matchedPlan?.name || '',
+        price: planPrice,
         discount: invDiscount > 0 ? String(invDiscount) : '',
         startDate: invStartDate,
         expiryDate: invEndDate ? String(invEndDate).split('T')[0] : '',
         isCustomStartDate: false
       }]);
     }
-  }, [editingInvoice]);
+  }, [editingInvoice, plans, ptPlans, recoveryPlans, members]);
 
   // Dynamic Promise Date Boundaries (Membership Start Date <= Promise Date < Membership Expiry Date)
   const effectiveInvoiceStartDate = useMemo(() => {
@@ -500,6 +552,7 @@ export const CreateInvoicePage = ({
         const invMemId = String(inv.userId || inv.user_id || inv.memberId || inv.member_id || '').replace(/[^0-9]/g, '');
         if (invMemId !== cleanId) return;
         if (inv.status === 'Cancelled' || inv.status === 'Refunded') return;
+        if (editingInvoice && (inv.id === editingInvoice.id || inv.invoice_number === editingInvoice.invoiceNumber || inv.invoice_number === editingInvoice.invoice_number)) return;
 
         // A. Check nested items / packages inside invoice
         let itemsList = [];
@@ -612,6 +665,15 @@ export const CreateInvoicePage = ({
   // Compute row-level chaining parameters (default start date = day after previous plan, open to custom start date)
   const getRowChainingInfo = (pkgRow, currentRows = null) => {
     const todayStr = getTodayDateStr();
+    if (isEditMode) {
+      return {
+        isChained: false,
+        latestEnd: null,
+        minStartDate: '',
+        defaultStartDate: pkgRow?.startDate || membershipStartDate || todayStr,
+        message: 'Editing existing invoice details.'
+      };
+    }
     const pkgType = normalizePackageType(pkgRow?.packageType || 'Gym-Cardio');
     const latestEnd = getLatestEndDateForPackageType(selectedMemberId, pkgType, pkgRow?.id, currentRows);
 
@@ -649,8 +711,9 @@ export const CreateInvoicePage = ({
     return (months * 30) + bonus;
   };
 
-  // Compute validity for any package row
+  // Compute validity for any package row (bypassed in edit mode)
   const computePackageValidity = (pkgRow) => {
+    if (isEditMode) return null;
     if (!pkgRow?.packageId) return null;
     const planObj = getPackageObject(pkgRow.packageType, pkgRow.packageId);
     if (!planObj) return null;
@@ -696,23 +759,45 @@ export const CreateInvoicePage = ({
 
   // Top membership validity info (for the main gym membership plan in the bill)
   const mainMembershipValidityInfo = useMemo(() => {
+    if (isEditMode) return null;
     const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt');
     const isRecRow = (r) => (r.packageType === 'Massage' || r.packageType === 'Activities' || r.packageType === 'recovery');
     const memRow = selectedPackages.find((r) => !isPtRow(r) && !isRecRow(r) && r.packageId)
       || selectedPackages.find((r) => r.packageId);
     if (!memRow) return null;
     return computePackageValidity(memRow);
-  }, [selectedPackages, memberCurrentPlan, membershipStartDate, plans, ptPlans, recoveryPlans, invoices, currentMember]);
+  }, [isEditMode, selectedPackages, memberCurrentPlan, membershipStartDate, plans, ptPlans, recoveryPlans, invoices, currentMember]);
 
-  // Keep membershipEndDate synchronized with the validity calculation
+  // Keep membershipEndDate synchronized with the validity calculation (only for new invoices)
   useEffect(() => {
-    if (mainMembershipValidityInfo?.newExpiryDate) {
+    if (!isEditMode && mainMembershipValidityInfo?.newExpiryDate) {
       setMembershipEndDate(mainMembershipValidityInfo.newExpiryDate);
     }
-  }, [mainMembershipValidityInfo]);
+  }, [isEditMode, mainMembershipValidityInfo]);
 
   // Cascading recalculation for multi-package rows and plan chaining
   const recalculatePackageRows = (rows, targetMemberId = selectedMemberId) => {
+    if (isEditMode) {
+      // In edit mode: keep current row dates strictly without auto-chaining from member expiry or other invoices
+      return rows.map((row) => {
+        const pkgType = normalizePackageType(row.packageType || 'Gym-Cardio');
+        const planObj = getPackageObject(row.packageType, row.packageId);
+        const effectiveStart = row.startDate || membershipStartDate || getTodayDateStr();
+        const computedExp = row.expiryDate || (planObj ? computeCombinedPlanEndDate(effectiveStart, planObj) : '');
+        return {
+          ...row,
+          packageType: row.packageType || pkgType,
+          startDate: effectiveStart,
+          expiryDate: computedExp,
+          minStartDate: '',
+          defaultStartDate: effectiveStart,
+          latestEnd: null,
+          isChained: false,
+          chainingMessage: ''
+        };
+      });
+    }
+
     const updated = [];
     const todayStr = getTodayDateStr();
 
@@ -814,16 +899,20 @@ export const CreateInvoicePage = ({
     setSelectedPackages((prev) => {
       const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
+        const computedExp = isEditMode && firstPlan && row.startDate
+          ? computeCombinedPlanEndDate(row.startDate, firstPlan)
+          : row.expiryDate;
         return {
           ...row,
           packageType: newType,
           packageId: firstPlan ? String(firstPlan.id) : '',
           price: Number(firstPlan?.price || 0),
           discount: '',
+          expiryDate: computedExp,
           isCustomStartDate: false
         };
       });
-      return recalculatePackageRows(nextRows);
+      return isEditMode ? nextRows : recalculatePackageRows(nextRows);
     });
   };
 
@@ -840,13 +929,17 @@ export const CreateInvoicePage = ({
       const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
         const found = getPackageObject(row.packageType, newPackageId);
+        const computedExp = isEditMode && found && row.startDate
+          ? computeCombinedPlanEndDate(row.startDate, found)
+          : row.expiryDate;
         return {
           ...row,
           packageId: newPackageId,
-          price: Number(found?.price || 0)
+          price: Number(found?.price || 0),
+          expiryDate: computedExp
         };
       });
-      return recalculatePackageRows(nextRows);
+      return isEditMode ? nextRows : recalculatePackageRows(nextRows);
     });
   };
 
@@ -854,14 +947,27 @@ export const CreateInvoicePage = ({
     setSelectedPackages((prev) => {
       const nextRows = prev.map((row) => {
         if (row.id !== rowId) return row;
+        const planObj = getPackageObject(row.packageType, row.packageId);
+        const computedExp = (isEditMode && planObj && newStartDate)
+          ? computeCombinedPlanEndDate(newStartDate, planObj)
+          : row.expiryDate;
         return {
           ...row,
           startDate: newStartDate,
+          expiryDate: computedExp,
           isCustomStartDate: true
         };
       });
-      return recalculatePackageRows(nextRows);
+      return isEditMode ? nextRows : recalculatePackageRows(nextRows);
     });
+    if (isEditMode) {
+      setMembershipStartDate(newStartDate);
+      const row = selectedPackages.find((r) => r.id === rowId);
+      const planObj = row ? getPackageObject(row.packageType, row.packageId) : null;
+      if (planObj && newStartDate) {
+        setMembershipEndDate(computeCombinedPlanEndDate(newStartDate, planObj));
+      }
+    }
   };
 
   const handlePackageExpiryDateChange = (rowId, newExpiryDate) => {
@@ -874,6 +980,9 @@ export const CreateInvoicePage = ({
         };
       })
     );
+    if (isEditMode) {
+      setMembershipEndDate(newExpiryDate);
+    }
   };
 
   const handlePackageDiscountChange = (rowId, val) => {
@@ -1777,6 +1886,7 @@ export const CreateInvoicePage = ({
               <MemberSearchSelect
                 members={members}
                 value={selectedMemberId}
+                fallbackMember={currentMember}
                 onChange={handleMemberChange}
                 required
               />
@@ -1835,8 +1945,8 @@ export const CreateInvoicePage = ({
             </div>
           )}
 
-          {/* DEDICATED CURRENT PLAN DETAILS & REMAINING DAYS CARD */}
-          {currentMember && memberCurrentPlan?.hasPlan && (
+          {/* DEDICATED CURRENT PLAN DETAILS & REMAINING DAYS CARD (Only when creating new invoices) */}
+          {!isEditMode && currentMember && memberCurrentPlan?.hasPlan && (
             <div className="mt-3 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-200 shadow-2xs space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-emerald-200/60">
                 <div className="flex items-center gap-2.5">
@@ -2096,6 +2206,19 @@ export const CreateInvoicePage = ({
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
                       >
                         <option value="">-- Choose Plan --</option>
+                        {pkgRow.packageId && !availablePackages.some((p) => String(p.id) === String(pkgRow.packageId)) && (
+                          <option value={pkgRow.packageId}>
+                            {currentPkgObj?.name || pkgRow.planName || `Plan #${pkgRow.packageId}`}{' '}
+                            {currentPkgObj?.sessions
+                              ? `(${currentPkgObj.sessions} Sessions)`
+                              : currentPkgObj?.period
+                                ? `(${currentPkgObj.period})`
+                                : currentPkgObj?.durationMonths
+                                  ? `(${currentPkgObj.durationMonths} Mo)`
+                                  : ''}{' '}
+                            — ₹{Number(currentPkgObj?.price || pkgRow.price || 0).toLocaleString('en-IN')}
+                          </option>
+                        )}
                         {availablePackages.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}{' '}
@@ -2155,7 +2278,7 @@ export const CreateInvoicePage = ({
                       <input
                         type="date"
                         required
-                        value={pkgRow.startDate || rowChaining.defaultStartDate}
+                        value={pkgRow.startDate || (isEditMode ? (membershipStartDate || '') : rowChaining.defaultStartDate)}
                         onChange={(e) => handlePackageStartDateChange(pkgRow.id, e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-2xs"
                       />
@@ -2177,22 +2300,24 @@ export const CreateInvoicePage = ({
                     </div>
                   </div>
 
-                  {/* Plan Chaining Status Message & Indicator */}
-                  <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2 shadow-2xs ${rowChaining.isChained
-                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                    }`}>
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${rowChaining.isChained ? 'text-emerald-600' : 'text-slate-400'}`} />
-                      <span>{rowChaining.message}</span>
-                    </div>
-                    <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${rowChaining.isChained
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-white text-slate-600 border-slate-200'
+                  {/* Plan Chaining Status Message & Indicator (Only when creating new invoices) */}
+                  {!isEditMode && (
+                    <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2 shadow-2xs ${rowChaining.isChained
+                        ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
                       }`}>
-                      {rowChaining.isChained ? '⚡ Chained (Day After)' : 'Fresh Plan'}
-                    </span>
-                  </div>
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Sparkles className={`w-3.5 h-3.5 shrink-0 ${rowChaining.isChained ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <span>{rowChaining.message}</span>
+                      </div>
+                      <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${rowChaining.isChained
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-white text-slate-600 border-slate-200'
+                        }`}>
+                        {rowChaining.isChained ? '⚡ Chained (Day After)' : 'Fresh Plan'}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Coach Assignment if PT */}
                   {isPt && (

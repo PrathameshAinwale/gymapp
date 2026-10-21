@@ -130,15 +130,25 @@ export const EditInvoiceModal = ({
 
   // Find currently selected member object
   const currentMember = useMemo(() => {
-    if (!selectedMemberId) return null;
+    const fallbackMember = invoice?.member || invoice?.currentMember || (invoice ? {
+      id: invoice.memberId || (invoice.userId ? `mem-${invoice.userId}` : ''),
+      userId: invoice.userId || invoice.user_id,
+      name: invoice.memberName || invoice.member_name,
+      phone: invoice.memberPhone || invoice.member_phone,
+      email: invoice.memberEmail || invoice.member_email,
+      planName: invoice.planName || invoice.plan_name,
+      expiryDate: invoice.expiryDate || invoice.endDate
+    } : null);
+
+    if (!selectedMemberId) return fallbackMember;
     const cleanNum = String(selectedMemberId).replace(/\D/g, '');
     return members.find((m) =>
       String(m.id) === String(selectedMemberId) ||
       `mem-${m.userId}` === String(selectedMemberId) ||
       `mem-${m.id}` === String(selectedMemberId) ||
       (cleanNum && (String(m.id).replace(/\D/g, '') === cleanNum || String(m.userId) === cleanNum))
-    ) || null;
-  }, [members, selectedMemberId]);
+    ) || fallbackMember;
+  }, [members, selectedMemberId, invoice]);
 
   // Current Trainer
   const currentTrainer = useMemo(() => {
@@ -152,23 +162,14 @@ export const EditInvoiceModal = ({
     return Number(currentMember.duesAmount ?? currentMember.dues_amount ?? 0);
   }, [currentMember]);
 
-  // End Date Calculation helper
-  const calculateEndDate = (startDateStr, planObj, existingExpiryDate = null) => {
+  // End Date Calculation helper (strictly from start date, no chaining for invoice edits)
+  const calculateEndDate = (startDateStr, planObj) => {
     if (!startDateStr || !planObj) return;
     const durationMonths = Number(planObj.durationMonths || planObj.duration_months || 1);
     const periodStr = planObj.period || (planObj.validityDays ? `${planObj.validityDays} Days` : '');
     const bonusDays = Number(planObj.offerDays || planObj.offer_days) || 0;
 
-    let baseStart = startDateStr;
-    if (existingExpiryDate) {
-      const expStr = String(existingExpiryDate).split('T')[0];
-      const today = new Date().toISOString().split('T')[0];
-      if (expStr >= today) {
-        baseStart = expStr;
-      }
-    }
-
-    const calculated = calculatePlanExpiryDate(baseStart, durationMonths, periodStr, bonusDays);
+    const calculated = calculatePlanExpiryDate(startDateStr, durationMonths, periodStr, bonusDays);
     if (calculated) {
       setMembershipEndDate(calculated);
     }
@@ -212,9 +213,16 @@ export const EditInvoiceModal = ({
 
       // 5. Payment method split
       const paid = Number(invoice.amount ?? invoice.paidAmount ?? invoice.paid_amount ?? 0);
-      const payMethod = (invoice.paymentMethod || invoice.payment_method || 'UPI').toUpperCase();
+      const payMethod = String(invoice.paymentMethod || invoice.payment_method || 'UPI').toUpperCase();
 
-      if (payMethod.includes('CASH')) {
+      if (payMethod.includes('CASH') && (payMethod.includes('UPI') || payMethod.includes('TRANSFER') || payMethod.includes('BANK'))) {
+        const cashMatch = payMethod.match(/cash\s*\(?₹?([0-9,]+)\)?/i);
+        const upiMatch = payMethod.match(/upi\s*\(?₹?([0-9,]+)\)?/i);
+        const transferMatch = payMethod.match(/(transfer|bank|cheque)\s*\(?₹?([0-9,]+)\)?/i);
+        setCashAmount(cashMatch ? cashMatch[1].replace(/,/g, '') : '');
+        setUpiAmount(upiMatch ? upiMatch[1].replace(/,/g, '') : '');
+        setAccountTransferAmount(transferMatch ? transferMatch[2].replace(/,/g, '') : '');
+      } else if (payMethod.includes('CASH')) {
         setCashAmount(paid > 0 ? String(paid) : '');
         setUpiAmount('');
         setAccountTransferAmount('');
@@ -241,19 +249,45 @@ export const EditInvoiceModal = ({
       }
 
       const invStartDate = invoice.startDate || invoice.start_date || invDate;
-      const invEndDate = invoice.expiryDate || invoice.expiry_date || invoice.endDate || invoice.end_date || matchedMember?.expiryDate || '';
+      const invEndDate = invoice.expiryDate || invoice.expiry_date || invoice.endDate || invoice.end_date || '';
 
       setMembershipStartDate(invStartDate);
       setMembershipEndDate(invEndDate ? String(invEndDate).split('T')[0] : '');
 
+      // Helper to find matching plan from plans, ptPlans, or recoveryPlans
+      const findPlan = (rawPlanId, rawPlanName) => {
+        const pIdStr = rawPlanId ? String(rawPlanId).trim() : '';
+        const cleanNum = pIdStr ? pIdStr.replace(/\D/g, '') : '';
+        const pNameLower = rawPlanName ? String(rawPlanName).trim().toLowerCase() : '';
+
+        const matchFn = (p) => {
+          if (!p) return false;
+          if (pIdStr && (String(p.id) === pIdStr || `plan-${p.id}` === pIdStr || `pt-${p.id}` === pIdStr || `rec-${p.id}` === pIdStr)) return true;
+          if (cleanNum && String(p.id).replace(/\D/g, '') === cleanNum) return true;
+          if (pNameLower && p.name && p.name.trim().toLowerCase() === pNameLower) return true;
+          return false;
+        };
+
+        const found = (Array.isArray(plans) ? plans.find(matchFn) : null) ||
+          (Array.isArray(ptPlans) ? ptPlans.find(matchFn) : null) ||
+          (Array.isArray(recoveryPlans) ? recoveryPlans.find(matchFn) : null) || null;
+
+        if (!found) return null;
+        return {
+          ...found,
+          packageType: found.packageType || found.package_type || found.category || 'Gym-Cardio'
+        };
+      };
+
       if (rawItems.length > 0) {
         const rows = rawItems.map((it, idx) => {
-          const rawPkgType = it.packageType || it.package_type || invoice.packageType || invoice.package_type || 'Gym-Cardio';
-          const pkgType = normalizePackageType(rawPkgType);
-          const rawPlanId = it.planId ?? it.plan_id ?? '';
-          const matchedPlan = plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) ||
-            ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) ||
-            recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) || null;
+          const rawPlanId = it.planId ?? it.plan_id ?? it.packageId ?? it.package_id ?? it.id ?? '';
+          const rawPlanName = it.name || it.planName || it.plan_name || it.title || '';
+          const matchedPlan = findPlan(rawPlanId, rawPlanName);
+
+          const rawPkgType = it.packageType || it.package_type || matchedPlan?.packageType || invoice.packageType || invoice.package_type || 'Gym-Cardio';
+          const pkgType = matchedPlan?.packageType || normalizePackageType(rawPkgType);
+          const resolvedPkgId = matchedPlan?.id || rawPlanId || '';
 
           if (it.trainerId || it.trainer_id) {
             setSelectedTrainerId(String(it.trainerId || it.trainer_id));
@@ -262,7 +296,8 @@ export const EditInvoiceModal = ({
           return {
             id: `pkg-${idx}-${Date.now()}`,
             packageType: pkgType,
-            packageId: matchedPlan?.id || rawPlanId || '',
+            packageId: resolvedPkgId,
+            planName: rawPlanName || matchedPlan?.name || '',
             price: String(Number(it.price ?? it.amount ?? matchedPlan?.price ?? 0)),
             discount: String(Number(it.discount ?? 0)),
             startDate: it.startDate || it.start_date || invStartDate,
@@ -272,12 +307,13 @@ export const EditInvoiceModal = ({
         setSelectedPackages(rows);
       } else {
         // Fallback: 1 package row from primary invoice plan
-        const rawPkgType = invoice.packageType || invoice.package_type || 'Gym-Cardio';
-        const pkgType = normalizePackageType(rawPkgType);
-        const rawPlanId = invoice.planId || invoice.plan_id || '';
-        const matchedPlan = plans.find((p) => p.id === rawPlanId || `plan-${p.id}` === rawPlanId || String(p.id) === String(rawPlanId).replace(/\D/g, '')) ||
-          ptPlans.find((pt) => pt.id === rawPlanId || `pt-${pt.id}` === rawPlanId || String(pt.id) === String(rawPlanId).replace(/\D/g, '')) ||
-          recoveryPlans.find((r) => r.id === rawPlanId || `rec-${r.id}` === rawPlanId || String(r.id) === String(rawPlanId).replace(/\D/g, '')) || null;
+        const rawPlanId = invoice.planId || invoice.plan_id || invoice.packageId || invoice.package_id || '';
+        const rawPlanName = invoice.planName || invoice.plan_name || invoice.title || invoice.name || '';
+        const matchedPlan = findPlan(rawPlanId, rawPlanName);
+
+        const rawPkgType = invoice.packageType || invoice.package_type || matchedPlan?.packageType || 'Gym-Cardio';
+        const pkgType = matchedPlan?.packageType || normalizePackageType(rawPkgType);
+        const resolvedPkgId = matchedPlan?.id || rawPlanId || (plans[0]?.id || '');
 
         const totalBilled = Number(invoice.totalAmount ?? (paid + Number(invoice.pendingAmount ?? 0)));
         const invDiscount = Number(invoice.discount || invoice.discountAmount || 0);
@@ -289,7 +325,8 @@ export const EditInvoiceModal = ({
         setSelectedPackages([{
           id: `pkg-0-${Date.now()}`,
           packageType: pkgType,
-          packageId: matchedPlan?.id || rawPlanId || (plans[0]?.id || ''),
+          packageId: resolvedPkgId,
+          planName: rawPlanName || matchedPlan?.name || '',
           price: String(matchedPlan?.price ?? totalBilled),
           discount: String(invDiscount),
           startDate: invStartDate,
@@ -312,12 +349,12 @@ export const EditInvoiceModal = ({
       setMemberPhone(m.phone || '');
       setMemberEmail(m.email || '');
 
-      // Recalculate end date with member's current expiry
+      // Recalculate end date based strictly on plan duration from start date
       const primaryPkg = selectedPackages[0];
       if (primaryPkg) {
         const planObj = getPackageObject(primaryPkg.packageType, primaryPkg.packageId);
         if (planObj) {
-          calculateEndDate(membershipStartDate, planObj, m.expiryDate);
+          calculateEndDate(membershipStartDate, planObj);
         }
       }
     }
@@ -365,7 +402,7 @@ export const EditInvoiceModal = ({
     );
 
     if (defaultPlan && !isPtRow({ packageType: newType })) {
-      calculateEndDate(membershipStartDate, defaultPlan, currentMember?.expiryDate);
+      calculateEndDate(membershipStartDate, defaultPlan);
     }
   };
 
@@ -387,7 +424,7 @@ export const EditInvoiceModal = ({
         const planPrice = planObj ? String(planObj.price || 0) : r.price;
 
         if (planObj && !isPtRow(r)) {
-          calculateEndDate(membershipStartDate, planObj, currentMember?.expiryDate);
+          calculateEndDate(membershipStartDate, planObj);
         }
 
         return {
@@ -426,7 +463,7 @@ export const EditInvoiceModal = ({
         })
       );
       if (!isPtRow({ packageType: quickAddModal.packageType })) {
-        calculateEndDate(membershipStartDate, newPlan, currentMember?.expiryDate);
+        calculateEndDate(membershipStartDate, newPlan);
       }
     }
     setQuickAddModal({ isOpen: false, packageType: 'Gym-Cardio', targetRowId: null });
@@ -720,6 +757,7 @@ export const EditInvoiceModal = ({
                 <MemberSearchSelect
                   members={members}
                   value={selectedMemberId}
+                  fallbackMember={currentMember}
                   onChange={handleMemberChange}
                   required
                 />
@@ -883,6 +921,11 @@ export const EditInvoiceModal = ({
                           <option value="">
                             -- Choose {pkgRow.packageType} {availablePackages.length === 0 ? '(No plans yet)' : ''} --
                           </option>
+                          {pkgRow.packageId && !availablePackages.some((p) => String(p.id) === String(pkgRow.packageId)) && (
+                            <option value={pkgRow.packageId}>
+                              {currentPkgObj?.name || pkgRow.planName || `Plan #${pkgRow.packageId}`} {currentPkgObj?.sessions ? `(${currentPkgObj.sessions} Sessions)` : (currentPkgObj?.period ? `(${currentPkgObj.period})` : (currentPkgObj?.durationMonths ? `(${currentPkgObj.durationMonths}M)` : ''))} — ₹{Number(currentPkgObj?.price || pkgRow.price || 0).toLocaleString('en-IN')}
+                            </option>
+                          )}
                           {availablePackages.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.name} {p.sessions ? `(${p.sessions} Sessions)` : (p.period ? `(${p.period})` : (p.durationMonths ? `(${p.durationMonths}M)` : ''))} — ₹{Number(p.price || 0).toLocaleString('en-IN')}
@@ -945,7 +988,7 @@ export const EditInvoiceModal = ({
                               const newStart = e.target.value;
                               setMembershipStartDate(newStart);
                               if (newStart && currentPkgObj) {
-                                calculateEndDate(newStart, currentPkgObj, currentMember?.expiryDate);
+                                calculateEndDate(newStart, currentPkgObj);
                               }
                             }}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"

@@ -261,6 +261,51 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   }
 };
 
+// Global Active Network Request Tracker (Drives non-blocking top progress bar)
+let activeNetworkRequestsCount = 0;
+const loadingListeners = new Set();
+
+export const subscribeToLoading = (listener) => {
+  if (typeof listener !== 'function') return () => {};
+  loadingListeners.add(listener);
+  try {
+    listener(activeNetworkRequestsCount > 0, activeNetworkRequestsCount);
+  } catch {}
+  return () => loadingListeners.delete(listener);
+};
+
+export const getActiveRequestCount = () => activeNetworkRequestsCount;
+
+const notifyLoadingListeners = () => {
+  const isLoading = activeNetworkRequestsCount > 0;
+  loadingListeners.forEach((listener) => {
+    try {
+      listener(isLoading, activeNetworkRequestsCount);
+    } catch (e) {
+      console.warn('Loading listener error:', e);
+    }
+  });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('pulsefit:loading', {
+        detail: { isLoading, count: activeNetworkRequestsCount }
+      })
+    );
+  }
+};
+
+const beginNetworkRequest = (isSilent = false) => {
+  if (isSilent) return;
+  activeNetworkRequestsCount++;
+  notifyLoadingListeners();
+};
+
+const endNetworkRequest = (isSilent = false) => {
+  if (isSilent) return;
+  activeNetworkRequestsCount = Math.max(0, activeNetworkRequestsCount - 1);
+  notifyLoadingListeners();
+};
+
 // High-Performance In-Flight Deduplication & Memory Cache for GET requests
 const inflightGetRequests = new Map();
 const getResponseCache = new Map();
@@ -296,13 +341,13 @@ const apiFetch = async (urlOrPath, options = {}) => {
   if (method !== 'GET') {
     getResponseCache.clear();
   } else if (!options.skipCache) {
-    // 1. Check in-memory fresh cache
+    // 1. Check in-memory fresh cache (cache hits NEVER trigger network loader counter)
     const cached = getResponseCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
       return cached.response.clone();
     }
 
-    // 2. Check if identical GET request is already in-flight
+    // 2. Check if identical GET request is already in-flight (deduped callers wait on single logical request)
     if (inflightGetRequests.has(cacheKey)) {
       try {
         const res = await inflightGetRequests.get(cacheKey);
@@ -370,13 +415,25 @@ const apiFetch = async (urlOrPath, options = {}) => {
     }
 
     let lastError = null;
-    const timeoutMs = getTimeoutForRequest(relativePath, options);
+    const totalTimeoutMs = options.timeoutMs || getTimeoutForRequest(relativePath, options);
+    const deadline = Date.now() + totalTimeoutMs;
+
     for (const host of hostsToTry) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        const timeoutErr = new DOMException(
+          `Connection timed out after ${Math.round(totalTimeoutMs / 1000)}s while connecting to backend.`,
+          'TimeoutError'
+        );
+        timeoutErr.isTimeout = true;
+        throw timeoutErr;
+      }
+
       try {
         const cleanHost = host.replace(/\/+$/, '');
         const cleanPath = relativePath.startsWith('/') ? relativePath : '/' + relativePath;
         const fullUrl = `${cleanHost}${cleanPath}`;
-        const res = await fetchWithTimeout(fullUrl, options, timeoutMs);
+        const res = await fetchWithTimeout(fullUrl, options, remainingMs);
         if (activeBaseUrl !== host) {
           activeBaseUrl = host;
           if (typeof window !== 'undefined') {
@@ -415,20 +472,38 @@ const apiFetch = async (urlOrPath, options = {}) => {
     throw lastError || new Error('Network error: Unable to connect to backend server');
   };
 
+  const isSilent = Boolean(options.silent);
+
   if (method === 'GET' && !options.skipCache) {
-    const promise = executeFetch();
+    const promise = (async () => {
+      beginNetworkRequest(isSilent);
+      try {
+        return await executeFetch();
+      } finally {
+        endNetworkRequest(isSilent);
+      }
+    })();
+
     inflightGetRequests.set(cacheKey, promise);
     try {
       const res = await promise;
-      // Store clone in cache for subsequent calls
-      getResponseCache.set(cacheKey, { timestamp: Date.now(), response: res.clone() });
-      return res;
+      // Store clone in cache for subsequent calls ONLY if successful (never cache errors)
+      if (res && res.ok) {
+        getResponseCache.set(cacheKey, { timestamp: Date.now(), response: res.clone() });
+      }
+      return res.clone();
     } finally {
       inflightGetRequests.delete(cacheKey);
     }
   }
 
-  return await executeFetch();
+  // Non-GET or skipCache
+  beginNetworkRequest(isSilent);
+  try {
+    return await executeFetch();
+  } finally {
+    endNetworkRequest(isSilent);
+  }
 };
 
 export const getActiveGymId = () => {
@@ -1989,6 +2064,7 @@ export const api = {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(payload),
+        silent: true
       });
       return handleResponse(res);
     },
@@ -2040,7 +2116,10 @@ export const api = {
   notifications: {
     getSummary: async (params = {}) => {
       const query = new URLSearchParams(withGymParam(params)).toString();
-      const res = await apiFetch(`${API_BASE_URL}/notifications${query ? `?${query}` : ''}`, { headers: getHeaders() });
+      const res = await apiFetch(`${API_BASE_URL}/notifications${query ? `?${query}` : ''}`, {
+        headers: getHeaders(),
+        silent: true
+      });
       return handleResponse(res);
     },
     markRead: async (type, referenceId) => {

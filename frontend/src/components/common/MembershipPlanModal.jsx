@@ -104,11 +104,23 @@ export const getPackagesForType = (type, plans = [], ptPlans = [], recoveryPlans
 
 export const getPackageObjectFromLists = (type, id, plans = [], ptPlans = [], recoveryPlans = []) => {
   if (!id) return null;
-  const foundInPlans = (plans || []).find((p) => String(p.id) === String(id));
+  const cleanId = String(id).replace(/\D/g, '');
+  const idStr = String(id).trim().toLowerCase();
+
+  const matchFn = (p) => {
+    if (!p) return false;
+    if (String(p.id) === String(id)) return true;
+    if (`plan-${p.id}` === String(id) || `pt-${p.id}` === String(id) || `rec-${p.id}` === String(id)) return true;
+    if (cleanId && String(p.id).replace(/\D/g, '') === cleanId) return true;
+    if (p.name && p.name.trim().toLowerCase() === idStr) return true;
+    return false;
+  };
+
+  const foundInPlans = (plans || []).find(matchFn);
   if (foundInPlans) return foundInPlans;
-  const foundInPt = (ptPlans || []).find((p) => String(p.id) === String(id));
+  const foundInPt = (ptPlans || []).find(matchFn);
   if (foundInPt) return foundInPt;
-  const foundInRec = (recoveryPlans || []).find((r) => String(r.id) === String(id));
+  const foundInRec = (recoveryPlans || []).find(matchFn);
   if (foundInRec) return foundInRec;
   return null;
 };

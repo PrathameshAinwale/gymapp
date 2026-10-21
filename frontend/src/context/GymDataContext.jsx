@@ -1628,7 +1628,10 @@ export const GymDataProvider = ({ children }) => {
       return Boolean(loadingModules.dashboard);
     }
 
-    // For all other owner tabs, the components handle their own localized loading state
+    if (loadingModules[tabName] !== undefined) {
+      return Boolean(loadingModules[tabName]);
+    }
+
     return false;
   }, [isLoadingBackend, loadingModules]);
 
