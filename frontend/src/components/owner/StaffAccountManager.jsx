@@ -611,7 +611,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       aadhaar_image: stf.aadhaar_image || '',
       pan_card: stf.pan_card || '',
       pan_image: stf.pan_image || '',
-      salary: stf.salary || '',
+      salary: stf.salary ?? stf.monthly_salary ?? stf.monthlySalary ?? '',
       shifts: stf.shifts || '',
       specialty: stf.specialty || 'Head Strength & Conditioning Coach',
       experience: stf.experience || '3+ Years',
@@ -627,13 +627,13 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editFormData.name || !editFormData.email) {
-      addToast('Please fill in Name and Email', 'error');
+    if (!editFormData.name || !editFormData.phone) {
+      addToast('Please fill in Name and Mobile Number', 'error');
       return;
     }
 
     if (!isValidName(editFormData.name)) {
-      addToast('Please enter a valid human name (letters, spaces, hyphens, and apostrophes only, min 2 characters).', 'error');
+      addToast('Please enter a valid human name (min 2 characters).', 'error');
       return;
     }
 
@@ -676,17 +676,17 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     setIsUpdating(true);
     try {
       const payload = {
-        name: editFormData.name,
-        email: editFormData.email,
+        name: editFormData.name ? editFormData.name.trim() : '',
+        email: editFormData.email && String(editFormData.email).trim() ? String(editFormData.email).trim() : null,
         role: editFormData.role,
-        phone: editFormData.phone || '',
+        phone: editFormData.phone ? String(editFormData.phone).trim() : '',
         dob: editFormData.dob || null,
         joining_date: editFormData.joining_date || null,
         aadhaar_card: editFormData.aadhaar_card || null,
         aadhaar_image: editFormData.aadhaar_image || null,
         pan_card: editFormData.pan_card || null,
         pan_image: editFormData.pan_image || null,
-        salary: editFormData.salary ? Number(editFormData.salary) : null,
+        salary: editFormData.salary !== '' && editFormData.salary !== null && editFormData.salary !== undefined ? Number(editFormData.salary) : null,
         shifts: editFormData.shifts || null,
         biometric_user_id: editFormData.biometric_user_id ? String(editFormData.biometric_user_id).trim() : null,
         biometricUserId: editFormData.biometric_user_id ? String(editFormData.biometric_user_id).trim() : null
@@ -700,7 +700,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         payload.gender = editFormData.gender;
         payload.blood_group = editFormData.blood_group;
         payload.address = editFormData.address;
-        payload.monthly_salary = editFormData.salary ? Number(editFormData.salary) : 0;
+        payload.monthly_salary = editFormData.salary !== '' && editFormData.salary !== null && editFormData.salary !== undefined ? Number(editFormData.salary) : 0;
       }
 
       if (editFormData.password) {
@@ -711,8 +711,10 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       await api.staff.update(staffId, payload);
 
       if (editFormData.password) {
-        saveStaffPassword(editFormData.email, editFormData.password);
+        if (editFormData.email) saveStaffPassword(editFormData.email, editFormData.password);
+        if (editFormData.phone) saveStaffPassword(editFormData.phone, editFormData.password);
         if (editingStaff.userId) saveStaffPassword(editingStaff.userId, editFormData.password);
+        if (editingStaff.id) saveStaffPassword(editingStaff.id, editFormData.password);
       }
 
       addToast(`${editFormData.role === 'trainer' ? 'Coach' : 'Staff'} profile for ${editFormData.name} updated successfully!`, 'success');

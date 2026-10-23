@@ -1673,6 +1673,9 @@ export const api = {
     },
     update: async (id, staffData) => {
       const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
+      if (!numericId) {
+        throw new Error('Invalid staff member identifier');
+      }
       const payload = withGymParam(staffData);
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
         method: 'PUT',
@@ -1683,6 +1686,9 @@ export const api = {
     },
     delete: async (id) => {
       const numericId = typeof id === 'string' ? id.replace(/[^0-9]/g, '') : id;
+      if (!numericId) {
+        throw new Error('Invalid staff member identifier');
+      }
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
         method: 'DELETE',
         headers: getHeaders(),

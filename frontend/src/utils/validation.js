@@ -4,8 +4,8 @@
  * and guards against SQL Injection and malicious payloads.
  */
 
-// Common SQL Injection patterns: quotes followed by SQL keywords, comment dashes, UNION SELECT, OR 1=1, etc.
-const SQL_INJECTION_PATTERN = /(?:'|"|;|--|\/\*|\*\/|\b(select|union|insert|update|delete|drop|alter|truncate|exec|declare|cast)\b\s+(?:\*|[a-z0-9_]+|\()|\b(or|and)\b\s+['"\d\w]+\s*=\s*['"\d\w]+)/i;
+// Common SQL Injection patterns: SQL keywords with operands, comment dashes, UNION SELECT, OR 1=1, etc.
+const SQL_INJECTION_PATTERN = /(?:--|\/\*|\*\/|;\s*(?:select|union|insert|update|delete|drop|alter|truncate|exec|declare)|(?:'|"|;)\s*(?:or|and)\b\s+['"\d\w]+\s*=\s*['"\d\w]+|\b(?:select|union|insert|update|delete|drop|alter|truncate|exec|declare|cast)\b\s+(?:\*|[a-z0-9_]+|\())/i;
 
 /**
  * Checks if a string contains known SQL Injection syntax or payloads
@@ -248,8 +248,8 @@ export const isValidAadhaar = (aadhaar) => {
 };
 
 /**
- * Validates human names containing alphabetic & Unicode letters, spaces, hyphens, and apostrophes.
- * Rejects numbers and special-character-only values. Must have at least 2 letters and <= 100 chars.
+ * Validates human and staff names containing alphabetic & Unicode letters, digits, spaces, hyphens, dots, and apostrophes.
+ * Must have at least 2 alphanumeric characters and <= 100 chars.
  * @param {string} name 
  * @returns {boolean}
  */
@@ -257,26 +257,23 @@ export const isValidName = (name) => {
   if (!name || typeof name !== 'string') return false;
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 100) return false;
-  // Disallow any digits
-  if (/\d/.test(trimmed)) return false;
-  // Disallow special characters other than spaces, hyphens, apostrophes, and unicode letters
-  const validCharsRegex = /^[\p{L}\s'-]+$/u;
+  // Disallow special characters other than letters, numbers, spaces, dots, hyphens, and apostrophes
+  const validCharsRegex = /^[\p{L}\p{N}\s'.-]+$/u;
   if (!validCharsRegex.test(trimmed)) return false;
-  // Must contain at least 2 letters
-  const letterCount = (trimmed.match(/\p{L}/gu) || []).length;
-  return letterCount >= 2;
+  // Must contain at least 2 alphanumeric characters
+  const charCount = (trimmed.match(/[\p{L}\p{N}]/gu) || []).length;
+  return charCount >= 2;
 };
 
 /**
- * Sanitizes name input by stripping numbers and unsupported symbols
+ * Sanitizes name input by stripping unsupported symbols while retaining letters, numbers, spaces, dots, hyphens, and apostrophes
  * @param {string} val 
  * @returns {string}
  */
 export const sanitizeName = (val) => {
   if (val === null || val === undefined) return '';
   return String(val)
-    .replace(/[0-9]/g, '')
-    .replace(/[^\p{L}\s'-]/gu, '')
+    .replace(/[^\p{L}\p{N}\s'.-]/gu, '')
     .slice(0, 100);
 };
 

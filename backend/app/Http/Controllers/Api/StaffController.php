@@ -119,7 +119,7 @@ class StaffController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'           => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'name'           => ['required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\p{N}\s\'.\-]+$/u'],
             'phone'          => [
                 'required',
                 'string',
@@ -165,7 +165,7 @@ class StaffController extends Controller
         ], [
             'name.required' => 'Staff full name is required.',
             'name.min' => 'Name must be at least 2 characters.',
-            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'name.regex' => 'Name must only contain letters, numbers, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory to register staff.',
             'phone.min' => 'Please enter a valid mobile number.',
             'phone.regex' => 'Please enter a valid mobile number with digits only.',
@@ -309,7 +309,7 @@ class StaffController extends Controller
         }
 
         $validated = $request->validate([
-            'name'           => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
+            'name'           => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\p{N}\s\'.\-]+$/u'],
             'email'          => 'nullable|email',
             'phone'          => [
                 'sometimes',
@@ -351,11 +351,31 @@ class StaffController extends Controller
             'address'        => 'nullable|string',
         ], [
             'name.min' => 'Name must be at least 2 characters.',
-            'name.regex' => 'Name must only contain letters, spaces, hyphens, and apostrophes.',
+            'name.regex' => 'Name must only contain letters, numbers, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory.',
             'phone.regex' => 'Please enter a valid mobile number with digits only.',
             'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ]);
+
+        // Guard against duplicate phone/email collision with owner or superadmin
+        if (!empty($validated['phone']) || !empty($validated['email'])) {
+            $conflictUser = User::where('id', '!=', $user->id)
+                ->where(function ($q) use ($validated) {
+                    if (!empty($validated['phone'])) {
+                        $q->where('phone', $validated['phone']);
+                    }
+                    if (!empty($validated['email'])) {
+                        $q->orWhere('email', trim($validated['email']));
+                    }
+                })
+                ->first();
+            if ($conflictUser && in_array($conflictUser->role, ['owner', 'superadmin'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The mobile number or email belongs to a gym owner or administrator account.'
+                ], 422);
+            }
+        }
 
         $oldBioId = (string)($user->biometric_user_id ?: $user->id);
 
@@ -374,6 +394,13 @@ class StaffController extends Controller
 
         $bioIdInput = $request->input('biometric_user_id', $request->input('biometricUserId'));
         if (!empty($bioIdInput)) {
+            $existingWithBio = User::where('biometric_user_id', (string)$bioIdInput)->where('id', '!=', $user->id)->first();
+            if ($existingWithBio) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Biometric PIN {$bioIdInput} is already assigned to {$existingWithBio->name}."
+                ], 422);
+            }
             $user->biometric_user_id = (string)$bioIdInput;
         }
 
