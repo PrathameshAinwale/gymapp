@@ -30,8 +30,18 @@ class StaffController extends Controller
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
 
+        $relations = ['trainerProfile.assignedMembers.user', 'trainerProfile.assignedMembers.plan'];
+        $hasGymRolesTable = false;
+        try {
+            $hasGymRolesTable = Schema::hasTable('gym_roles');
+        } catch (\Throwable $e) {}
+
+        if ($hasGymRolesTable) {
+            $relations[] = 'gymRole';
+        }
+
         $query = User::whereNotIn('role', ['owner', 'superadmin', 'member'])
-            ->with(['trainerProfile.assignedMembers.user', 'trainerProfile.assignedMembers.plan', 'gymRole']);
+            ->with($relations);
 
         if ($gymId && $gymId > 0) {
             $query->where('gym_id', $gymId);
@@ -41,16 +51,17 @@ class StaffController extends Controller
             ->get($selectCols);
 
         // Staff records with masked passwords
-        $data = $staff->map(function ($u) {
+        $data = $staff->map(function ($u) use ($hasGymRolesTable) {
             $arr = $u->toArray();
             $arr['plain_password'] = '••••••••';
             $arr['password'] = '••••••••';
             $arr['biometric_user_id'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['biometricUserId'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['synced_to_device'] = (bool)$u->synced_to_device;
-            $arr['role_label'] = $u->gymRole ? $u->gymRole->name : ucfirst($u->role);
-            $arr['role_color'] = $u->gymRole ? $u->gymRole->color : 'indigo';
-            $arr['assigned_pages'] = $u->gymRole ? ($u->gymRole->assigned_pages ?? []) : [];
+            $gymRole = ($hasGymRolesTable && $u->relationLoaded('gymRole')) ? $u->gymRole : null;
+            $arr['role_label'] = $gymRole ? $gymRole->name : ucfirst($u->role);
+            $arr['role_color'] = $gymRole ? $gymRole->color : 'indigo';
+            $arr['assigned_pages'] = $gymRole ? ($gymRole->assigned_pages ?? []) : [];
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {

@@ -121,7 +121,10 @@ class User extends Authenticatable
 
     public function gymRole()
     {
-        return $this->hasOne(GymRole::class, 'slug', 'role')
-            ->where('gym_id', $this->gym_id);
+        $relation = $this->hasOne(GymRole::class, 'slug', 'role');
+        if (!empty($this->gym_id)) {
+            $relation->where('gym_roles.gym_id', $this->gym_id);
+        }
+        return $relation;
     }
 }

@@ -133,15 +133,29 @@ class AuthController extends Controller
         if ($user->role === 'member') {
             $user->load(['memberProfile.plan', 'memberProfile.trainer', 'gym']);
         } elseif ($user->role === 'trainer') {
-            $user->load(['trainerProfile', 'gym', 'gymRole']);
+            $user->load(['trainerProfile', 'gym']);
         } else {
-            $user->load(['gym', 'gymRole']);
+            $user->load(['gym']);
         }
 
-        if ($user->gymRole) {
-            $user->assigned_pages = $user->gymRole->assigned_pages ?? [];
-            $user->role_label = $user->gymRole->name;
-            $user->role_color = $user->gymRole->color ?? 'indigo';
+        // Only staff roles (non-owner, non-admin, non-member) have custom gym roles
+        if (!in_array($user->role, ['member', 'owner', 'superadmin', 'admin']) && !empty($user->gym_id)) {
+            try {
+                if (Schema::hasTable('gym_roles')) {
+                    $roleRecord = \App\Models\GymRole::where('gym_id', $user->gym_id)
+                        ->where('slug', $user->role)
+                        ->first();
+
+                    if ($roleRecord) {
+                        $user->setRelation('gymRole', $roleRecord);
+                        $user->assigned_pages = $roleRecord->assigned_pages ?? [];
+                        $user->role_label = $roleRecord->name;
+                        $user->role_color = $roleRecord->color ?? 'indigo';
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore missing table gracefully during login
+            }
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;

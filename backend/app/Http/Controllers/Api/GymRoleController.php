@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class GymRoleController extends Controller
 {
@@ -49,6 +50,10 @@ class GymRoleController extends Controller
      */
     public static function ensureDefaultRolesExist(int $gymId): void
     {
+        if (!Schema::hasTable('gym_roles')) {
+            return;
+        }
+
         $existingCount = GymRole::where('gym_id', $gymId)->count();
         if ($existingCount === 0) {
             $now = now();
@@ -95,6 +100,13 @@ class GymRoleController extends Controller
      */
     public function index(Request $request)
     {
+        if (!Schema::hasTable('gym_roles')) {
+            return response()->json([
+                'success' => true,
+                'roles' => [],
+            ]);
+        }
+
         $gymId = $request->query('gym_id');
 
         if ($gymId) {
@@ -125,6 +137,13 @@ class GymRoleController extends Controller
      */
     public function getGymRoles(Request $request)
     {
+        if (!Schema::hasTable('gym_roles')) {
+            return response()->json([
+                'success' => true,
+                'roles' => [],
+            ]);
+        }
+
         $gymId = $request->query('gym_id');
         if (!$gymId && $request->user()) {
             $gymId = $request->user()->gym_id;
