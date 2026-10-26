@@ -232,7 +232,25 @@ export const getNavSectionsForMember = () => [
   }
 ];
 
-export const getNavSectionsForRole = (role) => {
+export const getNavSectionsForRole = (role, assignedPages = null) => {
+  if (Array.isArray(assignedPages) && assignedPages.length > 0 && role !== 'superadmin' && role !== 'owner') {
+    const superSections = getNavSectionsForSuperadmin();
+    const trainerSections = getNavSectionsForTrainer();
+    const combined = [...superSections];
+    trainerSections.forEach((ts) => {
+      if (!combined.some((c) => c.id === ts.id)) {
+        combined.push(ts);
+      }
+    });
+
+    return combined
+      .map((sec) => ({
+        ...sec,
+        items: sec.items.filter((item) => assignedPages.includes(item.id))
+      }))
+      .filter((sec) => sec.items.length > 0);
+  }
+
   if (role === 'trainer') return getNavSectionsForTrainer();
   if (role === 'member') return getNavSectionsForMember();
   if (role === 'manager') return getNavSectionsForManager();
@@ -247,7 +265,8 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const currentTier = resolveGymTier(gymInfo, currentUser);
   const customFeatures = gymInfo?.features || [];
 
-  const rawSections = getNavSectionsForRole(currentRole);
+  const userAssignedPages = currentUser?.assigned_pages || currentUser?.assignedPages || null;
+  const rawSections = getNavSectionsForRole(currentRole, userAssignedPages);
 
   // Strict Plan-based Feature Filtering:
   // Items and entire sections not explicitly allowed in this gym's plan are completely omitted from the sidebar

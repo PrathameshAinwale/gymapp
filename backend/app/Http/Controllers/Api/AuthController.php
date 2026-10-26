@@ -133,9 +133,15 @@ class AuthController extends Controller
         if ($user->role === 'member') {
             $user->load(['memberProfile.plan', 'memberProfile.trainer', 'gym']);
         } elseif ($user->role === 'trainer') {
-            $user->load(['trainerProfile', 'gym']);
+            $user->load(['trainerProfile', 'gym', 'gymRole']);
         } else {
-            $user->load('gym');
+            $user->load(['gym', 'gymRole']);
+        }
+
+        if ($user->gymRole) {
+            $user->assigned_pages = $user->gymRole->assigned_pages ?? [];
+            $user->role_label = $user->gymRole->name;
+            $user->role_color = $user->gymRole->color ?? 'indigo';
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;

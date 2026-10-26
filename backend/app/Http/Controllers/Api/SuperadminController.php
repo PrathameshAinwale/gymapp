@@ -557,6 +557,123 @@ class SuperadminController extends Controller
     }
 
     /**
+     * Get list of all Superadmin accounts.
+     */
+    public function indexAdmins(Request $request)
+    {
+        $admins = User::where('role', 'superadmin')
+            ->select('id', 'name', 'email', 'phone', 'role', 'created_at')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'admins' => $admins,
+        ]);
+    }
+
+    /**
+     * Create a new Superadmin account.
+     */
+    public function storeAdmin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6',
+            'phone' => 'nullable|string|max:20',
+        ], [
+            'name.required' => 'Please enter the admin name.',
+            'email.required' => 'Please enter a valid email address.',
+            'email.unique' => 'An account with this email address already exists.',
+            'password.required' => 'Please enter a password for this admin.',
+            'password.min' => 'Password must be at least 6 characters.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $admin = User::create([
+                'name' => trim($request->name),
+                'email' => strtolower(trim($request->email)),
+                'password' => Hash::make($request->password),
+                'role' => 'superadmin',
+                'phone' => $request->phone ? trim($request->phone) : null,
+                'gym_id' => null,
+                'must_change_password' => false,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Superadmin \"{$admin->name}\" created successfully. They can now log in at /superadmin with their email and password.",
+                'admin' => [
+                    'id' => $admin->id,
+                    'name' => $admin->name,
+                    'email' => $admin->email,
+                    'phone' => $admin->phone,
+                    'role' => $admin->role,
+                    'created_at' => $admin->created_at,
+                ]
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create superadmin: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a Superadmin account (cannot delete own account or last remaining superadmin).
+     */
+    public function deleteAdmin(Request $request, $id)
+    {
+        $currentUser = $request->user() ?: auth('sanctum')->user();
+        
+        if ($currentUser && $currentUser->id == $id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You cannot delete your own active superadmin account.'
+            ], 400);
+        }
+
+        $superadminCount = User::where('role', 'superadmin')->count();
+        if ($superadminCount <= 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete the last remaining Superadmin account.'
+            ], 400);
+        }
+
+        $admin = User::where('id', $id)->where('role', 'superadmin')->first();
+        if (!$admin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Superadmin account not found.'
+            ], 404);
+        }
+
+        // Revoke tokens
+        DB::table('personal_access_tokens')
+            ->where('tokenable_type', User::class)
+            ->where('tokenable_id', $admin->id)
+            ->delete();
+
+        $admin->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Superadmin \"{$admin->name}\" deleted successfully."
+        ]);
+    }
+
+    /**
      * Update Superadmin Login Password.
      * Requires current password and two new password fields (new password and confirm new password).
      */
@@ -813,6 +930,173 @@ class SuperadminController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete gym: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Clear all member data, trainer data, invoices, and operational records for a specific gym
+     * without deleting the gym facility, branding, pricing plans, or its owner account.
+     */
+    public function clearGymData(Request $request, $id)
+    {
+        $gym = Gym::find($id);
+
+        if (!$gym) {
+            return response()->json(['success' => false, 'message' => 'Gym not found'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // 1. Gather all user IDs strictly associated with this gym EXCEPT superadmins and the gym owner
+            $usersQuery = User::where('role', '!=', 'superadmin')
+                ->where('gym_id', $gym->id);
+
+            if ($gym->owner_id) {
+                $usersQuery->where('id', '!=', $gym->owner_id);
+            }
+            $usersQuery->where('role', '!=', 'owner');
+
+            $userIds = $usersQuery->pluck('id')->unique()->filter()->values()->toArray();
+
+            // 2. Revoke Sanctum tokens for the accounts to be deleted
+            if (!empty($userIds) && Schema::hasTable('personal_access_tokens')) {
+                DB::table('personal_access_tokens')
+                    ->where('tokenable_type', User::class)
+                    ->whereIn('tokenable_id', $userIds)
+                    ->delete();
+            }
+
+            // 3. Delete dependent records of these users first to respect foreign keys
+            if (!empty($userIds)) {
+                if (Schema::hasTable('member_profiles')) {
+                    DB::table('member_profiles')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('trainer_profiles')) {
+                    DB::table('trainer_profiles')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('workout_plans')) {
+                    DB::table('workout_plans')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('diet_plans')) {
+                    DB::table('diet_plans')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('body_metrics')) {
+                    DB::table('body_metrics')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('class_bookings')) {
+                    DB::table('class_bookings')->whereIn('user_id', $userIds)->delete();
+                }
+                if (Schema::hasTable('notification_reads')) {
+                    DB::table('notification_reads')->whereIn('user_id', $userIds)->delete();
+                }
+            }
+
+            // 4. Purge all operational and transactional gym-scoped tables
+            $gymScopedTables = [
+                'attendances',
+                'invoices',
+                'enquiries',
+                'expenses',
+                'revenue_billings',
+                'revenue_and_billings',
+                'financial_transactions',
+                'pt_session_logs',
+                'pt_sessions',
+                'trainer_reviews',
+                'commissions',
+                'payrolls',
+                'advance_requests',
+                'leave_requests',
+                'leave_balances',
+                'consent_forms',
+                'membership_freezes',
+                'membership_transfers',
+                'biometric_logs',
+                'biometric_deletions',
+                'entry_approvals',
+                'whatsapp_logs',
+            ];
+
+            foreach ($gymScopedTables as $table) {
+                if (Schema::hasTable($table)) {
+                    if (Schema::hasColumn($table, 'gym_id')) {
+                        DB::table($table)->where('gym_id', $gym->id)->delete();
+                    } elseif (!empty($userIds)) {
+                        DB::table($table)->where(function ($q) use ($table, $userIds) {
+                            if (Schema::hasColumn($table, 'user_id')) {
+                                $q->orWhereIn('user_id', $userIds);
+                            }
+                            if (Schema::hasColumn($table, 'member_id')) {
+                                $q->orWhereIn('member_id', $userIds);
+                            }
+                            if (Schema::hasColumn($table, 'trainer_id')) {
+                                $q->orWhereIn('trainer_id', $userIds);
+                            }
+                        })->delete();
+                    }
+                }
+            }
+
+            // Also check if any invoices/attendances/etc remain linked to userIds
+            if (!empty($userIds)) {
+                $userCleanupTables = [
+                    'invoices' => 'user_id',
+                    'attendances' => 'user_id',
+                    'class_bookings' => 'user_id',
+                    'consent_forms' => 'member_id',
+                    'membership_freezes' => 'member_id',
+                    'commissions' => 'trainer_id',
+                    'trainer_reviews' => 'trainer_id',
+                    'pt_sessions' => 'trainer_id',
+                    'payrolls' => 'user_id',
+                    'advance_requests' => 'user_id',
+                    'leave_requests' => 'user_id',
+                    'leave_balances' => 'user_id',
+                    'biometric_logs' => 'user_id',
+                    'biometric_deletions' => 'user_id',
+                ];
+
+                foreach ($userCleanupTables as $table => $column) {
+                    if (Schema::hasTable($table) && Schema::hasColumn($table, $column)) {
+                        DB::table($table)->whereIn($column, $userIds)->delete();
+                    }
+                }
+
+                // Delete collected non-owner user accounts (members, trainers, staff)
+                User::whereIn('id', $userIds)->delete();
+            }
+
+            // 5. Reset gym classes booked_count to 0 and nullify trainer_id
+            if (Schema::hasTable('gym_classes') && Schema::hasColumn('gym_classes', 'gym_id')) {
+                DB::table('gym_classes')->where('gym_id', $gym->id)->update([
+                    'booked_count' => 0,
+                    'trainer_id' => null,
+                ]);
+            }
+
+            // 6. Reset plans active_subscribers to 0
+            if (Schema::hasTable('plans') && Schema::hasColumn('plans', 'gym_id')) {
+                DB::table('plans')->where('gym_id', $gym->id)->update([
+                    'active_subscribers' => 0,
+                ]);
+            }
+
+            // Clear cache
+            Cache::forget("gym_setting_v1_{$gym->id}");
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "All member, trainer, invoice, and operational records cleared successfully for \"{$gym->name}\". Gym and owner account remain active.",
+                'cleared_users_count' => count($userIds),
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to clear gym data: ' . $e->getMessage()
             ], 500);
         }
     }

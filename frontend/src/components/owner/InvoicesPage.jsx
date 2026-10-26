@@ -49,7 +49,8 @@ export const InvoicesPage = ({
   setActiveTab,
   onNavigateTab,
   onNavigateToCreateInvoice,
-  onNavigateToEditInvoice
+  onNavigateToEditInvoice,
+  initialFilterPreset
 }) => {
   const {
     invoices = [],
@@ -110,6 +111,16 @@ export const InvoicesPage = ({
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'paid' | 'pending'
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('ALL'); // 'ALL' | 'Cash' | 'UPI' | 'Split' | 'Split: GPay' | ...
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+
+  // Apply metric card filter presets from Dashboard
+  useEffect(() => {
+    if (initialFilterPreset?.status) {
+      setStatusFilter(initialFilterPreset.status);
+    }
+    if (initialFilterPreset?.activeFilter) {
+      setActiveFilter(initialFilterPreset.activeFilter);
+    }
+  }, [initialFilterPreset?.status, initialFilterPreset?.activeFilter, initialFilterPreset?.timestamp]);
   const [expandedMembers, setExpandedMembers] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);

@@ -20,5 +20,6 @@ class GymSetting extends Model
         'currency',
         'essl_device_ip',
         'essl_device_port',
+        'freeze_policy_settings',
     ];
 }

@@ -67,7 +67,9 @@ export const MemberList = ({
   setActiveTab,
   onOpenMemberProfile,
   notificationFilter,
-  onClearNotificationFilter
+  onClearNotificationFilter,
+  initialFilterPreset,
+  onClearInitialFilterPreset
 }) => {
   const { registerAccount, canEditDelete, currentRole } = useAuth();
   const {
@@ -117,6 +119,22 @@ export const MemberList = ({
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
+
+  // Apply metric card filter presets from Dashboard
+  useEffect(() => {
+    if (initialFilterPreset?.status) {
+      setStatusFilter(initialFilterPreset.status);
+      setSearchTerm('');
+      setSelectedMonth('');
+      setStartDate('');
+      setEndDate('');
+      setPlanFilter('ALL');
+      setTrainerFilter('ALL');
+      setBalanceFilter('ALL');
+      setGenderFilter('ALL');
+      setSingleMemberOverride(null);
+    }
+  }, [initialFilterPreset?.status, initialFilterPreset?.timestamp]);
 
   // Notification Presets State
   const [notificationMemberIds, setNotificationMemberIds] = useState(null);
@@ -474,6 +492,7 @@ export const MemberList = ({
     setSearchTerm('');
     setSingleMemberOverride(null);
     onClearNotificationFilter?.();
+    onClearInitialFilterPreset?.();
   };
 
   const searchSuggestions = useMemo(() => {
@@ -524,10 +543,14 @@ export const MemberList = ({
         }
       }
 
-      // Status Filter
+      // Status Filter (Supports standard statuses + 'Renewals' for expired & expiring soon athletes)
       if (statusFilter !== 'ALL' && statusFilter) {
-        const effectiveStatus = getMemberEffectiveStatus(m);
-        if (effectiveStatus.toLowerCase() !== statusFilter.toLowerCase()) return false;
+        const effectiveStatus = (getMemberEffectiveStatus(m) || '').toLowerCase();
+        if (statusFilter.toLowerCase() === 'renewals' || statusFilter.toLowerCase() === 'renewals_due') {
+          if (effectiveStatus !== 'expired' && effectiveStatus !== 'expiring soon') return false;
+        } else if (effectiveStatus !== statusFilter.toLowerCase()) {
+          return false;
+        }
       }
 
       // Date Range Filter (Expiry Date or Joining Date)
@@ -865,8 +888,8 @@ export const MemberList = ({
             )}
             {statusFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium capitalize">
-                Status: {statusFilter}
-                <button type="button" onClick={() => setStatusFilter('ALL')} className="hover:text-emerald-950 cursor-pointer">
+                Status: {statusFilter.toLowerCase() === 'renewals' || statusFilter.toLowerCase() === 'renewals_due' ? 'Renewals Due (Expiring / Expired)' : statusFilter}
+                <button type="button" onClick={() => { setStatusFilter('ALL'); onClearInitialFilterPreset?.(); }} className="hover:text-emerald-950 cursor-pointer">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -2147,9 +2170,10 @@ export const MemberList = ({
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Membership Status
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
                   {[
                     { id: 'ALL', label: 'All Statuses' },
+                    { id: 'Renewals', label: 'Renewals Due' },
                     { id: 'Active', label: 'Active' },
                     { id: 'Expiring Soon', label: 'Expiring' },
                     { id: 'Expired', label: 'Expired' },

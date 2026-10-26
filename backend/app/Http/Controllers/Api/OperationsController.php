@@ -19,10 +19,13 @@ use App\Models\User;
 use App\Models\MemberProfile;
 use App\Models\AdvanceRequest;
 use App\Models\RevenueBilling;
+use App\Models\Gym;
+use App\Models\GymSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class OperationsController extends Controller
 {
@@ -239,10 +242,22 @@ class OperationsController extends Controller
 
             $invoiceNo = 'INV-PROD-' . strtoupper(substr(uniqid(), -6));
 
+            $formattedItems = array_map(function ($it) {
+                return [
+                    'productId' => 'prod-' . $it['product']->id,
+                    'name' => $it['product']->name,
+                    'category' => $it['product']->category,
+                    'unitPrice' => $it['unitPrice'],
+                    'quantity' => $it['quantity'],
+                    'lineTotal' => $it['lineTotal'],
+                ];
+            }, $sellItems);
+
             $inv = Invoice::create([
                 'gym_id' => $activeGymId,
                 'invoice_number' => $invoiceNo,
                 'user_id' => $resolvedUserId,
+                'package_type' => 'Store Item / Inventory',
                 'amount' => $totalAmount,
                 'total_amount' => $subtotal,
                 'pending_amount' => 0,
@@ -251,6 +266,7 @@ class OperationsController extends Controller
                 'due_date' => now()->toDateString(),
                 'payment_method' => $paymentMethod,
                 'status' => 'Paid',
+                'items' => $formattedItems,
                 'created_by' => $creatorId,
                 'created_by_name' => $creatorName,
             ]);
@@ -472,6 +488,21 @@ class OperationsController extends Controller
         $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
         $type = $request->type ?? 'freeze';
 
+        $gymId = $this->resolveGymId($request);
+        $policy = $this->getGymFreezePolicy($gymId);
+
+        // Mandatory Policy Setup Check
+        if (!$policy || empty($policy['is_configured'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gym freeze and extension policy is not configured yet. Please configure the minimum plan duration requirements in Settings first before processing requests.'
+            ], 422);
+        }
+
+        $requiredMonths = $type === 'extension'
+            ? (int)($policy['extension_min_months'] ?? 6)
+            : (int)($policy['freeze_min_months'] ?? 6);
+
         // 1. Start Date Validation: Freeze cannot be started before today
         $today = now()->toDateString();
         if ($type !== 'extension' && $freezeStartDate < $today) {
@@ -481,14 +512,14 @@ class OperationsController extends Controller
             ], 422);
         }
 
-        // 2. Plan Eligibility Validation: Applicable only to plans above 6 months (>= 6 months)
+        // 2. Plan Eligibility Validation
         $profile = null;
         if ($memberId) {
             $profile = MemberProfile::with('plan')->where('user_id', $memberId)->first()
                 ?? MemberProfile::with('plan')->find($memberId);
         }
 
-        if ($profile) {
+        if ($profile && $requiredMonths > 0) {
             $plan = $profile->plan;
             $durationMonths = (int)($plan?->duration_months ?? 0);
 
@@ -506,13 +537,13 @@ class OperationsController extends Controller
                 }
             }
 
-            if (!$plan || $durationMonths < 6) {
+            if (!$plan || $durationMonths < $requiredMonths) {
                 $actionType = $type === 'extension' ? 'extension' : 'freeze';
                 $planTitle = $plan?->name ? "'{$plan->name}'" : 'no active plan';
                 $durInfo = $durationMonths > 0 ? " ({$durationMonths} months)" : '';
                 return response()->json([
                     'success' => false,
-                    'message' => "Membership {$actionType} is only allowed for members with plans above 6 months (6 months and above). This member has {$planTitle}{$durInfo}, which is not eligible."
+                    'message' => "Membership {$actionType} is only allowed for members with plans {$requiredMonths} months and above according to your gym policy. This member has {$planTitle}{$durInfo}, which is not eligible."
                 ], 422);
             }
         }
@@ -632,6 +663,82 @@ class OperationsController extends Controller
         ], 201);
     }
 
+    // ==========================================
+    // FREEZE & TRANSFER POLICY MANAGEMENT
+    // ==========================================
+    public function getGymFreezePolicy(?int $gymId): ?array
+    {
+        $policy = null;
+        if ($gymId) {
+            $gym = Gym::find($gymId);
+            if ($gym && Schema::hasColumn('gyms', 'freeze_policy_settings') && !empty($gym->freeze_policy_settings)) {
+                $raw = $gym->freeze_policy_settings;
+                $policy = is_string($raw) ? json_decode($raw, true) : $raw;
+            }
+        }
+
+        if (!$policy) {
+            $setting = GymSetting::first();
+            if ($setting && Schema::hasColumn('gym_settings', 'freeze_policy_settings') && !empty($setting->freeze_policy_settings)) {
+                $raw = $setting->freeze_policy_settings;
+                $policy = is_string($raw) ? json_decode($raw, true) : $raw;
+            }
+        }
+
+        return is_array($policy) ? $policy : null;
+    }
+
+    public function getFreezePolicy(Request $request)
+    {
+        $gymId = $this->resolveGymId($request);
+        $policy = $this->getGymFreezePolicy($gymId);
+
+        return response()->json([
+            'success' => true,
+            'data' => $policy,
+            'is_configured' => !empty($policy['is_configured']),
+        ]);
+    }
+
+    public function updateFreezePolicy(Request $request)
+    {
+        $gymId = $this->resolveGymId($request);
+
+        $freezeMin = (int)($request->freeze_min_months ?? $request->freezeMinMonths ?? 6);
+        $extendMin = (int)($request->extension_min_months ?? $request->extensionMinMonths ?? 6);
+        $transferMin = (int)($request->transfer_min_months ?? $request->transferMinMonths ?? 6);
+
+        $policy = [
+            'is_configured' => true,
+            'freeze_min_months' => max(0, $freezeMin),
+            'extension_min_months' => max(0, $extendMin),
+            'transfer_min_months' => max(0, $transferMin),
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        if ($gymId) {
+            $gym = Gym::find($gymId);
+            if ($gym && Schema::hasColumn('gyms', 'freeze_policy_settings')) {
+                $gym->freeze_policy_settings = json_encode($policy);
+                $gym->save();
+                Cache::forget("gym_setting_v1_{$gymId}");
+            }
+        }
+
+        $setting = GymSetting::first();
+        if ($setting && Schema::hasColumn('gym_settings', 'freeze_policy_settings')) {
+            $setting->freeze_policy_settings = json_encode($policy);
+            $setting->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Freeze, extension & transfer policy settings saved successfully.',
+            'data' => $policy,
+            'is_configured' => true,
+        ]);
+    }
+
     public function getTransfers(Request $request)
     {
         $gymId = $this->resolveGymId($request);
@@ -704,6 +811,44 @@ class OperationsController extends Controller
                 'success' => false,
                 'message' => 'Source member profile not found.'
             ], 404);
+        }
+
+        // Validate gym policy requirement for transfer
+        $policy = $this->getGymFreezePolicy($gymId);
+        if (!$policy || empty($policy['is_configured'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gym membership transfer policy is not configured yet. Please configure the minimum plan duration requirements in Settings first before transferring memberships.'
+            ], 422);
+        }
+
+        $requiredTransferMonths = (int)($policy['transfer_min_months'] ?? 6);
+        if ($requiredTransferMonths > 0) {
+            $fromProfile->loadMissing('plan');
+            $plan = $fromProfile->plan;
+            $durationMonths = (int)($plan?->duration_months ?? 0);
+
+            if ($durationMonths === 0 && $plan) {
+                $desc = strtolower(($plan->period ?? '') . ' ' . ($plan->name ?? ''));
+                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month')) {
+                    $durationMonths = 12;
+                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month')) {
+                    $durationMonths = 6;
+                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month')) {
+                    $durationMonths = 3;
+                } elseif (str_contains($desc, 'month')) {
+                    $durationMonths = 1;
+                }
+            }
+
+            if (!$plan || $durationMonths < $requiredTransferMonths) {
+                $planTitle = $plan?->name ? "'{$plan->name}'" : 'no active plan';
+                $durInfo = $durationMonths > 0 ? " ({$durationMonths} months)" : '';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Membership transfer is only allowed for members with plans {$requiredTransferMonths} months and above according to your gym policy. This member has {$planTitle}{$durInfo}, which is not eligible."
+                ], 422);
+            }
         }
 
         // Calculate source member's exact remaining days from today
@@ -1465,7 +1610,7 @@ class OperationsController extends Controller
                 $q->where('gym_id', $gymId);
             });
         }
-        $plans = $query->get()->map(function ($p) {
+        $plans = $query->latest('id')->get()->map(function ($p) {
             return [
                 'id' => 'pt-' . $p->id,
                 'name' => $p->name,
@@ -1519,7 +1664,7 @@ class OperationsController extends Controller
                 $q->where('gym_id', $gymId);
             });
         }
-        $plans = $query->get()->map(function ($r) {
+        $plans = $query->latest('id')->get()->map(function ($r) {
             $features = $r->features ?? [];
             return [
                 'id' => 'rec-' . $r->id,

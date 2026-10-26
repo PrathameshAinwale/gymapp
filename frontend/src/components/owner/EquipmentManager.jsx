@@ -22,7 +22,7 @@ import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
 import { hasSqlInjection } from '../../utils/validation';
 
-export const EquipmentManager = () => {
+export const EquipmentManager = ({ initialFilterPreset }) => {
   const { equipment = [], addEquipment, updateEquipment, deleteEquipment, fetchEquipment, addToast } = useGymData();
 
   useEffect(() => {
@@ -37,6 +37,13 @@ export const EquipmentManager = () => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
+
+  // Apply metric card filter presets from Dashboard
+  useEffect(() => {
+    if (initialFilterPreset?.status) {
+      setFilterStatus(initialFilterPreset.status);
+    }
+  }, [initialFilterPreset?.status, initialFilterPreset?.timestamp]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {

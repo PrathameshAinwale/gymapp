@@ -44,6 +44,7 @@ class Gym extends Model
         'notes',
         'essl_device_ip',
         'essl_device_port',
+        'freeze_policy_settings',
     ];
 
     protected $hidden = [
@@ -82,5 +83,10 @@ class Gym extends Model
     public function whatsappSetting()
     {
         return $this->hasOne(WhatsAppSetting::class, 'gym_id');
+    }
+
+    public function roles()
+    {
+        return $this->hasMany(GymRole::class, 'gym_id');
     }
 }

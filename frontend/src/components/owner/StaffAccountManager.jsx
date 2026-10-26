@@ -5,6 +5,8 @@ import { api } from '../../services/api';
 import {
   isValidName,
   isValidDob,
+  isValidStaffDob,
+  getMaxStaffDobDateStr,
   getTodayDateStr,
   isValidEmail,
   isValidPhone,
@@ -40,7 +42,7 @@ import {
   Edit2,
   Trash2,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Clock,
   FileText,
   Upload,
@@ -137,6 +139,27 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
   const activeGymId = currentUser?.gymId || currentUser?.gym_id;
 
   const [dbStaff, setDbStaff] = useState([]);
+  const [availableRoles, setAvailableRoles] = useState([]);
+
+  const fetchAvailableRoles = async () => {
+    try {
+      const res = await api.staff.getAvailableRoles(activeGymId);
+      if (res?.roles && Array.isArray(res.roles)) {
+        setAvailableRoles(res.roles);
+        if (res.roles.length > 0) {
+          setFormData((prev) => {
+            if (!prev.role || !res.roles.some((r) => (r.slug || r.id) === prev.role)) {
+              return { ...prev, role: res.roles[0].slug || res.roles[0].id };
+            }
+            return prev;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch available roles for gym:', e.message);
+    }
+  };
+
   const fetchStaffFromDb = async () => {
     try {
       const res = await api.staff.getAll({ gym_id: activeGymId });
@@ -162,6 +185,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
   useEffect(() => {
     fetchStaffFromDb();
+    fetchAvailableRoles();
     fetchShifts?.();
   }, [activeGymId, fetchShifts]);
 
@@ -253,7 +277,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     name: '',
     email: '',
     password: '',
-    role: 'manager', // 'manager' | 'accounts' | 'trainer'
+    role: '',
     phone: '',
     dob: '',
     joining_date: new Date().toISOString().split('T')[0],
@@ -481,8 +505,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       return;
     }
 
-    if (formData.dob && !isValidDob(formData.dob)) {
-      addToast('Date of birth cannot be in the future.', 'error');
+    if (formData.dob && !isValidStaffDob(formData.dob, 15)) {
+      addToast('Staff member date of birth cannot be less than 15 years (must be at least 15 years old).', 'error');
       return;
     }
 
@@ -516,6 +540,35 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     if (formData.pan_card && !isValidPan(formData.pan_card)) {
       addToast('Please enter a valid 10-character PAN number (e.g. ABCDE1234F).', 'error');
       return;
+    }
+
+    // System-wide uniqueness check across staff and members
+    if (formData.aadhaar_card) {
+      const cleanA = String(formData.aadhaar_card).replace(/\D/g, '');
+      const conflictStaff = (staffList || []).find((s) => s.aadhaar_card && String(s.aadhaar_card).replace(/\D/g, '') === cleanA);
+      const conflictMember = (members || []).find((m) =>
+        (m.aadhaar_card && String(m.aadhaar_card).replace(/\D/g, '') === cleanA) ||
+        (m.kycDocType === 'Aadhaar Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/\D/g, '') === cleanA)
+      );
+      const conflict = conflictStaff || conflictMember;
+      if (conflict) {
+        addToast(`This Aadhaar number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+        return;
+      }
+    }
+
+    if (formData.pan_card) {
+      const cleanP = String(formData.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const conflictStaff = (staffList || []).find((s) => s.pan_card && String(s.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP);
+      const conflictMember = (members || []).find((m) =>
+        (m.pan_card && String(m.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP) ||
+        (m.kycDocType === 'PAN Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP)
+      );
+      const conflict = conflictStaff || conflictMember;
+      if (conflict) {
+        addToast(`This PAN number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -637,8 +690,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       return;
     }
 
-    if (editFormData.dob && !isValidDob(editFormData.dob)) {
-      addToast('Date of birth cannot be in the future.', 'error');
+    if (editFormData.dob && !isValidStaffDob(editFormData.dob, 15)) {
+      addToast('Staff member date of birth cannot be less than 15 years (must be at least 15 years old).', 'error');
       return;
     }
 
@@ -671,6 +724,44 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
     if (editFormData.pan_card && !isValidPan(editFormData.pan_card)) {
       addToast('Please enter a valid 10-character PAN number (e.g. ABCDE1234F).', 'error');
       return;
+    }
+
+    // System-wide uniqueness check across staff and members (excluding self)
+    const editingId = editingStaff?.userId || editingStaff?.id;
+    if (editFormData.aadhaar_card) {
+      const cleanA = String(editFormData.aadhaar_card).replace(/\D/g, '');
+      const conflictStaff = (staffList || []).find((s) =>
+        String(s.userId || s.id) !== String(editingId) &&
+        s.aadhaar_card && String(s.aadhaar_card).replace(/\D/g, '') === cleanA
+      );
+      const conflictMember = (members || []).find((m) =>
+        String(m.userId || m.id) !== String(editingId) &&
+        ((m.aadhaar_card && String(m.aadhaar_card).replace(/\D/g, '') === cleanA) ||
+         (m.kycDocType === 'Aadhaar Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/\D/g, '') === cleanA))
+      );
+      const conflict = conflictStaff || conflictMember;
+      if (conflict) {
+        addToast(`This Aadhaar number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+        return;
+      }
+    }
+
+    if (editFormData.pan_card) {
+      const cleanP = String(editFormData.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const conflictStaff = (staffList || []).find((s) =>
+        String(s.userId || s.id) !== String(editingId) &&
+        s.pan_card && String(s.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP
+      );
+      const conflictMember = (members || []).find((m) =>
+        String(m.userId || m.id) !== String(editingId) &&
+        ((m.pan_card && String(m.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP) ||
+         (m.kycDocType === 'PAN Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP))
+      );
+      const conflict = conflictStaff || conflictMember;
+      if (conflict) {
+        addToast(`This PAN number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+        return;
+      }
     }
 
     setIsUpdating(true);
@@ -723,7 +814,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       fetchTrainers?.();
     } catch (err) {
       console.error('Update staff error:', err);
-      addToast(err.message || 'Failed to update staff account', 'error');
+      const errMsg = err.data?.message || (err.data?.errors ? Object.values(err.data.errors).flat().join(', ') : err.message);
+      addToast(errMsg || 'Failed to update staff account', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -794,14 +886,26 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
         <div className="flex items-center gap-2 shrink-0">
           {onNavigateTab && (
-            <button
-              type="button"
-              onClick={() => onNavigateTab('shifts')}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
-            >
-              <Clock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('settings')}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                title="Configure custom roles & page access permissions in Settings"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Roles & Permissions</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateTab('shifts')}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+              >
+                <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
+              </button>
+            </>
           )}
 
           <button
@@ -854,38 +958,6 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         </div>
       </div>
 
-      {/* Role Access Explanatory Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200">
-          <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
-            <Users className="w-4 h-4 text-indigo-600" />
-            <span>Manager Role</span>
-          </div>
-          <p className="text-[11px] text-indigo-700/90 mt-1">
-            Add-only permissions for member directory, enquiries, attendance, and front desk operations.
-          </p>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200">
-          <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-            <span>Accounts & Finance</span>
-          </div>
-          <p className="text-[11px] text-amber-800/90 mt-1">
-            Full administrative access over revenue, expenses, invoices, payroll disbursement, and discounts.
-          </p>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200">
-          <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
-            <User className="w-4 h-4 text-purple-600" />
-            <span>Trainer / Fitness Coach</span>
-          </div>
-          <p className="text-[11px] text-purple-800/90 mt-1">
-            Access to PT client roster, workout plans, diet charts, biometric attendance, and session logs.
-          </p>
-        </div>
-      </div>
 
       {/* Staff Accounts Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
@@ -903,9 +975,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 className="pl-8.5 pr-8 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
               >
                 <option value="all">All Roles ({staffList.length})</option>
-                <option value="trainer">Coaches & Trainers ({staffList.filter((s) => s.role === 'trainer').length})</option>
-                <option value="manager">Managers ({staffList.filter((s) => s.role === 'manager').length})</option>
-                <option value="accounts">Accounts & Finance ({staffList.filter((s) => s.role === 'accounts').length})</option>
+                {availableRoles.map((r) => (
+                  <option key={r.slug} value={r.slug}>
+                    {r.name} ({staffList.filter((s) => s.role === r.slug).length})
+                  </option>
+                ))}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
             </div>
@@ -1025,6 +1099,12 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                               </div>
                             )}
                           </div>
+                        )}
+                        {!isSuper && !isMgr && !isAcc && !isTrainer && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Users className="w-3 h-3 text-indigo-600" />
+                            {stf.role_label || (availableRoles.find((r) => r.slug === stf.role)?.name) || stf.role}
+                          </span>
                         )}
                       </td>
 
@@ -1217,15 +1297,15 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="date"
-                  max={getTodayDateStr()}
+                  max={getMaxStaffDobDateStr(15)}
                   value={formData.dob}
                   onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                 />
               </div>
-              {formData.dob && !isValidDob(formData.dob) && (
+              {formData.dob && !isValidStaffDob(formData.dob, 15) && (
                 <p className="text-[10px] text-rose-500 mt-1 font-semibold">
-                  Date of birth cannot be in the future.
+                  Staff member date of birth cannot be less than 15 years (must be at least 15 years old).
                 </p>
               )}
             </div>
@@ -1265,55 +1345,72 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             </div>
           </div>
 
-          {/* Role Selector */}
+          {/* Role Dropdown Selector */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Select Role *</label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: 'manager' })}
-                className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                  formData.role === 'manager'
-                    ? 'bg-indigo-50 border-indigo-400 ring-1 ring-indigo-400 text-indigo-900'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="font-bold flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-indigo-600" /> Manager
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Front desk & Add only</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: 'accounts' })}
-                className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                  formData.role === 'accounts'
-                    ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-400 text-amber-900'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Accounts
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Finances & Billing</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, role: 'trainer' })}
-                className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                  formData.role === 'trainer'
-                    ? 'bg-purple-50 border-purple-400 ring-1 ring-purple-400 text-purple-900'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="font-bold flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-purple-600" /> Trainer
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">PT & Fitness Coach</div>
-              </button>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-bold text-slate-700">Select Role *</label>
+              <span className="text-[10px] text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
             </div>
+            {availableRoles.length === 0 ? (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>No roles created yet. Please create a role in Settings first.</span>
+                </div>
+                {onNavigateTab && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateModalOpen(false);
+                      onNavigateTab('settings');
+                    }}
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg cursor-pointer"
+                  >
+                    Go to Settings
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <ShieldCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full pl-9 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
+                  >
+                    {availableRoles.map((r) => {
+                      const slug = r.slug || r.id;
+                      const pageCount = Array.isArray(r.assigned_pages) ? r.assigned_pages.length : null;
+                      return (
+                        <option key={slug} value={slug}>
+                          {r.name} {pageCount ? `(${pageCount} pages)` : ''} {r.description ? `— ${r.description}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {/* Selected Role Helper Pill */}
+                {(() => {
+                  const selectedRoleObj = availableRoles.find((r) => (r.slug || r.id) === formData.role);
+                  if (!selectedRoleObj) return null;
+                  const pageCount = Array.isArray(selectedRoleObj.assigned_pages) ? selectedRoleObj.assigned_pages.length : null;
+                  return (
+                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
+                      <span className="font-semibold text-slate-700">{selectedRoleObj.name}:</span>
+                      <span className="truncate">{selectedRoleObj.description || 'Assigned staff access'}</span>
+                      {pageCount !== null && (
+                        <span className="ml-auto font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                          {pageCount} Pages Access
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
           </div>
 
           {/* Salary, Shifts & Biometric PIN */}
@@ -1321,7 +1418,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <div>
               <label className="block font-bold text-slate-700 mb-1">Monthly Salary (₹)</label>
               <div className="relative">
-                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <IndianRupee className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="number"
                   min="0"
@@ -1929,15 +2026,15 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="date"
-                    max={getTodayDateStr()}
+                    max={getMaxStaffDobDateStr(15)}
                     value={editFormData.dob}
                     onChange={(e) => setEditFormData({ ...editFormData, dob: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
                   />
                 </div>
-                {editFormData.dob && !isValidDob(editFormData.dob) && (
+                {editFormData.dob && !isValidStaffDob(editFormData.dob, 15) && (
                   <p className="text-[10px] text-rose-500 mt-1 font-semibold">
-                    Date of birth cannot be in the future.
+                    Staff member date of birth cannot be less than 15 years (must be at least 15 years old).
                   </p>
                 )}
               </div>
@@ -1977,52 +2074,72 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
             </div>
 
-            {/* Role */}
+            {/* Role Dropdown Selector */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Role</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditFormData({ ...editFormData, role: 'manager' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                    editFormData.role === 'manager'
-                      ? 'bg-indigo-50 border-indigo-400 ring-1 ring-indigo-400 text-indigo-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="font-bold flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-indigo-600" /> Manager
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setEditFormData({ ...editFormData, role: 'accounts' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                    editFormData.role === 'accounts'
-                      ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-400 text-amber-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="font-bold flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Accounts
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setEditFormData({ ...editFormData, role: 'trainer' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                    editFormData.role === 'trainer'
-                      ? 'bg-purple-50 border-purple-400 ring-1 ring-purple-400 text-purple-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="font-bold flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-purple-600" /> Trainer
-                  </div>
-                </button>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">Role *</label>
+                <span className="text-[10px] text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
               </div>
+              {availableRoles.length === 0 ? (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>No roles created yet. Please create a role in Settings first.</span>
+                  </div>
+                  {onNavigateTab && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingStaff(null);
+                        onNavigateTab('settings');
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg cursor-pointer"
+                    >
+                      Go to Settings
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <ShieldCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      value={editFormData.role}
+                      onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                      className="w-full pl-9 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
+                    >
+                      {availableRoles.map((r) => {
+                        const slug = r.slug || r.id;
+                        const pageCount = Array.isArray(r.assigned_pages) ? r.assigned_pages.length : null;
+                        return (
+                          <option key={slug} value={slug}>
+                            {r.name} {pageCount ? `(${pageCount} pages)` : ''} {r.description ? `— ${r.description}` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Selected Role Helper Pill */}
+                  {(() => {
+                    const selectedRoleObj = availableRoles.find((r) => (r.slug || r.id) === editFormData.role);
+                    if (!selectedRoleObj) return null;
+                    const pageCount = Array.isArray(selectedRoleObj.assigned_pages) ? selectedRoleObj.assigned_pages.length : null;
+                    return (
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
+                        <span className="font-semibold text-slate-700">{selectedRoleObj.name}:</span>
+                        <span className="truncate">{selectedRoleObj.description || 'Assigned staff access'}</span>
+                        {pageCount !== null && (
+                          <span className="ml-auto font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                            {pageCount} Pages Access
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
             </div>
 
             {/* Salary, Shifts & Biometric PIN */}
@@ -2030,7 +2147,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Monthly Salary (₹)</label>
                 <div className="relative">
-                  <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <IndianRupee className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="number"
                     min="0"

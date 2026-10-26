@@ -23,7 +23,12 @@ import {
   Check,
   Banknote,
   Filter,
-  X
+  X,
+  Settings,
+  AlertTriangle,
+  SlidersHorizontal,
+  ShieldAlert,
+  ChevronDown
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -38,6 +43,26 @@ import {
   preventNonPhoneKey,
   isValidPhone
 } from '../../utils/validation';
+
+// Preset duration options for gym policy dropdowns
+const DURATION_POLICY_OPTIONS = [
+  { val: 0, label: 'Any Plan (No Minimum Restriction - 0 Months)' },
+  { val: 1, label: '1 Month & Above (≥ 1 Month)' },
+  { val: 2, label: '2 Months & Above (≥ 2 Months)' },
+  { val: 3, label: '3 Months & Above (Quarterly - ≥ 3 Months)' },
+  { val: 4, label: '4 Months & Above (≥ 4 Months)' },
+  { val: 5, label: '5 Months & Above (≥ 5 Months)' },
+  { val: 6, label: '6 Months & Above (Half-Yearly - ≥ 6 Months)' },
+  { val: 7, label: '7 Months & Above (≥ 7 Months)' },
+  { val: 8, label: '8 Months & Above (≥ 8 Months)' },
+  { val: 9, label: '9 Months & Above (≥ 9 Months)' },
+  { val: 10, label: '10 Months & Above (≥ 10 Months)' },
+  { val: 11, label: '11 Months & Above (≥ 11 Months)' },
+  { val: 12, label: '12 Months & Above (Annual - ≥ 12 Months)' },
+  { val: 18, label: '18 Months & Above (1.5 Years - ≥ 18 Months)' },
+  { val: 24, label: '24 Months & Above (2 Years - ≥ 24 Months)' },
+  { val: 36, label: '36 Months & Above (3 Years - ≥ 36 Months)' }
+];
 
 // Helpers for date and plan duration validation
 const getTodayIso = () => {
@@ -148,9 +173,16 @@ const getMemberPlanDurationMonths = (member, allPlans = []) => {
   return 0;
 };
 
-const isMemberEligibleForFreeze = (member, allPlans = []) => {
+const isMemberEligible = (member, allPlans = [], minMonths = 0) => {
+  if (!member) return false;
+  const reqMonths = Number(minMonths) || 0;
+  if (reqMonths <= 0) return true; // 0 means no restriction (any plan duration is eligible)
   const months = getMemberPlanDurationMonths(member, allPlans);
-  return months >= 6;
+  return months >= reqMonths;
+};
+
+const isMemberEligibleForFreeze = (member, allPlans = [], minMonths = 6) => {
+  return isMemberEligible(member, allPlans, minMonths);
 };
 
 export const MembershipFreezeManager = () => {
@@ -183,10 +215,67 @@ export const MembershipFreezeManager = () => {
 
   const todayIso = useMemo(() => getTodayIso(), []);
 
-  // Eligible members for freeze and extension (plans >= 6 months)
-  const eligibleMembers = useMemo(() => {
-    return (members || []).filter((m) => isMemberEligibleForFreeze(m, plans));
-  }, [members, plans]);
+  // Policy State
+  const [freezePolicy, setFreezePolicy] = useState(null);
+  const [isLoadingPolicy, setIsLoadingPolicy] = useState(true);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+  const [policyForm, setPolicyForm] = useState({
+    freeze_min_months: 6,
+    extension_min_months: 6,
+    transfer_min_months: 6,
+    syncAll: false
+  });
+
+  const isPolicyConfigured = Boolean(freezePolicy?.is_configured);
+  const freezeMinMonths = Number(freezePolicy?.freeze_min_months ?? 6);
+  const extensionMinMonths = Number(freezePolicy?.extension_min_months ?? 6);
+  const transferMinMonths = Number(freezePolicy?.transfer_min_months ?? 6);
+
+  const fetchPolicy = async () => {
+    try {
+      setIsLoadingPolicy(true);
+      const res = await api.freezePolicy.get();
+      if (res && res.success && res.data) {
+        setFreezePolicy(res.data);
+        const fMonths = Number(res.data.freeze_min_months ?? 6);
+        const eMonths = Number(res.data.extension_min_months ?? 6);
+        const tMonths = Number(res.data.transfer_min_months ?? 6);
+        setPolicyForm({
+          freeze_min_months: fMonths,
+          extension_min_months: eMonths,
+          transfer_min_months: tMonths,
+          syncAll: fMonths === eMonths && eMonths === tMonths
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load freeze policy:', err);
+    } finally {
+      setIsLoadingPolicy(false);
+    }
+  };
+
+  // Eligible members for freeze
+  const eligibleFreezeMembers = useMemo(() => {
+    return (members || []).filter((m) => isMemberEligible(m, plans, freezeMinMonths));
+  }, [members, plans, freezeMinMonths]);
+
+  // Eligible members for extension
+  const eligibleExtendMembers = useMemo(() => {
+    return (members || []).filter((m) => isMemberEligible(m, plans, extensionMinMonths));
+  }, [members, plans, extensionMinMonths]);
+
+  // Eligible members for transfer (source members)
+  const eligibleTransferMembers = useMemo(() => {
+    return (members || []).filter((m) => isMemberEligible(m, plans, transferMinMonths));
+  }, [members, plans, transferMinMonths]);
+
+  // Backwards-compatible reference
+  const eligibleMembers = eligibleFreezeMembers;
+
+  useEffect(() => {
+    fetchPolicy();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -376,12 +465,59 @@ export const MembershipFreezeManager = () => {
     });
   }, [transfers, searchTerm, paymentFilter]);
 
+  const handlePolicyFormChange = (field, val) => {
+    const num = Math.max(0, parseInt(val, 10) || 0);
+    setPolicyForm((prev) => {
+      if (prev.syncAll) {
+        return {
+          ...prev,
+          freeze_min_months: num,
+          extension_min_months: num,
+          transfer_min_months: num
+        };
+      }
+      return {
+        ...prev,
+        [field]: num
+      };
+    });
+  };
+
+  const handlePolicySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setIsSavingPolicy(true);
+      const payload = {
+        freeze_min_months: Math.max(0, Number(policyForm.freeze_min_months) || 0),
+        extension_min_months: Math.max(0, Number(policyForm.extension_min_months) || 0),
+        transfer_min_months: Math.max(0, Number(policyForm.transfer_min_months) || 0)
+      };
+      const res = await api.freezePolicy.update(payload);
+      if (res && res.success) {
+        setFreezePolicy(res.data);
+        addToast?.('Gym policy settings saved successfully!', 'success');
+        setIsSettingsModalOpen(false);
+      } else {
+        addToast?.(res?.message || 'Failed to update policy settings', 'error');
+      }
+    } catch (err) {
+      addToast?.(err?.response?.data?.message || err?.message || 'Error saving policy settings', 'error');
+    } finally {
+      setIsSavingPolicy(false);
+    }
+  };
+
   const handleOpenFreezeModal = () => {
-    const defaultMember = eligibleMembers[0];
+    if (!isPolicyConfigured) {
+      addToast?.('Please configure your gym policy before performing a membership freeze.', 'warning');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+    const defaultMember = eligibleFreezeMembers[0];
     const today = getTodayIso();
     setFreezeData((prev) => ({
       ...prev,
-      memberId: prev.memberId && eligibleMembers.some((m) => m.id === prev.memberId)
+      memberId: prev.memberId && eligibleFreezeMembers.some((m) => m.id === prev.memberId)
         ? prev.memberId
         : (defaultMember?.id || ''),
       freezeStartDate: today,
@@ -391,10 +527,15 @@ export const MembershipFreezeManager = () => {
   };
 
   const handleOpenExtendModal = () => {
-    const defaultMember = eligibleMembers[0];
+    if (!isPolicyConfigured) {
+      addToast?.('Please configure your gym policy before performing a plan extension.', 'warning');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+    const defaultMember = eligibleExtendMembers[0];
     setExtendData((prev) => ({
       ...prev,
-      memberId: prev.memberId && eligibleMembers.some((m) => m.id === prev.memberId)
+      memberId: prev.memberId && eligibleExtendMembers.some((m) => m.id === prev.memberId)
         ? prev.memberId
         : (defaultMember?.id || '')
     }));
@@ -437,14 +578,25 @@ export const MembershipFreezeManager = () => {
       return;
     }
 
+    if (!isPolicyConfigured) {
+      addToast?.('Gym policy is not configured. Please set the policy first.', 'error');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+
     const mem = findMemberById(members, freezeData.memberId);
     if (!mem) {
       addToast?.('Please select an eligible member', 'error');
       return;
     }
 
-    if (!isMemberEligibleForFreeze(mem, plans)) {
-      addToast?.('Freeze is only applicable to members with plans above 6 months (6 months and above).', 'error');
+    if (!isMemberEligible(mem, plans, freezeMinMonths)) {
+      addToast?.(
+        freezeMinMonths > 0
+          ? `Freeze is only applicable to members with plans of at least ${freezeMinMonths} month(s).`
+          : 'Member is not eligible for freeze.',
+        'error'
+      );
       return;
     }
 
@@ -482,14 +634,25 @@ export const MembershipFreezeManager = () => {
       return;
     }
 
+    if (!isPolicyConfigured) {
+      addToast?.('Gym policy is not configured. Please set the policy first.', 'error');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+
     const mem = findMemberById(members, extendData.memberId);
     if (!mem) {
       addToast?.('Please select an eligible member', 'error');
       return;
     }
 
-    if (!isMemberEligibleForFreeze(mem, plans)) {
-      addToast?.('Extension is only applicable to members with plans above 6 months (6 months and above).', 'error');
+    if (!isMemberEligible(mem, plans, extensionMinMonths)) {
+      addToast?.(
+        extensionMinMonths > 0
+          ? `Extension is only applicable to members with plans of at least ${extensionMinMonths} month(s).`
+          : 'Member is not eligible for extension.',
+        'error'
+      );
       return;
     }
 
@@ -526,9 +689,25 @@ export const MembershipFreezeManager = () => {
       addToast?.('Disallowed characters or SQL injection syntax detected.', 'error');
       return;
     }
+    if (!isPolicyConfigured) {
+      addToast?.('Gym policy is not configured. Please set the policy first.', 'error');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+
     const fromMember = findMemberById(members, transferData.fromMemberId);
     if (!fromMember) {
       addToast?.('Please select a source member', 'error');
+      return;
+    }
+
+    if (!isMemberEligible(fromMember, plans, transferMinMonths)) {
+      addToast?.(
+        transferMinMonths > 0
+          ? `Transfer is only applicable to source members with plans of at least ${transferMinMonths} month(s).`
+          : 'Source member is not eligible for transfer.',
+        'error'
+      );
       return;
     }
 
@@ -722,8 +901,13 @@ export const MembershipFreezeManager = () => {
   };
 
   const handleOpenTransferModal = () => {
+    if (!isPolicyConfigured) {
+      addToast?.('Please configure your gym policy before performing a membership transfer.', 'warning');
+      setIsSettingsModalOpen(true);
+      return;
+    }
     const today = getTodayIso();
-    const source = findMemberById(members, transferData.fromMemberId) || members[0];
+    const source = eligibleTransferMembers[0] || findMemberById(members, transferData.fromMemberId) || members[0];
     const sourceId = source ? String(source.id) : '';
     const dest = findMemberById(members, transferData.toMemberId);
     const destExpiry = dest?.expiryDate ? String(dest.expiryDate).split('T')[0].split(' ')[0] : '';
@@ -767,6 +951,23 @@ export const MembershipFreezeManager = () => {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+              !isPolicyConfigured && !isLoadingPolicy
+                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+            title="Configure Gym Eligibility Policy for Freeze, Extension & Transfer"
+          >
+            <Settings className={`w-3.5 h-3.5 ${!isPolicyConfigured && !isLoadingPolicy ? 'text-white' : 'text-slate-600'}`} />
+            <span>Policy Settings</span>
+            {!isPolicyConfigured && !isLoadingPolicy && (
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-0.5" />
+            )}
+          </button>
+
           {activeTab === 'freezes' ? (
             <>
               <button
@@ -799,6 +1000,59 @@ export const MembershipFreezeManager = () => {
           )}
         </div>
       </div>
+
+      {/* Mandatory Configuration Notice Banner */}
+      {!isLoadingPolicy && !isPolicyConfigured && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-amber-950">Gym Eligibility Policy Required</h3>
+              <p className="text-[11px] sm:text-xs text-amber-800 mt-0.5">
+                Before performing any Freeze, Plan Extension, or Membership Transfer, you must configure the minimum plan duration eligibility period for your gym.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Configure Policy Now</span>
+          </button>
+        </div>
+      )}
+
+      {/* Configured Policy Summary Bar */}
+      {!isLoadingPolicy && isPolicyConfigured && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+            <span className="font-semibold text-slate-700">Gym Eligibility Policy:</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-bold">
+                Freeze: {freezeMinMonths > 0 ? `≥ ${freezeMinMonths} mo` : 'Any Plan'}
+              </span>
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-bold">
+                Extend: {extensionMinMonths > 0 ? `≥ ${extensionMinMonths} mo` : 'Any Plan'}
+              </span>
+              <span className="bg-violet-50 text-violet-700 border border-violet-200 px-2 py-0.5 rounded-md font-bold">
+                Transfer: {transferMinMonths > 0 ? `≥ ${transferMinMonths} mo` : 'Any Plan'}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+          >
+            Edit Policy
+          </button>
+        </div>
+      )}
 
       {/* Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
@@ -1304,9 +1558,11 @@ export const MembershipFreezeManager = () => {
           <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <div className="space-y-0.5 text-[11px] leading-relaxed">
-              <span className="font-bold block text-blue-950">Plan Duration Requirement</span>
+              <span className="font-bold block text-blue-950">Gym Eligibility Policy</span>
               <p className="text-blue-800">
-                Freeze is strictly applicable only to members with membership plans <strong>above 6 months</strong> (Half-Yearly & Annual memberships). Plans below 6 months are not eligible.
+                {freezeMinMonths > 0
+                  ? `According to your gym's settings, Freeze is applicable only to members with membership plans of at least ${freezeMinMonths} month(s). Plans shorter than ${freezeMinMonths} month(s) are not eligible.`
+                  : 'According to your gym\'s settings, Freeze is allowed for all active membership plans with no minimum duration restriction.'}
               </p>
             </div>
           </div>
@@ -1316,19 +1572,21 @@ export const MembershipFreezeManager = () => {
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">Select Member *</label>
               <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                {eligibleMembers.length} Eligible Members
+                {eligibleFreezeMembers.length} Eligible Members
               </span>
             </div>
-            {eligibleMembers.length === 0 ? (
+            {eligibleFreezeMembers.length === 0 ? (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
-                No active members currently hold plans with duration above 6 months.
+                {freezeMinMonths > 0
+                  ? `No active members currently hold plans with duration of ${freezeMinMonths}+ months.`
+                  : 'No active members available.'}
               </div>
             ) : (
               <MemberSearchSelect
-                members={eligibleMembers}
+                members={eligibleFreezeMembers}
                 value={freezeData.memberId}
                 onChange={(id) => setFreezeData({ ...freezeData, memberId: extractMemberId(id) })}
-                placeholder="Type to search eligible member (6+ month plans)..."
+                placeholder={`Type to search eligible member (${freezeMinMonths > 0 ? `${freezeMinMonths}+ month plans` : 'all plans'})...`}
               />
             )}
             {selectedFreezeMember && (
@@ -1540,7 +1798,7 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              disabled={isSubmittingFreeze || eligibleMembers.length === 0}
+              disabled={isSubmittingFreeze || eligibleFreezeMembers.length === 0}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingFreeze && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1562,9 +1820,11 @@ export const MembershipFreezeManager = () => {
           <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <div className="space-y-0.5 text-[11px] leading-relaxed">
-              <span className="font-bold block text-blue-950">Plan Duration Requirement</span>
+              <span className="font-bold block text-blue-950">Gym Eligibility Policy</span>
               <p className="text-blue-800">
-                Extension is strictly applicable only to members with membership plans <strong>above 6 months</strong> (Half-Yearly & Annual memberships). Plans below 6 months are not eligible.
+                {extensionMinMonths > 0
+                  ? `According to your gym's settings, Plan Extension is applicable only to members with membership plans of at least ${extensionMinMonths} month(s). Plans shorter than ${extensionMinMonths} month(s) are not eligible.`
+                  : 'According to your gym\'s settings, Plan Extension is allowed for all active membership plans with no minimum duration restriction.'}
               </p>
             </div>
           </div>
@@ -1574,19 +1834,21 @@ export const MembershipFreezeManager = () => {
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">Select Member *</label>
               <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                {eligibleMembers.length} Eligible Members
+                {eligibleExtendMembers.length} Eligible Members
               </span>
             </div>
-            {eligibleMembers.length === 0 ? (
+            {eligibleExtendMembers.length === 0 ? (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
-                No active members currently hold plans with duration above 6 months.
+                {extensionMinMonths > 0
+                  ? `No active members currently hold plans with duration of ${extensionMinMonths}+ months.`
+                  : 'No active members available.'}
               </div>
             ) : (
               <MemberSearchSelect
-                members={eligibleMembers}
+                members={eligibleExtendMembers}
                 value={extendData.memberId}
                 onChange={(id) => setExtendData({ ...extendData, memberId: extractMemberId(id) })}
-                placeholder="Type to search eligible member (6+ month plans)..."
+                placeholder={`Type to search eligible member (${extensionMinMonths > 0 ? `${extensionMinMonths}+ month plans` : 'all plans'})...`}
               />
             )}
             {selectedExtendMember && (
@@ -1773,7 +2035,7 @@ export const MembershipFreezeManager = () => {
             </button>
             <button
               type="submit"
-              disabled={isSubmittingExtend || eligibleMembers.length === 0}
+              disabled={isSubmittingExtend || eligibleExtendMembers.length === 0}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingExtend && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1791,26 +2053,52 @@ export const MembershipFreezeManager = () => {
         maxWidth="max-w-xl"
       >
         <form onSubmit={handleTransferSubmit} className="space-y-4">
+          {/* Eligibility Policy Notice */}
+          <div className="p-3 rounded-xl bg-violet-50/80 border border-violet-200/80 text-xs text-violet-900 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-violet-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 text-[11px] leading-relaxed">
+              <span className="font-bold block text-violet-950">Gym Eligibility Policy</span>
+              <p className="text-violet-800">
+                {transferMinMonths > 0
+                  ? `According to your gym's settings, Membership Transfer can only be initiated by members with plans of at least ${transferMinMonths} month(s).`
+                  : 'According to your gym\'s settings, Membership Transfer is allowed from any active membership plan.'}
+              </p>
+            </div>
+          </div>
+
           {/* Source Member */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-slate-700">
                 Source Member (Transfer From) *
               </label>
-              {selectedSourceMember && (
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                  remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800 border border-violet-200' : 'bg-red-100 text-red-700 border border-red-200'
-                }`}>
-                  {remainingDaysSource > 0 ? `${remainingDaysSource} Days Remaining` : '0 Days (Expired)'}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
+                  {eligibleTransferMembers.length} Eligible
                 </span>
-              )}
+                {selectedSourceMember && (
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800 border border-violet-200' : 'bg-red-100 text-red-700 border border-red-200'
+                  }`}>
+                    {remainingDaysSource > 0 ? `${remainingDaysSource} Days Remaining` : '0 Days (Expired)'}
+                  </span>
+                )}
+              </div>
             </div>
-            <MemberSearchSelect
-              members={members}
-              value={transferData.fromMemberId}
-              onChange={handleSourceMemberChange}
-              placeholder="Type to search source member..."
-            />
+            {eligibleTransferMembers.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                {transferMinMonths > 0
+                  ? `No active members currently hold plans with duration of ${transferMinMonths}+ months to transfer.`
+                  : 'No active members available.'}
+              </div>
+            ) : (
+              <MemberSearchSelect
+                members={eligibleTransferMembers}
+                value={transferData.fromMemberId}
+                onChange={handleSourceMemberChange}
+                placeholder={`Type to search eligible source member (${transferMinMonths > 0 ? `${transferMinMonths}+ month plans` : 'all plans'})...`}
+              />
+            )}
             {selectedSourceMember && (
               <div className="mt-2 p-3 rounded-xl bg-violet-50/80 border border-violet-200 text-xs space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between">
@@ -2166,6 +2454,181 @@ export const MembershipFreezeManager = () => {
             >
               {isSubmittingTransfer && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingTransfer ? 'Transferring...' : 'Confirm Transfer'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Policy Settings Modal */}
+      <Modal
+        isOpen={isSettingsModalOpen}
+        onClose={() => {
+          if (!isPolicyConfigured) {
+            addToast?.('Configuring eligibility policy is mandatory for this gym.', 'warning');
+          }
+          setIsSettingsModalOpen(false);
+        }}
+        title="Eligibility Policy Settings"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handlePolicySubmit} className="space-y-4">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+            <div className="flex items-center gap-2 font-bold text-slate-900">
+              <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
+              <span>Configure Minimum Plan Duration</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Define the minimum plan duration (in months) a member must hold to be eligible for Freeze, Plan Extension, or Membership Transfer.
+              Set to <strong>0</strong> to allow any plan with no minimum duration restriction.
+            </p>
+          </div>
+
+          {/* Quick sync toggle */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+            <div>
+              <span className="text-xs font-bold text-emerald-950 block">Same duration for all</span>
+              <span className="text-[10px] text-emerald-700">Keep freeze, extension, and transfer periods synchronized</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={policyForm.syncAll}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setPolicyForm((prev) => ({
+                    ...prev,
+                    syncAll: checked,
+                    extension_min_months: checked ? prev.freeze_min_months : prev.extension_min_months,
+                    transfer_min_months: checked ? prev.freeze_min_months : prev.transfer_min_months
+                  }));
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+
+          {/* Freeze Min Months */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800">
+                Minimum Plan Duration for Freeze *
+              </label>
+              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                {policyForm.freeze_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.freeze_min_months} Months`}
+              </span>
+            </div>
+            <div className="relative">
+              <select
+                value={policyForm.freeze_min_months}
+                onChange={(e) => handlePolicyFormChange('freeze_min_months', e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer appearance-none pr-9 shadow-2xs"
+              >
+                {DURATION_POLICY_OPTIONS.map((opt) => (
+                  <option key={`freeze-opt-${opt.val}`} value={opt.val}>
+                    {opt.label}
+                  </option>
+                ))}
+                {!DURATION_POLICY_OPTIONS.some((o) => o.val === Number(policyForm.freeze_min_months)) && (
+                  <option value={policyForm.freeze_min_months}>
+                    {policyForm.freeze_min_months} Months & Above (Custom)
+                  </option>
+                )}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Extension Min Months */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800">
+                Minimum Plan Duration for Extension *
+              </label>
+              <span className="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                {policyForm.extension_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.extension_min_months} Months`}
+              </span>
+            </div>
+            <div className="relative">
+              <select
+                disabled={policyForm.syncAll}
+                value={policyForm.extension_min_months}
+                onChange={(e) => handlePolicyFormChange('extension_min_months', e.target.value)}
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 appearance-none pr-9 shadow-2xs ${
+                  policyForm.syncAll ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer'
+                }`}
+              >
+                {DURATION_POLICY_OPTIONS.map((opt) => (
+                  <option key={`ext-opt-${opt.val}`} value={opt.val}>
+                    {opt.label}
+                  </option>
+                ))}
+                {!DURATION_POLICY_OPTIONS.some((o) => o.val === Number(policyForm.extension_min_months)) && (
+                  <option value={policyForm.extension_min_months}>
+                    {policyForm.extension_min_months} Months & Above (Custom)
+                  </option>
+                )}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+            {policyForm.syncAll && (
+              <p className="text-[10px] text-slate-400 italic">Synchronized with Freeze duration setting</p>
+            )}
+          </div>
+
+          {/* Transfer Min Months */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800">
+                Minimum Plan Duration for Transfer *
+              </label>
+              <span className="text-[11px] font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">
+                {policyForm.transfer_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.transfer_min_months} Months`}
+              </span>
+            </div>
+            <div className="relative">
+              <select
+                disabled={policyForm.syncAll}
+                value={policyForm.transfer_min_months}
+                onChange={(e) => handlePolicyFormChange('transfer_min_months', e.target.value)}
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-violet-500 appearance-none pr-9 shadow-2xs ${
+                  policyForm.syncAll ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer'
+                }`}
+              >
+                {DURATION_POLICY_OPTIONS.map((opt) => (
+                  <option key={`tr-opt-${opt.val}`} value={opt.val}>
+                    {opt.label}
+                  </option>
+                ))}
+                {!DURATION_POLICY_OPTIONS.some((o) => o.val === Number(policyForm.transfer_min_months)) && (
+                  <option value={policyForm.transfer_min_months}>
+                    {policyForm.transfer_min_months} Months & Above (Custom)
+                  </option>
+                )}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+            {policyForm.syncAll && (
+              <p className="text-[10px] text-slate-400 italic">Synchronized with Freeze duration setting</p>
+            )}
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsSettingsModalOpen(false)}
+              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSavingPolicy}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+            >
+              {isSavingPolicy && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isSavingPolicy ? 'Saving Policy...' : 'Save Policy Settings'}</span>
             </button>
           </div>
         </form>

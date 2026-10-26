@@ -38,7 +38,11 @@ import {
   ShieldAlert,
   MessageSquare,
   Ban,
-  ChevronDown
+  ChevronDown,
+  Menu,
+  RotateCcw,
+  AlertTriangle,
+  UserPlus
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { PlansManager } from './PlansManager';
@@ -46,6 +50,7 @@ import { PagesManager } from './PagesManager';
 import { SuperadminCredentialsManager } from './SuperadminCredentialsManager';
 import { SuperadminWhatsAppManager } from './SuperadminWhatsAppManager';
 import { GymWhatsAppModal } from './GymWhatsAppModal';
+import { AddAdminModal } from './AddAdminModal';
 import { PACKAGE_PLANS } from './packagePlans';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
@@ -58,6 +63,7 @@ import {
 
 export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
   const [activeMainTab, setActiveMainTab] = useState('gyms'); // 'gyms' | 'analytics' | 'plans' | 'pages' | 'credentials'
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [gyms, setGyms] = useState([]);
   const [stats, setStats] = useState({
     totalGyms: 0,
@@ -78,6 +84,9 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
   const [selectedGym, setSelectedGym] = useState(null);
   const [stopAccessModalGym, setStopAccessModalGym] = useState(null);
   const [whatsAppModalGym, setWhatsAppModalGym] = useState(null);
+  const [clearDataModalGym, setClearDataModalGym] = useState(null);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
   const [isProcessingAccess, setIsProcessingAccess] = useState(false);
 
   // Toast / Alert banner
@@ -465,6 +474,26 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
     }
   };
 
+  // Clear Member & Operational Data for Gym (keeps gym and owner)
+  const handleConfirmClearData = async () => {
+    if (!clearDataModalGym) return;
+    setIsClearingData(true);
+    try {
+      const res = await api.superadmin.clearGymData(clearDataModalGym.id);
+      if (res?.success) {
+        showToast(res.message || `All member & trainer data cleared for "${clearDataModalGym.name}".`);
+        setClearDataModalGym(null);
+        await loadData();
+      } else {
+        showToast(res?.message || 'Failed to clear data.');
+      }
+    } catch (err) {
+      alert('Error clearing gym data: ' + (err.message || 'Server error'));
+    } finally {
+      setIsClearingData(false);
+    }
+  };
+
   // Stop Access for Gym Owner & All Sub-Accounts
   const handleInitiateStopAccess = (gym) => {
     setStopAccessModalGym(gym);
@@ -554,8 +583,19 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
     return 'bg-slate-100 text-slate-600 border-slate-200';
   };
 
+  const superadminNavTabs = [
+    { id: 'gyms', label: 'Facilities Directory', icon: Building2, count: gyms.length },
+    { id: 'plans', label: 'SaaS Plans', icon: Layers },
+    { id: 'whatsapp', label: 'WhatsApp Gateway', icon: MessageSquare },
+    { id: 'pages', label: 'About & Support', icon: FileText },
+    { id: 'credentials', label: 'Admin Credentials', icon: KeyRound },
+    { id: 'analytics', label: 'Platform Telemetry', icon: TrendingUp }
+  ];
+
+  const currentTabMeta = superadminNavTabs.find((t) => t.id === activeMainTab) || superadminNavTabs[0];
+
   return (
-    <div className="min-h-screen bg-slate-100/60 text-slate-900 flex flex-col font-sans relative selection:bg-emerald-600 selection:text-white pb-16 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-100/60 text-slate-900 flex flex-col lg:flex-row font-sans relative selection:bg-indigo-600 selection:text-white overflow-x-hidden">
       {/* Subtle Precision Micro-Grid */}
       <div
         className="fixed inset-0 opacity-[0.025] pointer-events-none"
@@ -576,75 +616,126 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
         document.body
       )}
 
-      {/* Top Superadmin Command Header - Clean Modern SaaS */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-8 py-3 flex items-center justify-between gap-4 shadow-2xs text-slate-900">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 p-1.5 flex items-center justify-center text-indigo-600 shadow-2xs">
-              <ShieldCheck className="w-full h-full" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black tracking-tight text-slate-900 font-heading">
-                ARCHFIT
-              </span>
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Superadmin Console
-              </span>
-            </div>
+      {/* Mobile Top Header */}
+      <header className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 py-2.5 flex items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
+            title="Open Navigation Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 p-1 flex items-center justify-center text-indigo-600">
+            <ShieldCheck className="w-full h-full" />
           </div>
+          <span className="text-sm font-black text-slate-900 font-heading tracking-tight">ARCHFIT</span>
+          <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-full uppercase">
+            Admin
+          </span>
         </div>
 
-        {/* Global Action Bar */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsAddAdminModalOpen(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+            title="Create a new Superadmin administrator account"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>ADMIN</span>
+          </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold tracking-wide transition-all shadow-xs active:scale-95 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden xs:inline">ONBOARD FACILITY</span>
-            <span className="xs:hidden">NEW</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>NEW</span>
           </button>
-
           <button
             onClick={onLogout}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-            title="Sign out of Superadmin"
+            className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
+            title="Sign Out"
           >
             <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </header>
 
-      {/* Main Command Center Container */}
-      <main className="flex-1 w-full px-4 sm:px-8 py-5 space-y-5">
+      {/* Mobile Sidebar Backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="lg:hidden fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-50 transition-opacity"
+        />
+      )}
 
-        {/* Navigation Tabs Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/90 pb-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-slate-100 border border-slate-200/90 rounded-xl">
-            {[
-              { id: 'gyms', label: 'Facilities Directory', icon: Building2, count: gyms.length },
-              { id: 'plans', label: 'SaaS Plans Management', icon: Layers },
-              { id: 'whatsapp', label: 'WhatsApp Gateway & Automation', icon: MessageSquare },
-              { id: 'pages', label: 'About & Support Pages', icon: FileText },
-              { id: 'credentials', label: 'Admin Credentials & Security', icon: KeyRound },
-              { id: 'analytics', label: 'Platform Telemetry & MRR', icon: TrendingUp }
-            ].map((tab) => {
+      {/* Left Sidebar (Desktop Fixed Sticky + Mobile Slide-over Drawer) - Compact Width w-60 */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-white border-r border-slate-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-screen lg:sticky lg:top-0 shrink-0 ${
+          isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Sidebar Brand Header */}
+          <div className="px-3.5 py-3 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 p-1 flex items-center justify-center text-indigo-600 shadow-2xs shrink-0">
+                <ShieldCheck className="w-full h-full" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black tracking-tight text-slate-900 font-heading">
+                    ARCHFIT
+                  </span>
+                  <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded uppercase">
+                    Admin
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 truncate">Superadmin Console</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="lg:hidden p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Navigation Links List */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+            <div className="px-2 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+              Platform Modules
+            </div>
+            {superadminNavTabs.map((tab) => {
               const active = activeMainTab === tab.id;
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveMainTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${active
-                    ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                    }`}
+                  onClick={() => {
+                    setActiveMainTab(tab.id);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`w-full px-2.5 py-2 rounded-xl text-[12px] font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer text-left ${
+                    active
+                      ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
+                  }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${active ? 'text-indigo-600' : 'text-slate-400'}`} />
-                  <span>{tab.label}</span>
+                  <div className="flex items-center gap-2 truncate">
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-indigo-600' : 'text-slate-400'}`} />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
                   {tab.count !== undefined && (
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${active ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-200 text-slate-600'}`}>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold shrink-0 ${
+                        active
+                          ? 'bg-indigo-100 text-indigo-800 border border-indigo-300/60'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
                       {tab.count}
                     </span>
                   )}
@@ -653,17 +744,65 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
             })}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Sidebar Footer Controls */}
+          
+        </div>
+      </aside>
+
+      {/* Main Right Content Canvas */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Desktop Top Command Bar */}
+        <header className="hidden lg:flex sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-6 py-3.5 items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <currentTabMeta.icon className="w-5 h-5 text-indigo-600" />
+            <h1 className="text-base font-bold text-slate-900">{currentTabMeta.label}</h1>
+            {currentTabMeta.count !== undefined && (
+              <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {currentTabMeta.count}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsAddAdminModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold tracking-wide transition-all shadow-xs active:scale-95 cursor-pointer"
+              title="Create a new Superadmin administrator account"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>ADD ADMIN</span>
+            </button>
+
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold tracking-wide transition-all shadow-xs active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>ONBOARD FACILITY</span>
+            </button>
+
             <button
               onClick={loadData}
               disabled={isLoading}
               className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 transition-all text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-600' : 'text-slate-500'}`} />
-              <span>{isLoading ? 'Syncing...' : 'Sync Database'}</span>
+              <span>{isLoading ? 'Syncing...' : 'Sync'}</span>
+            </button>
+
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+              title="Sign out of Superadmin"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
             </button>
           </div>
-        </div>
+        </header>
+
+        {/* Content Container */}
+        <main className="flex-1 w-full px-4 sm:px-8 py-5 space-y-5">
 
         {/* ══════════════════════════════════════════════════════════ */}
         {/* TAB 1: FACILITIES DIRECTORY                                */}
@@ -966,7 +1105,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                             </span>
                           </div>
 
-                          {/* Action Buttons: WhatsApp Automation, Edit All, Delete */}
+                          {/* Action Buttons: WhatsApp Automation, Clear Data, Edit All, Delete */}
                           <div className="flex items-center gap-1.5 shrink-0">
                             {/* WhatsApp Automation Setup Button */}
                             <button
@@ -975,7 +1114,17 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                               title={`Configure WhatsApp Gateway & Automation for ${gym.name}`}
                             >
                               <MessageSquare className="w-3.5 h-3.5 text-white" />
-                              <span>WhatsApp Automation</span>
+                              <span>WhatsApp</span>
+                            </button>
+
+                            {/* Clear Gym Data Button */}
+                            <button
+                              onClick={() => setClearDataModalGym(gym)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border border-amber-200 hover:border-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                              title={`Clear all member data, trainer data, invoices & records for ${gym.name} (keeps gym and owner)`}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Clear Data</span>
                             </button>
 
                             {/* Edit All Details Button */}
@@ -1085,6 +1234,8 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
           </div>
         )}
 
+
+
         {/* ══════════════════════════════════════════════════════════ */}
         {/* TAB 3: SAAS PLANS MANAGEMENT                              */}
         {/* ══════════════════════════════════════════════════════════ */}
@@ -1112,7 +1263,8 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
             showToast={showToast}
           />
         )}
-      </main>
+        </main>
+      </div>
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/* MODAL: COMPREHENSIVE EDIT GYM & OWNER (MULTI-TAB)          */}
@@ -1879,6 +2031,108 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
         document.body
       )}
 
+      {/* Clear Gym Data Confirmation Modal */}
+      {clearDataModalGym && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xl max-w-lg w-full p-5 sm:p-7 relative overflow-hidden animate-scaleIn">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 shadow-xs">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base font-heading">
+                    Clear Gym Member & Operational Data
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Purge all records for <strong className="text-slate-800">{clearDataModalGym.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setClearDataModalGym(null)}
+                disabled={isClearingData}
+                className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-slate-700 mb-6 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <p className="leading-relaxed">
+                You are about to <strong className="text-amber-800 font-bold">wipe all member, trainer, and invoice data</strong> for this facility. The gym itself and its owner account will be preserved.
+              </p>
+
+              <div className="space-y-2 pt-2 border-t border-slate-200/80">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Facility:</span>
+                  <span className="font-bold text-slate-900 font-mono">{clearDataModalGym.name}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Facility Owner (Preserved):</span>
+                  <span className="font-bold text-emerald-700 font-mono">{clearDataModalGym.owner?.name || 'No Owner'} (Kept Active)</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Members to be Deleted:</span>
+                  <span className="font-black text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
+                    {clearDataModalGym.accounts?.members ?? 0} members
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Trainers & Staff to be Deleted:</span>
+                  <span className="font-black text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
+                    {clearDataModalGym.accounts?.trainers ?? 0} accounts
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-600 pl-2 border-l-2 border-amber-300 space-y-0.5 mt-2">
+                  <div>• Invoices, billing history & payments will be purged.</div>
+                  <div>• Member profiles, attendance logs & body metrics will be deleted.</div>
+                  <div>• Trainer profiles, reviews, payroll & commissions will be cleared.</div>
+                  <div>• Gym pricing packages & facility settings will remain untouched.</div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Permanent Action:</strong> Once cleared, member and financial history cannot be recovered. The gym owner can immediately start registering new members on a clean slate.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClearDataModalGym(null)}
+                disabled={isClearingData}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition-all cursor-pointer"
+              >
+                Cancel (Keep Data)
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearData}
+                disabled={isClearingData}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-black tracking-wide shadow-md shadow-amber-600/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {isClearingData ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Clearing Data...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Yes, Clear Member Data</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <ConfirmDeleteModal
         isOpen={Boolean(gymToDelete)}
         onClose={() => setGymToDelete(null)}
@@ -1904,6 +2158,16 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
           onSaved={loadData}
         />
       )}
+
+      {/* Add Superadmin Modal */}
+      <AddAdminModal
+        isOpen={isAddAdminModalOpen}
+        onClose={() => setIsAddAdminModalOpen(false)}
+        onAdminCreated={(newAdmin) => {
+          showToast(`Superadmin "${newAdmin.name}" created! They can now log in at /superadmin.`);
+        }}
+        showToast={showToast}
+      />
     </div>
   );
 };

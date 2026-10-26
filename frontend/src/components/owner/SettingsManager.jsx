@@ -15,6 +15,7 @@ import {
   sanitizePhone,
   sanitizeText
 } from '../../utils/validation';
+import { GymRolesManager } from '../superadmin/GymRolesManager';
 
 
 const calculateDaysRemaining = (expiryDate) => {
@@ -31,12 +32,18 @@ const calculateDaysRemaining = (expiryDate) => {
   }
 };
 
-export const SettingsManager = () => {
+export const SettingsManager = ({ initialTab = 'general' }) => {
   const { gymInfo, setGymInfo, fetchGymInfo, addToast, branches = [], branchesData = {}, fetchBranches, switchBranch, createBranch } = useGymData();
   const { currentUser, updateUserPassword } = useAuth();
 
-  // Active Settings Sub-Tab: 'general' | 'consent'
-  const [activeSettingsTab, setActiveSettingsTab] = useState('general');
+  // Active Settings Sub-Tab: 'general' | 'consent' | 'payroll_attendance' | 'roles'
+  const [activeSettingsTab, setActiveSettingsTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSettingsTab(initialTab);
+    }
+  }, [initialTab]);
 
   // eSSL Biometric Machine Dynamic LAN IP Configuration
   const [deviceIp, setDeviceIp] = useState(() => gymInfo?.deviceIp || gymInfo?.device_ip || gymInfo?.essl_device_ip || '192.168.1.201');
@@ -629,6 +636,19 @@ export const SettingsManager = () => {
         >
           <Clock className="w-4 h-4" />
           <span>Payroll & Attendance</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('roles')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'roles'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>Staff Roles & Page Access</span>
         </button>
       </div>
 
@@ -1743,6 +1763,17 @@ export const SettingsManager = () => {
               </div>
             </div>
           </div>
+        </div>
+      ) : activeSettingsTab === 'roles' ? (
+        /* ══════════════════════════════════════════════════════════ */
+        /* TAB 4: STAFF ROLES & PAGE PERMISSIONS (OWNER CONFIGURABLE) */
+        /* ══════════════════════════════════════════════════════════ */
+        <div className="space-y-4 animate-fadeIn">
+          <GymRolesManager
+            isOwnerMode={true}
+            initialSelectedGymId={currentUser?.gym_id || gymInfo?.id}
+            gymName={gymInfo?.name}
+          />
         </div>
       ) : (
         /* ══════════════════════════════════════════════════════════ */

@@ -103,6 +103,24 @@ export const PlanManager = () => {
     return counts;
   }, [plans]);
 
+  // All available types for filtering (presets + custom types from plans)
+  const allFilterTypes = useMemo(() => {
+    const customTypes = (plans || [])
+      .map((p) => normalizePackageType(p.packageType || p.package_type || p.category))
+      .filter(Boolean);
+    const combined = [...PACKAGE_TYPES, ...customTypes];
+    const seen = new Set();
+    const result = [];
+    combined.forEach((t) => {
+      const lower = t.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(t);
+      }
+    });
+    return result;
+  }, [plans]);
+
   // Filtered plans list
   const filteredPlans = useMemo(() => {
     return (plans || []).filter((plan) => {
@@ -214,7 +232,7 @@ export const PlanManager = () => {
                 <option value="all">
                   All Package Types ({typeCounts.all || 0})
                 </option>
-                {PACKAGE_TYPES.map((type) => (
+                {allFilterTypes.map((type) => (
                   <option key={type} value={type}>
                     {type} ({typeCounts[type] || 0})
                   </option>

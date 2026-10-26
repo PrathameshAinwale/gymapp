@@ -1405,6 +1405,21 @@ export const api = {
     },
   },
 
+  // Freeze & Extension & Transfer Policy Endpoints
+  freezePolicy: {
+    get: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/freeze-policy`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    update: async (policyData) => {
+      const res = await apiFetch(`${API_BASE_URL}/freeze-policy`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(policyData),
+      });
+      return handleResponse(res);
+    },
+  },
 
   // Digital Consent & Waivers Endpoints
   consentForms: {
@@ -1528,6 +1543,13 @@ export const api = {
       });
       return handleResponse(res);
     },
+    clearGymData: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/clear-data`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
     impersonateGym: async (id) => {
       const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/impersonate`, {
         method: 'POST',
@@ -1545,6 +1567,27 @@ export const api = {
     restoreGymAccess: async (id) => {
       const res = await apiFetch(`${API_BASE_URL}/superadmin/gyms/${id}/restore-access`, {
         method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    // Superadmin Administrators Management
+    getAdmins: async () => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/admins`, { headers: getHeaders(), skipCache: true });
+      return handleResponse(res);
+    },
+    createAdmin: async (adminData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/admins`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(adminData),
+      });
+      return handleResponse(res);
+    },
+    deleteAdmin: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/admins/${id}`, {
+        method: 'DELETE',
         headers: getHeaders(),
       });
       return handleResponse(res);
@@ -1637,6 +1680,35 @@ export const api = {
       });
       return handleResponse(res);
     },
+    // Gym Custom Roles & Page Permissions
+    getGymRoles: async (gymId = null) => {
+      const qs = gymId ? `?gym_id=${gymId}` : '';
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gym-roles${qs}`, { headers: getHeaders(), skipCache: true });
+      return handleResponse(res);
+    },
+    createGymRole: async (roleData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gym-roles`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(roleData),
+      });
+      return handleResponse(res);
+    },
+    updateGymRole: async (id, roleData) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gym-roles/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(roleData),
+      });
+      return handleResponse(res);
+    },
+    deleteGymRole: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/superadmin/gym-roles/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Platform Public/Client Endpoints (Accessible across all roles)
@@ -1690,6 +1762,45 @@ export const api = {
         throw new Error('Invalid staff member identifier');
       }
       const res = await apiFetch(`${API_BASE_URL}/staff/${numericId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    getAvailableRoles: async (gymId = null) => {
+      const qs = gymId ? `?gym_id=${gymId}` : '';
+      const res = await apiFetch(`${API_BASE_URL}/gym-roles${qs}`, { headers: getHeaders(), skipCache: true });
+      return handleResponse(res);
+    },
+  },
+
+  // Gym Dynamic Staff Roles & Permission Access (Owner & Superadmin)
+  gymRoles: {
+    getAll: async (gymId = null) => {
+      const qs = gymId ? `?gym_id=${gymId}` : '';
+      const res = await apiFetch(`${API_BASE_URL}/gym-roles${qs}`, { headers: getHeaders(), skipCache: true });
+      return handleResponse(res);
+    },
+    create: async (roleData) => {
+      const payload = withGymParam(roleData);
+      const res = await apiFetch(`${API_BASE_URL}/gym-roles`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    update: async (id, roleData) => {
+      const payload = withGymParam(roleData);
+      const res = await apiFetch(`${API_BASE_URL}/gym-roles/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    delete: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/gym-roles/${id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

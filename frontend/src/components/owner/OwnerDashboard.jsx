@@ -574,6 +574,52 @@ export const OwnerDashboard = ({
     coach_roster: trainers.length
   };
 
+  // Navigate to corresponding tab with applied metric filter preset
+  const handleCardClick = (card) => {
+    if (!card) return;
+    const now = Date.now();
+    switch (card.id) {
+      case 'renewals_due':
+        // Member directory filtered for Renewals Due (expired & expiring soon)
+        setActiveTab('members', { memberFilter: { status: 'Renewals', timestamp: now } });
+        break;
+      case 'active_members':
+        // Member directory filtered for Active members
+        setActiveTab('members', { memberFilter: { status: 'Active', timestamp: now } });
+        break;
+      case 'total_members':
+        // Member directory showing All members (clear filters)
+        setActiveTab('members', { memberFilter: { status: 'ALL', timestamp: now } });
+        break;
+      case 'frozen_members':
+        if (card.tab === 'members') {
+          setActiveTab('members', { memberFilter: { status: 'Frozen', timestamp: now } });
+        } else {
+          setActiveTab(card.tab || 'membership-freeze');
+        }
+        break;
+      case 'unpaid_invoices':
+        // Invoices filtered for Pending / Unpaid dues
+        setActiveTab('invoices', { invoiceFilter: { status: 'pending', activeFilter: 'PENDING', timestamp: now } });
+        break;
+      case 'hot_leads':
+        // Leads & Enquiries filtered for Hot leads
+        setActiveTab('enquiries', { enquiryFilter: { status: 'Hot', timestamp: now } });
+        break;
+      case 'pro_shop':
+        // Pro shop filtered for Low Stock
+        setActiveTab('products', { productFilter: { stockStatus: 'LOW_STOCK', timestamp: now } });
+        break;
+      case 'equipment_alerts':
+        // Equipment filtered for Maintenance Needed
+        setActiveTab('equipment', { equipmentFilter: { status: 'Maintenance Needed', timestamp: now } });
+        break;
+      default:
+        setActiveTab(card.tab);
+        break;
+    }
+  };
+
   // Build the active stat cards list based on customCardIds
   const activeStatCards = customCardIds
     .map((id) => ALL_STAT_CARD_DEFINITIONS.find((def) => def.id === id))
@@ -1021,7 +1067,7 @@ export const OwnerDashboard = ({
             return (
               <div
                 key={card.id}
-                onClick={() => setActiveTab(card.tab)}
+                onClick={() => handleCardClick(card)}
                 className={`group relative bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm ${colorClasses.borderHover} transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]`}
               >
                 {/* Remove Card 'X' Button on top-right */}
@@ -1239,7 +1285,15 @@ export const OwnerDashboard = ({
                   return (
                     <div
                       key={item.name}
-                      onClick={() => setActiveTab('members')}
+                      onClick={() => {
+                        const low = (item.name || '').toLowerCase();
+                        let st = 'ALL';
+                        if (low.includes('active')) st = 'Active';
+                        else if (low.includes('expiring')) st = 'Expiring Soon';
+                        else if (low.includes('expired')) st = 'Expired';
+                        else if (low.includes('frozen')) st = 'Frozen';
+                        setActiveTab('members', { memberFilter: { status: st, timestamp: Date.now() } });
+                      }}
                       className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-xs cursor-pointer group"
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -1738,7 +1792,7 @@ export const OwnerDashboard = ({
                 <div className="pt-2 text-right">
                   <button
                     type="button"
-                    onClick={() => setActiveTab('members')}
+                    onClick={() => setActiveTab('members', { memberFilter: { status: 'Renewals', timestamp: Date.now() } })}
                     className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
                   >
                     Open Member Directory & Renewals →

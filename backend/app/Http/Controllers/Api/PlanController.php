@@ -16,7 +16,7 @@ class PlanController extends Controller
         $paramGymId = $request->input('gym_id') ?? $request->query('gym_id');
         $effectiveGymId = $gymId ?: ($paramGymId ? (int)$paramGymId : 0);
 
-        $cacheKey = "gym_plans_v1_{$effectiveGymId}";
+        $cacheKey = "gym_plans_v2_{$effectiveGymId}";
         $plans = Cache::remember($cacheKey, 600, function () use ($effectiveGymId) {
             $query = Plan::query();
             if ($effectiveGymId) {
@@ -25,7 +25,7 @@ class PlanController extends Controller
                 $query->whereRaw('1 = 0');
             }
 
-            return $query->get()->map(function ($plan) {
+            return $query->latest('id')->get()->map(function ($plan) {
                 $pkgType = $this->normalizePackageType($plan->package_type);
                 return [
                     'id' => 'plan-' . $plan->id,
@@ -327,6 +327,8 @@ class PlanController extends Controller
     private function clearPlanCache($gymId): void
     {
         $id = $gymId ? (int)$gymId : 0;
+        Cache::forget("gym_plans_v2_{$id}");
+        Cache::forget("gym_plans_v2_0");
         Cache::forget("gym_plans_v1_{$id}");
         Cache::forget("gym_plans_v1_0");
     }

@@ -310,3 +310,30 @@ export const isValidDob = (dob) => {
   const trimmed = String(dob).slice(0, 10);
   return trimmed <= todayStr;
 };
+
+/**
+ * Gets the maximum allowed date of birth string for staff (must be at least minAge years old, default 15)
+ * @param {number} minAge
+ * @returns {string} YYYY-MM-DD
+ */
+export const getMaxStaffDobDateStr = (minAge = 15) => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - minAge);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Validates staff Date of Birth (must be at least minAge years old, default 15)
+ * @param {string} dob 
+ * @param {number} minAge 
+ * @returns {boolean}
+ */
+export const isValidStaffDob = (dob, minAge = 15) => {
+  if (!dob) return true;
+  const maxAllowed = getMaxStaffDobDateStr(minAge);
+  const trimmed = String(dob).slice(0, 10);
+  return trimmed <= maxAllowed;
+};

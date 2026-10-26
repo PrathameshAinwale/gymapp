@@ -31,7 +31,9 @@ import {
   MessageCircle,
   Printer,
   Receipt,
-  Check
+  Check,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
@@ -65,7 +67,7 @@ const ProductImage = ({ src, alt, category }) => {
   );
 };
 
-export const ProductsManager = () => {
+export const ProductsManager = ({ initialFilterPreset }) => {
   const {
     products,
     addProduct,
@@ -95,6 +97,13 @@ export const ProductsManager = () => {
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
   const memberDropdownRef = useRef(null);
+
+  // Apply metric card filter presets from Dashboard
+  useEffect(() => {
+    if (initialFilterPreset?.stockStatus) {
+      setStockStatusFilter(initialFilterPreset.stockStatus);
+    }
+  }, [initialFilterPreset?.stockStatus, initialFilterPreset?.timestamp]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -158,7 +167,83 @@ export const ProductsManager = () => {
   const [sellPaymentMethod, setSellPaymentMethod] = useState('GPay');
   const [sellDiscount, setSellDiscount] = useState('');
   const [sellNotes, setSellNotes] = useState('');
+  const [isGstIncluded, setIsGstIncluded] = useState(false);
   const [completedSaleData, setCompletedSaleData] = useState(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Compress image file to reasonable dimensions (~800px) and quality (0.75) for fast reliable storage
+  const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.75) => {
+    return new Promise((resolve) => {
+      if (!file || !file.type.startsWith('image/')) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(e.target?.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      addToast?.('Please select a valid image file (PNG, JPG, WebP).', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      addToast?.('Image file size must be less than 5MB.', 'error');
+      return;
+    }
+
+    try {
+      setIsUploadingPhoto(true);
+      const dataUrl = await compressImageFile(file);
+      if (dataUrl) {
+        setFormData((prev) => ({ ...prev, image: dataUrl }));
+        addToast?.('Product photo selected successfully!', 'success');
+      }
+    } catch (err) {
+      console.error('Photo compression error:', err);
+      addToast?.('Failed to process image file.', 'error');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   // Handlers for dynamic multi-product cart
   const handleOpenNewSale = () => {
@@ -172,6 +257,7 @@ export const ProductsManager = () => {
     setSellDiscount('');
     setSellNotes('');
     setSellPaymentMethod('GPay');
+    setIsGstIncluded(Boolean(gymInfo?.is_gst_enabled ?? gymInfo?.isGstEnabled ?? false));
     setIsMemberDropdownOpen(false);
     setIsSellModalOpen(true);
   };
@@ -186,6 +272,7 @@ export const ProductsManager = () => {
     setSellDiscount('');
     setSellNotes('');
     setSellPaymentMethod('GPay');
+    setIsGstIncluded(Boolean(gymInfo?.is_gst_enabled ?? gymInfo?.isGstEnabled ?? false));
     setIsMemberDropdownOpen(false);
     setIsSellModalOpen(true);
   };
@@ -397,20 +484,31 @@ export const ProductsManager = () => {
         member: selectedMember,
         paymentMethod: sellPaymentMethod,
         discount: numDiscount,
+        isGstIncluded,
         notes: sellNotes,
         handledByName: currentUser?.name || 'Staff'
       });
 
-      if (result && (result.success || result.invoice)) {
-        const inv = result.invoice || {};
+      if (result && (result.success || result.invoice || result.id)) {
+        const inv = result.invoice || result || {};
         const invoiceNo = result.invoiceNumber || inv.invoiceNumber || inv.id || `INV-PROD-${Date.now().toString().slice(-6)}`;
 
         setCompletedSaleData({
           id: invoiceNo,
           invoiceNumber: invoiceNo,
+          invoiceType: 'product',
+          isProductSale: true,
           productName: resolvedItems.map((it) => `${it.product.name} (x${it.quantity})`).join(', '),
           category: resolvedItems[0]?.product?.category || 'Store Item',
-          items: resolvedItems,
+          items: resolvedItems.map((it) => ({
+            name: it.product.name,
+            productName: it.product.name,
+            category: it.product.category || 'Store Item',
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            lineTotal: it.lineTotal,
+            price: it.lineTotal
+          })),
           itemsBreakdown: resolvedItems.map((it) => `${it.product.name} (Qty: ${it.quantity}) @ ₹${it.unitPrice.toLocaleString('en-IN')}`),
           quantity: resolvedItems.reduce((acc, it) => acc + it.quantity, 0),
           subtotal,
@@ -421,9 +519,14 @@ export const ProductsManager = () => {
           paymentMethod: sellPaymentMethod,
           buyerName: effectiveBuyerName,
           memberName: effectiveBuyerName,
+          customerName: effectiveBuyerName,
           phone: selectedMember?.phone || '',
           email: selectedMember?.email || '',
           member: selectedMember,
+          memberId: selectedMember ? selectedMember.id : null,
+          isWalkIn: !selectedMember,
+          isGstIncluded,
+          hasGst: isGstIncluded,
           date: new Date().toISOString().split('T')[0],
           notes: sellNotes,
           createdByName: currentUser?.name || 'Staff'
@@ -911,15 +1014,73 @@ export const ProductsManager = () => {
             </div>
           </div>
 
+          {/* Product Photo Upload Field */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Image URL</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Product Photo <span className="text-slate-400 font-normal">(Optional)</span>
+            </label>
+
             <input
-              type="url"
-              value={formData.image}
-              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-              placeholder="Enter image URL (optional)"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoUpload}
             />
+
+            {formData.image ? (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 shadow-2xs">
+                  <img
+                    src={formData.image}
+                    alt="Product preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-bold text-slate-800 block truncate">Photo Selected</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold block">Ready to upload</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+                    >
+                      Change Photo
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, image: '' })}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-4 px-3 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-1.5 group"
+              >
+                <div className="p-2 rounded-lg bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-600 transition-colors">
+                  {isUploadingPhoto ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Upload className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700 block">
+                    {isUploadingPhoto ? 'Compressing photo...' : 'Click to Upload Product Photo'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    PNG, JPG, WebP up to 5MB (auto-optimized)
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -1320,6 +1481,41 @@ export const ProductsManager = () => {
               </div>
             </div>
 
+            {/* GST Tax Option Toggle */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between transition-colors">
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${isGstIncluded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                  <Receipt className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 leading-none">
+                    <span>Apply GST (18%)</span>
+                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {isGstIncluded ? 'Inclusive 18%' : 'Non-GST'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {isGstIncluded ? 'CGST 9% + SGST 9% itemized in invoice' : 'Standard non-tax store transaction'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isGstIncluded}
+                onClick={() => setIsGstIncluded(!isGstIncluded)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isGstIncluded ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    isGstIncluded ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Total Billing Preview & Itemization */}
             {(() => {
               let subtotal = 0;
@@ -1336,6 +1532,9 @@ export const ProductsManager = () => {
               });
               const discountVal = Math.min(subtotal, Math.max(0, Number(sellDiscount) || 0));
               const totalPayable = Math.max(0, subtotal - discountVal);
+              const taxableBase = isGstIncluded ? Math.round(totalPayable / 1.18) : totalPayable;
+              const totalTax = isGstIncluded ? Math.max(0, totalPayable - taxableBase) : 0;
+              const halfTax = Math.round(totalTax / 2);
 
               return (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
@@ -1347,6 +1546,22 @@ export const ProductsManager = () => {
                     <div className="flex items-center justify-between text-emerald-600 font-semibold">
                       <span>Discount Applied:</span>
                       <span>-₹{discountVal.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {isGstIncluded && (
+                    <div className="pt-1.5 border-t border-dashed border-slate-200 space-y-1 text-slate-500">
+                      <div className="flex items-center justify-between">
+                        <span>Taxable Value (Base):</span>
+                        <span className="font-medium text-slate-700">₹{taxableBase.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span>CGST (9%):</span>
+                        <span className="font-medium text-slate-700">₹{halfTax.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span>SGST (9%):</span>
+                        <span className="font-medium text-slate-700">₹{(totalTax - halfTax).toLocaleString('en-IN')}</span>
+                      </div>
                     </div>
                   )}
                   <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
@@ -1423,11 +1638,30 @@ export const ProductsManager = () => {
               </div>
 
               <div className="pt-2 border-t border-slate-200">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Purchased Item</span>
-                <div className="flex justify-between items-center text-slate-800 font-medium">
-                  <span>{completedSaleData.productName} (x{completedSaleData.quantity})</span>
-                  <span>₹{Number(completedSaleData.subtotal).toLocaleString('en-IN')}</span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Purchased Items</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${completedSaleData.isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                    {completedSaleData.isGstIncluded ? 'GST 18% INCLUSIVE' : 'NON-GST BILL'}
+                  </span>
                 </div>
+                {Array.isArray(completedSaleData.items) && completedSaleData.items.length > 0 ? (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {completedSaleData.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-slate-800">
+                        <div className="min-w-0 pr-2">
+                          <div className="font-semibold truncate">{item.name || item.productName}</div>
+                          <div className="text-[10px] text-slate-500">Qty: {item.quantity} × ₹{Number(item.unitPrice).toLocaleString('en-IN')}</div>
+                        </div>
+                        <span className="font-bold shrink-0">₹{Number(item.lineTotal || item.price).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center text-slate-800 font-medium">
+                    <span>{completedSaleData.productName} (x{completedSaleData.quantity})</span>
+                    <span>₹{Number(completedSaleData.subtotal).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
                 {Number(completedSaleData.discount) > 0 && (
                   <div className="flex justify-between items-center text-emerald-600 font-medium mt-1">
                     <span>Discount</span>

@@ -79,6 +79,11 @@ function MainApp() {
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState(null);
+  const [memberFilterPreset, setMemberFilterPreset] = useState(null);
+  const [invoiceFilterPreset, setInvoiceFilterPreset] = useState(null);
+  const [productFilterPreset, setProductFilterPreset] = useState(null);
+  const [enquiryFilterPreset, setEnquiryFilterPreset] = useState(null);
+  const [equipmentFilterPreset, setEquipmentFilterPreset] = useState(null);
 
   const handleNavigateToMembersWithNotification = (filterType, item = null) => {
     setNotificationFilter({
@@ -113,7 +118,14 @@ function MainApp() {
   }, [isAuthenticated, currentRole]);
 
   // Navigate to new tab and push history entry so Back goes back one screen at a time
-  const handleNavigateTab = (newTab) => {
+  const handleNavigateTab = (newTab, options = null) => {
+    if (options && typeof options === 'object') {
+      if (options.memberFilter !== undefined) setMemberFilterPreset(options.memberFilter);
+      if (options.invoiceFilter !== undefined) setInvoiceFilterPreset(options.invoiceFilter);
+      if (options.productFilter !== undefined) setProductFilterPreset(options.productFilter);
+      if (options.enquiryFilter !== undefined) setEnquiryFilterPreset(options.enquiryFilter);
+      if (options.equipmentFilter !== undefined) setEquipmentFilterPreset(options.equipmentFilter);
+    }
     if (typeof newTab === 'function') {
       setActiveTab((prev) => {
         const resolved = newTab(prev);
@@ -301,6 +313,22 @@ function MainApp() {
       }
     }
 
+    // Security Guard: Enforce superadmin-configured assigned pages for custom staff roles
+    const userAssignedPages = currentUser?.assigned_pages || currentUser?.assignedPages;
+    if (Array.isArray(userAssignedPages) && userAssignedPages.length > 0 && currentRole !== 'superadmin' && currentRole !== 'owner') {
+      if (activeTab !== 'dashboard' && !userAssignedPages.includes(activeTab)) {
+        return (
+          <OwnerDashboard
+            setActiveTab={handleNavigateTab}
+            onOpenMemberProfile={(memberId) => {
+              setSelectedMemberProfileId(memberId);
+              handleNavigateTab('member-profile');
+            }}
+          />
+        );
+      }
+    }
+
     // Dynamic Owner Module Loader: Prevent blank screen while page records are hydrating
     if (isOwnerTabLoading?.(activeTab)) {
       return <OwnerPageLoader activeTab={activeTab} />;
@@ -374,6 +402,8 @@ function MainApp() {
             setActiveTab={handleNavigateTab}
             notificationFilter={notificationFilter}
             onClearNotificationFilter={() => setNotificationFilter(null)}
+            initialFilterPreset={memberFilterPreset}
+            onClearInitialFilterPreset={() => setMemberFilterPreset(null)}
             onOpenAddMember={() => {
               setAddMemberInitialData(null);
               handleNavigateTab('add-member');
@@ -399,6 +429,7 @@ function MainApp() {
       case 'enquiries':
         return (
           <EnquiriesManager
+            initialFilterPreset={enquiryFilterPreset}
             onConvertLeadToMember={(enquiry) => {
               setAddMemberInitialData(enquiry || null);
               handleNavigateTab('add-member');
@@ -460,6 +491,7 @@ function MainApp() {
           <InvoicesPage
             setActiveTab={handleNavigateTab}
             onNavigateTab={handleNavigateTab}
+            initialFilterPreset={invoiceFilterPreset}
             onNavigateToCreateInvoice={(member) => {
               setCreateInvoiceInitialMember(member || null);
               setEditingInvoiceData(null);
@@ -473,9 +505,9 @@ function MainApp() {
           />
         );
       case 'products':
-        return <ProductsManager />;
+        return <ProductsManager initialFilterPreset={productFilterPreset} />;
       case 'equipment':
-        return <EquipmentManager />;
+        return <EquipmentManager initialFilterPreset={equipmentFilterPreset} />;
       case 'settings':
         return <SettingsManager />;
       default:

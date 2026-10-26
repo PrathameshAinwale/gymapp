@@ -128,10 +128,11 @@ class GymSettingController extends Controller
                     'payroll_attendance_settings' => !empty($gym->payroll_attendance_settings) ? (is_string($gym->payroll_attendance_settings) ? json_decode($gym->payroll_attendance_settings, true) : $gym->payroll_attendance_settings) : self::getDefaultPayrollAttendanceSettings(),
                     'deviceIp' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
                     'device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
-                    'essl_device_ip' => \Illuminate\Support\Facades\DB::table('biometric_devices')->value('ip_address') ?: ($gym->essl_device_ip ?? '192.168.1.201'),
                     'devicePort' => (int)($gym->essl_device_port ?? 4370),
                     'device_port' => (int)($gym->essl_device_port ?? 4370),
                     'essl_device_port' => (int)($gym->essl_device_port ?? 4370),
+                    'freezePolicySettings' => !empty($gym->freeze_policy_settings) ? (is_string($gym->freeze_policy_settings) ? json_decode($gym->freeze_policy_settings, true) : $gym->freeze_policy_settings) : null,
+                    'freeze_policy_settings' => !empty($gym->freeze_policy_settings) ? (is_string($gym->freeze_policy_settings) ? json_decode($gym->freeze_policy_settings, true) : $gym->freeze_policy_settings) : null,
                 ];
             });
 
@@ -234,6 +235,10 @@ class GymSettingController extends Controller
                 $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
                 $gym->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
             }
+            if (($request->has('freezePolicySettings') || $request->has('freeze_policy_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'freeze_policy_settings')) {
+                $fps = $request->input('freezePolicySettings') ?? $request->input('freeze_policy_settings');
+                $gym->freeze_policy_settings = is_array($fps) ? json_encode($fps) : $fps;
+            }
             $gym->save();
             Cache::forget("gym_setting_v1_{$gymId}");
         }
@@ -256,6 +261,10 @@ class GymSettingController extends Controller
             if (($request->has('payrollAttendanceSettings') || $request->has('payroll_attendance_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gym_settings', 'payroll_attendance_settings')) {
                 $ps = $request->input('payrollAttendanceSettings') ?? $request->input('payroll_attendance_settings');
                 $setting->payroll_attendance_settings = is_array($ps) ? json_encode($ps) : $ps;
+            }
+            if (($request->has('freezePolicySettings') || $request->has('freeze_policy_settings')) && \Illuminate\Support\Facades\Schema::hasColumn('gym_settings', 'freeze_policy_settings')) {
+                $fps = $request->input('freezePolicySettings') ?? $request->input('freeze_policy_settings');
+                $setting->freeze_policy_settings = is_array($fps) ? json_encode($fps) : $fps;
             }
             if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
             $setting->save();

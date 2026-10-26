@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use App\Services\IdentityValidationService;
 
 class StaffController extends Controller
 {
@@ -29,19 +30,14 @@ class StaffController extends Controller
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
 
-        $query = User::whereIn('role', ['manager', 'accounts', 'trainer'])
-            ->with(['trainerProfile.assignedMembers.user', 'trainerProfile.assignedMembers.plan']);
+        $query = User::whereNotIn('role', ['owner', 'superadmin', 'member'])
+            ->with(['trainerProfile.assignedMembers.user', 'trainerProfile.assignedMembers.plan', 'gymRole']);
 
         if ($gymId && $gymId > 0) {
             $query->where('gym_id', $gymId);
         }
 
-        $staff = $query->orderByRaw("CASE role
-                WHEN 'accounts'   THEN 1
-                WHEN 'manager'    THEN 2
-                WHEN 'trainer'    THEN 3
-                ELSE 4 END")
-            ->orderBy('name')
+        $staff = $query->orderBy('name')
             ->get($selectCols);
 
         // Staff records with masked passwords
@@ -52,6 +48,9 @@ class StaffController extends Controller
             $arr['biometric_user_id'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['biometricUserId'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['synced_to_device'] = (bool)$u->synced_to_device;
+            $arr['role_label'] = $u->gymRole ? $u->gymRole->name : ucfirst($u->role);
+            $arr['role_color'] = $u->gymRole ? $u->gymRole->color : 'indigo';
+            $arr['assigned_pages'] = $u->gymRole ? ($u->gymRole->assigned_pages ?? []) : [];
 
             // Include Trainer Profile details if staff role is trainer or has profile
             if ($u->role === 'trainer' || $u->trainerProfile) {
@@ -139,10 +138,10 @@ class StaffController extends Controller
             ],
             'email'          => 'nullable|email',
             'password'       => 'required|string|min:4',
-            'role'           => 'required|in:manager,accounts,trainer',
+            'role'           => 'required|string|max:50',
             'gym_id'         => 'nullable|integer',
             'avatar'         => 'nullable|string',
-            'dob'            => 'nullable|date|before_or_equal:today',
+            'dob'            => 'nullable|date|before_or_equal:' . now()->subYears(15)->format('Y-m-d'),
             'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
@@ -169,7 +168,7 @@ class StaffController extends Controller
             'phone.required' => 'Mobile number is mandatory to register staff.',
             'phone.min' => 'Please enter a valid mobile number.',
             'phone.regex' => 'Please enter a valid mobile number with digits only.',
-            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+            'dob.before_or_equal' => 'Staff member date of birth cannot be less than 15 years (must be at least 15 years old).',
         ]);
 
         $gymId = $validated['gym_id'] ?? $this->resolveGymId($request);
@@ -198,6 +197,32 @@ class StaffController extends Controller
             'biometric_user_id'    => $request->input('biometric_user_id', $request->input('biometricUserId')),
         ];
 
+        // System-wide unique Aadhaar & PAN validation across all roles (member, staff, trainer, etc.)
+        if (!empty($validated['aadhaar_card'])) {
+            $conflict = IdentityValidationService::findAadhaarConflict($validated['aadhaar_card']);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This Aadhaar number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'aadhaar_card' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."]
+                    ]
+                ], 422);
+            }
+        }
+
+        if (!empty($validated['pan_card'])) {
+            $conflict = IdentityValidationService::findPanConflict($validated['pan_card']);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This PAN number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'pan_card' => ["This PAN number is already registered to another person ({$conflict['name']})."]
+                    ]
+                ], 422);
+            }
+        }
 
         // Check if user already exists with this phone or email
         $rawPhone = trim($validated['phone'] ?? '');
@@ -329,9 +354,9 @@ class StaffController extends Controller
                     }
                 }
             ],
-            'role'           => 'sometimes|in:manager,accounts,trainer',
+            'role'           => 'sometimes|string|max:50',
             'password'       => 'nullable|string|min:4',
-            'dob'            => 'nullable|date|before_or_equal:today',
+            'dob'            => 'nullable|date|before_or_equal:' . now()->subYears(15)->format('Y-m-d'),
             'joining_date'   => 'nullable|date',
             'aadhaar_card'   => 'nullable|string|max:50',
             'aadhaar_image'  => 'nullable|string',
@@ -354,7 +379,7 @@ class StaffController extends Controller
             'name.regex' => 'Name must only contain letters, numbers, spaces, hyphens, and apostrophes.',
             'phone.required' => 'Mobile number is mandatory.',
             'phone.regex' => 'Please enter a valid mobile number with digits only.',
-            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+            'dob.before_or_equal' => 'Staff member date of birth cannot be less than 15 years (must be at least 15 years old).',
         ]);
 
         // Guard against duplicate phone/email collision with owner or superadmin
@@ -373,6 +398,33 @@ class StaffController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'The mobile number or email belongs to a gym owner or administrator account.'
+                ], 422);
+            }
+        }
+
+        // System-wide unique Aadhaar & PAN validation across all roles (member, staff, trainer, etc.)
+        if (array_key_exists('aadhaar_card', $validated) && !empty($validated['aadhaar_card'])) {
+            $conflict = IdentityValidationService::findAadhaarConflict($validated['aadhaar_card'], $user->id);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This Aadhaar number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'aadhaar_card' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."]
+                    ]
+                ], 422);
+            }
+        }
+
+        if (array_key_exists('pan_card', $validated) && !empty($validated['pan_card'])) {
+            $conflict = IdentityValidationService::findPanConflict($validated['pan_card'], $user->id);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This PAN number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'pan_card' => ["This PAN number is already registered to another person ({$conflict['name']})."]
+                    ]
                 ], 422);
             }
         }

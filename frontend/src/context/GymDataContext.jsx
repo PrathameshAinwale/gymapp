@@ -1486,8 +1486,9 @@ export const GymDataProvider = ({ children }) => {
         return res.data;
       }
     } catch (err) {
-      console.error('Create shift error:', err.message);
-      addToast(`Failed to create shift: ${err.message}`, 'error');
+      const errMsg = err?.data?.message || err?.message || 'Failed to create shift';
+      console.error('Create shift error:', errMsg);
+      addToast(errMsg, 'error');
       throw err;
     }
   }, [addToast, fetchShifts]);
@@ -1501,8 +1502,9 @@ export const GymDataProvider = ({ children }) => {
         return res.data;
       }
     } catch (err) {
-      console.error('Update shift error:', err.message);
-      addToast(`Failed to update shift: ${err.message}`, 'error');
+      const errMsg = err?.data?.message || err?.message || 'Failed to update shift';
+      console.error('Update shift error:', errMsg);
+      addToast(errMsg, 'error');
       throw err;
     }
   }, [addToast, fetchShifts]);
@@ -2201,7 +2203,7 @@ export const GymDataProvider = ({ children }) => {
           packageType: cleanType,
           category: cleanType
         };
-        setPlans((prev) => [...prev, item]);
+        setPlans((prev) => [item, ...(prev || [])]);
         addToast(`Membership package "${item.name}" created & saved!`);
         return item;
       }
@@ -2217,7 +2219,7 @@ export const GymDataProvider = ({ children }) => {
       color: "from-purple-500/20 to-pink-500/20 border-purple-500/30",
       ...sanitizedData
     };
-    setPlans((prev) => [...prev, newPlan]);
+    setPlans((prev) => [newPlan, ...(prev || [])]);
     addToast(`Membership package "${newPlan.name}" created successfully!`);
     return newPlan;
   }, [addToast]);
@@ -2788,6 +2790,7 @@ export const GymDataProvider = ({ children }) => {
     member = null,
     paymentMethod = 'GPay',
     discount = 0,
+    isGstIncluded = false,
     notes = '',
     handledByName = ''
   }) => {
@@ -2841,9 +2844,13 @@ export const GymDataProvider = ({ children }) => {
       invoiceItems.push({
         productId: it.productId,
         name: it.product.name,
+        productName: it.product.name,
+        category: it.product.category || 'Store Item',
         description: `${it.product.name} (Qty: ${it.quantity})`,
         quantity: Number(it.quantity),
         unitPrice: Number(it.product.price),
+        lineTotal: lineAmt,
+        price: lineAmt,
         amount: lineAmt
       });
       // Deduct stock in local state immediately
@@ -2871,6 +2878,8 @@ export const GymDataProvider = ({ children }) => {
         payment_method: paymentMethod,
         paymentMethod,
         discount: numDiscount,
+        is_gst_included: isGstIncluded,
+        isGstIncluded,
         notes: notes || `POS Sale: ${summaryTitle}`,
         created_by_name: handledByName || currentUser?.name || 'Staff'
       });
@@ -2884,8 +2893,14 @@ export const GymDataProvider = ({ children }) => {
     const newInvoice = {
       id: invoiceNo,
       invoiceNumber: invoiceNo,
+      invoiceType: 'product',
+      isProductSale: true,
+      isGstIncluded: Boolean(isGstIncluded),
+      hasGst: Boolean(isGstIncluded),
       memberId: memberId || 'walk-in',
       memberName: buyerName,
+      buyerName,
+      customerName: buyerName,
       phone: member?.phone || '',
       email: member?.email || '',
       planName: summaryTitle,
@@ -4111,7 +4126,7 @@ export const GymDataProvider = ({ children }) => {
   const addPTPlan = async (planData) => {
     const tempId = `pt-${Date.now()}`;
     const newPlan = { id: tempId, ...planData };
-    setPtPlans((prev) => [...prev, newPlan]);
+    setPtPlans((prev) => [newPlan, ...(prev || [])]);
 
     try {
       const res = await api.ptPlans.create(planData);
@@ -4141,7 +4156,7 @@ export const GymDataProvider = ({ children }) => {
   const addRecoveryPlan = async (planData) => {
     const tempId = `rec-${Date.now()}`;
     let newPlan = { id: tempId, ...planData };
-    setRecoveryPlans((prev) => [...prev, newPlan]);
+    setRecoveryPlans((prev) => [newPlan, ...(prev || [])]);
 
     try {
       const res = await api.recoveryPlans.create(planData);

@@ -4,7 +4,8 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
@@ -53,6 +54,50 @@ export const formatTimeTo24HourInput = (timeStr) => {
     }
   }
   return '09:00';
+};
+
+// Convert time string to minutes from 00:00 (0 to 1439)
+export const timeStringToMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  const s24 = formatTimeTo24HourInput(timeStr);
+  const parts = s24.split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+// Decompose a slot into active intervals in minute coordinates [0, 1440]
+export const getSlotIntervals = (slot) => {
+  if (!slot?.start_time || !slot?.end_time) return null;
+  const sMin = timeStringToMinutes(slot.start_time);
+  const eMin = timeStringToMinutes(slot.end_time);
+  if (sMin === null || eMin === null) return null;
+  if (sMin === eMin) return { zeroDuration: true, intervals: [] };
+
+  if (sMin < eMin) {
+    return { zeroDuration: false, intervals: [[sMin, eMin]] };
+  } else {
+    // Overnight slot crossing midnight (e.g. 10:00 PM to 06:00 AM)
+    return { zeroDuration: false, intervals: [[sMin, 1440], [0, eMin]] };
+  }
+};
+
+// Check if two slots overlap in time
+export const checkSlotsOverlap = (slotA, slotB) => {
+  const dataA = getSlotIntervals(slotA);
+  const dataB = getSlotIntervals(slotB);
+  if (!dataA || !dataB || dataA.zeroDuration || dataB.zeroDuration) return false;
+
+  for (const [aStart, aEnd] of dataA.intervals) {
+    for (const [bStart, bEnd] of dataB.intervals) {
+      if (Math.max(aStart, bStart) < Math.min(aEnd, bEnd)) {
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 // Calculate minutes between two time strings
@@ -194,6 +239,53 @@ export const ShiftFormModal = ({
     }, 0);
   }, [formData.timings]);
 
+  // Real-time timing slots validation (overlapping slots, 0 duration, incomplete times)
+  const timingValidation = useMemo(() => {
+    const conflictIndices = new Set();
+    const zeroIndices = new Set();
+    let firstError = null;
+
+    if (!formData.timings || formData.timings.length === 0) {
+      return { isValid: false, firstError: 'Shift must have at least one timing slot.', conflictIndices, zeroIndices };
+    }
+
+    // Check zero duration (identical start and end time)
+    formData.timings.forEach((slot, idx) => {
+      const parsed = getSlotIntervals(slot);
+      if (parsed?.zeroDuration) {
+        zeroIndices.add(idx);
+        if (!firstError) {
+          const slotName = slot.label?.trim() || `Slot ${idx + 1}`;
+          firstError = `${slotName} cannot have the same start and end time (${formatTimeTo12Hour(slot.start_time)}).`;
+        }
+      }
+    });
+
+    // Check pairwise overlaps
+    for (let i = 0; i < formData.timings.length; i++) {
+      for (let j = i + 1; j < formData.timings.length; j++) {
+        if (checkSlotsOverlap(formData.timings[i], formData.timings[j])) {
+          conflictIndices.add(i);
+          conflictIndices.add(j);
+          if (!firstError) {
+            const slot1Name = formData.timings[i].label?.trim() || `Slot ${i + 1}`;
+            const slot2Name = formData.timings[j].label?.trim() || `Slot ${j + 1}`;
+            const t1 = `${formatTimeTo12Hour(formData.timings[i].start_time)} - ${formatTimeTo12Hour(formData.timings[i].end_time)}`;
+            const t2 = `${formatTimeTo12Hour(formData.timings[j].start_time)} - ${formatTimeTo12Hour(formData.timings[j].end_time)}`;
+            firstError = `Timing conflict: ${slot1Name} (${t1}) and ${slot2Name} (${t2}) overlap. Shift slots cannot overlap.`;
+          }
+        }
+      }
+    }
+
+    return {
+      isValid: !firstError,
+      firstError,
+      conflictIndices,
+      zeroIndices
+    };
+  }, [formData.timings]);
+
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -212,6 +304,12 @@ export const ShiftFormModal = ({
         addToast(`Timing slot #${i + 1} has incomplete start or end times.`, 'error');
         return;
       }
+    }
+
+    // Prevent submission if timing conflict or zero duration exists
+    if (!timingValidation.isValid) {
+      addToast(timingValidation.firstError, 'error');
+      return;
     }
 
     try {
@@ -354,26 +452,67 @@ export const ShiftFormModal = ({
             </div>
           </div>
 
+          {/* Overlap / Validation Error Alert Banner */}
+          {timingValidation.firstError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-bold text-rose-900">Timing Conflict Detected</div>
+                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
+                  {timingValidation.firstError}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Slots List */}
           <div className="space-y-3">
             {formData.timings.map((slot, index) => {
               const sMinutes = calculateSlotMinutes(slot.start_time, slot.end_time);
+              const isConflicting = timingValidation.conflictIndices.has(index);
+              const isZeroDuration = timingValidation.zeroIndices.has(index);
+              const hasSlotError = isConflicting || isZeroDuration;
+
               return (
                 <div
                   key={index}
-                  className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5"
+                  className={`p-3.5 rounded-xl border transition-all space-y-2.5 ${
+                    hasSlotError
+                      ? 'bg-rose-50/30 border-rose-400 ring-1 ring-rose-400/40 shadow-xs'
+                      : 'bg-white border-slate-200 shadow-2xs'
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <input
-                      type="text"
-                      placeholder={`Slot ${index + 1} Name`}
-                      value={slot.label || ''}
-                      onChange={(e) => handleUpdateTimingSlot(index, 'label', e.target.value)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 w-44 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="text"
+                        placeholder={`Slot ${index + 1} Name`}
+                        value={slot.label || ''}
+                        onChange={(e) => handleUpdateTimingSlot(index, 'label', e.target.value)}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-bold w-44 focus:outline-none focus:ring-1 ${
+                          hasSlotError
+                            ? 'bg-white border-rose-300 text-rose-900 focus:ring-rose-500'
+                            : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-emerald-500'
+                        }`}
+                      />
+
+                      {isConflicting && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-500" />
+                          <span>Overlaps with another slot</span>
+                        </span>
+                      )}
+
+                      {isZeroDuration && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-500" />
+                          <span>Same start & end time</span>
+                        </span>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-slate-500">
+                      <span className={`text-[11px] font-bold ${hasSlotError ? 'text-rose-600' : 'text-slate-500'}`}>
                         {formatDurationDisplay(sMinutes)}
                       </span>
                       {formData.timings.length > 1 && (
@@ -399,9 +538,13 @@ export const ShiftFormModal = ({
                         required
                         value={formatTimeTo24HourInput(slot.start_time)}
                         onChange={(e) => handleUpdateTimingSlot(index, 'start_time', e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 ${
+                          hasSlotError
+                            ? 'border-rose-300 text-slate-900 focus:ring-rose-500/20 focus:border-rose-500 bg-white'
+                            : 'border-slate-300 text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500'
+                        }`}
                       />
-                      <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                      <span className={`text-[10px] font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
                         Preview: {slot.start_time}
                       </span>
                     </div>
@@ -415,9 +558,13 @@ export const ShiftFormModal = ({
                         required
                         value={formatTimeTo24HourInput(slot.end_time)}
                         onChange={(e) => handleUpdateTimingSlot(index, 'end_time', e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 ${
+                          hasSlotError
+                            ? 'border-rose-300 text-slate-900 focus:ring-rose-500/20 focus:border-rose-500 bg-white'
+                            : 'border-slate-300 text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500'
+                        }`}
                       />
-                      <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                      <span className={`text-[10px] font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
                         Preview: {slot.end_time}
                       </span>
                     </div>

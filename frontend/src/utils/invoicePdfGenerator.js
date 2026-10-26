@@ -294,10 +294,37 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const pdfCurrencySymbol = (!gymInfo?.currency || gymInfo.currency === '₹' || gymInfo.currency.includes('â')) ? 'Rs.' : gymInfo.currency;
   const taxRate = Number(invoice?.gstRate ?? invoice?.taxRate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18);
 
-  const memberName = member?.name || invoice.memberName || invoice.member_name || 'Valued Member';
-  const memberId = member?.id || invoice.memberId || 'AF-M-101';
-  const memberPhone = member?.phone || invoice.phone || 'N/A';
-  const memberEmail = member?.email || invoice.email || 'N/A';
+  const isProductSale = Boolean(
+    invoice?.isProductSale ||
+    invoice?.invoiceType === 'product' ||
+    invoice?.packageType === 'Store Item / Inventory' ||
+    invoice?.package_type === 'Store Item / Inventory' ||
+    (invoice?.category && String(invoice.category).toLowerCase().includes('shop')) ||
+    (invoice?.category && String(invoice.category).toLowerCase().includes('inventory')) ||
+    String(invoice?.id || '').toUpperCase().startsWith('INV-PROD-') ||
+    String(invoice?.invoiceNumber || '').toUpperCase().startsWith('INV-PROD-') ||
+    String(invoice?.invoice_number || '').toUpperCase().startsWith('INV-PROD-')
+  );
+
+  const rawCustomerName = member?.name || invoice.buyerName || invoice.buyer_name || invoice.customerName || invoice.memberName || invoice.member_name || (isProductSale ? 'Walk-in Customer' : 'Valued Member');
+  const memberName = rawCustomerName;
+
+  const isWalkIn = Boolean(
+    isProductSale && (
+      invoice.isWalkIn ||
+      !member?.id ||
+      String(member?.id || '').toLowerCase().includes('walk') ||
+      String(invoice.memberId || '').toLowerCase().includes('walk') ||
+      invoice.memberId === null ||
+      memberName.toLowerCase().includes('walk-in')
+    )
+  );
+
+  const memberId = isWalkIn
+    ? 'Counter / Retail'
+    : (member?.id || invoice.memberId || (isProductSale ? 'Store Customer' : 'AF-M-101'));
+  const memberPhone = member?.phone || invoice.phone || (isWalkIn ? '' : 'N/A');
+  const memberEmail = member?.email || invoice.email || (isWalkIn ? '' : 'N/A');
 
   const invoiceId = (invoice.id || invoice.invoiceNumber || invoice.invoice_number || 'INV-001').toString().toUpperCase();
 
@@ -421,6 +448,15 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.setFontSize(8);
     doc.setTextColor(180, 83, 9); // amber-700
     doc.text('PENDING INVOICE', headerRightX + headerRightW / 2, curY + 4.5, { align: 'center' });
+  } else if (isProductSale) {
+    doc.setFillColor(236, 253, 245); // emerald-50
+    doc.setDrawColor(167, 243, 208); // emerald-200
+    doc.roundedRect(headerRightX, curY - 1, headerRightW, 8, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(5, 150, 105); // emerald-600
+    doc.text('STORE RECEIPT • VERIFIED', headerRightX + headerRightW / 2, curY + 4.5, { align: 'center' });
   } else {
     doc.setFillColor(236, 253, 245); // emerald-50
     doc.setDrawColor(167, 243, 208); // emerald-200
@@ -571,7 +607,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('BILLED TO MEMBER', margin + cardPad, curY + 6);
+  doc.text(isProductSale ? 'BILLED TO CUSTOMER' : 'BILLED TO MEMBER', margin + cardPad, curY + 6);
 
   let mY = curY + 11.5;
   doc.setFont('helvetica', 'bold');
@@ -583,10 +619,18 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Member ID: ${memberId}`, margin + cardPad, mY);
-  mY += 4.5;
-  doc.text(`Mobile: ${memberPhone}`, margin + cardPad, mY);
-  mY += 4.5;
+  if (isProductSale && isWalkIn) {
+    doc.text(`Customer Type: Walk-in / Counter Sale`, margin + cardPad, mY);
+    mY += 4.5;
+  } else {
+    doc.text(`Member ID: ${memberId}`, margin + cardPad, mY);
+    mY += 4.5;
+  }
+
+  if (memberPhone && memberPhone !== 'N/A') {
+    doc.text(`Mobile: ${memberPhone}`, margin + cardPad, mY);
+    mY += 4.5;
+  }
 
   if (memberEmailLines.length > 0) {
     doc.text(memberEmailLines, margin + cardPad, mY);
@@ -601,7 +645,13 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('Verification: KYC Verified Athlete', margin + cardPad, curY + cardH - 3.5);
+  doc.text(
+    isProductSale
+      ? (isWalkIn ? 'Verification: Point of Sale (POS) Counter Receipt' : 'Verification: Registered Club Member')
+      : 'Verification: KYC Verified Athlete',
+    margin + cardPad,
+    curY + cardH - 3.5
+  );
 
   // Card B: Receipt / Invoice Details
   const cardBX = margin + colW + 6;
@@ -644,31 +694,34 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.text(`Status: Paid & Settled (Full)`, cardBX + cardPad, curY + cardH - 3.5);
   }
 
-  // 3. PACKAGES & SUBSCRIPTION LINE ITEMS TABLE
+  // 3. PACKAGES & SUBSCRIPTION / PRODUCT LINE ITEMS TABLE
   curY += cardH + 7;
 
   // Header Title
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text('SUBSCRIPTION & PACKAGE DETAILS', margin, curY);
+  doc.text(isProductSale ? 'PURCHASED PRODUCTS & STORE INVENTORY' : 'SUBSCRIPTION & PACKAGE DETAILS', margin, curY);
 
   curY += 3;
 
-  // Normalize packages list (support multi-package checkouts and single plans)
+  // Normalize packages list (support multi-package checkouts, store items, and single plans)
   let packagesList = [];
-  if (Array.isArray(invoice.packages) && invoice.packages.length > 0) {
-    packagesList = invoice.packages;
-  } else if (Array.isArray(invoice.items) && invoice.items.length > 0) {
+  if (Array.isArray(invoice.items) && invoice.items.length > 0) {
     packagesList = invoice.items;
+  } else if (Array.isArray(invoice.packages) && invoice.packages.length > 0) {
+    packagesList = invoice.packages;
   } else if (Array.isArray(invoice.lineItems) && invoice.lineItems.length > 0) {
     packagesList = invoice.lineItems;
   } else {
     packagesList = [
       {
-        name: planName,
-        packageType: invoice.packageType || invoice.package_type || 'Membership',
+        name: isProductSale ? (invoice.productName || 'Store Item') : planName,
+        packageType: isProductSale ? 'Store Product' : (invoice.packageType || invoice.package_type || 'Membership'),
         price: totalAmount,
+        quantity: invoice.quantity || 1,
+        unitPrice: invoice.unitPrice || totalAmount,
+        category: invoice.category || 'Store Item',
         startDate: invoice.startDate || invoice.start_date || member?.startDate || member?.start_date || member?.membershipStartDate,
         endDate: invoice.endDate || invoice.end_date || invoice.expiryDate || invoice.expiry_date || member?.expiryDate || member?.expiry_date || member?.membershipEndDate,
         description: invoice.description || ''
@@ -679,6 +732,34 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   // Pre-calculate rows and dynamic package card height
   const pkgColWidth = contentWidth - 45;
   const packageRows = packagesList.map((pkg) => {
+    if (isProductSale) {
+      const prodName = pkg.name || pkg.productName || pkg.product?.name || pkg.title || 'Store Product';
+      const prodQty = Math.max(1, Number(pkg.quantity) || 1);
+      const unitPriceVal = Number(pkg.unitPrice ?? pkg.unit_price ?? pkg.product?.price ?? (pkg.price ? pkg.price / prodQty : 0));
+      const linePriceVal = Number(pkg.lineTotal ?? pkg.line_total ?? pkg.amount ?? pkg.price ?? (unitPriceVal * prodQty));
+      const categoryStr = pkg.category || pkg.product?.category || '';
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      const titleLines = wrapAndBreakText(doc, prodName, pkgColWidth);
+
+      const detailsParts = [];
+      detailsParts.push(`Qty: ${prodQty}`);
+      if (unitPriceVal > 0) detailsParts.push(`Rate: ${pdfCurrencySymbol} ${unitPriceVal.toLocaleString('en-IN')}`);
+      if (categoryStr) detailsParts.push(`Category: ${categoryStr}`);
+      const shortDesc = detailsParts.join('   •   ');
+
+      const rowHeight = Math.max(titleLines.length * 4.5 + (shortDesc ? 4 : 0) + 4, 12);
+
+      return {
+        titleLines,
+        dateText: '',
+        shortDesc,
+        priceVal: linePriceVal > 0 ? linePriceVal : totalAmount,
+        rowHeight
+      };
+    }
+
     // Package Type comes at the top, Plan Name comes at the bottom
     const pkgType = pkg.packageType || pkg.package_type || 'Membership';
     const pkgName = pkg.name || pkg.planName || pkg.plan_name || '';
@@ -724,7 +805,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('PACKAGE / PLAN ITEM', margin + 4, curY + 5);
+  doc.text(isProductSale ? 'PRODUCT / STORE ITEM' : 'PACKAGE / PLAN ITEM', margin + 4, curY + 5);
   doc.text('AMOUNT', pageWidth - margin - 4, curY + 5, { align: 'right' });
 
   // Divider below table header
@@ -842,8 +923,11 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setTextColor(71, 85, 105);
 
   const halfTaxRate = (taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1);
+  const discountVal = Number(invoice.discount ?? invoice.discountAmount ?? invoice.discount_amount ?? 0);
+  const subtotalVal = Number(invoice.subtotal ?? invoice.totalAmount ?? invoice.total_amount ?? (totalAmount + discountVal));
+
   if (hasGst) {
-    doc.text('Plan Base Fee:', sumBoxX + 5, rY);
+    doc.text(isProductSale ? 'Taxable Base:' : 'Plan Base Fee:', sumBoxX + 5, rY);
     doc.text(`${pdfCurrencySymbol} ${taxableBase.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
 
     rY += 4.5;
@@ -854,12 +938,18 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.text(`SGST (${halfTaxRate}%):`, sumBoxX + 5, rY);
     doc.text(`${pdfCurrencySymbol} ${sgst.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
   } else {
-    doc.text('Plan Fee:', sumBoxX + 5, rY);
-    doc.text(`${pdfCurrencySymbol} ${totalAmount.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(isProductSale ? 'Subtotal:' : 'Plan Fee:', sumBoxX + 5, rY);
+    doc.text(`${pdfCurrencySymbol} ${(subtotalVal || totalAmount).toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+
+    if (discountVal > 0) {
+      rY += 4.5;
+      doc.text('Discount Applied:', sumBoxX + 5, rY);
+      doc.text(`-${pdfCurrencySymbol} ${discountVal.toLocaleString('en-IN')}`, pageWidth - margin - 5, rY, { align: 'right' });
+    }
 
     rY += 4.5;
     doc.text('Tax Applied:', sumBoxX + 5, rY);
-    doc.text('None (Non-GST Payment)', pageWidth - margin - 5, rY, { align: 'right' });
+    doc.text(isProductSale ? 'None (Non-GST Product Sale)' : 'None (Non-GST Payment)', pageWidth - margin - 5, rY, { align: 'right' });
   }
 
   if (isPending && pendingAmount > 0) {
@@ -912,13 +1002,18 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('MEMBERSHIP GUIDELINES & SUPPORT', margin, curY);
+  doc.text(isProductSale ? 'STORE PURCHASE POLICY & SUPPORT' : 'MEMBERSHIP GUIDELINES & SUPPORT', margin, curY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   const customTerms = gymInfo?.terms_and_conditions || gymInfo?.terms;
-  if (customTerms) {
+  if (isProductSale) {
+    doc.text('1. Pro Shop & counter inventory items are inspected and verified prior to sale.', margin, curY + 4.5);
+    doc.text('2. Unopened supplements or accessories with original seal intact can be exchanged within 3 days.', margin, curY + 8.5);
+    const helpContact = gymEmail || (gymPhone ? `phone ${gymPhone}` : 'the front desk');
+    doc.text(`3. For product support or inquiries, visit the front desk or reach ${helpContact}.`, margin, curY + 12.5);
+  } else if (customTerms) {
     const termLines = String(customTerms).split('\n').map((l) => l.trim()).filter(Boolean);
     termLines.slice(0, 3).forEach((line, i) => {
       doc.text(line.replace(/^[-•*]\s*/, `${i + 1}. `), margin, curY + 4.5 + i * 4);

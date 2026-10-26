@@ -1229,6 +1229,49 @@ export const AddMemberPage = ({
         return;
       }
 
+      // Check duplicate Aadhaar / PAN across all persons (excluding self)
+      if (formData.kycDocNumber && !['not provided', 'null', 'n/a', 'na'].includes(String(formData.kycDocNumber).toLowerCase().trim())) {
+        const curDocType = formData.kycDocType || 'Aadhaar Card';
+        const targetId = targetMember?.userId || targetMember?.id;
+        if (curDocType === 'Aadhaar Card') {
+          const cleanA = String(formData.kycDocNumber).replace(/\D/g, '');
+          if (cleanA.length >= 12) {
+            const conflictMem = (members || []).find((m) =>
+              String(m.userId || m.id) !== String(targetId) &&
+              ((m.aadhaar_card && String(m.aadhaar_card).replace(/\D/g, '') === cleanA) ||
+               (m.kycDocType === 'Aadhaar Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/\D/g, '') === cleanA))
+            );
+            const conflictStaff = (trainers || []).find((t) =>
+              String(t.userId || t.id) !== String(targetId) &&
+              t.aadhaar_card && String(t.aadhaar_card).replace(/\D/g, '') === cleanA
+            );
+            const conflict = conflictMem || conflictStaff;
+            if (conflict) {
+              addToast(`This Aadhaar number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+              return;
+            }
+          }
+        } else if (curDocType === 'PAN Card') {
+          const cleanP = String(formData.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+          if (cleanP.length >= 10) {
+            const conflictMem = (members || []).find((m) =>
+              String(m.userId || m.id) !== String(targetId) &&
+              ((m.pan_card && String(m.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP) ||
+               (m.kycDocType === 'PAN Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP))
+            );
+            const conflictStaff = (trainers || []).find((t) =>
+              String(t.userId || t.id) !== String(targetId) &&
+              t.pan_card && String(t.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP
+            );
+            const conflict = conflictMem || conflictStaff;
+            if (conflict) {
+              addToast(`This PAN number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+              return;
+            }
+          }
+        }
+      }
+
       setIsCreatingMember(true);
       try {
         const chosenTrainer = trainers.find((t) => String(t.id) === String(selectedTrainerId || formData.trainerId));
@@ -1513,6 +1556,44 @@ export const AddMemberPage = ({
       return;
     }
 
+    // Check duplicate Aadhaar / PAN across all persons in system
+    if (formData.kycDocNumber && !['not provided', 'null', 'n/a', 'na'].includes(String(formData.kycDocNumber).toLowerCase().trim())) {
+      const curDocType = formData.kycDocType || 'Aadhaar Card';
+      if (curDocType === 'Aadhaar Card') {
+        const cleanA = String(formData.kycDocNumber).replace(/\D/g, '');
+        if (cleanA.length >= 12) {
+          const conflictMem = (members || []).find((m) =>
+            (m.aadhaar_card && String(m.aadhaar_card).replace(/\D/g, '') === cleanA) ||
+            (m.kycDocType === 'Aadhaar Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/\D/g, '') === cleanA)
+          );
+          const conflictStaff = (trainers || []).find((t) =>
+            t.aadhaar_card && String(t.aadhaar_card).replace(/\D/g, '') === cleanA
+          );
+          const conflict = conflictMem || conflictStaff;
+          if (conflict) {
+            addToast(`This Aadhaar number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+            return;
+          }
+        }
+      } else if (curDocType === 'PAN Card') {
+        const cleanP = String(formData.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (cleanP.length >= 10) {
+          const conflictMem = (members || []).find((m) =>
+            (m.pan_card && String(m.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP) ||
+            (m.kycDocType === 'PAN Card' && m.kycDocNumber && String(m.kycDocNumber).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP)
+          );
+          const conflictStaff = (trainers || []).find((t) =>
+            t.pan_card && String(t.pan_card).replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanP
+          );
+          const conflict = conflictMem || conflictStaff;
+          if (conflict) {
+            addToast(`This PAN number is already registered to ${conflict.name} (${conflict.role || 'Member'}).`, 'error');
+            return;
+          }
+        }
+      }
+    }
+
     setIsCreatingMember(true);
     try {
       let resolvedTrainer = null;
@@ -1670,7 +1751,7 @@ export const AddMemberPage = ({
         created_by: currentUser?.userId || currentUser?.id,
         created_by_name: formData.executive?.trim() || currentUser?.name || 'Staff',
         kycDocType: formData.kycDocType || 'Aadhaar Card',
-        kycDocNumber: formData.kycDocNumber || 'Not provided',
+        kycDocNumber: formData.kycDocNumber ? formData.kycDocNumber.trim() : null,
         kycStatus: formData.kycStatus || 'Verified',
         biometric_user_id: formData.biometricUserId ? formData.biometricUserId.trim() : null,
         biometricUserId: formData.biometricUserId ? formData.biometricUserId.trim() : null,

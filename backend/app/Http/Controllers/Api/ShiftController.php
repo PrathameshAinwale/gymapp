@@ -65,6 +65,16 @@ class ShiftController extends Controller
             'color'                => 'nullable|string|max:50',
             'is_active'            => 'nullable|boolean',
         ]);
+        $timingError = $this->validateTimingsNoOverlap($validated['timings']);
+        if ($timingError) {
+            return response()->json([
+                'success' => false,
+                'message' => $timingError,
+                'errors'  => [
+                    'timings' => [$timingError]
+                ]
+            ], 422);
+        }
 
         $shift = Shift::create([
             'gym_id'      => $gymId,
@@ -122,6 +132,19 @@ class ShiftController extends Controller
             'is_active'            => 'nullable|boolean',
         ]);
 
+        if (isset($validated['timings'])) {
+            $timingError = $this->validateTimingsNoOverlap($validated['timings']);
+            if ($timingError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $timingError,
+                    'errors'  => [
+                        'timings' => [$timingError]
+                    ]
+                ], 422);
+            }
+        }
+
         if (isset($validated['name'])) $shift->name = trim($validated['name']);
         if (array_key_exists('description', $validated)) $shift->description = $validated['description'];
         if (isset($validated['timings'])) $shift->timings = $validated['timings'];
@@ -153,5 +176,103 @@ class ShiftController extends Controller
             'success' => true,
             'message' => 'Shift deleted successfully'
         ]);
+    }
+
+    /**
+     * Validate that shift timing slots do not have identical start/end or overlap with each other.
+     *
+     * @param array $timings
+     * @return string|null Returns error message if validation fails, or null if valid
+     */
+    protected function validateTimingsNoOverlap(array $timings): ?string
+    {
+        if (empty($timings)) {
+            return 'Shift must have at least one timing slot.';
+        }
+
+        $parsedSlots = [];
+        foreach ($timings as $idx => $slot) {
+            $startStr = trim($slot['start_time'] ?? '');
+            $endStr   = trim($slot['end_time'] ?? '');
+            $slotNum  = $idx + 1;
+
+            if (empty($startStr) || empty($endStr)) {
+                return "Timing slot #{$slotNum} must have both start time and end time.";
+            }
+
+            $sMin = $this->timeStringToMinutes($startStr);
+            $eMin = $this->timeStringToMinutes($endStr);
+
+            if ($sMin === null || $eMin === null) {
+                return "Timing slot #{$slotNum} has an invalid time format.";
+            }
+
+            if ($sMin === $eMin) {
+                return "Timing slot #{$slotNum} cannot have the same start and end time ({$startStr}).";
+            }
+
+            // Intervals for this slot
+            if ($sMin < $eMin) {
+                $intervals = [[$sMin, $eMin]];
+            } else {
+                // Overnight crossing midnight (e.g. 10:00 PM to 06:00 AM)
+                $intervals = [[$sMin, 1440], [0, $eMin]];
+            }
+
+            $parsedSlots[] = [
+                'index'      => $slotNum,
+                'label'      => !empty($slot['label']) ? $slot['label'] : "Slot {$slotNum}",
+                'start_time' => $startStr,
+                'end_time'   => $endStr,
+                'intervals'  => $intervals,
+            ];
+        }
+
+        // Compare every pair of timing slots for overlaps
+        $count = count($parsedSlots);
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                $slotA = $parsedSlots[$i];
+                $slotB = $parsedSlots[$j];
+
+                foreach ($slotA['intervals'] as $intA) {
+                    foreach ($slotB['intervals'] as $intB) {
+                        if (max($intA[0], $intB[0]) < min($intA[1], $intB[1])) {
+                            $labelA = "{$slotA['label']} ({$slotA['start_time']} - {$slotA['end_time']})";
+                            $labelB = "{$slotB['label']} ({$slotB['start_time']} - {$slotB['end_time']})";
+                            return "Timing conflict detected: {$labelA} and {$labelB} overlap. Timing slots within a shift cannot overlap.";
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert "HH:MM", "H:MM", or "HH:MM AM/PM" to minute of day (0 - 1439).
+     */
+    protected function timeStringToMinutes(string $timeStr): ?int
+    {
+        $clean = strtoupper(trim($timeStr));
+        $isPM = str_contains($clean, 'PM');
+        $isAM = str_contains($clean, 'AM');
+        $raw = trim(preg_replace('/[^0-9:]/', '', $clean));
+        $parts = explode(':', $raw);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $h = (int)$parts[0];
+        $m = (int)$parts[1];
+
+        if ($isPM && $h < 12) {
+            $h += 12;
+        } elseif ($isAM && $h === 12) {
+            $h = 0;
+        }
+
+        return ($h * 60) + $m;
     }
 }

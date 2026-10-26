@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Services\IdentityValidationService;
 
 class MemberController extends Controller
 {
@@ -541,6 +542,44 @@ class MemberController extends Controller
                     'message' => 'Member already exists with this mobile number.',
                     'errors' => [
                         'phone' => ['Member already exists with this mobile number.']
+                    ]
+                ], 422);
+            }
+        }
+
+        // 1b. Check for duplicate Aadhaar / PAN across all roles (member, staff, trainer, etc.)
+        $rawKycDocType = $request->input('kyc_doc_type', $request->input('kycDocType', 'Aadhaar Card'));
+        $rawKycDocNumber = trim((string)$request->input('kyc_doc_number', $request->input('kycDocNumber', '')));
+        if (in_array(strtolower($rawKycDocNumber), ['not provided', 'null', 'n/a', 'na', 'none', '-'], true)) {
+            $rawKycDocNumber = '';
+        }
+
+        $incomingAadhaar = $request->input('aadhaar_card') ?: ($request->input('aadhaar') ?: ($rawKycDocType === 'Aadhaar Card' && !empty($rawKycDocNumber) ? $rawKycDocNumber : null));
+        $incomingPan = $request->input('pan_card') ?: ($request->input('pan') ?: ($rawKycDocType === 'PAN Card' && !empty($rawKycDocNumber) ? $rawKycDocNumber : null));
+
+        if (!empty($incomingAadhaar)) {
+            $conflict = IdentityValidationService::findAadhaarConflict($incomingAadhaar, $numTargetId);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This Aadhaar number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'aadhaar_card' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."],
+                        'kyc_doc_number' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."],
+                    ]
+                ], 422);
+            }
+        }
+
+        if (!empty($incomingPan)) {
+            $conflict = IdentityValidationService::findPanConflict($incomingPan, $numTargetId);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This PAN number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'pan_card' => ["This PAN number is already registered to another person ({$conflict['name']})."],
+                        'kyc_doc_number' => ["This PAN number is already registered to another person ({$conflict['name']})."],
                     ]
                 ], 422);
             }
@@ -1239,6 +1278,44 @@ class MemberController extends Controller
             }
             $user->phone = $request->phone;
         }
+
+        // Unique Aadhaar & PAN validation across all roles (member, staff, trainer, etc.)
+        $updateKycDocType = $request->input('kyc_doc_type', $request->input('kycDocType', $profile->kyc_doc_type ?? 'Aadhaar Card'));
+        $updateKycDocNumber = trim((string)$request->input('kyc_doc_number', $request->input('kycDocNumber', '')));
+        if (in_array(strtolower($updateKycDocNumber), ['not provided', 'null', 'n/a', 'na', 'none', '-'], true)) {
+            $updateKycDocNumber = '';
+        }
+
+        $updateAadhaar = $request->input('aadhaar_card') ?: ($request->input('aadhaar') ?: ($updateKycDocType === 'Aadhaar Card' && !empty($updateKycDocNumber) ? $updateKycDocNumber : null));
+        $updatePan = $request->input('pan_card') ?: ($request->input('pan') ?: ($updateKycDocType === 'PAN Card' && !empty($updateKycDocNumber) ? $updateKycDocNumber : null));
+
+        if (!empty($updateAadhaar)) {
+            $conflict = IdentityValidationService::findAadhaarConflict($updateAadhaar, $user->id);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This Aadhaar number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'aadhaar_card' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."],
+                        'kyc_doc_number' => ["This Aadhaar number is already registered to another person ({$conflict['name']})."],
+                    ]
+                ], 422);
+            }
+        }
+
+        if (!empty($updatePan)) {
+            $conflict = IdentityValidationService::findPanConflict($updatePan, $user->id);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This PAN number is already registered to another person ({$conflict['name']} - {$conflict['role']}).",
+                    'errors' => [
+                        'pan_card' => ["This PAN number is already registered to another person ({$conflict['name']})."],
+                        'kyc_doc_number' => ["This PAN number is already registered to another person ({$conflict['name']})."],
+                    ]
+                ], 422);
+            }
+        }
         $oldBioId = (string)($profile->biometric_user_id ?: $user->id);
         DB::transaction(function () use ($request, $user, $profile) {
             if ($request->has('avatar')) $user->avatar = $request->avatar;
@@ -1305,12 +1382,24 @@ class MemberController extends Controller
                 $profile->kyc_doc_type = $request->kyc_doc_type ?? $request->kycDocType;
             }
             if ($request->has('kyc_doc_number') || $request->has('kycDocNumber')) {
-                $profile->kyc_doc_number = $request->kyc_doc_number ?? $request->kycDocNumber;
-                if ($profile->kyc_doc_type === 'Aadhaar Card') {
-                    $user->aadhaar_card = $profile->kyc_doc_number;
-                } elseif ($profile->kyc_doc_type === 'PAN Card') {
-                    $user->pan_card = $profile->kyc_doc_number;
+                $docNum = $request->kyc_doc_number ?? $request->kycDocNumber;
+                if (in_array(strtolower(trim((string)$docNum)), ['not provided', 'null', 'n/a', 'na', 'none', '-'], true)) {
+                    $docNum = null;
                 }
+                $profile->kyc_doc_number = $docNum;
+                if ($profile->kyc_doc_type === 'Aadhaar Card') {
+                    $user->aadhaar_card = $docNum;
+                } elseif ($profile->kyc_doc_type === 'PAN Card') {
+                    $user->pan_card = $docNum;
+                }
+                $user->save();
+            }
+            if ($request->has('aadhaar_card')) {
+                $user->aadhaar_card = $request->aadhaar_card ?: null;
+                $user->save();
+            }
+            if ($request->has('pan_card')) {
+                $user->pan_card = $request->pan_card ?: null;
                 $user->save();
             }
             if ($request->has('kyc_status') || $request->has('kycStatus')) {

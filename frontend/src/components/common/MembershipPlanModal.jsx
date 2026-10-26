@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sparkles, Calendar, Tag, Gift, Award, CheckCircle2, ShieldCheck, Dumbbell, Layers, X } from 'lucide-react';
 import Modal from './Modal';
 import { useGymData } from '../../context/GymDataContext';
@@ -149,11 +149,33 @@ export function MembershipPlanModal({
   onSuccess,
   isNested = false
 }) {
-  const { addPlan, updatePlan, addToast } = useGymData();
+  const { plans = [], addPlan, updatePlan, addToast } = useGymData();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditing = Boolean(plan && plan.id);
   const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [isCustomType, setIsCustomType] = useState(false);
+  const [customTypeName, setCustomTypeName] = useState('');
+
+  // Available package types combining presets + any custom types existing in plans
+  const availablePackageTypes = useMemo(() => {
+    const fromPlans = (plans || [])
+      .map((p) => p.packageType || p.package_type || p.category)
+      .filter(Boolean)
+      .map((t) => String(t).trim());
+    const extra = plan?.packageType || plan?.package_type || plan?.category || defaultPackageType;
+    const combined = [...PACKAGE_TYPES, ...fromPlans, extra].filter(Boolean);
+    const seen = new Set();
+    const result = [];
+    combined.forEach((t) => {
+      const lower = t.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(t);
+      }
+    });
+    return result;
+  }, [plans, plan, defaultPackageType]);
 
   const [formData, setFormData] = useState({
     packageType: defaultPackageType || 'Gym-Cardio',
@@ -161,14 +183,14 @@ export function MembershipPlanModal({
     period: '1 Month',
     durationMonths: 1,
     sessions: '',
-    price: 1999,
+    price: '',
     discount: 0,
-    maxDiscount: 0,
+    maxDiscount: '',
     offer: '',
     offerDays: 0,
     status: 'Active',
     popular: false,
-    featuresText: DEFAULT_FEATURES.join('\n')
+    featuresText: ''
   });
 
   // Sync state when plan changes or modal opens
@@ -179,22 +201,27 @@ export function MembershipPlanModal({
           ? plan.features
           : typeof plan.features === 'string'
             ? plan.features.split('\n')
-            : DEFAULT_FEATURES;
+            : [];
 
         const hasPreset = DURATION_PRESETS.some(
           (p) => p.period === plan.period || p.months === Number(plan.durationMonths ?? plan.duration_months)
         );
         setIsCustomDuration(!hasPreset && Boolean(plan.period));
 
+        const rawPlanType = String(plan.packageType || plan.package_type || plan.category || defaultPackageType || 'Gym-Cardio').trim();
+        const resolvedType = normalizePackageType(rawPlanType);
+        setIsCustomType(false);
+        setCustomTypeName('');
+
         setFormData({
-          packageType: normalizePackageType(plan.packageType || plan.package_type || plan.category || defaultPackageType),
+          packageType: resolvedType,
           name: plan.name || '',
           period: plan.period || '1 Month',
           durationMonths: plan.durationMonths ?? plan.duration_months ?? 1,
           sessions: plan.sessions || '',
-          price: plan.price ?? 1999,
+          price: (plan.price !== undefined && plan.price !== null) ? plan.price : '',
           discount: plan.discount ?? 0,
-          maxDiscount: plan.maxDiscount ?? plan.max_discount ?? 0,
+          maxDiscount: (plan.maxDiscount !== undefined && plan.maxDiscount !== null) ? plan.maxDiscount : ((plan.max_discount !== undefined && plan.max_discount !== null) ? plan.max_discount : ''),
           offer: plan.offer || plan.offerText || '',
           offerDays: Number(plan.offerDays ?? plan.offer_days ?? 0),
           status: plan.status ? (plan.status.toLowerCase() === 'active' ? 'Active' : 'Inactive') : 'Active',
@@ -203,20 +230,22 @@ export function MembershipPlanModal({
         });
       } else {
         setIsCustomDuration(false);
+        setIsCustomType(false);
+        setCustomTypeName('');
         setFormData({
           packageType: normalizePackageType(defaultPackageType),
           name: '',
           period: '1 Month',
           durationMonths: 1,
           sessions: '',
-          price: 1999,
+          price: '',
           discount: 0,
-          maxDiscount: 0,
+          maxDiscount: '',
           offer: '',
           offerDays: 0,
           status: 'Active',
           popular: false,
-          featuresText: DEFAULT_FEATURES.join('\n')
+          featuresText: ''
         });
       }
     }
@@ -267,19 +296,38 @@ export function MembershipPlanModal({
       return;
     }
 
+    const rawPackageType = (isCustomType ? customTypeName : formData.packageType).trim();
+    if (isCustomType && !rawPackageType) {
+      addToast('Please enter a custom package type name.', 'warning');
+      return;
+    }
+
     if (!formData.name.trim()) {
       addToast('Please enter a package title.', 'warning');
+      return;
+    }
+
+    if (formData.price === '' || formData.price === null || formData.price === undefined) {
+      addToast('Please enter the plan amount.', 'warning');
+      return;
+    }
+
+    const priceNum = parseFloat(formData.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      addToast('Please enter a valid plan amount.', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const features = formData.featuresText
-        .split('\n')
-        .map((f) => f.trim())
-        .filter(Boolean);
+        ? formData.featuresText
+            .split('\n')
+            .map((f) => f.trim())
+            .filter(Boolean)
+        : [];
 
-      const resolvedPackageType = normalizePackageType(formData.packageType);
+      const resolvedPackageType = normalizePackageType(rawPackageType);
 
       const payload = {
         name: formData.name.trim(),
@@ -331,23 +379,93 @@ export function MembershipPlanModal({
       maxWidth="max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-left">
-        {/* 1. Package Type Selector */}
+        {/* 1. Package Type Selector with Custom Creation Option */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Package Type <span className="text-rose-500">*</span></span>
-          </label>
-          <select
-            value={formData.packageType}
-            onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
-          >
-            {PACKAGE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Package Type <span className="text-rose-500">*</span></span>
+            </label>
+            {!isCustomType ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomType(true);
+                  setCustomTypeName('');
+                  setFormData((prev) => ({ ...prev, packageType: '' }));
+                }}
+                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+              >
+                + Create New Type
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomType(false);
+                  setFormData((prev) => ({
+                    ...prev,
+                    packageType: defaultPackageType || 'Gym-Cardio'
+                  }));
+                }}
+                className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+              >
+                Choose from existing types
+              </button>
+            )}
+          </div>
+
+          {!isCustomType ? (
+            <select
+              value={formData.packageType}
+              onChange={(e) => {
+                if (e.target.value === '__custom__') {
+                  setIsCustomType(true);
+                  setCustomTypeName('');
+                  setFormData((prev) => ({ ...prev, packageType: '' }));
+                } else {
+                  setFormData({ ...formData, packageType: e.target.value });
+                }
+              }}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
+            >
+              {availablePackageTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+              <option value="__custom__">+ Create New Package Type (Type Manually)...</option>
+            </select>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                autoFocus
+                required
+                placeholder="Enter new package type (e.g. Yoga, Pilates, Swimming, Boxing)..."
+                value={customTypeName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomTypeName(val);
+                  setFormData((prev) => ({ ...prev, packageType: val }));
+                }}
+                className="w-full pl-3.5 pr-20 py-2.5 bg-white border border-emerald-400 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomType(false);
+                  setFormData((prev) => ({
+                    ...prev,
+                    packageType: defaultPackageType || 'Gym-Cardio'
+                  }));
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 2. Package Title Field */}
@@ -467,7 +585,7 @@ export function MembershipPlanModal({
                 type="text"
                 required
                 inputMode="decimal"
-                placeholder="2499.00"
+                placeholder="0.00"
                 value={formData.price !== undefined && formData.price !== null ? formData.price : ''}
                 onKeyDown={(e) => preventNonNumericKey(e, true)}
                 onChange={(e) => setFormData({ ...formData, price: sanitizeDecimal(e.target.value) })}
@@ -512,11 +630,11 @@ export function MembershipPlanModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Offer Title / Banner (Optional)
+                Offer Title (Optional)
               </label>
               <input
                 type="text"
-                placeholder="e.g. FESTIVE 10% OFF / NEW YEAR"
+                placeholder="e.g. NEW YEAR OFFER"
                 value={formData.offer}
                 onChange={(e) => setFormData({ ...formData, offer: e.target.value })}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
@@ -599,7 +717,7 @@ export function MembershipPlanModal({
             rows={4}
             value={formData.featuresText}
             onChange={(e) => setFormData({ ...formData, featuresText: e.target.value })}
-            placeholder="Access to gym floor & cardio machines&#10;Locker & shower access&#10;Free monthly fitness assessment"
+            placeholder="Enter plan amenities (e.g. Access to gym floor & cardio machines&#10;Locker & shower access&#10;Free monthly fitness assessment)"
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono"
           />
         </div>

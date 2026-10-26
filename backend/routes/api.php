@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\AdmsController;
 // New Feature Controllers
 use App\Http\Controllers\Api\StaffController;
+use App\Http\Controllers\Api\GymRoleController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PtSessionController;
 use App\Http\Controllers\Api\TrainerReviewController;
@@ -294,6 +295,8 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
         Route::patch('/freezes/{id}/unfreeze', [OperationsController::class, 'unfreeze']);
         Route::get('/transfers', [OperationsController::class, 'getTransfers']);
         Route::post('/transfers', [OperationsController::class, 'storeTransfer']);
+        Route::get('/freeze-policy', [OperationsController::class, 'getFreezePolicy']);
+        Route::post('/freeze-policy', [OperationsController::class, 'updateFreezePolicy']);
 
         // Consent & Medical Waivers
         Route::get('/consent-forms', [OperationsController::class, 'getConsentForms']);
@@ -328,6 +331,10 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
         Route::post('/staff', [StaffController::class, 'store']);
         Route::put('/staff/{id}', [StaffController::class, 'update']);
         Route::delete('/staff/{id}', [StaffController::class, 'destroy']);
+        Route::get('/gym-roles', [GymRoleController::class, 'getGymRoles']);
+        Route::post('/gym-roles', [GymRoleController::class, 'store']);
+        Route::put('/gym-roles/{id}', [GymRoleController::class, 'update']);
+        Route::delete('/gym-roles/{id}', [GymRoleController::class, 'destroy']);
 
         // Staff Shift Management & Multi-Slot Configurations
         Route::apiResource('shifts', ShiftController::class);
@@ -390,9 +397,15 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
             Route::post('/gyms', [SuperadminController::class, 'storeGym']);
             Route::put('/gyms/{id}', [SuperadminController::class, 'updateGym']);
             Route::delete('/gyms/{id}', [SuperadminController::class, 'deleteGym']);
+            Route::post('/gyms/{id}/clear-data', [SuperadminController::class, 'clearGymData']);
             Route::post('/gyms/{id}/impersonate', [SuperadminController::class, 'impersonateGym']);
             Route::post('/gyms/{id}/stop-access', [SuperadminController::class, 'stopAccess']);
             Route::post('/gyms/{id}/restore-access', [SuperadminController::class, 'restoreAccess']);
+
+            // Superadmin Administrators Management
+            Route::get('/admins', [SuperadminController::class, 'indexAdmins']);
+            Route::post('/admins', [SuperadminController::class, 'storeAdmin']);
+            Route::delete('/admins/{id}', [SuperadminController::class, 'deleteAdmin']);
 
             // Superadmin Credentials & Security Profile
             Route::post('/profile/update-password', [SuperadminController::class, 'updatePassword']);
@@ -412,6 +425,12 @@ Route::post('/gym-info/test-device-ip', [GymSettingController::class, 'testDevic
             Route::get('/whatsapp-settings', [SuperadminController::class, 'getWhatsAppSettings']);
             Route::put('/whatsapp-settings', [SuperadminController::class, 'updateWhatsAppSettings']);
             Route::post('/whatsapp-test', [SuperadminController::class, 'testWhatsAppMessage']);
+
+            // Gym Roles & Page Permissions Management
+            Route::get('/gym-roles', [GymRoleController::class, 'index']);
+            Route::post('/gym-roles', [GymRoleController::class, 'store']);
+            Route::put('/gym-roles/{id}', [GymRoleController::class, 'update']);
+            Route::delete('/gym-roles/{id}', [GymRoleController::class, 'destroy']);
         });
     });
 });

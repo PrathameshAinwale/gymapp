@@ -342,7 +342,8 @@ export const AuthProvider = ({ children }) => {
         const gymName = res.user.gym?.name || 'PulseFit Gym';
 
         const roleLabel =
-          userRole === 'superadmin' || userRole === 'owner'
+          res.user.role_label ||
+          (userRole === 'superadmin' || userRole === 'owner'
             ? 'Superadmin & General Director'
             : userRole === 'manager'
             ? 'Operations Manager'
@@ -350,10 +351,12 @@ export const AuthProvider = ({ children }) => {
             ? 'Senior Finance Officer'
             : userRole === 'trainer'
             ? 'Personal Trainer'
-            : 'Gym Member';
+            : 'Gym Member');
 
         const badge =
-          userRole === 'superadmin' || userRole === 'owner'
+          res.user.role_label
+            ? `${res.user.role_label} Access`
+            : userRole === 'superadmin' || userRole === 'owner'
             ? 'Superadmin Access'
             : userRole === 'manager'
             ? 'Manager Access'
@@ -371,6 +374,9 @@ export const AuthProvider = ({ children }) => {
           email: res.user.email,
           role: userRole,
           roleLabel: roleLabel,
+          assigned_pages: res.user.assigned_pages || [],
+          assignedPages: res.user.assigned_pages || [],
+          role_color: res.user.role_color || 'indigo',
           avatar: res.user.avatar || null,
           phone: res.user.phone,
           gym_id: gymId,
@@ -620,8 +626,8 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (e) {
       console.error('Backend create staff failed:', e.message);
-      // Ensure failure is shown clearly to the user with no fake success
-      throw new Error(e.message || 'Failed to create staff account in database');
+      const errMsg = e.data?.message || (e.data?.errors ? Object.values(e.data.errors).flat().join(', ') : e.message);
+      throw new Error(errMsg || 'Failed to create staff account in database');
     }
 
     const generatedUsername = cleanEmail && cleanEmail.includes('@')

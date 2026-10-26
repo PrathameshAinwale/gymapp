@@ -64,7 +64,7 @@ export const ENQUIRY_FITNESS_GOALS = [
   'Endurance & Stamina'
 ];
 
-export const EnquiriesManager = ({ onConvertLeadToMember }) => {
+export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset }) => {
   const {
     enquiries,
     fetchEnquiries,
@@ -110,6 +110,13 @@ export const EnquiriesManager = ({ onConvertLeadToMember }) => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
+
+  // Apply metric card filter presets from Dashboard
+  useEffect(() => {
+    if (initialFilterPreset?.status) {
+      setStatusFilter(initialFilterPreset.status);
+    }
+  }, [initialFilterPreset?.status, initialFilterPreset?.timestamp]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {

@@ -118,4 +118,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(LeaveRequest::class, 'user_id');
     }
+
+    public function gymRole()
+    {
+        return $this->hasOne(GymRole::class, 'slug', 'role')
+            ->where('gym_id', $this->gym_id);
+    }
 }
