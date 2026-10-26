@@ -19,10 +19,20 @@ class RetryDatabaseConnection
         try {
             return $next($request);
         } catch (\Throwable $e) {
-            if ($this->isConnectionError($e) && $request->isMethodSafe()) {
-                Log::warning('Transient DB connection error (2002) detected. Purging connection and retrying request once...');
+            $prev = $e->getPrevious();
+            $isInitialConnectFailure = ($prev instanceof \PDOException && ($prev->getCode() == 2002 || str_contains($prev->getMessage(), '2002')));
+
+            if ($this->isConnectionError($e) && ($request->isMethodSafe() || $isInitialConnectFailure)) {
+                Log::warning('Transient DB connection error (2002) detected. Attempting host fallback/purge and retrying once...');
                 try {
-                    DB::purge();
+                    $currentHost = (string) config('database.connections.mysql.host');
+                    if ($currentHost === 'localhost') {
+                        config(['database.connections.mysql.host' => '127.0.0.1']);
+                    } elseif ($currentHost === '127.0.0.1') {
+                        config(['database.connections.mysql.host' => 'localhost']);
+                    }
+
+                    DB::purge('mysql');
                     usleep(250000); // 250ms backoff before retry
                     return $next($request);
                 } catch (\Throwable $retryException) {

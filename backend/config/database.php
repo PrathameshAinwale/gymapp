@@ -61,7 +61,7 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? [
                 PDO::ATTR_TIMEOUT => (int) env('DB_TIMEOUT', 5),
-                PDO::ATTR_PERSISTENT => false,
+                PDO::ATTR_PERSISTENT => (bool) env('DB_PERSISTENT', false),
                 ...(env('MYSQL_ATTR_SSL_CA') ? [(PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA')] : []),
             ] : [],
         ],
