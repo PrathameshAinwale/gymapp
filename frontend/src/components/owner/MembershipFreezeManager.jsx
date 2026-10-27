@@ -950,11 +950,11 @@ export const MembershipFreezeManager = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsSettingsModalOpen(true)}
-            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+            className={`min-h-[38px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
               !isPolicyConfigured && !isLoadingPolicy
                 ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -962,7 +962,7 @@ export const MembershipFreezeManager = () => {
             title="Configure Gym Eligibility Policy for Freeze, Extension & Transfer"
           >
             <Settings className={`w-3.5 h-3.5 ${!isPolicyConfigured && !isLoadingPolicy ? 'text-white' : 'text-slate-600'}`} />
-            <span>Policy Settings</span>
+            <span><span className="hidden sm:inline">Policy </span>Settings</span>
             {!isPolicyConfigured && !isLoadingPolicy && (
               <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-0.5" />
             )}
@@ -973,7 +973,7 @@ export const MembershipFreezeManager = () => {
               <button
                 type="button"
                 onClick={handleOpenExtendModal}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
+                className="min-h-[38px] flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
               >
                 <CalendarPlus className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Extend</span>
@@ -982,7 +982,7 @@ export const MembershipFreezeManager = () => {
               <button
                 type="button"
                 onClick={handleOpenFreezeModal}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                className="min-h-[38px] flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
               >
                 <PauseCircle className="w-3.5 h-3.5" />
                 <span>Freeze</span>
@@ -992,10 +992,10 @@ export const MembershipFreezeManager = () => {
             <button
               type="button"
               onClick={handleOpenTransferModal}
-              className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
+              className="min-h-[38px] flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
             >
               <ArrowRightLeft className="w-4 h-4" />
-              <span>+ Transfer Membership</span>
+              <span>+ Transfer</span>
             </button>
           )}
         </div>
@@ -1059,7 +1059,7 @@ export const MembershipFreezeManager = () => {
         <button
           type="button"
           onClick={() => setActiveTab('freezes')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'freezes'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -1075,14 +1075,14 @@ export const MembershipFreezeManager = () => {
         <button
           type="button"
           onClick={() => setActiveTab('transfers')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'transfers'
               ? 'bg-violet-600 text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
           <ArrowRightLeft className="w-4 h-4" />
-          <span>Membership Transfers</span>
+          <span>Transfers</span>
           <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'transfers' ? 'bg-violet-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
             {transfers.length}
           </span>
@@ -1132,7 +1132,7 @@ export const MembershipFreezeManager = () => {
                     setIsSearchDropdownOpen(true);
                   }}
                   placeholder="Search member, plan name, or reason..."
-                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
                 />
                 {searchTerm && (
                   <button
@@ -1141,7 +1141,7 @@ export const MembershipFreezeManager = () => {
                       setSearchTerm('');
                       setIsSearchDropdownOpen(false);
                     }}
-                    className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                    className="p-1 min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-600 absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1181,7 +1181,7 @@ export const MembershipFreezeManager = () => {
                 <button
                   type="button"
                   onClick={() => setShowFilterModal(true)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`min-h-[44px] sm:min-h-0 px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFiltersCount > 0
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -1385,42 +1385,50 @@ export const MembershipFreezeManager = () => {
               )}
             </div>
 
-            {/* Mobile View */}
-            <div className="block sm:hidden space-y-2">
+            {/* Mobile View for Freezes */}
+            <div className="block sm:hidden space-y-2.5">
               {filteredFreezes.map((f) => (
-                <div key={f.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2">
+                <div key={f.id} className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{f.memberName}</span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5 truncate">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{f.memberName}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">{f.planName}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">{f.planName}</div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                       ₹{Number(f.fee || 0).toLocaleString('en-IN')}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 text-[11px]">
+                  <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[11px]">
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold block">Period</span>
-                      <span>{f.freezeStartDate} → {f.freezeEndDate}</span>
+                      <span className="text-[9px] text-slate-400 font-bold block uppercase">Period</span>
+                      <span className="text-slate-800 font-medium">{f.freezeStartDate} → {f.freezeEndDate}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold block">Days / Mode</span>
-                      <span>{f.daysFrozen} Days • {f.paymentMethod || 'Cash'}</span>
+                      <span className="text-[9px] text-slate-400 font-bold block uppercase">Days / Mode</span>
+                      <span className="text-slate-800 font-medium">{f.daysFrozen} Days • {f.paymentMethod || 'Cash'}</span>
                     </div>
                   </div>
 
                   {f.status === 'Active Freeze' && (
                     <button
                       type="button"
-                      onClick={() => unfreezeMembership(f.id)}
-                      className="w-full py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                      disabled={unfreezingId === f.id}
+                      onClick={async () => {
+                        try {
+                          setUnfreezingId(f.id);
+                          await unfreezeMembership(f.id);
+                        } finally {
+                          setUnfreezingId(null);
+                        }
+                      }}
+                      className="w-full min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
                     >
-                      <PlayCircle className="w-3.5 h-3.5" />
-                      <span>Unfreeze Plan</span>
+                      {unfreezingId === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                      <span>{unfreezingId === f.id ? 'Resuming...' : 'Unfreeze Plan'}</span>
                     </button>
                   )}
                 </div>
@@ -1463,7 +1471,7 @@ export const MembershipFreezeManager = () => {
                   placeholder="Search transfers..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-violet-500"
+                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-violet-500"
                 />
               </div>
             </div>
@@ -1480,67 +1488,121 @@ export const MembershipFreezeManager = () => {
                 />
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                      <th className="py-3.5 px-4">From Member</th>
-                      <th className="py-3.5 px-4">To Transferee</th>
-                      <th className="py-3.5 px-4">Plan Name</th>
-                      <th className="py-3.5 px-4">Days Transferred</th>
-                      <th className="py-3.5 px-4">Transfer Fee</th>
-                      <th className="py-3.5 px-4">Payment Mode</th>
-                      <th className="py-3.5 px-4">Transfer / Start Date</th>
-                      <th className="py-3.5 px-4">Reason</th>
-                      <th className="py-3.5 px-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {filteredTransfers.map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-slate-900">{t.fromMemberName}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div>
-                            <span className="font-bold text-violet-700">{t.toMemberName}</span>
-                            {t.toMemberPhone && <span className="block text-[10px] text-slate-400">{t.toMemberPhone}</span>}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">
-                          {t.planName}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-50 text-violet-800 border border-violet-200">
-                            {t.daysRemaining} Days
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-emerald-600">
-                          ₹{Number(t.transferFee || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600">
-                          {t.paymentMethod || 'UPI'}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-semibold text-slate-800 block">{t.transferDate}</span>
-                          {t.membershipStartDate && (
-                            <span className="text-[10px] text-violet-600 font-medium block">Starts: {t.membershipStartDate}</span>
+              <>
+                {/* Mobile View for Transfers */}
+                <div className="block sm:hidden p-3 space-y-2.5">
+                  {filteredTransfers.map((t) => (
+                    <div
+                      key={t.id}
+                      className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">From</div>
+                          <div className="font-bold text-slate-900 text-xs truncate">{t.fromMemberName}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">To Transferee</div>
+                          <div className="font-bold text-violet-700 text-xs truncate">{t.toMemberName}</div>
+                          {t.toMemberPhone && (
+                            <div className="text-[10px] text-slate-400">{t.toMemberPhone}</div>
                           )}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={t.reason}>
-                          {t.reason || '—'}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <Check className="w-3 h-3" />
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-emerald-700 text-xs block">
+                            ₹{Number(t.transferFee || 0).toLocaleString('en-IN')}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
+                            <Check className="w-2.5 h-2.5" />
                             <span>{t.status || 'Completed'}</span>
                           </span>
-                        </td>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[11px]">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Plan & Days</span>
+                          <span className="font-semibold text-slate-800 block truncate">{t.planName}</span>
+                          <span className="text-[10px] text-violet-700 font-bold">{t.daysRemaining} Days</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Date / Mode</span>
+                          <span className="text-slate-800 font-medium block">{t.transferDate}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">{t.paymentMethod || 'UPI'}</span>
+                        </div>
+                      </div>
+
+                      {t.reason && (
+                        <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 italic">
+                          "{t.reason}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop View Table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-3.5 px-4">From Member</th>
+                        <th className="py-3.5 px-4">To Transferee</th>
+                        <th className="py-3.5 px-4">Plan Name</th>
+                        <th className="py-3.5 px-4">Days Transferred</th>
+                        <th className="py-3.5 px-4">Transfer Fee</th>
+                        <th className="py-3.5 px-4">Payment Mode</th>
+                        <th className="py-3.5 px-4">Transfer / Start Date</th>
+                        <th className="py-3.5 px-4">Reason</th>
+                        <th className="py-3.5 px-4">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {filteredTransfers.map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-slate-900">{t.fromMemberName}</span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div>
+                              <span className="font-bold text-violet-700">{t.toMemberName}</span>
+                              {t.toMemberPhone && <span className="block text-[10px] text-slate-400">{t.toMemberPhone}</span>}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 font-medium">
+                            {t.planName}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-50 text-violet-800 border border-violet-200">
+                              {t.daysRemaining} Days
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-emerald-600">
+                            ₹{Number(t.transferFee || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600">
+                            {t.paymentMethod || 'UPI'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-semibold text-slate-800 block">{t.transferDate}</span>
+                            {t.membershipStartDate && (
+                              <span className="text-[10px] text-violet-600 font-medium block">Starts: {t.membershipStartDate}</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={t.reason}>
+                            {t.reason || '—'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Check className="w-3 h-3" />
+                              <span>{t.status || 'Completed'}</span>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>

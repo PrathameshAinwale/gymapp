@@ -192,22 +192,23 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {onNavigateTab && (
               <button
                 type="button"
                 onClick={() => onNavigateTab('staff-accounts')}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
                 <Users className="w-3.5 h-3.5 text-slate-500" />
-                <span>Go to Staff</span>
+                <span className="hidden sm:inline">Go to Staff</span>
+                <span className="inline sm:hidden">Staff</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={openCreateModal}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              className="px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Shift</span>
@@ -252,7 +253,7 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
             placeholder="Search shift name or timings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all truncate"
+            className="w-full pl-9 pr-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-slate-50 border border-slate-200 text-base sm:text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all truncate"
           />
         </div>
 
@@ -265,7 +266,7 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
               id="shift-status-filter"
               value={filterActive}
               onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer appearance-none shadow-2xs truncate"
+              className="w-full pl-2.5 sm:pl-3 pr-7 sm:pr-8 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-slate-50 border border-slate-200 text-base sm:text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer appearance-none shadow-2xs truncate"
             >
               <option value="all">All ({totalShiftsCount})</option>
               <option value="active">Active ({activeShiftsCount})</option>
@@ -390,7 +391,7 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
                     <button
                       type="button"
                       onClick={() => openEditModal(shift)}
-                      className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
                       title="Edit Shift"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -398,7 +399,7 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
                     <button
                       type="button"
                       onClick={() => setDeleteConfirmShift(shift)}
-                      className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
                       title="Delete Shift"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

@@ -1824,7 +1824,7 @@ export const CreateInvoicePage = ({
             <button
               type="button"
               onClick={handleBack}
-              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0 flex items-center justify-center"
               title="Return to Member Invoices"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2069,14 +2069,6 @@ export const CreateInvoicePage = ({
                 2. Invoiced Packages & Services
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={handleAddPackageRow}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Package</span>
-            </button>
           </div>
 
           {/* DYNAMIC VALIDITY ACCUMULATION & EXTENSION BANNER */}
@@ -2371,6 +2363,18 @@ export const CreateInvoicePage = ({
                 </div>
               );
             })}
+
+            {/* ADD PACKAGE BUTTON (Positioned below packages) */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleAddPackageRow}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Package</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2686,12 +2690,12 @@ export const CreateInvoicePage = ({
         )}
 
         {/* Action Buttons Bar */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-2">
           <button
             type="button"
             onClick={handleBack}
             disabled={isSubmitting}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center justify-center"
           >
             Cancel
           </button>
@@ -2700,7 +2704,7 @@ export const CreateInvoicePage = ({
             <button
               type="button"
               onClick={() => setIsPayingDueOpen(true)}
-              className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95"
+              className="w-full sm:w-auto min-h-[48px] sm:min-h-0 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95"
               title="Collect outstanding balance due first"
             >
               <CreditCard className="w-4 h-4" />
@@ -2710,7 +2714,7 @@ export const CreateInvoicePage = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto min-h-[48px] sm:min-h-0 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

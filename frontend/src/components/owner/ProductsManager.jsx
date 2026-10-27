@@ -579,11 +579,11 @@ export const ProductsManager = ({ initialFilterPreset }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={handleOpenNewSale}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sell Product</span>
@@ -592,7 +592,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Add Product</span>
@@ -643,7 +643,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search products by name, SKU, or category..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
+              className="w-full pl-9 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
             />
             {searchTerm && (
               <button
@@ -692,7 +692,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -871,12 +871,12 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                     <span className="text-base sm:text-lg font-black text-slate-900">₹{p.price}</span>
                   </div>
 
-                  <div className="flex items-center gap-1 sm:gap-1.5">
+                  <div className="flex items-center gap-1.5 sm:gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleOpenSaleForProduct(p)}
                       disabled={isOutOfStock}
-                      className="px-2.5 sm:px-3 py-1.5 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
+                      className="px-3 sm:px-3 py-2 sm:py-1.5 min-h-[38px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
                       <span>Sell</span>
@@ -888,7 +888,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                         setRestockingProduct(p);
                         setRestockAmount(10);
                       }}
-                      className="px-2.5 sm:px-3 py-1.5 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer active:scale-95 shrink-0"
+                      className="px-3 sm:px-3 py-2 sm:py-1.5 min-h-[38px] sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer active:scale-95 shrink-0"
                     >
                       Restock
                     </button>
@@ -896,7 +896,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                     <button
                       type="button"
                       onClick={() => setProductToDelete(p)}
-                      className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-colors cursor-pointer active:scale-95 shrink-0"
+                      className="p-2 min-h-[38px] min-w-[38px] rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-colors cursor-pointer active:scale-95 shrink-0 flex items-center justify-center"
                       title="Remove product"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

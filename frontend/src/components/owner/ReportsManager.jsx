@@ -307,12 +307,12 @@ export const ReportsManager = ({ setActiveTab }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all border border-slate-200 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="min-h-[38px] flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all border border-slate-200 cursor-pointer disabled:opacity-50 active:scale-95"
             title="Refresh from MySQL Database"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
@@ -323,24 +323,24 @@ export const ReportsManager = ({ setActiveTab }) => {
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 transition-all cursor-pointer active:scale-95"
+              className="min-h-[38px] flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 transition-all cursor-pointer active:scale-95"
             >
               <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>View Visual Charts</span>
+              <span><span className="hidden sm:inline">Visual </span>Charts</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            className="min-h-[38px] flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
           >
             <Download className="w-4 h-4" />
-            <span>Export CSV Report</span>
+            <span><span className="hidden sm:inline">Export </span>CSV</span>
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
+            className="min-h-[38px] min-w-[38px] p-2 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
             title="Print Report"
           >
             <Printer className="w-4 h-4" />
@@ -351,11 +351,11 @@ export const ReportsManager = ({ setActiveTab }) => {
       {/* Category Tabs */}
       <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar gap-1">
         {[
-          { id: 'members', label: 'Members Report', icon: Users, count: gymMembers.length },
-          { id: 'revenue', label: 'Revenue & Inflow', icon: IndianRupee, count: gymInvoices.length },
-          { id: 'attendance', label: 'Attendance & Punch Out', icon: CalendarCheck, count: gymAttendance.length },
-          { id: 'pt', label: 'PT Sessions & OTP', icon: Dumbbell, count: gymPtSessions.length },
-          { id: 'payroll', label: 'Staff Payroll & Advances', icon: Wallet, count: gymPayrollRecords.length }
+          { id: 'members', label: 'Members', icon: Users, count: gymMembers.length },
+          { id: 'revenue', label: 'Revenue', icon: IndianRupee, count: gymInvoices.length },
+          { id: 'attendance', label: 'Attendance', icon: CalendarCheck, count: gymAttendance.length },
+          { id: 'pt', label: 'PT Sessions', icon: Dumbbell, count: gymPtSessions.length },
+          { id: 'payroll', label: 'Payroll', icon: Wallet, count: gymPayrollRecords.length }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = reportCategory === tab.id;
@@ -368,7 +368,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                 setFilterType('ALL');
                 setSearchTerm('');
               }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${isActive
+              className={`min-h-[40px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${isActive
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 border border-transparent'
                 }`}
@@ -394,7 +394,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                 placeholder={`Search ${reportCategory} records...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
               />
             </div>
 
@@ -402,7 +402,7 @@ export const ReportsManager = ({ setActiveTab }) => {
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex sm:hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${activeFiltersCount > 0
+              className={`min-h-[44px] sm:min-h-0 flex sm:hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
@@ -424,7 +424,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                 <select
                   value={paymentMethodFilter}
                   onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="ALL">All Payment Modes</option>
                   <option value="UPI">UPI</option>
@@ -615,7 +615,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -624,7 +624,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -725,11 +725,167 @@ export const ReportsManager = ({ setActiveTab }) => {
         document.body
       )}
 
-      {/* Report Dynamic Content Table */}
+      {/* Report Dynamic Content: Mobile Cards + Desktop Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          {reportCategory === 'members' && (
-            <table className="w-full text-left text-xs">
+        {currentData.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            No records found matching criteria.
+          </div>
+        ) : (
+          <>
+            {/* Mobile Card Layout (320px - 430px) */}
+            <div className="block sm:hidden p-3 space-y-2.5">
+              {reportCategory === 'members' && currentData.map((m) => {
+                const effectiveStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : (m.status || 'Active');
+                const isExp = effectiveStatus === 'Expiring Soon';
+                const isExpired = effectiveStatus === 'Expired';
+                return (
+                  <div key={m.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-slate-900 text-xs truncate">{m.name}</div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                        isExpired ? 'bg-rose-50 text-rose-700 border-rose-200' : isExp ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}>
+                        {effectiveStatus}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 text-[11px]">
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Plan</span>
+                        <span className="font-semibold text-slate-800 truncate block">{m.planName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Expires</span>
+                        <span className="font-mono text-slate-600 block">{m.expiryDate}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span>Coach: <strong className="text-emerald-700">{m.trainerName || 'None'}</strong></span>
+                      <span>{m.phone || m.email || ''}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {reportCategory === 'revenue' && currentData.map((inv) => (
+                <div key={inv.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate">{inv.memberName || inv.member_name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">Invoice #{inv.id}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-black text-emerald-600 text-sm font-mono">₹{Number(inv.amount).toLocaleString('en-IN')}</div>
+                      <span className="px-2 py-0.2 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {inv.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] p-2 rounded-lg bg-slate-50">
+                    <div className="min-w-0">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Package</span>
+                      <span className="font-semibold text-slate-800 truncate block">{inv.planName}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Mode • Date</span>
+                      <span className="text-slate-600 font-medium">{inv.paymentMethod || inv.payment_method || 'UPI'} • {inv.date}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {reportCategory === 'attendance' && currentData.map((att, idx) => (
+                <div key={att.id || idx} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate">{att.memberName || att.name}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{att.planName}</div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                      {att.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Check In</span>
+                      <span className="font-bold text-emerald-700">{att.checkInTime}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Check Out</span>
+                      <span className="font-semibold text-slate-700">{att.checkOutTime || '--'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
+                      <span className="font-semibold text-slate-600">{att.duration || (att.checkOutTime ? '1h 15m' : 'In Progress')}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {reportCategory === 'pt' && currentData.map((pt) => (
+                <div key={pt.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate">{pt.memberName}</div>
+                      <div className="text-[10px] text-teal-700 font-semibold truncate">{pt.trainerName}</div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 shrink-0">
+                      OTP: {pt.otp || '****'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Total</span>
+                      <span className="font-bold text-slate-800">{pt.totalSessions}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Done</span>
+                      <span className="font-bold text-emerald-700">{pt.completedSessions}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Left</span>
+                      <span className="font-bold text-amber-700">{pt.remainingSessions}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {reportCategory === 'payroll' && currentData.map((pay) => (
+                <div key={pay.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate">{pay.trainerName || pay.name}</div>
+                      <div className="text-[10px] text-slate-500 capitalize truncate">{pay.role}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-black text-slate-900 text-sm">₹{Number(pay.netPay).toLocaleString('en-IN')}</div>
+                      <span className="px-2 py-0.2 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {pay.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Base</span>
+                      <span className="font-semibold text-slate-700">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Comm/Bonus</span>
+                      <span className="font-semibold text-emerald-700">+₹{(Number(pay.commissions || 0) + Number(pay.bonus || 0)).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Deduct</span>
+                      <span className="font-semibold text-rose-600">-₹{Number(pay.deductions || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop View Table */}
+            <div className="hidden sm:block overflow-x-auto">
+              {reportCategory === 'members' && (
+                <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                   <th className="py-3 px-4">Member Name</th>
@@ -921,7 +1077,9 @@ export const ReportsManager = ({ setActiveTab }) => {
               </tbody>
             </table>
           )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

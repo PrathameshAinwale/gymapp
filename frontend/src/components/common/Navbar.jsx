@@ -97,31 +97,31 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
 
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-header safe-top shrink-0">
-      <div className="flex items-center justify-between gap-2 w-full px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5">
+    <header className="sticky top-0 z-40 w-full glass-header safe-top shrink-0 h-14 sm:h-auto flex items-center">
+      <div className="flex items-center justify-between gap-2 w-full px-3 sm:px-6 lg:px-8 py-1.5 sm:py-2.5">
         
-        {/* Left: Hamburger + Gym Brand */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Left: Hamburger (44x44px) + Gym Brand */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {/* Mobile Hamburger */}
           <button
             type="button"
             onClick={onToggleMobileMenu}
-            className="md:hidden w-9 h-9 rounded-xl bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 transition-all shadow-xs cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+            className="md:hidden w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 transition-all shadow-2xs cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
             title="Open Navigation Menu"
             aria-label="Open navigation menu"
           >
-            <Menu className="w-[18px] h-[18px]" />
+            <Menu className="w-5 h-5" />
           </button>
 
           {/* Gym Brand Logo & Identity */}
           <div 
-            className="flex items-center gap-2.5 min-w-0 cursor-pointer select-none group"
+            className="flex items-center gap-2 min-w-0 cursor-pointer select-none group"
             onClick={() => setActiveTab && setActiveTab('dashboard')}
             title="Go to Dashboard"
           >
             {/* Custom Gym Logo or Initial Emblem */}
             {gymLogo ? (
-              <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-center overflow-hidden shrink-0 group-hover:border-emerald-400 transition-colors">
+              <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center overflow-hidden shrink-0 group-hover:border-emerald-400 transition-colors">
                 <img
                   src={gymLogo}
                   alt={gymName || 'Gym Logo'}
@@ -138,43 +138,38 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
                 </div>
               </div>
             ) : (
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shadow-xs border border-emerald-500/30 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shadow-2xs border border-emerald-500/30 shrink-0 group-hover:scale-105 transition-transform">
                 {(gymName || 'A').charAt(0).toUpperCase()}
               </div>
             )}
 
-            {/* Gym Name & 'powered by ARCHFIT' */}
+            {/* Gym Name & Desktop-only 'powered by ARCHFIT' */}
             <div className="flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[130px] xs:max-w-[180px] sm:max-w-[260px] md:max-w-[340px] leading-tight">
+                <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-[280px] md:max-w-[340px] leading-tight">
                   {gymName || 'Fitness Club'}
                 </span>
-                <div className="shrink-0 hidden xs:inline-flex items-center gap-1.5">
+                {/* Role badge visible only on desktop (moved to drawer on mobile) */}
+                <div className="shrink-0 hidden md:inline-flex items-center gap-1.5">
                   {getRoleBadge()}
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 text-[9px] sm:text-[8px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
+              {/* Sub-label: powered by ARCHFIT */}
+              <div className="flex items-center gap-1 text-[8px] sm:text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
                 <span>powered by</span>
                 <span className="font-black text-slate-800 tracking-tight">
                   ARCH<span className="text-lime-500">FIT</span>
                 </span>
               </div>
             </div>
-
-            {/* On ultra small screens (< xs), badge placed inline */}
-            <div className="shrink-0 xs:hidden flex items-center gap-1">
-              {getRoleBadge()}
-            </div>
           </div>
         </div>
 
-        {/* Right: Profile + Sign Out */}
-        <div className="flex items-center gap-1.5 sm:gap-1 shrink-0">
+        {/* Right: Notification Bell + Sign Out (equal 44x44px touch targets) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Action Alerts & Notification Bell (Staff/Owner only) */}
-          <div className="mr-2 sm:mr-3.5">
-            <NotificationBell onNavigateToMembersWithFilter={onNavigateToMembersWithFilter} />
-          </div>
+          <NotificationBell onNavigateToMembersWithFilter={onNavigateToMembersWithFilter} />
 
           {/* Multi-Gym Platinum Branch Switcher */}
           {currentRole === 'owner' && branches && branches.length > 1 && (
@@ -182,10 +177,10 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
               <button
                 type="button"
                 onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 h-11 sm:h-auto sm:py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
                 title="Switch Gym Facility"
               >
-                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <Building2 className="w-4 h-4 text-indigo-600" />
                 <span className="hidden sm:inline max-w-[120px] truncate">{gymName}</span>
                 <span className="px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-black">
                   {branches.length} Gyms
@@ -254,11 +249,12 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
             </div>
           )}
 
+          {/* Equal 44x44px touch target logout button */}
           <button
             type="button"
             onClick={logout}
             title="Sign Out"
-            className="w-9 h-9 sm:h-auto sm:w-auto sm:px-3 sm:py-2 rounded-xl bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-all flex items-center justify-center gap-1.5 text-xs font-bold shadow-sm cursor-pointer"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] sm:h-auto sm:w-auto sm:min-w-0 sm:min-h-0 sm:px-3 sm:py-2 rounded-xl bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-all flex items-center justify-center gap-1.5 text-xs font-bold shadow-2xs cursor-pointer active:scale-95"
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden md:inline">Sign Out</span>

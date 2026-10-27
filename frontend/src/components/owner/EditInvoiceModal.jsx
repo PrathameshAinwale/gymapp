@@ -836,14 +836,6 @@ export const EditInvoiceModal = ({
                   Membership Packages &amp; Services
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={handleAddPackageRow}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Package</span>
-              </button>
             </div>
 
             <div className="space-y-3">
@@ -1109,6 +1101,18 @@ export const EditInvoiceModal = ({
                   </div>
                 );
               })}
+
+              {/* ADD PACKAGE BUTTON (Positioned below packages) */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleAddPackageRow}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Package</span>
+                </button>
+              </div>
             </div>
           </div>
 

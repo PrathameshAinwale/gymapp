@@ -208,26 +208,26 @@ export const PlanManager = () => {
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs">
         {/* Search Input */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search plans by title or keyword..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+            className="w-full pl-9 pr-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
           />
         </div>
 
         {/* Filter Controls (Package Type Dropdown & Status Filter) */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full lg:w-auto">
           {/* Package Type Dropdown */}
-          <div className="relative flex-1 sm:flex-initial min-w-[220px]">
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
+          <div className="relative flex-1 sm:flex-initial min-w-[200px] w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
               <Layers className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <select
                 value={selectedTypeFilter}
                 onChange={(e) => setSelectedTypeFilter(e.target.value)}
-                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                className="w-full bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
                 <option value="all">
                   All Package Types ({typeCounts.all || 0})
@@ -242,13 +242,13 @@ export const PlanManager = () => {
           </div>
 
           {/* Status Dropdown / Selector */}
-          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
+          <div className="relative flex-1 sm:flex-initial min-w-[130px] w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl focus-within:border-emerald-500 focus-within:bg-white shadow-2xs">
               <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                className="w-full bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active Only</option>
@@ -404,7 +404,7 @@ export const PlanManager = () => {
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(plan)}
-                    className="flex-1 py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="flex-1 py-2 sm:py-1.5 px-3 min-h-[40px] sm:min-h-0 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Edit</span>
@@ -414,7 +414,7 @@ export const PlanManager = () => {
                     type="button"
                     onClick={() => setPlanToDelete(plan)}
                     title="Delete Plan"
-                    className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 active:scale-95 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+                    className="p-2 sm:p-1.5 min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 rounded-xl bg-slate-50 hover:bg-rose-50 active:scale-95 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer flex items-center justify-center"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

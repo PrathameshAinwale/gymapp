@@ -160,7 +160,7 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
   const handleNavigateWithFilter = (filterType, item = null) => {
     setIsOpen(false);
     if (item && !item.is_read) {
-      api.notifications.markRead(item.type, item.reference_id).catch(() => {});
+      api.notifications.markRead(item.type, item.reference_id).catch(() => { });
     }
 
     if (onNavigateToMembersWithFilter) {
@@ -181,8 +181,8 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
     activeTab === 'due'
       ? dueItems
       : activeTab === 'expiring'
-      ? expiringItems
-      : [...dueItems, ...expiringItems];
+        ? expiringItems
+        : [...dueItems, ...expiringItems];
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -192,11 +192,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
         onClick={handleToggleDropdown}
         title="Notifications & Action Alerts"
         aria-label="View Notifications"
-        className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
-          isOpen
+        className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 ${isOpen
             ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-300 shadow-sm'
             : 'bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs'
-        }`}
+          }`}
       >
         <Bell className={`w-[18px] h-[18px] ${unreadCount > 0 ? 'text-slate-900' : 'text-slate-500'}`} />
 
@@ -268,22 +267,20 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'all'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'all'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
                   : 'text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
             >
               All ({dueItems.length + expiringItems.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('due')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                activeTab === 'due'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${activeTab === 'due'
                   ? 'bg-rose-50 text-rose-800 shadow-2xs border border-rose-200'
                   : 'text-slate-500 hover:text-rose-700'
-              }`}
+                }`}
             >
               <CreditCard className="w-3 h-3 text-rose-600" />
               <span>Payments Due ({dueItems.length})</span>
@@ -291,11 +288,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
             <button
               type="button"
               onClick={() => setActiveTab('expiring')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                activeTab === 'expiring'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${activeTab === 'expiring'
                   ? 'bg-amber-50 text-amber-800 shadow-2xs border border-amber-200'
                   : 'text-slate-500 hover:text-amber-700'
-              }`}
+                }`}
             >
               <Calendar className="w-3 h-3 text-amber-600" />
               <span>Expiring Soon ({expiringItems.length})</span>
@@ -345,11 +341,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
                     <div
                       key={item.id}
                       onClick={() => handleNavigateWithFilter('payment_due', item)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${
-                        item.is_read
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${item.is_read
                           ? 'bg-white border-slate-200/80 hover:bg-slate-50/80 text-slate-600'
                           : 'bg-rose-50/30 border-rose-200/90 hover:bg-rose-50/60 text-slate-900 shadow-2xs'
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-1.5">
@@ -422,11 +417,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
                     <div
                       key={item.id}
                       onClick={() => handleNavigateWithFilter('plan_expiring', item)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${
-                        item.is_read
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${item.is_read
                           ? 'bg-white border-slate-200/80 hover:bg-slate-50/80 text-slate-600'
                           : 'bg-amber-50/30 border-amber-200/90 hover:bg-amber-50/60 text-slate-900 shadow-2xs'
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-1.5">

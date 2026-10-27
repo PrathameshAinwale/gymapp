@@ -501,7 +501,9 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
 
     try {
       setIsSaving(true);
+      const activeGymId = gymInfo?.id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
       const sanitizedPayload = {
+        ...(activeGymId ? { gym_id: Number(activeGymId) } : {}),
         name: sanitizeText(formData.name),
         tagline: sanitizeText(formData.tagline),
         logo: formData.logo || '',
@@ -528,33 +530,33 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         devicePort: Number(devicePort) || 4370,
       };
       let updatedData = { ...sanitizedPayload };
-      try {
-        const res = await api.gymInfo.update(sanitizedPayload);
-        if (res?.data) {
-          updatedData = {
-            id: res.data.id || gymInfo?.id,
-            name: res.data.name || '',
-            tagline: res.data.tagline || '',
-            logo: res.data.logo !== undefined ? res.data.logo : formData.logo,
-            address: res.data.address || '',
-            phone: res.data.phone || '',
-            email: res.data.email || '',
-            operatingHours: res.data.operatingHours || res.data.operating_hours || '',
-            currency: res.data.currency || '₹',
-            gstNumber: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
-            gstin: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
-            upiId: res.data.upiId || res.data.upi_id || '',
-            bankDetails: res.data.bankDetails || res.data.bank_details || '',
-            termsAndConditions: res.data.termsAndConditions || res.data.terms_and_conditions || '',
-            footerText: res.data.footerText || res.data.footer_text || '',
-            signatoryText: res.data.signatoryText || res.data.signatory_text || '',
-            taxRate: res.data.taxRate !== undefined ? res.data.taxRate : 18,
-            deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || (deviceIp || '192.168.1.201').trim(),
-            devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || (Number(devicePort) || 4370),
-          };
-        }
-      } catch (err) {
-        console.warn('Backend gymInfo update note:', err.message);
+      const res = await api.gymInfo.update(sanitizedPayload);
+      if (res?.success === false) {
+        addToast(res?.message || 'Failed to save gym settings.', 'error');
+        return;
+      }
+      if (res?.data) {
+        updatedData = {
+          id: res.data.id || gymInfo?.id,
+          name: res.data.name || '',
+          tagline: res.data.tagline || '',
+          logo: res.data.logo !== undefined ? res.data.logo : formData.logo,
+          address: res.data.address || '',
+          phone: res.data.phone || '',
+          email: res.data.email || '',
+          operatingHours: res.data.operatingHours || res.data.operating_hours || '',
+          currency: res.data.currency || '₹',
+          gstNumber: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
+          gstin: res.data.gstNumber || res.data.gstin || res.data.gst_number || '',
+          upiId: res.data.upiId || res.data.upi_id || '',
+          bankDetails: res.data.bankDetails || res.data.bank_details || '',
+          termsAndConditions: res.data.termsAndConditions || res.data.terms_and_conditions || '',
+          footerText: res.data.footerText || res.data.footer_text || '',
+          signatoryText: res.data.signatoryText || res.data.signatory_text || '',
+          taxRate: res.data.taxRate !== undefined ? res.data.taxRate : 18,
+          deviceIp: res.data.deviceIp || res.data.device_ip || res.data.essl_device_ip || (deviceIp || '192.168.1.201').trim(),
+          devicePort: res.data.devicePort || res.data.device_port || res.data.essl_device_port || (Number(devicePort) || 4370),
+        };
       }
       setGymInfo((prev) => ({
         ...prev,
@@ -574,6 +576,10 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
       if (updatedData.devicePort) setDevicePort(updatedData.devicePort);
       localStorage.setItem('pulsefit_gymInfo', JSON.stringify(updatedData));
       addToast('Gym profile, logo & operational settings saved successfully!', 'success');
+      await fetchGymInfo?.();
+    } catch (err) {
+      console.error('Failed to update gym settings:', err);
+      addToast(err.message || 'Failed to save gym settings. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -602,7 +608,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         <button
           type="button"
           onClick={() => setActiveSettingsTab('general')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSettingsTab === 'general'
               ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
               : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -615,7 +621,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         <button
           type="button"
           onClick={() => setActiveSettingsTab('consent')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSettingsTab === 'consent'
               ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
               : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -628,7 +634,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         <button
           type="button"
           onClick={() => setActiveSettingsTab('payroll_attendance')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSettingsTab === 'payroll_attendance'
               ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
               : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -641,7 +647,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         <button
           type="button"
           onClick={() => setActiveSettingsTab('roles')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSettingsTab === 'roles'
               ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
               : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -857,7 +863,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="Enter gym name (e.g. FitZone Club)"
                 value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
               />
             </div>
             <div>
@@ -867,7 +873,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="Enter tagline or motto"
                 value={formData.tagline || ''}
                 onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -879,7 +885,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               placeholder="Enter physical facility address"
               value={formData.address || ''}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
 
@@ -891,7 +897,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="contact@gym.com"
                 value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div>
@@ -903,7 +909,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 onKeyDown={preventNonPhoneKey}
                 value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -923,7 +929,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               placeholder="e.g. Mon-Sat: 6:00 AM - 10:30 PM | Sun: 7:00 AM - 1:00 PM"
               value={formData.operatingHours || ''}
               onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
@@ -989,7 +995,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="192.168.1.201"
                 value={deviceIp}
                 onChange={(e) => setDeviceIp(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
                 Static or reserved local LAN IPv4 of your biometric controller (e.g., 192.168.1.201).
@@ -1006,7 +1012,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="4370"
                 value={devicePort}
                 onChange={(e) => setDevicePort(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
                 Default communication port is 4370.
@@ -1037,7 +1043,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="text"
                 readOnly
                 value="Indian Rupee (₹ / INR)"
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold"
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-600 font-bold"
               />
             </div>
             <div>
@@ -1046,7 +1052,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="text"
                 readOnly
                 value="Asia/Kolkata (IST - UTC+05:30)"
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold"
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-600 font-bold"
               />
             </div>
           </div>
@@ -1074,7 +1080,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. 27AAPCP1234F1Z8"
                 value={formData.gstNumber || ''}
                 onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -1087,7 +1093,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. gymname@okaxis"
                 value={formData.upiId || ''}
                 onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -1102,7 +1108,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="18"
                 value={formData.taxRate !== undefined ? formData.taxRate : 18}
                 onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -1117,7 +1123,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. Bank: HDFC Bank, A/C: 50200012345678, IFSC: HDFC0001234, Branch: Bandra West"
                 value={formData.bankDetails || ''}
                 onChange={(e) => setFormData({ ...formData, bankDetails: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -1130,7 +1136,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. Authorised Signatory"
                 value={formData.signatoryText || ''}
                 onChange={(e) => setFormData({ ...formData, signatoryText: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -1145,7 +1151,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. Fees once paid are non-refundable. Non-transferable under any circumstances."
                 value={formData.termsAndConditions || ''}
                 onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -1158,7 +1164,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="e.g. Thank you for your business! Stay consistent & conquer your goals."
                 value={formData.footerText || ''}
                 onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -1168,7 +1174,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
           <button
             type="submit"
             disabled={isSaving}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            className="w-full sm:w-auto min-h-[48px] flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             <span>{isSaving ? 'Saving Settings...' : 'Save Settings'}</span>
@@ -1236,7 +1242,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerCurrentPassword}
                   onChange={(e) => setOwnerCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
-                  className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
                 />
                 <button
                   type="button"
@@ -1264,7 +1270,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerNewPassword}
                   onChange={(e) => setOwnerNewPassword(e.target.value)}
                   placeholder="Min 6 characters"
-                  className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
                 />
                 <button
                   type="button"
@@ -1292,7 +1298,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerConfirmPassword}
                   onChange={(e) => setOwnerConfirmPassword(e.target.value)}
                   placeholder="Re-enter new password"
-                  className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
                 />
                 <button
                   type="button"
@@ -1311,7 +1317,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
             <button
               type="submit"
               disabled={isChangingPassword || !ownerCurrentPassword || !ownerNewPassword || !ownerConfirmPassword}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0 min-h-[44px] w-full sm:w-auto"
             >
               {isChangingPassword ? (
                 <>
@@ -1528,11 +1534,11 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleResetConsentForm}
-                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5"
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5 min-h-[42px] sm:min-h-0"
                 title="Reset to default legal waiver template"
               >
                 <RotateCw className="w-3.5 h-3.5" />
@@ -1542,7 +1548,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="button"
                 onClick={handleSaveConsentForm}
                 disabled={isSavingConsent}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                className="flex-1 sm:flex-initial justify-center px-5 py-2.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50 min-h-[42px] sm:min-h-0"
               >
                 {isSavingConsent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 <span>{isSavingConsent ? 'Saving...' : 'Save Consent Form'}</span>
@@ -1566,7 +1572,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.title}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g. Gym Rules & Liability Waiver Consent Form"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -1579,7 +1585,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.subtitle}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, subtitle: e.target.value }))}
                   placeholder="e.g. Review terms & physical activity declaration below before signing."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -1592,7 +1598,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.declarationText}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, declarationText: e.target.value }))}
                   placeholder="e.g. I have read, understood, and accept all terms of the Health Declaration, Liability Waiver & Gym Rules."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -1798,11 +1804,11 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleResetPayrollConfig}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer min-h-[42px] sm:min-h-0"
               >
                 <RotateCw className="w-3.5 h-3.5" />
                 <span>Reset Defaults</span>
@@ -1812,7 +1818,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="button"
                 disabled={isSavingPayroll}
                 onClick={handleSavePayrollConfig}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 min-h-[42px] sm:min-h-0"
               >
                 {isSavingPayroll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 <span>{isSavingPayroll ? 'Saving...' : 'Save All Policies'}</span>

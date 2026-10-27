@@ -201,8 +201,16 @@ class GymSettingController extends Controller
         if ($gym) {
             if ($request->has('name')) $gym->name = $request->input('name') ?: '';
             if ($request->has('tagline')) $gym->tagline = $request->input('tagline') ?: null;
-            if ($request->has('logo')) $gym->logo = $request->input('logo') ?: null;
             if ($request->has('address')) $gym->address = $request->input('address') ?: null;
+            if ($request->hasFile('logo')) {
+                $file = $request->file('logo');
+                $ext = $file->getClientOriginalExtension() ?: 'png';
+                $filename = 'gym_' . $gym->id . '_logo_' . time() . '.' . $ext;
+                $path = $file->storeAs('logos', $filename, 'public');
+                $gym->logo = asset('storage/' . $path);
+            } elseif ($request->has('logo')) {
+                $gym->logo = $request->input('logo') ?: null;
+            }
             if ($request->has('phone')) $gym->phone = $request->input('phone') ?: null;
             if ($request->has('email')) $gym->email = $request->input('email') ?: null;
             if (($request->has('operatingHours') || $request->has('operating_hours')) && \Illuminate\Support\Facades\Schema::hasColumn('gyms', 'operating_hours')) {
@@ -239,7 +247,43 @@ class GymSettingController extends Controller
                 $fps = $request->input('freezePolicySettings') ?? $request->input('freeze_policy_settings');
                 $gym->freeze_policy_settings = is_array($fps) ? json_encode($fps) : $fps;
             }
-            $gym->save();
+
+            // eSSL biometric device IP & Port persistence
+            if ($request->has('deviceIp') || $request->has('device_ip') || $request->has('essl_device_ip')) {
+                $dip = trim($request->input('deviceIp') ?? $request->input('device_ip') ?? $request->input('essl_device_ip'));
+                if (\Illuminate\Support\Facades\Schema::hasColumn('gyms', 'essl_device_ip')) {
+                    $gym->essl_device_ip = $dip;
+                }
+                try {
+                    if (\Illuminate\Support\Facades\Schema::hasTable('biometric_devices')) {
+                        \Illuminate\Support\Facades\DB::table('biometric_devices')->updateOrInsert(
+                            ['id' => 1],
+                            ['ip_address' => $dip, 'updated_at' => now()]
+                        );
+                    }
+                } catch (\Throwable $e) {}
+            }
+            if ($request->has('devicePort') || $request->has('device_port') || $request->has('essl_device_port')) {
+                $dport = (int)($request->input('devicePort') ?? $request->input('device_port') ?? $request->input('essl_device_port') ?? 4370);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('gyms', 'essl_device_port')) {
+                    $gym->essl_device_port = $dport;
+                }
+            }
+
+            try {
+                $gym->save();
+            } catch (\Illuminate\Database\QueryException $qe) {
+                if (str_contains($qe->getMessage(), 'Data too long') || str_contains($qe->getMessage(), 'logo')) {
+                    try {
+                        \Illuminate\Support\Facades\DB::statement("ALTER TABLE `gyms` MODIFY COLUMN `logo` LONGTEXT NULL");
+                        $gym->save();
+                    } catch (\Throwable $ex) {
+                        throw $qe;
+                    }
+                } else {
+                    throw $qe;
+                }
+            }
             Cache::forget("gym_setting_v1_{$gymId}");
         }
 
@@ -267,13 +311,27 @@ class GymSettingController extends Controller
                 $setting->freeze_policy_settings = is_array($fps) ? json_encode($fps) : $fps;
             }
             if ($request->has('currency')) $setting->currency = $request->input('currency') ?: '₹';
-            $setting->save();
+            try {
+                $setting->save();
+            } catch (\Illuminate\Database\QueryException $qe) {
+                if (str_contains($qe->getMessage(), 'Data too long') || str_contains($qe->getMessage(), 'logo')) {
+                    try {
+                        \Illuminate\Support\Facades\DB::statement("ALTER TABLE `gym_settings` MODIFY COLUMN `logo` LONGTEXT NULL");
+                        $setting->save();
+                    } catch (\Throwable $ex) {}
+                }
+            }
         }
+
+        $showResponse = $this->show($request);
+        $responseData = $showResponse instanceof \Illuminate\Http\JsonResponse
+            ? ($showResponse->getData(true)['data'] ?? [])
+            : [];
 
         return response()->json([
             'success' => true,
             'message' => 'Gym settings updated successfully',
-            'data' => $this->show($request)->original['data'],
+            'data' => $responseData,
         ]);
     }
 
@@ -511,13 +569,21 @@ class GymSettingController extends Controller
             return response()->json(['success' => false, 'message' => 'Gym facility not found.'], 404);
         }
 
-        if ($user->role !== 'superadmin' && $targetGym->owner_id !== $user->id && $user->gym_id !== $gymId) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized access to this gym facility.'], 403);
+        if ($user->role !== 'superadmin' && (int)$targetGym->owner_id !== (int)$user->id && (int)$user->gym_id !== $gymId) {
+            if (!empty($targetGym->owner_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to this gym facility.'], 403);
+            }
+            $targetGym->owner_id = $user->id;
+            $targetGym->save();
         }
 
-        // Update user's active gym
+        $oldGymId = $user->gym_id;
         $user->gym_id = $gymId;
         $user->save();
+
+        if ($oldGymId) {
+            Cache::forget("gym_setting_v1_{$oldGymId}");
+        }
         Cache::forget("gym_setting_v1_{$gymId}");
 
         return response()->json([
@@ -531,6 +597,50 @@ class GymSettingController extends Controller
                 'logo' => $targetGym->logo,
                 'address' => $targetGym->address,
                 'package_tier' => $targetGym->package_tier ?? $targetGym->package ?? 'Platinum'
+            ]
+        ]);
+    }
+
+    /**
+     * Dedicated logo upload endpoint for gym facilities (supports multipart/form-data).
+     */
+    public function uploadLogo(Request $request)
+    {
+        $gymId = $this->resolveGymId($request);
+        $gym = $gymId ? \App\Models\Gym::find($gymId) : null;
+        if (!$gym) {
+            return response()->json(['success' => false, 'message' => 'Gym facility not found.'], 404);
+        }
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'logo' => 'required|file|image|mimes:jpeg,png,jpg,webp,svg|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide a valid image file (JPG, PNG, WebP or SVG up to 5MB).',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $file = $request->file('logo');
+        $ext = $file->getClientOriginalExtension() ?: 'png';
+        $filename = 'gym_' . $gym->id . '_logo_' . time() . '.' . $ext;
+        $path = $file->storeAs('logos', $filename, 'public');
+        $logoUrl = asset('storage/' . $path);
+
+        $gym->logo = $logoUrl;
+        $gym->save();
+
+        Cache::forget("gym_setting_v1_{$gymId}");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Gym logo uploaded successfully.',
+            'logo' => $logoUrl,
+            'data' => [
+                'logo' => $logoUrl
             ]
         ]);
     }

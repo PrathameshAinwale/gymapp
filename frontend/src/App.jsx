@@ -547,7 +547,7 @@ function MainApp() {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-900 flex flex-col overflow-hidden">
+    <div className="h-screen h-dvh max-h-dvh bg-slate-50 text-slate-900 flex flex-col overflow-hidden">
       {/* Mandatory First-Time Password Change Modal */}
       <ForceChangePasswordModal />
 
@@ -568,8 +568,11 @@ function MainApp() {
           setIsMobileOpen={setIsMobileMenuOpen}
         />
 
-        {/* Main Content Viewport: Full width responsive dashboard */}
-        <main className="flex-1 min-w-0 h-full overflow-y-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-4 pb-6 safe-bottom">
+        {/* Main Content Viewport: Full width responsive dashboard with 16px mobile padding */}
+        <main
+          className="flex-1 min-w-0 min-h-0 overflow-y-auto px-4 py-3.5 sm:px-6 sm:py-4 pb-12 safe-bottom"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           <Suspense fallback={<OwnerPageLoader activeTab={activeTab} />}>
             {renderContent()}
           </Suspense>

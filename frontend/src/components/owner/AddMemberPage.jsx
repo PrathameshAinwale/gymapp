@@ -2303,7 +2303,7 @@ export const AddMemberPage = ({
             <button
               type="button"
               onClick={handleBackToMemberList}
-              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0 flex items-center justify-center"
               title="Return to Member Directory"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2781,16 +2781,6 @@ export const AddMemberPage = ({
                 {isEditMode ? '3. Active Membership Subscription' : '3. Membership Packages & Add-on Services'}
               </h2>
             </div>
-            {!isEditMode && (
-              <button
-                type="button"
-                onClick={handleAddPackageRow}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Package</span>
-              </button>
-            )}
           </div>
 
           {isEditMode ? (
@@ -3121,6 +3111,18 @@ export const AddMemberPage = ({
                   </div>
                 );
               })}
+
+              {/* ADD PACKAGE BUTTON (Positioned below packages) */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleAddPackageRow}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Package</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -3783,11 +3785,11 @@ export const AddMemberPage = ({
         )}
 
         {/* SECTION 7: Submission Action Bar */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={handleBackToMemberList}
-            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
           >
             Cancel & Return
           </button>
@@ -3802,7 +3804,7 @@ export const AddMemberPage = ({
                   ? totalCalculatedAmount <= 0
                   : (!consentAgreed || (!otpVerified && !signedInPerson)))
             }
-            className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isEditMode
+            className={`w-full sm:w-auto min-h-[48px] sm:min-h-0 px-6 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isEditMode
                 ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
                 : isUpgradeMode
                   ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'

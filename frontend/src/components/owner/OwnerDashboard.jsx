@@ -170,6 +170,53 @@ export const OwnerDashboard = ({
   const { currentUser, currentRole, canAccessFinancials } = useAuth();
   const gymName = gymInfo?.name || gymInfo?.gym_name || currentUser?.gymName || 'our gym';
 
+  // Mobile Analytics Charts Auto-Scroll State
+  const chartsScrollRef = useRef(null);
+  const [activeChartSlide, setActiveChartSlide] = useState(0);
+  const [isChartHovered, setIsChartHovered] = useState(false);
+
+  // Auto-scroll mobile analytics charts every 5s (pauses on user interaction)
+  useEffect(() => {
+    if (!canAccessFinancials) return;
+    const checkIsMobile = () => typeof window !== 'undefined' && window.innerWidth < 1024;
+    if (!checkIsMobile() || isChartHovered) return;
+
+    const timer = setInterval(() => {
+      if (!chartsScrollRef.current || !checkIsMobile()) return;
+      const container = chartsScrollRef.current;
+      const nextSlide = activeChartSlide === 0 ? 1 : 0;
+      container.scrollTo({
+        left: nextSlide * container.clientWidth,
+        behavior: 'smooth'
+      });
+      setActiveChartSlide(nextSlide);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [canAccessFinancials, activeChartSlide, isChartHovered]);
+
+  const handleChartsScroll = () => {
+    if (!chartsScrollRef.current) return;
+    const container = chartsScrollRef.current;
+    const width = container.clientWidth;
+    if (width > 0) {
+      const slide = Math.round(container.scrollLeft / width);
+      if (slide !== activeChartSlide) {
+        setActiveChartSlide(slide);
+      }
+    }
+  };
+
+  const scrollToChartSlide = (index) => {
+    if (!chartsScrollRef.current) return;
+    const container = chartsScrollRef.current;
+    container.scrollTo({
+      left: index * container.clientWidth,
+      behavior: 'smooth'
+    });
+    setActiveChartSlide(index);
+  };
+
   // Multi-criteria Universal Search Matcher: Name, Mobile, Email, Dates, Plan, Coach, ID, Status, Dues, KYC, etc.
   const searchResults = useMemo(() => {
     if (!memberSearchQuery || !memberSearchQuery.trim()) return [];
@@ -627,32 +674,69 @@ export const OwnerDashboard = ({
     .filter((card) => canAccessFinancials || !card.restricted);
 
   return (
-    <div className="space-y-4 animate-fadeIn pb-16 w-full">
+    <div className="space-y-3 sm:space-y-4 animate-fadeIn pb-16 w-full max-w-full">
 
-      {/* 1. CLEAN & CALM HEADER */}
-      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+      {/* 1. CLEAN & RESPONSIVE HEADER */}
+      <div className="bg-white border border-slate-200 p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
               Gym Overview
             </h1>
+            <p className="text-[11px] text-slate-500 hidden sm:block">
+              Real-time overview of your memberships, live attendance, revenue, and daily operations.
+            </p>
           </div>
-          <p className="text-[11px] text-slate-500 hidden sm:block">
-            Real-time overview of your memberships, live attendance, revenue, and daily operations.
-          </p>
+
+          {/* Desktop inline action buttons (hidden on mobile) */}
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsAddEnquiryOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-blue-600" />
+              <span>New Enquiry</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToCreateInvoice) {
+                  onNavigateToCreateInvoice();
+                } else if (setActiveTab) {
+                  setActiveTab('create-invoice');
+                } else {
+                  setIsCreateInvoiceOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Create Invoice</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAddMember) {
+                  onOpenAddMember();
+                } else if (setActiveTab) {
+                  setActiveTab('add-member');
+                } else {
+                  setIsAddMemberOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+            >
+              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Add Member</span>
+            </button>
+          </div>
         </div>
 
-        {/* Action Buttons with high-contrast hover feedback */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsAddEnquiryOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-blue-600" />
-            <span>New Enquiry</span>
-          </button>
-
+        {/* Mobile Action Buttons: Compact 3-Column Quick Actions */}
+        <div className="sm:hidden grid grid-cols-3 gap-2 pt-0.5">
           <button
             type="button"
             onClick={() => {
@@ -664,10 +748,19 @@ export const OwnerDashboard = ({
                 setIsCreateInvoiceOpen(true);
               }
             }}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
+            className="h-9.5 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white text-[11px] font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all truncate"
           >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Create Invoice</span>
+            <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+            <span className="truncate">Invoice</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAddEnquiryOpen(true)}
+            className="h-9.5 px-2 rounded-xl bg-blue-50 active:bg-blue-100 text-blue-700 text-[11px] font-bold border border-blue-200 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs truncate"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="truncate">Enquiry</span>
           </button>
 
           <button
@@ -681,23 +774,23 @@ export const OwnerDashboard = ({
                 setIsAddMemberOpen(true);
               }
             }}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+            className="h-9.5 px-2 rounded-xl bg-slate-900 active:bg-slate-800 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs truncate"
           >
-            <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Add Member</span>
+            <UserPlus className="w-3.5 h-3.5 text-white shrink-0" />
+            <span className="truncate">Member</span>
           </button>
-          </div>
         </div>
+      </div>
 
-      {/* UNIVERSAL DASHBOARD SEARCH BAR (Search by Name, Date, Mobile, Email, Plan, etc.) */}
+      {/* UNIVERSAL DASHBOARD SEARCH BAR (48px touch height, 16px font on mobile, concise placeholder) */}
       <div className="relative w-full" ref={searchContainerRef}>
-        <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
-          <div className="flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 sm:py-1.5 min-h-[48px] sm:min-h-0 shadow-2xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 flex items-center">
+          <div className="flex items-center gap-2.5 w-full">
             <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Search className="w-4 h-4" />
             </div>
 
-            <div className="flex-1 relative flex items-center">
+            <div className="flex-1 relative flex items-center min-w-0">
               <input
                 type="text"
                 value={memberSearchQuery}
@@ -727,8 +820,8 @@ export const OwnerDashboard = ({
                     }
                   }
                 }}
-                placeholder="Search anything: Name, Mobile, Email, Date, Plan..."
-                className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-6"
+                placeholder="Search members, invoices..."
+                className="w-full bg-transparent text-base sm:text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-6"
               />
               {memberSearchQuery && (
                 <button
@@ -736,10 +829,11 @@ export const OwnerDashboard = ({
                   onClick={() => {
                     setMemberSearchQuery('');
                   }}
-                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  className="w-9 h-9 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                   title="Clear search"
+                  aria-label="Clear search"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -951,23 +1045,26 @@ export const OwnerDashboard = ({
       {/* 2. CUSTOMIZABLE STAT CARDS SECTION */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
-              Operational Metrics
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider truncate">
+              <span className="sm:hidden">Metrics</span>
+              <span className="hidden sm:inline">Operational Metrics</span>
             </span>
-            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+            <span className="hidden sm:inline-flex text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
               {activeStatCards.length} Cards Active
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsCustomizeCardsOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              title="Customise Cards"
+              aria-label="Customise Cards"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Customise Cards</span>
+              <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">Customise Cards</span>
             </button>
 
             {customCardIds.join(',') !== defaultCardIds.join(',') && (
@@ -975,15 +1072,16 @@ export const OwnerDashboard = ({
                 type="button"
                 onClick={handleResetCardsToDefault}
                 title="Reset cards to default 4 layout"
-                className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                aria-label="Reset cards to default layout"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] sm:w-auto sm:h-auto sm:p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Dynamic Cards Grid */}
+        {/* Dynamic Cards Grid (2-column on mobile, 3 on md, 4 on lg) */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {activeStatCards.map((card) => {
             const Icon = card.icon;
@@ -1068,7 +1166,7 @@ export const OwnerDashboard = ({
               <div
                 key={card.id}
                 onClick={() => handleCardClick(card)}
-                className={`group relative bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm ${colorClasses.borderHover} transition-all flex flex-col justify-between cursor-pointer active:scale-[0.99]`}
+                className={`group relative bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm ${colorClasses.borderHover} transition-all flex flex-col justify-between cursor-pointer active:scale-[0.98] select-none`}
               >
                 {/* Remove Card 'X' Button on top-right */}
                 <button
@@ -1109,10 +1207,10 @@ export const OwnerDashboard = ({
             );
           })}
 
-          {/* "+ Add Card" compact interactive slot */}
+          {/* "+ Add Card" interactive slot (hidden on mobile to keep clean 2-col balance) */}
           <div
             onClick={() => setIsCustomizeCardsOpen(true)}
-            className="border border-dashed border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all group min-h-[76px]"
+            className="hidden sm:flex border border-dashed border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-2.5 sm:p-3.5 flex-col items-center justify-center text-center cursor-pointer transition-all group min-h-[76px]"
           >
             <div className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-600 flex items-center justify-center transition-colors mb-1">
               <Plus className="w-3 h-3" />
@@ -1128,16 +1226,62 @@ export const OwnerDashboard = ({
       </div>
 
       {/* 3. VISUAL ANALYTICS ROW: REVENUE TREND + ACTIVE VS ALL USER PIE CHART */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6">
+      <div className="space-y-2">
+        {/* Mobile Slide Switcher Tabs (Hidden on Desktop) */}
+        {canAccessFinancials && (
+          <div className="flex lg:hidden items-center justify-between gap-2 px-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>Key Analytics</span>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => scrollToChartSlide(0)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  activeChartSlide === 0
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Revenue Trend
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToChartSlide(1)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  activeChartSlide === 1
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Active Users
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div
+          ref={chartsScrollRef}
+          onScroll={handleChartsScroll}
+          onTouchStart={() => setIsChartHovered(true)}
+          onTouchEnd={() => setTimeout(() => setIsChartHovered(false), 3000)}
+          onMouseEnter={() => setIsChartHovered(true)}
+          onMouseLeave={() => setIsChartHovered(false)}
+          className="flex lg:grid lg:grid-cols-12 gap-3 sm:gap-6 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scroll-smooth no-scrollbar"
+        >
 
         {/* Revenue Growth Trend Area Chart (Left 7 Cols or Full if no revenue) */}
         {canAccessFinancials && (
-          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between">
+          <div className="w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none lg:col-span-7 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div>
                   <h2 className="text-sm sm:text-base font-bold text-slate-900">Revenue Growth Trend</h2>
-                  <p className="text-xs text-slate-500">Monthly membership & trainer fee collections (Mar – Aug 2026)</p>
+                  <p className="text-xs text-slate-500">
+                    <span className="sm:hidden">Monthly collections</span>
+                    <span className="hidden sm:inline">Monthly membership & trainer fee collections (Mar – Aug 2026)</span>
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
@@ -1146,7 +1290,7 @@ export const OwnerDashboard = ({
                 </div>
               </div>
 
-              <div className="h-48 sm:h-64 w-full mt-3 sm:mt-4">
+              <div className="h-52 sm:h-64 w-full mt-3 sm:mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -1203,7 +1347,7 @@ export const OwnerDashboard = ({
         )}
 
         {/* ACTIVE VS ALL USER PIE / DONUT CHART (Right 5 Cols or 12 Cols for manager) */}
-        <div className={`${canAccessFinancials ? 'lg:col-span-5' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between`}>
+        <div className={`w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none ${canAccessFinancials ? 'lg:col-span-5' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between`}>
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
@@ -1331,6 +1475,29 @@ export const OwnerDashboard = ({
           </div>
         </div>
 
+        </div>
+
+        {/* Mobile Pagination Indicator Dots */}
+        {canAccessFinancials && (
+          <div className="flex lg:hidden items-center justify-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => scrollToChartSlide(0)}
+              aria-label="Revenue chart"
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                activeChartSlide === 0 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => scrollToChartSlide(1)}
+              aria-label="Active users chart"
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                activeChartSlide === 1 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
+              }`}
+            />
+          </div>
+        )}
       </div>
 
       {/* 4. STREAMLINED OPERATIONS DIRECTORY — IMPORTANT DETAILS ONLY (UNCLUTTERED) */}
@@ -2125,14 +2292,14 @@ export const OwnerDashboard = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
               <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                 {invoices.length} Total Records
               </span>
               <button
                 type="button"
                 onClick={() => setActiveTab('invoices')}
-                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <span>View All Invoices</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -2145,59 +2312,133 @@ export const OwnerDashboard = ({
               No billing invoices generated yet. Invoices created during member registration or top-ups will display creator details here.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="pb-2.5 font-semibold">Invoice ID</th>
-                    <th className="pb-2.5 font-semibold">Member</th>
-                    <th className="pb-2.5 font-semibold">Plan / Service</th>
-                    <th className="pb-2.5 font-semibold">Amount</th>
-                    <th className="pb-2.5 font-semibold">Status</th>
-                    <th className="pb-2.5 font-semibold">Billed / Created By</th>
-                    <th className="pb-2.5 font-semibold text-right">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {recentInvoicesAudit.map((inv) => (
-                    <tr key={inv.id || inv.numericId} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 font-mono font-bold text-slate-900">
-                        #{inv.id}
-                      </td>
-                      <td className="py-3">
-                        <div className="font-bold text-slate-800">{inv.memberName}</div>
-                        {inv.memberPhone && (
-                          <div className="text-[11px] text-slate-400">{inv.memberPhone}</div>
-                        )}
-                      </td>
-                      <td className="py-3 text-slate-600">
-                        {inv.planName}
-                      </td>
-                      <td className="py-3 font-mono font-bold text-slate-900">
-                        ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
+            <>
+              {/* MOBILE CARDS (< 640px) */}
+              <div className="block sm:hidden space-y-2.5">
+                {recentInvoicesAudit.map((inv) => (
+                  <div
+                    key={inv.id || inv.numericId}
+                    className="p-3.5 rounded-xl border border-slate-200/90 bg-white shadow-xs space-y-2.5"
+                  >
+                    {/* Top Row: Invoice ID + Status + Date */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono font-bold text-xs text-slate-900 truncate">
+                          #{inv.id}
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                            (inv.status || '').toLowerCase() === 'paid'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
                           {inv.status || 'Paid'}
                         </span>
-                      </td>
-                      <td className="py-3">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px]">
-                          <User className="w-3 h-3 text-emerald-700 shrink-0" />
-                          <span className="font-bold">{inv.createdByName}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 text-right text-slate-500 font-mono text-[11px]">
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 shrink-0">
                         {inv.date}
-                      </td>
+                      </span>
+                    </div>
+
+                    {/* Middle Row: Member Info & Amount */}
+                    <div className="flex items-start justify-between gap-3 pt-1 border-t border-slate-100">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm text-slate-900 truncate">
+                          {inv.memberName}
+                        </div>
+                        {inv.memberPhone && (
+                          <a
+                            href={`tel:${inv.memberPhone}`}
+                            className="text-xs text-slate-500 hover:text-emerald-600 transition-colors flex items-center gap-1 mt-0.5"
+                          >
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{inv.memberPhone}</span>
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                          Amount
+                        </div>
+                        <div className="font-mono font-extrabold text-sm text-slate-900">
+                          ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Plan / Service & Created By Staff */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                      <div className="text-slate-600 font-medium truncate flex-1 min-w-0">
+                        <span className="text-slate-400 text-[11px]">Plan: </span>
+                        <span className="text-slate-800 font-semibold">{inv.planName}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px] shrink-0">
+                        <User className="w-3 h-3 text-emerald-700 shrink-0" />
+                        <span className="font-semibold truncate max-w-[110px]">
+                          {inv.createdByName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DESKTOP TABLE (>= 640px) */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <th className="pb-2.5 font-semibold">Invoice ID</th>
+                      <th className="pb-2.5 font-semibold">Member</th>
+                      <th className="pb-2.5 font-semibold">Plan / Service</th>
+                      <th className="pb-2.5 font-semibold">Amount</th>
+                      <th className="pb-2.5 font-semibold">Status</th>
+                      <th className="pb-2.5 font-semibold">Billed / Created By</th>
+                      <th className="pb-2.5 font-semibold text-right">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {recentInvoicesAudit.map((inv) => (
+                      <tr key={inv.id || inv.numericId} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 font-mono font-bold text-slate-900">
+                          #{inv.id}
+                        </td>
+                        <td className="py-3">
+                          <div className="font-bold text-slate-800">{inv.memberName}</div>
+                          {inv.memberPhone && (
+                            <div className="text-[11px] text-slate-400">{inv.memberPhone}</div>
+                          )}
+                        </td>
+                        <td className="py-3 text-slate-600">
+                          {inv.planName}
+                        </td>
+                        <td className="py-3 font-mono font-bold text-slate-900">
+                          ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                            {inv.status || 'Paid'}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px]">
+                            <User className="w-3 h-3 text-emerald-700 shrink-0" />
+                            <span className="font-bold">{inv.createdByName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 text-right text-slate-500 font-mono text-[11px]">
+                          {inv.date}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

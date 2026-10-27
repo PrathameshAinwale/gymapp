@@ -632,7 +632,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Search Input with Autocomplete */}
           <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
@@ -642,13 +642,13 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search leads by name, phone, email, source, plan, or notes..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
+              className="w-full pl-9 pr-8 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold cursor-pointer"
                 title="Clear search"
               >
                 ✕
@@ -707,7 +707,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -899,56 +899,56 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                   </div>
                 )}
 
-                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5">
                     {enq.phone && (
                       <a
                         href={getWhatsAppUrl(enq.phone, `Hi ${enq.name}, greetings from Pulse Fitness! Following up on your enquiry.`)}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all"
+                        className="px-2.5 py-1.5 min-h-[36px] rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
                       >
-                        <MessageCircle className="w-3 h-3 text-emerald-600" />
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Chat</span>
                       </a>
                     )}
                     <button
                       type="button"
                       onClick={() => handleOpenCommentModal(enq)}
-                      className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                      className="px-2.5 py-1.5 min-h-[36px] rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                     >
-                      <MessageSquare className="w-3 h-3 text-slate-400" />
+                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
                       <span>Note</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     {currentStatus === 'Converted' && (
                       <button
                         type="button"
                         onClick={() => handleOpenAddMemberModal(enq)}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+                        className="px-3 py-1.5 min-h-[36px] rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
                         title="Add Member - Register & Enroll this Lead"
                       >
-                        <UserPlus className="w-3 h-3" />
+                        <UserPlus className="w-3.5 h-3.5" />
                         <span>Add Member</span>
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => handleOpenEditModal(enq)}
-                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
                       title="Edit"
                     >
-                      <Edit2 className="w-3 h-3" />
+                      <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setEnquiryToDelete(enq)}
-                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
                       title="Delete"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

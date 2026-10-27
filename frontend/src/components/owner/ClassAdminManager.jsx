@@ -221,10 +221,11 @@ export const ClassAdminManager = () => {
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+          className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>Schedule Class</span>
+          <span className="hidden sm:inline">Schedule Class</span>
+          <span className="inline sm:hidden">Schedule</span>
         </button>
       </div>
 
@@ -243,13 +244,13 @@ export const ClassAdminManager = () => {
                 setIsSearchDropdownOpen(true);
               }}
               placeholder="Search group class batch by name, coach, category, room..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
+              className="w-full pl-8 sm:pl-9 pr-7 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 text-[10px] font-bold cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-[10px] font-bold cursor-pointer"
                 title="Clear search"
               >
                 ✕
@@ -300,7 +301,7 @@ export const ClassAdminManager = () => {
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              className={`flex items-center gap-1.5 px-3 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -407,7 +408,7 @@ export const ClassAdminManager = () => {
                       <button
                         type="button"
                         onClick={() => setClassToDelete(cls)}
-                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-all cursor-pointer"
+                        className="p-2 min-h-[36px] min-w-[36px] rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-all cursor-pointer flex items-center justify-center active:scale-95"
                         title="Remove Class"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -470,7 +471,7 @@ export const ClassAdminManager = () => {
               placeholder="e.g. CrossFit Blitz / Power Yoga"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+              className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
             />
           </div>
 
@@ -479,7 +480,7 @@ export const ClassAdminManager = () => {
             <select
               value={form.trainerId}
               onChange={(e) => setForm({ ...form, trainerId: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+              className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
             >
               {trainers.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -498,7 +499,7 @@ export const ClassAdminManager = () => {
                 placeholder="e.g. 06:30 AM - 07:30 AM"
                 value={form.time}
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -512,7 +513,7 @@ export const ClassAdminManager = () => {
                 value={form.capacity}
                 onKeyDown={(e) => preventNonNumericKey(e, false)}
                 onChange={(e) => setForm({ ...form, capacity: sanitizeDigits(e.target.value, 3) })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -546,7 +547,7 @@ export const ClassAdminManager = () => {
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               >
                 <option value="Cardio & HIIT">Cardio & HIIT</option>
                 <option value="Strength & Power">Strength & Power</option>
@@ -562,7 +563,7 @@ export const ClassAdminManager = () => {
                 type="text"
                 value={form.room}
                 onChange={(e) => setForm({ ...form, room: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -574,7 +575,7 @@ export const ClassAdminManager = () => {
               placeholder="e.g. High intensity interval circuit designed to burn fat and build stamina."
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
             />
           </div>
 
@@ -582,13 +583,13 @@ export const ClassAdminManager = () => {
             <button
               type="button"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+              className="px-4 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
             >
               Schedule Batch
             </button>

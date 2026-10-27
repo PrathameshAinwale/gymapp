@@ -331,53 +331,54 @@ export const AttendanceTracker = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsBiometricModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
             title="Configure eSSL ADMS Cloud Server"
           >
-            <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
-            <span>eSSL Machine Config</span>
+            <Fingerprint className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">eSSL Machine Config</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsSimulateModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
             title="Simulate / Test a Biometric Punch"
           >
-            <Radio className="w-3.5 h-3.5 text-purple-600" />
-            <span>Test Punch</span>
+            <Radio className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-purple-600" />
+            <span className="hidden sm:inline">Test Punch</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            title="Muster Report"
           >
-            <FileText className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Muster Report</span>
+            <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Muster Report</span>
           </button>
 
           {isToday ? (
             <button
               type="button"
               onClick={() => setIsMemberCheckInModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm shadow-emerald-600/20"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm shadow-emerald-600/20"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Punch In Member</span>
+              <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              <span>Punch In</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setSelectedDate(todayIso)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Switch to Live Today</span>
+              <RotateCcw className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+              <span>Today</span>
             </button>
           )}
         </div>
@@ -534,7 +535,7 @@ export const AttendanceTracker = () => {
                   setIsSearchDropdownOpen(true);
                 }}
                 placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
-                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
+                className="w-full pl-9 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
               />
               {searchTerm && (
                 <button
@@ -583,7 +584,7 @@ export const AttendanceTracker = () => {
               <button
                 type="button"
                 onClick={() => setShowFilterModal(true)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${activeFiltersCount > 0
+                className={`px-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${activeFiltersCount > 0
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
@@ -716,9 +717,9 @@ export const AttendanceTracker = () => {
                     <button
                       type="button"
                       onClick={() => punchOutMember(log.id)}
-                      className="w-full mt-1.5 py-1.5 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full mt-1.5 min-h-[44px] py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 shadow-2xs"
                     >
-                      <Clock className="w-3.5 h-3.5" />
+                      <Clock className="w-3.5 h-3.5 text-rose-600" />
                       <span>Punch Out Member</span>
                     </button>
                   )}

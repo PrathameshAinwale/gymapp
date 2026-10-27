@@ -884,26 +884,27 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {onNavigateTab && (
             <>
               <button
                 type="button"
                 onClick={() => onNavigateTab('settings')}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
                 title="Configure custom roles & page access permissions in Settings"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Roles & Permissions</span>
+                <ShieldCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">Roles & Permissions</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateTab('shifts')}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                title="Shift Rosters"
               >
-                <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
+                <Clock className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
               </button>
             </>
           )}
@@ -917,9 +918,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               }
               setIsCreateModalOpen(true);
             }}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             <span>Add Staff</span>
           </button>
         </div>
@@ -972,7 +973,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <select
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                className="pl-8.5 pr-8 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
+                className="pl-8.5 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
               >
                 <option value="all">All Roles ({staffList.length})</option>
                 {availableRoles.map((r) => (
@@ -1018,7 +1019,148 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile View: Stacked Staff Cards */}
+            <div className="block sm:hidden p-3 space-y-2.5">
+              {filteredStaffList.map((stf) => {
+                const isSuper = stf.role === 'superadmin' || stf.role === 'owner';
+                const isMgr = stf.role === 'manager';
+                const isAcc = stf.role === 'accounts';
+                const isTrainer = stf.role === 'trainer';
+
+                return (
+                  <div key={stf.id} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <StaffAvatar src={stf.avatar} name={stf.name} size="sm" />
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 text-xs truncate">{stf.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate">{stf.email}</div>
+                          {stf.phone && <div className="text-[10px] text-slate-500">{stf.phone}</div>}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {isSuper && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <ShieldCheck className="w-2.5 h-2.5" /> Owner
+                          </span>
+                        )}
+                        {isMgr && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Users className="w-2.5 h-2.5" /> Manager
+                          </span>
+                        )}
+                        {isAcc && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            <ShieldCheck className="w-2.5 h-2.5 text-amber-600" /> Accounts
+                          </span>
+                        )}
+                        {isTrainer && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <Award className="w-2.5 h-2.5 text-purple-600" /> Coach
+                          </span>
+                        )}
+                        {!isSuper && !isMgr && !isAcc && !isTrainer && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Users className="w-2.5 h-2.5" />
+                            {stf.role_label || (availableRoles.find((r) => r.slug === stf.role)?.name) || stf.role}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Details Grid */}
+                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Salary</span>
+                        <span className="font-bold text-slate-900">{stf.salary ? `₹${Number(stf.salary).toLocaleString('en-IN')}` : '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Shift</span>
+                        <span className="font-semibold text-slate-700 truncate block">{stf.shifts || 'Morning'}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Joining</span>
+                        <span className="font-medium text-slate-600">{stf.joining_date || stf.joiningDate || '—'}</span>
+                      </div>
+                    </div>
+
+                    {/* KYC & Hardware PIN */}
+                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {stf.aadhaar_card ? (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[9px]">
+                            UID: ...{stf.aadhaar_card.slice(-4)}
+                          </span>
+                        ) : null}
+                        {stf.pan_card ? (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px]">
+                            PAN: {stf.pan_card.slice(0, 5)}...
+                          </span>
+                        ) : null}
+                        {(stf.biometric_user_id || stf.biometricUserId) && (
+                          <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-mono text-[9px] flex items-center gap-0.5">
+                            <Fingerprint className="w-2.5 h-2.5 text-purple-600" /> PIN: {stf.biometric_user_id || stf.biometricUserId}
+                          </span>
+                        )}
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        <CheckCircle2 className="w-2.5 h-2.5" /> Active
+                      </span>
+                    </div>
+
+                    {/* Mobile Card Action Buttons */}
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-100">
+                      {isTrainer && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCoachRoster(stf)}
+                          className="px-2.5 py-1.5 min-h-[36px] rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                        >
+                          <Users className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Roster ({(stf.assigned_members || []).length})</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSharingStaff(stf);
+                          setShowSharePassword(false);
+                        }}
+                        className="px-2.5 py-1.5 min-h-[36px] rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Share ID</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(stf)}
+                        className="p-2 min-h-[36px] min-w-[36px] rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 transition-colors cursor-pointer shrink-0 flex items-center justify-center active:scale-95"
+                        title="Edit Staff Member"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {!isSuper && (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingStaff(stf)}
+                          className="p-2 min-h-[36px] min-w-[36px] rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 transition-colors cursor-pointer shrink-0 flex items-center justify-center active:scale-95"
+                          title="Delete Staff Member"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View: Table */}
+            <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
@@ -1249,7 +1391,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </tbody>
             </table>
           </div>
-        )}
+        </>
+      )}
       </div>
 
       {/* CREATE / ADD STAFF MEMBER MODAL */}

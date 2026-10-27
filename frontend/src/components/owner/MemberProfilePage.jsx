@@ -448,7 +448,7 @@ export const MemberProfilePage = ({
           <button
             type="button"
             onClick={onBackToDashboard || (() => onNavigateTab?.('dashboard'))}
-            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
             title="Return to Dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -516,7 +516,7 @@ export const MemberProfilePage = ({
                   href={getWhatsAppUrl(currentMember.phone, `Hi ${currentMember.name}, greetings from ${gymInfo?.name || 'our Gym'}!`)}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+                  className="w-full h-12 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp Chat</span>
@@ -527,7 +527,7 @@ export const MemberProfilePage = ({
                 <button
                   type="button"
                   onClick={() => setIsPayDueOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+                  className="w-full h-12 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Pay Balance (₹{Number(duesAmount).toLocaleString('en-IN')})</span>
@@ -544,7 +544,7 @@ export const MemberProfilePage = ({
                       setIsRecordPaymentOpen(true);
                     }
                   }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
+                  className="w-full h-12 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200 active:scale-98"
                 >
                   <Plus className="w-4 h-4 text-emerald-600" />
                   <span>Record Fee / Create Invoice</span>
@@ -675,7 +675,7 @@ export const MemberProfilePage = ({
         <div className="lg:col-span-8 space-y-5">
           
           {/* 1. Top 3 Metric Cards (Matching reference Heart Rate, Body Temperature, Glucose) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             
             {/* Metric 1: Total Fees Paid */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center">
@@ -704,7 +704,7 @@ export const MemberProfilePage = ({
             </div>
 
             {/* Metric 3: Pending Dues (Correctly pulled from backend duesAmount & invoices) */}
-            <div className={`rounded-3xl p-5 border shadow-xs flex flex-col items-center justify-center text-center transition-all ${
+            <div className={`col-span-2 sm:col-span-1 rounded-3xl p-5 border shadow-xs flex flex-col items-center justify-center text-center transition-all ${
               duesAmount > 0 ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-slate-200/80'
             }`}>
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-2 shadow-2xs ${
@@ -879,7 +879,7 @@ export const MemberProfilePage = ({
             <button
               type="button"
               onClick={() => setIsRecordPaymentOpen(true)}
-              className="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/30 hover:bg-emerald-50/70 text-emerald-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-99"
+              className="w-full h-12 px-4 rounded-2xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/30 hover:bg-emerald-50/70 text-emerald-700 text-xs sm:text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-99"
             >
               <Plus className="w-4 h-4 text-emerald-600" />
               <span>+ Record a fee / invoice</span>
@@ -933,7 +933,7 @@ export const MemberProfilePage = ({
                         <button
                           type="button"
                           onClick={() => { const payload = { ...inv, member: currentMember, currentMember }; if (onNavigateToEditInvoice) { onNavigateToEditInvoice(payload); } else { setEditingInvoice(payload); } }}
-                          className="px-2 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1"
+                          className="h-11 px-3 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1 active:scale-95"
                           title="Edit invoice details and member name"
                         >
                           <Edit2 className="w-3 h-3 text-indigo-600" />
@@ -942,14 +942,14 @@ export const MemberProfilePage = ({
                         <button
                           type="button"
                           onClick={() => handleOpenInvoicePreview(inv)}
-                          className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                          className="h-11 px-3.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl cursor-pointer transition-colors shadow-2xs flex items-center active:scale-95"
                         >
                           Receipt
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDownloadInvoice(inv)}
-                          className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+                          className="w-11 h-11 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer transition-colors flex items-center justify-center active:scale-95"
                           title="Download PDF"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -957,7 +957,7 @@ export const MemberProfilePage = ({
                         <button
                           type="button"
                           onClick={() => handleShareWhatsApp(inv)}
-                          className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors"
+                          className="w-11 h-11 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-xl border border-emerald-200 cursor-pointer transition-colors flex items-center justify-center active:scale-95"
                           title="Share WhatsApp"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />

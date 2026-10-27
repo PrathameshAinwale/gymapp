@@ -2009,10 +2009,37 @@ export const api = {
       return handleResponse(res);
     },
     update: async (data) => {
+      const activeGymId = data.gym_id || data.gymId || getActiveGymId();
+      const payload = {
+        ...(activeGymId ? { gym_id: activeGymId } : {}),
+        ...data,
+      };
       const res = await apiFetch(`${API_BASE_URL}/gym-info`, {
         method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
+        headers: getHeaders(activeGymId ? { 'X-Gym-Id': String(activeGymId), 'X-Gym-ID': String(activeGymId) } : {}),
+        body: JSON.stringify(payload),
+      });
+      return handleResponse(res);
+    },
+    uploadLogo: async (file, gymId = null) => {
+      const targetGymId = gymId || getActiveGymId();
+      const formData = new FormData();
+      formData.append('logo', file);
+      if (targetGymId) {
+        formData.append('gym_id', targetGymId);
+      }
+      const token = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_token') : null;
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (targetGymId) {
+        headers['X-Gym-Id'] = String(targetGymId);
+        headers['X-Gym-ID'] = String(targetGymId);
+      }
+      const res = await apiFetch(`${API_BASE_URL}/gym-info/logo`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        skipCache: true,
       });
       return handleResponse(res);
     },
@@ -2262,6 +2289,10 @@ export const api = {
       const res = await apiFetch(`${API_BASE_URL}/notifications/member-ids${query ? `?${query}` : ''}`, { headers: getHeaders() });
       return handleResponse(res);
     },
+  },
+  clearCache: () => {
+    getResponseCache.clear();
+    inflightGetRequests.clear();
   },
 };
 

@@ -49,22 +49,43 @@ abstract class Controller
                 $headerGymId = $request->header('X-Gym-Id') ?? $request->header('X-Gym-ID') ?? $request->header('x-gym-id');
                 if ($headerGymId) {
                     $hVal = (int) $headerGymId;
-                    if ($hVal > 0 && Gym::where('id', $hVal)->where('owner_id', $user->id)->exists()) {
-                        return $hVal;
+                    if ($hVal > 0) {
+                        $targetGym = Gym::find($hVal);
+                        if ($targetGym && ((int)$targetGym->owner_id === (int)$user->id || (int)$user->gym_id === $hVal || empty($targetGym->owner_id))) {
+                            if (empty($targetGym->owner_id)) {
+                                $targetGym->owner_id = $user->id;
+                                $targetGym->save();
+                            }
+                            return $hVal;
+                        }
                     }
                 }
 
                 $paramGymId = $request->input('gym_id') ?? $request->input('gymId') ?? $request->query('gym_id') ?? $request->query('gymId');
                 if ($paramGymId) {
                     $pVal = (int) $paramGymId;
-                    if ($pVal > 0 && Gym::where('id', $pVal)->where('owner_id', $user->id)->exists()) {
-                        return $pVal;
+                    if ($pVal > 0) {
+                        $targetGym = Gym::find($pVal);
+                        if ($targetGym && ((int)$targetGym->owner_id === (int)$user->id || (int)$user->gym_id === $pVal || empty($targetGym->owner_id))) {
+                            if (empty($targetGym->owner_id)) {
+                                $targetGym->owner_id = $user->id;
+                                $targetGym->save();
+                            }
+                            return $pVal;
+                        }
                     }
                 }
 
-                // If user's gym_id belongs to them, use it
-                if ($user->gym_id && Gym::where('id', $user->gym_id)->where('owner_id', $user->id)->exists()) {
-                    return (int) $user->gym_id;
+                // If user has an assigned gym_id and that Gym exists, use it
+                if ($user->gym_id) {
+                    $existingGym = Gym::find($user->gym_id);
+                    if ($existingGym && ((int)$existingGym->owner_id === (int)$user->id || empty($existingGym->owner_id) || (int)$user->gym_id === (int)$existingGym->id)) {
+                        if (empty($existingGym->owner_id)) {
+                            $existingGym->owner_id = $user->id;
+                            $existingGym->save();
+                        }
+                        return (int) $existingGym->id;
+                    }
                 }
 
                 // If they own a gym, synchronize user's gym_id to it

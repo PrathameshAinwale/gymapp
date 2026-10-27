@@ -276,10 +276,18 @@ class AuthController extends Controller
         }
 
         if ($user->role === 'owner') {
-            $ownedGym = \App\Models\Gym::where('owner_id', $user->id)->first();
-            if ($ownedGym && $user->gym_id !== $ownedGym->id) {
-                $user->gym_id = $ownedGym->id;
-                $user->save();
+            // Only synchronize if the user has no gym or their gym_id is not owned by them
+            $hasValidGym = $user->gym_id && \App\Models\Gym::where('id', $user->gym_id)
+                ->where(function ($q) use ($user) {
+                    $q->where('owner_id', $user->id)->orWhereNull('owner_id');
+                })->exists();
+
+            if (!$hasValidGym) {
+                $ownedGym = \App\Models\Gym::where('owner_id', $user->id)->first();
+                if ($ownedGym && (int)$user->gym_id !== (int)$ownedGym->id) {
+                    $user->gym_id = $ownedGym->id;
+                    $user->save();
+                }
             }
         }
 

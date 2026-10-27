@@ -262,6 +262,9 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const { currentUser, currentRole } = useAuth();
   const { gymInfo } = useGymData();
 
+  const gymName = gymInfo?.name || (currentUser?.gymName && !currentUser.gymName.includes('Arch DevOps') ? currentUser.gymName : 'PulseFit Gym');
+  const gymLogo = gymInfo?.logo || '';
+
   const currentTier = resolveGymTier(gymInfo, currentUser);
   const customFeatures = gymInfo?.features || [];
 
@@ -402,7 +405,10 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const accent = getRoleAccent();
 
   const renderNavList = (isMobile = false) => (
-    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 pb-8 space-y-1.5 no-scrollbar">
+    <div
+      className="flex-1 min-h-0 overflow-y-auto px-3 py-3 pb-8 space-y-1.5"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
       {sections.map((sec, idx) => {
         const isOpen = Boolean(openSections[sec.title]);
         const hasActiveItem = sec.items.some((item) => item.id === activeTab);
@@ -546,18 +552,50 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
           {/* Drawer */}
           <div className="drawer-panel border-r border-slate-200">
             {/* Drawer Header */}
-            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 safe-top shrink-0">
-              <div className="flex items-center gap-2">
-                <PulseFitLogo variant="horizontal" size="sm" />
-                <div className={`text-[10px] font-bold ${accent.text} uppercase tracking-wide ml-1`}>
-                  {accent.label}
+            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 safe-top shrink-0 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {/* Gym Logo or Initial Emblem */}
+                {gymLogo ? (
+                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center overflow-hidden shrink-0">
+                    <img
+                      src={gymLogo}
+                      alt={gymName || 'Gym Logo'}
+                      className="w-full h-full object-contain p-0.5"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
+                    />
+                    <div className="hidden w-full h-full items-center justify-center bg-emerald-600 text-white font-black text-xs">
+                      {(gymName || 'A').charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shadow-2xs border border-emerald-500/30 shrink-0">
+                    {(gymName || 'A').charAt(0).toUpperCase()}
+                  </div>
+                )}
+
+                {/* Gym Name & powered by ARCHFIT */}
+                <div className="flex flex-col justify-center min-w-0">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[170px] leading-tight">
+                    {gymName || 'Fitness Club'}
+                  </span>
+                  <div className="flex items-center gap-1 text-[8px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
+                    <span>powered by</span>
+                    <span className="font-black text-slate-800 tracking-tight">
+                      ARCH<span className="text-lime-500">FIT</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsMobileOpen(false)}
-                className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer flex items-center justify-center active:scale-95 -mr-1"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -566,6 +604,17 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
 
             {/* Scrollable Navigation */}
             {renderNavList(true)}
+
+            {/* Drawer Footer with Powered by ARCHFIT */}
+            <div className="p-3.5 border-t border-slate-200/80 bg-slate-50/80 safe-bottom shrink-0 flex items-center justify-between text-slate-500">
+              <div className="flex items-center gap-1 font-semibold uppercase tracking-wider text-[9px] text-slate-400">
+                <span>powered by</span>
+                <span className="font-black text-slate-800 tracking-tight text-[11px]">
+                  ARCH<span className="text-lime-500">FIT</span>
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Gym Suite</span>
+            </div>
           </div>
         </div>
       )}

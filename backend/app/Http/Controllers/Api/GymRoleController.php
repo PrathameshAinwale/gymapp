@@ -46,10 +46,39 @@ class GymRoleController extends Controller
     }
 
     /**
+     * Ensure gym_roles table exists on the database (self-healing for unmigrated production environments)
+     */
+    public static function ensureTableExists(): void
+    {
+        try {
+            if (!Schema::hasTable('gym_roles')) {
+                Schema::create('gym_roles', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->id();
+                    $table->unsignedBigInteger('gym_id');
+                    $table->string('name');
+                    $table->string('slug');
+                    $table->text('description')->nullable();
+                    $table->string('color')->default('indigo');
+                    $table->json('assigned_pages')->nullable();
+                    $table->boolean('is_default')->default(false);
+                    $table->timestamps();
+
+                    $table->unique(['gym_id', 'slug']);
+                    $table->index('gym_id');
+                });
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("GymRoleController::ensureTableExists note: " . $e->getMessage());
+        }
+    }
+
+    /**
      * Ensure default 3 roles exist for a gym
      */
     public static function ensureDefaultRolesExist(int $gymId): void
     {
+        self::ensureTableExists();
+
         if (!Schema::hasTable('gym_roles')) {
             return;
         }
@@ -100,6 +129,8 @@ class GymRoleController extends Controller
      */
     public function index(Request $request)
     {
+        self::ensureTableExists();
+
         if (!Schema::hasTable('gym_roles')) {
             return response()->json([
                 'success' => true,
@@ -110,6 +141,7 @@ class GymRoleController extends Controller
         $gymId = $request->query('gym_id');
 
         if ($gymId) {
+            self::ensureDefaultRolesExist((int)$gymId);
             $query = GymRole::where('gym_id', $gymId);
         } else {
             $query = GymRole::with('gym:id,name,city,status');
@@ -137,6 +169,8 @@ class GymRoleController extends Controller
      */
     public function getGymRoles(Request $request)
     {
+        self::ensureTableExists();
+
         if (!Schema::hasTable('gym_roles')) {
             return response()->json([
                 'success' => true,
@@ -151,6 +185,10 @@ class GymRoleController extends Controller
         if (!$gymId) {
             $firstGym = Gym::first();
             $gymId = $firstGym ? $firstGym->id : 1;
+        }
+
+        if ($gymId) {
+            self::ensureDefaultRolesExist((int)$gymId);
         }
 
         $roles = GymRole::where('gym_id', $gymId)
@@ -176,6 +214,7 @@ class GymRoleController extends Controller
      */
     public function store(Request $request)
     {
+        self::ensureTableExists();
         $user = $request->user();
         $targetGymId = $request->input('gym_id') ?? ($user ? $user->gym_id : null);
         if (!$targetGymId) {
@@ -236,6 +275,7 @@ class GymRoleController extends Controller
      */
     public function update(Request $request, $id)
     {
+        self::ensureTableExists();
         $role = GymRole::findOrFail($id);
         $user = $request->user();
 
@@ -285,6 +325,7 @@ class GymRoleController extends Controller
      */
     public function destroy(Request $request, $id)
     {
+        self::ensureTableExists();
         $role = GymRole::findOrFail($id);
         $user = $request->user();
 

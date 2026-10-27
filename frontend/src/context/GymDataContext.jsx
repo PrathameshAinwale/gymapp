@@ -557,7 +557,7 @@ const mapLeaveRequest = (r) => ({
 
 
 export const GymDataProvider = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateCurrentUser } = useAuth();
 
   const [gymInfo, setGymInfo] = useState({
     name: '',
@@ -619,7 +619,7 @@ export const GymDataProvider = ({ children }) => {
       { month: 'Sep', weight: 77.8, bodyFat: 14.2, muscleMass: 38.2, chest: 109.5, waist: 80.5, biceps: 39.0 }
     ];
   });
-  const activeGymKey = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : 'default');
+  const activeGymKey = (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || currentUser?.gymId || currentUser?.gym_id || 'default';
   const [invoices, setInvoices] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -897,7 +897,7 @@ export const GymDataProvider = ({ children }) => {
 
   const fetchInvoices = useCallback(async () => {
     try {
-      const activeGym = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
+      const activeGym = (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || currentUser?.gymId || currentUser?.gym_id;
       const res = api.revenueBilling?.getInflows
         ? await api.revenueBilling.getInflows({ gym_id: activeGym })
         : await api.invoices.getAll({ gym_id: activeGym });
@@ -914,7 +914,7 @@ export const GymDataProvider = ({ children }) => {
 
   const fetchExpenses = useCallback(async () => {
     try {
-      const activeGym = currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
+      const activeGym = (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || currentUser?.gymId || currentUser?.gym_id;
       const res = api.revenueBilling?.getOutflows
         ? await api.revenueBilling.getOutflows({ gym_id: activeGym })
         : await api.expenses.getAll({ gym_id: activeGym });
@@ -1023,7 +1023,8 @@ export const GymDataProvider = ({ children }) => {
   const fetchGymInfo = useCallback(async (explicitGymId = null) => {
     try {
       if (api.gymInfo?.get) {
-        const targetGymId = explicitGymId || currentUser?.gymId || currentUser?.gym_id || (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null);
+        const storedGymId = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null;
+        const targetGymId = explicitGymId || storedGymId || currentUser?.gymId || currentUser?.gym_id || null;
         const res = await api.gymInfo.get(targetGymId ? { gym_id: targetGymId } : {});
         if (res?.data) {
           const isFallback = Boolean(res.data.is_fallback || res.data.isFallback);
@@ -1093,6 +1094,16 @@ export const GymDataProvider = ({ children }) => {
               tax_rate: res.data.tax_rate ?? res.data.taxRate ?? prev?.tax_rate ?? 18,
               gstin: res.data.gstin || res.data.gst_number || res.data.gstNumber || prev?.gstin || '',
               gst_number: res.data.gst_number || res.data.gstin || res.data.gstNumber || prev?.gst_number || '',
+              upiId: res.data.upiId || res.data.upi_id || prev?.upiId || prev?.upi_id || '',
+              upi_id: res.data.upi_id || res.data.upiId || prev?.upi_id || prev?.upiId || '',
+              bankDetails: res.data.bankDetails || res.data.bank_details || prev?.bankDetails || prev?.bank_details || '',
+              bank_details: res.data.bank_details || res.data.bankDetails || prev?.bank_details || prev?.bankDetails || '',
+              termsAndConditions: res.data.termsAndConditions || res.data.terms_and_conditions || prev?.termsAndConditions || prev?.terms_and_conditions || '',
+              terms_and_conditions: res.data.terms_and_conditions || res.data.termsAndConditions || prev?.terms_and_conditions || prev?.termsAndConditions || '',
+              footerText: res.data.footerText || res.data.footer_text || prev?.footerText || prev?.footer_text || '',
+              footer_text: res.data.footer_text || res.data.footerText || prev?.footer_text || prev?.footerText || '',
+              signatoryText: res.data.signatoryText || res.data.signatory_text || prev?.signatoryText || prev?.signatory_text || '',
+              signatory_text: res.data.signatory_text || res.data.signatoryText || prev?.signatory_text || prev?.signatoryText || '',
             };
             return cleanInfo;
           });
@@ -1127,9 +1138,20 @@ export const GymDataProvider = ({ children }) => {
       if (api.gymInfo?.switchBranch) {
         const res = await api.gymInfo.switchBranch(gymId);
         if (res?.success) {
-          localStorage.setItem('pulsefit_gym_id', String(gymId));
+          const gymIdNum = Number(gymId);
+          localStorage.setItem('pulsefit_gym_id', String(gymIdNum));
+          if (updateCurrentUser) {
+            updateCurrentUser({
+              gymId: gymIdNum,
+              gym_id: gymIdNum,
+              gym: res.gym || null,
+              gymName: res.gym?.name || currentUser?.gymName,
+            });
+          }
+          api.clearCache?.();
+          localStorage.removeItem('pulsefit_gymInfo');
           await fetchBranches();
-          await fetchGymInfo();
+          await fetchGymInfo(gymIdNum);
           window.location.reload();
           return res;
         }
@@ -1138,7 +1160,7 @@ export const GymDataProvider = ({ children }) => {
       console.error('Switch branch error:', e);
       throw e;
     }
-  }, [fetchBranches, fetchGymInfo]);
+  }, [fetchBranches, fetchGymInfo, updateCurrentUser, currentUser?.gymName]);
 
   const createBranch = useCallback(async (branchPayload) => {
     try {
@@ -1683,7 +1705,8 @@ export const GymDataProvider = ({ children }) => {
     }
 
     // Immediately hydrate gymInfo from currentUser.gym if available to avoid flashing stale gym branding
-    if (currentUser?.gym) {
+    const storedGymId = typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null;
+    if (currentUser?.gym && (!storedGymId || String(currentUser.gym.id) === String(storedGymId))) {
       const g = currentUser.gym;
       const tier = g.package_tier || g.package || null;
       setGymInfo((prev) => ({
