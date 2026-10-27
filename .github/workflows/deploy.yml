@@ -19,6 +19,7 @@ jobs:
       frontend_dir: ${{ steps.detect-target.outputs.frontend_dir }}
       backend_dir: ${{ steps.detect-target.outputs.backend_dir }}
       target_dir: ${{ steps.detect-target.outputs.frontend_dir }}
+      ftp_server: ${{ steps.detect-target.outputs.ftp_server }}
 
     steps:
       - name: Checkout Code
@@ -119,20 +120,72 @@ jobs:
           OVERRIDE_DIR: ${{ secrets.HOSTINGER_SERVER_DIR }}
         run: |
           python3 - << 'PYEOF'
-          import os, ftplib, sys, io
+          import os, ftplib, sys, io, socket, time
 
           override = os.environ.get('OVERRIDE_DIR', '').strip()
-          server = os.environ.get('FTP_SERVER', '').strip()
+          raw_server = os.environ.get('FTP_SERVER', '').strip()
           user = os.environ.get('FTP_USER', '').strip()
           password = os.environ.get('FTP_PASS', '').strip()
 
           frontend_dir = 'public_html/'
           backend_dir = 'backend/'
 
+          # Build candidate servers list with IPv4 resolution
+          candidates = []
+          if raw_server:
+              candidates.append(raw_server)
+              if not raw_server.startswith('ftp.') and not raw_server.replace('.', '').isdigit():
+                  candidates.append(f"ftp.{raw_server}")
+          candidates.extend(['ftp.archfit.archenterprises.co.in', 'ftp.archenterprises.co.in', '145.79.210.95'])
+          seen = set()
+          candidate_servers = [c for c in candidates if c and not (c in seen or seen.add(c))]
+
+          def connect_ftp():
+              for s in candidate_servers:
+                  try:
+                      print(f"Testing FTP candidate: {s} on port 21...")
+                      addr_info = socket.getaddrinfo(s, 21, socket.AF_INET, socket.SOCK_STREAM)
+                      if not addr_info:
+                          continue
+                      ip = addr_info[0][4][0]
+                      print(f"  -> Resolved {s} to IPv4: {ip}")
+
+                      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                      sock.settimeout(6.0)
+                      sock.connect((ip, 21))
+                      sock.close()
+                      print(f"  -> Port 21 is reachable on {s} ({ip})")
+
+                      for use_tls in [True, False]:
+                          try:
+                              if use_tls:
+                                  ftp = ftplib.FTP_TLS(timeout=30)
+                                  ftp.connect(ip, 21)
+                                  ftp.login(user, password)
+                                  ftp.prot_p()
+                                  ftp.set_pasv(True)
+                                  print(f"  -> Connected successfully via FTPS (TLS) to {s} ({ip})!")
+                                  return ftp, s
+                              else:
+                                  ftp = ftplib.FTP(timeout=30)
+                                  ftp.connect(ip, 21)
+                                  ftp.login(user, password)
+                                  ftp.set_pasv(True)
+                                  print(f"  -> Connected successfully via plain FTP to {s} ({ip})!")
+                                  return ftp, s
+                          except Exception as e:
+                              print(f"     Login attempt ({'FTPS' if use_tls else 'FTP'}) on {s} failed: {e}")
+                  except Exception as e:
+                      print(f"  -> Could not reach {s}:21 ({e})")
+              return None, None
+
+          ftp = None
+          working_server = raw_server
           try:
-              ftp = ftplib.FTP(timeout=30)
-              ftp.connect(server, 21)
-              ftp.login(user, password)
+              ftp, working_server = connect_ftp()
+              if not ftp:
+                  raise Exception("Could not establish FTP connection to any candidate server.")
+
               pwd = ftp.pwd()
               raw_files = ftp.nlst()
               print(f"FTP initial PWD: {pwd}")
@@ -249,7 +302,11 @@ jobs:
                   except Exception as e:
                       print(f"Notice on migration helper upload: {e}")
 
-              ftp.quit()
+              if ftp:
+                  try:
+                      ftp.quit()
+                  except Exception:
+                      pass
           except Exception as e:
               print(f"Warning during FTP detection/migration: {e}")
 
@@ -260,14 +317,17 @@ jobs:
                   f.write(f"frontend_dir={frontend_dir}\n")
                   f.write(f"backend_dir={backend_dir}\n")
                   f.write(f"target_dir={frontend_dir}\n")
+                  if working_server:
+                      f.write(f"ftp_server={working_server}\n")
           print(f"Final Output Frontend Dir: '{frontend_dir}'")
           print(f"Final Output Backend Dir:  '{backend_dir}'")
+          print(f"Final Output FTP Server:   '{working_server}'")
           PYEOF
 
       - name: FTP Upload Backend
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          server: ${{ steps.detect-target.outputs.ftp_server || secrets.HOSTINGER_FTP_SERVER }}
           username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
           server-dir: ${{ steps.detect-target.outputs.backend_dir }}
@@ -372,73 +432,78 @@ jobs:
           fi
           test -f dist/.htaccess && echo ".htaccess confirmed in dist/"
 
-      - name: Brief Pause for Hostinger FTP Connection Handshake
+      - name: Brief Cooldown for Hostinger FTP Connection Pool
         run: |
-          echo "Pausing 35 seconds to ensure Hostinger clears backend FTP connection pool..."
-          sleep 35
+          echo "Pausing 20 seconds to allow Hostinger to release backend FTP sockets..."
+          sleep 20
 
-      - name: FTP Upload Frontend
-        id: ftp-frontend
-        continue-on-error: true
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
-          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
-          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          server-dir: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
-          local-dir: ./frontend/dist/
-          port: 21
-          protocol: ftp
-          timeout: 240000
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-
-      - name: Pause Before FTP Retry (if initial upload timed out)
-        if: steps.ftp-frontend.outcome != 'success'
-        run: |
-          echo "Initial FTP upload timed out or failed. Pausing 35 seconds for Hostinger firewall to reset connection..."
-          sleep 35
-
-      - name: FTP Upload Frontend (Retry Attempt)
-        id: ftp-frontend-retry
-        if: steps.ftp-frontend.outcome != 'success'
-        continue-on-error: true
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
-          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
-          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          server-dir: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
-          local-dir: ./frontend/dist/
-          port: 21
-          protocol: ftp
-          timeout: 240000
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-
-      - name: Fallback Direct FTP Upload (Resilient Python with Passive Mode & Retries)
-        if: steps.ftp-frontend.outcome != 'success' && steps.ftp-frontend-retry.outcome != 'success'
+      - name: Deploy Frontend to Hostinger (Resilient Direct FTP)
+        id: ftp-frontend-deploy
         env:
-          FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          FTP_SERVER: ${{ needs.deploy-backend.outputs.ftp_server || secrets.HOSTINGER_FTP_SERVER }}
           FTP_USER: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
           SERVER_DIR: ${{ needs.deploy-backend.outputs.frontend_dir || needs.deploy-backend.outputs.target_dir || 'public_html/' }}
         run: |
           python3 - << 'PYEOF'
-          import os, sys, time, ftplib
+          import os, sys, time, socket, ftplib
 
-          server = os.environ.get('FTP_SERVER', '').strip()
+          raw_server = os.environ.get('FTP_SERVER', '').strip()
           user = os.environ.get('FTP_USER', '').strip()
           password = os.environ.get('FTP_PASS', '').strip()
           server_dir = (os.environ.get('SERVER_DIR') or 'public_html/').strip()
           local_dir = './frontend/dist'
 
-          print(f"Target server: {server}")
+          print(f"Target base server: {raw_server}")
           print(f"Target directory: {server_dir}")
+
+          candidates = []
+          if raw_server:
+              candidates.append(raw_server)
+              if not raw_server.startswith('ftp.') and not raw_server.replace('.', '').isdigit():
+                  candidates.append(f"ftp.{raw_server}")
+          candidates.extend(['ftp.archfit.archenterprises.co.in', 'ftp.archenterprises.co.in', '145.79.210.95'])
+          seen = set()
+          candidate_servers = [c for c in candidates if c and not (c in seen or seen.add(c))]
+
+          def connect_ftp():
+              for s in candidate_servers:
+                  try:
+                      print(f"\nEvaluating FTP candidate: {s}...")
+                      addr_info = socket.getaddrinfo(s, 21, socket.AF_INET, socket.SOCK_STREAM)
+                      if not addr_info:
+                          continue
+                      ip = addr_info[0][4][0]
+                      print(f"  -> Resolved {s} to IPv4: {ip}")
+
+                      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                      sock.settimeout(6.0)
+                      sock.connect((ip, 21))
+                      sock.close()
+                      print(f"  -> Port 21 is open on {s} ({ip})")
+
+                      for use_tls in [True, False]:
+                          try:
+                              if use_tls:
+                                  ftp = ftplib.FTP_TLS(timeout=45)
+                                  ftp.connect(ip, 21)
+                                  ftp.login(user, password)
+                                  ftp.prot_p()
+                                  ftp.set_pasv(True)
+                                  print(f"  -> Connected via FTPS (TLS) to {s} ({ip}) successfully!")
+                                  return ftp, s
+                              else:
+                                  ftp = ftplib.FTP(timeout=45)
+                                  ftp.connect(ip, 21)
+                                  ftp.login(user, password)
+                                  ftp.set_pasv(True)
+                                  print(f"  -> Connected via plain FTP to {s} ({ip}) successfully!")
+                                  return ftp, s
+                          except Exception as e:
+                              print(f"     Login attempt ({'FTPS' if use_tls else 'FTP'}) on {s} failed: {e}")
+                  except Exception as e:
+                      print(f"  -> Candidate {s} connection failed: {e}")
+              return None, None
 
           def ensure_remote_dir(ftp, remote_dir):
               parts = [p for p in remote_dir.replace('\\', '/').split('/') if p]
@@ -455,46 +520,55 @@ jobs:
 
           def upload_directory(ftp, local_path, remote_path):
               ensure_remote_dir(ftp, remote_path)
-              
+              files_uploaded = 0
+              total_bytes = 0
               for item in sorted(os.listdir(local_path)):
                   if item.startswith('.git'):
                       continue
                   l_item = os.path.join(local_path, item)
                   if os.path.isdir(l_item):
                       sub_remote = f"{remote_path.rstrip('/')}/{item}"
-                      upload_directory(ftp, l_item, sub_remote)
+                      sub_files, sub_bytes = upload_directory(ftp, l_item, sub_remote)
+                      files_uploaded += sub_files
+                      total_bytes += sub_bytes
                       ensure_remote_dir(ftp, remote_path)
                   else:
                       with open(l_item, 'rb') as f:
                           size = os.path.getsize(l_item)
-                          print(f"Uploading {item} ({size} bytes) -> {remote_path}...")
                           ftp.storbinary(f"STOR {item}", f)
+                          files_uploaded += 1
+                          total_bytes += size
+                          print(f"  [OK] Uploaded {item} ({size:,} bytes) -> {remote_path}")
+              return files_uploaded, total_bytes
 
           success = False
-          for attempt in range(1, 6):
-              try:
-                  print(f"\n--- Connecting to FTP {server}:21 (Attempt {attempt}/5) ---")
-                  ftp = ftplib.FTP(timeout=60)
-                  ftp.connect(server, 21)
-                  ftp.login(user, password)
-                  ftp.set_pasv(True)
-                  print("Connected and logged in successfully with Passive Mode.")
-                  upload_directory(ftp, local_dir, server_dir)
+          for attempt in range(1, 4):
+              print(f"\n=== Frontend Deployment Attempt {attempt}/3 ===")
+              ftp, host = connect_ftp()
+              if ftp:
                   try:
-                      ftp.quit()
-                  except Exception:
-                      pass
-                  print("All frontend files deployed successfully via fallback!")
-                  success = True
-                  break
-              except Exception as e:
-                  print(f"Attempt {attempt} failed: {e}")
-                  if attempt < 5:
-                      wait_time = attempt * 15
-                      print(f"Pausing {wait_time}s before retrying connection...")
-                      time.sleep(wait_time)
+                      t0 = time.time()
+                      count, b_total = upload_directory(ftp, local_dir, server_dir)
+                      elapsed = time.time() - t0
+                      print(f"\nSUCCESS: Deployed {count} frontend files ({b_total:,} bytes) in {elapsed:.1f}s to {host}:{server_dir}!")
+                      try:
+                          ftp.quit()
+                      except Exception:
+                          pass
+                      success = True
+                      break
+                  except Exception as e:
+                      print(f"Error during file transfer on attempt {attempt}: {e}")
+                      try:
+                          ftp.close()
+                      except Exception:
+                          pass
+              if attempt < 3:
+                  wait_time = attempt * 15
+                  print(f"Waiting {wait_time}s before retry...")
+                  time.sleep(wait_time)
 
           if not success:
-              print("All FTP upload attempts failed.")
+              print("ERROR: All frontend deployment attempts failed.")
               sys.exit(1)
           PYEOF
