@@ -19,17 +19,16 @@ class RetryDatabaseConnection
         try {
             return $next($request);
         } catch (\Throwable $e) {
-            $prev = $e->getPrevious();
-            $isInitialConnectFailure = ($prev instanceof \PDOException && ($prev->getCode() == 2002 || str_contains($prev->getMessage(), '2002')));
+            $isInitialConnectFailure = $this->isConnectionError($e);
 
             if ($this->isConnectionError($e) && ($request->isMethodSafe() || $isInitialConnectFailure)) {
-                Log::warning('Transient DB connection error (2002) detected. Attempting host fallback/purge and retrying once...');
+                Log::warning('Transient DB connection error (2002) detected. Purging connection and retrying...');
                 try {
                     $currentHost = (string) config('database.connections.mysql.host');
-                    if ($currentHost === 'localhost') {
+                    // On Linux / CageFS, 'localhost' triggers UNIX socket which throws EPERM 2002.
+                    // Prefer IPv4 TCP loopback '127.0.0.1' over UNIX socket 'localhost'.
+                    if ($currentHost === 'localhost' || empty($currentHost)) {
                         config(['database.connections.mysql.host' => '127.0.0.1']);
-                    } elseif ($currentHost === '127.0.0.1') {
-                        config(['database.connections.mysql.host' => 'localhost']);
                     }
 
                     DB::purge('mysql');

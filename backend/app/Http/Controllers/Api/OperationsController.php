@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 
 class OperationsController extends Controller
 {
@@ -489,15 +490,7 @@ class OperationsController extends Controller
         $type = $request->type ?? 'freeze';
 
         $gymId = $this->resolveGymId($request);
-        $policy = $this->getGymFreezePolicy($gymId);
-
-        // Mandatory Policy Setup Check
-        if (!$policy || empty($policy['is_configured'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gym freeze and extension policy is not configured yet. Please configure the minimum plan duration requirements in Settings first before processing requests.'
-            ], 422);
-        }
+        $policy = $this->getGymFreezePolicy($gymId) ?: self::getDefaultFreezePolicy();
 
         $requiredMonths = $type === 'extension'
             ? (int)($policy['extension_min_months'] ?? 6)
@@ -523,24 +516,33 @@ class OperationsController extends Controller
             $plan = $profile->plan;
             $durationMonths = (int)($plan?->duration_months ?? 0);
 
-            // Fallback: Detect duration from period or name if duration_months is 0
-            if ($durationMonths === 0 && $plan) {
-                $desc = strtolower(($plan->period ?? '') . ' ' . ($plan->name ?? ''));
-                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month')) {
+            // Fallback: Detect duration from period or name or request planName if duration_months is 0
+            if ($durationMonths === 0) {
+                $desc = strtolower(($plan?->period ?? '') . ' ' . ($plan?->name ?? '') . ' ' . ($request->planName ?? $request->plan_name ?? ''));
+                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month') || str_contains($desc, '12m')) {
                     $durationMonths = 12;
-                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month')) {
+                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month') || str_contains($desc, '6m')) {
                     $durationMonths = 6;
-                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month')) {
+                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month') || str_contains($desc, '3m')) {
                     $durationMonths = 3;
                 } elseif (str_contains($desc, 'month')) {
                     $durationMonths = 1;
                 }
             }
 
-            if (!$plan || $durationMonths < $requiredMonths) {
+            if (!$plan && $durationMonths === 0) {
                 $actionType = $type === 'extension' ? 'extension' : 'freeze';
-                $planTitle = $plan?->name ? "'{$plan->name}'" : 'no active plan';
-                $durInfo = $durationMonths > 0 ? " ({$durationMonths} months)" : '';
+                $planTitle = $request->planName ?? $request->plan_name ?? 'no active plan';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Membership {$actionType} is only allowed for members with plans {$requiredMonths} months and above according to your gym policy. This member has '{$planTitle}', which is not eligible."
+                ], 422);
+            }
+
+            if ($durationMonths > 0 && $durationMonths < $requiredMonths) {
+                $actionType = $type === 'extension' ? 'extension' : 'freeze';
+                $planTitle = $plan?->name ? "'{$plan->name}'" : ($request->planName ?? $request->plan_name ?? 'no active plan');
+                $durInfo = " ({$durationMonths} months)";
                 return response()->json([
                     'success' => false,
                     'message' => "Membership {$actionType} is only allowed for members with plans {$requiredMonths} months and above according to your gym policy. This member has {$planTitle}{$durInfo}, which is not eligible."
@@ -666,14 +668,53 @@ class OperationsController extends Controller
     // ==========================================
     // FREEZE & TRANSFER POLICY MANAGEMENT
     // ==========================================
-    public function getGymFreezePolicy(?int $gymId): ?array
+    public static function getDefaultFreezePolicy(): array
     {
+        return [
+            'is_configured' => true,
+            'freeze_min_months' => 6,
+            'extension_min_months' => 6,
+            'transfer_min_months' => 6,
+            'updated_at' => null,
+            'is_default' => true,
+        ];
+    }
+
+    public static function ensureFreezePolicyColumnsExist(): void
+    {
+        try {
+            if (Schema::hasTable('gyms') && !Schema::hasColumn('gyms', 'freeze_policy_settings')) {
+                Schema::table('gyms', function (Blueprint $table) {
+                    $table->text('freeze_policy_settings')->nullable();
+                });
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if (Schema::hasTable('gym_settings') && !Schema::hasColumn('gym_settings', 'freeze_policy_settings')) {
+                Schema::table('gym_settings', function (Blueprint $table) {
+                    $table->text('freeze_policy_settings')->nullable();
+                });
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    public function getGymFreezePolicy(?int $gymId): array
+    {
+        self::ensureFreezePolicyColumnsExist();
         $policy = null;
         if ($gymId) {
             $gym = Gym::find($gymId);
-            if ($gym && Schema::hasColumn('gyms', 'freeze_policy_settings') && !empty($gym->freeze_policy_settings)) {
-                $raw = $gym->freeze_policy_settings;
-                $policy = is_string($raw) ? json_decode($raw, true) : $raw;
+            if ($gym) {
+                if (Schema::hasColumn('gyms', 'freeze_policy_settings') && !empty($gym->freeze_policy_settings)) {
+                    $raw = $gym->freeze_policy_settings;
+                    $policy = is_string($raw) ? json_decode($raw, true) : $raw;
+                } elseif (Schema::hasColumn('gyms', 'features') && !empty($gym->features)) {
+                    $feat = is_array($gym->features) ? $gym->features : (json_decode($gym->features, true) ?: []);
+                    if (!empty($feat['freeze_policy_settings'])) {
+                        $policy = $feat['freeze_policy_settings'];
+                    }
+                }
             }
         }
 
@@ -685,7 +726,20 @@ class OperationsController extends Controller
             }
         }
 
-        return is_array($policy) ? $policy : null;
+        if (!$policy && $gymId) {
+            $policy = Cache::get("gym_freeze_policy_{$gymId}");
+        }
+
+        if (!$policy) {
+            $policy = Cache::get("gym_freeze_policy_global");
+        }
+
+        if (is_array($policy)) {
+            $policy['is_configured'] = true;
+            return $policy;
+        }
+
+        return self::getDefaultFreezePolicy();
     }
 
     public function getFreezePolicy(Request $request)
@@ -696,12 +750,14 @@ class OperationsController extends Controller
         return response()->json([
             'success' => true,
             'data' => $policy,
-            'is_configured' => !empty($policy['is_configured']),
+            'is_configured' => true,
+            'is_default' => !empty($policy['is_default']),
         ]);
     }
 
     public function updateFreezePolicy(Request $request)
     {
+        self::ensureFreezePolicyColumnsExist();
         $gymId = $this->resolveGymId($request);
 
         $freezeMin = (int)($request->freeze_min_months ?? $request->freezeMinMonths ?? 6);
@@ -714,14 +770,22 @@ class OperationsController extends Controller
             'extension_min_months' => max(0, $extendMin),
             'transfer_min_months' => max(0, $transferMin),
             'updated_at' => now()->toIso8601String(),
+            'is_default' => false,
         ];
 
         if ($gymId) {
             $gym = Gym::find($gymId);
-            if ($gym && Schema::hasColumn('gyms', 'freeze_policy_settings')) {
-                $gym->freeze_policy_settings = json_encode($policy);
+            if ($gym) {
+                if (Schema::hasColumn('gyms', 'freeze_policy_settings')) {
+                    $gym->freeze_policy_settings = json_encode($policy);
+                } elseif (Schema::hasColumn('gyms', 'features')) {
+                    $feat = is_array($gym->features) ? $gym->features : (json_decode($gym->features, true) ?: []);
+                    $feat['freeze_policy_settings'] = $policy;
+                    $gym->features = $feat;
+                }
                 $gym->save();
                 Cache::forget("gym_setting_v1_{$gymId}");
+                Cache::put("gym_freeze_policy_{$gymId}", $policy, 86400 * 30);
             }
         }
 
@@ -730,6 +794,8 @@ class OperationsController extends Controller
             $setting->freeze_policy_settings = json_encode($policy);
             $setting->save();
         }
+
+        Cache::put("gym_freeze_policy_global", $policy, 86400 * 30);
 
         return response()->json([
             'success' => true,
@@ -814,36 +880,37 @@ class OperationsController extends Controller
         }
 
         // Validate gym policy requirement for transfer
-        $policy = $this->getGymFreezePolicy($gymId);
-        if (!$policy || empty($policy['is_configured'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gym membership transfer policy is not configured yet. Please configure the minimum plan duration requirements in Settings first before transferring memberships.'
-            ], 422);
-        }
-
+        $policy = $this->getGymFreezePolicy($gymId) ?: self::getDefaultFreezePolicy();
         $requiredTransferMonths = (int)($policy['transfer_min_months'] ?? 6);
         if ($requiredTransferMonths > 0) {
             $fromProfile->loadMissing('plan');
             $plan = $fromProfile->plan;
             $durationMonths = (int)($plan?->duration_months ?? 0);
 
-            if ($durationMonths === 0 && $plan) {
-                $desc = strtolower(($plan->period ?? '') . ' ' . ($plan->name ?? ''));
-                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month')) {
+            if ($durationMonths === 0) {
+                $desc = strtolower(($plan?->period ?? '') . ' ' . ($plan?->name ?? '') . ' ' . ($request->planName ?? $request->plan_name ?? ''));
+                if (str_contains($desc, 'annual') || str_contains($desc, 'year') || str_contains($desc, '12 month') || str_contains($desc, '12m')) {
                     $durationMonths = 12;
-                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month')) {
+                } elseif (str_contains($desc, 'half') || str_contains($desc, '6 month') || str_contains($desc, '6m')) {
                     $durationMonths = 6;
-                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month')) {
+                } elseif (str_contains($desc, 'quarter') || str_contains($desc, '3 month') || str_contains($desc, '3m')) {
                     $durationMonths = 3;
                 } elseif (str_contains($desc, 'month')) {
                     $durationMonths = 1;
                 }
             }
 
-            if (!$plan || $durationMonths < $requiredTransferMonths) {
-                $planTitle = $plan?->name ? "'{$plan->name}'" : 'no active plan';
-                $durInfo = $durationMonths > 0 ? " ({$durationMonths} months)" : '';
+            if (!$plan && $durationMonths === 0) {
+                $planTitle = $request->planName ?? $request->plan_name ?? 'no active plan';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Membership transfer is only allowed for members with plans {$requiredTransferMonths} months and above according to your gym policy. This member has '{$planTitle}', which is not eligible."
+                ], 422);
+            }
+
+            if ($durationMonths > 0 && $durationMonths < $requiredTransferMonths) {
+                $planTitle = $plan?->name ? "'{$plan->name}'" : ($request->planName ?? $request->plan_name ?? 'no active plan');
+                $durInfo = " ({$durationMonths} months)";
                 return response()->json([
                     'success' => false,
                     'message' => "Membership transfer is only allowed for members with plans {$requiredTransferMonths} months and above according to your gym policy. This member has {$planTitle}{$durInfo}, which is not eligible."

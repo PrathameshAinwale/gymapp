@@ -1379,10 +1379,11 @@ export const api = {
       return handleResponse(res);
     },
     create: async (freezeData) => {
+      const payload = withGymParam(freezeData);
       const res = await apiFetch(`${API_BASE_URL}/freezes`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(freezeData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },
@@ -1407,15 +1408,18 @@ export const api = {
 
   // Freeze & Extension & Transfer Policy Endpoints
   freezePolicy: {
-    get: async () => {
-      const res = await apiFetch(`${API_BASE_URL}/freeze-policy`, { headers: getHeaders() });
+    get: async (params = {}) => {
+      const query = new URLSearchParams(withGymParam(params)).toString();
+      const url = query ? `${API_BASE_URL}/freeze-policy?${query}` : `${API_BASE_URL}/freeze-policy`;
+      const res = await apiFetch(url, { headers: getHeaders() });
       return handleResponse(res);
     },
     update: async (policyData) => {
+      const payload = withGymParam(policyData);
       const res = await apiFetch(`${API_BASE_URL}/freeze-policy`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(policyData),
+        body: JSON.stringify(payload),
       });
       return handleResponse(res);
     },

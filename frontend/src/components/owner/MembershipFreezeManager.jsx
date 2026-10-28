@@ -216,8 +216,13 @@ export const MembershipFreezeManager = () => {
   const todayIso = useMemo(() => getTodayIso(), []);
 
   // Policy State
-  const [freezePolicy, setFreezePolicy] = useState(null);
-  const [isLoadingPolicy, setIsLoadingPolicy] = useState(true);
+  const [freezePolicy, setFreezePolicy] = useState({
+    is_configured: true,
+    freeze_min_months: 6,
+    extension_min_months: 6,
+    transfer_min_months: 6
+  });
+  const [isLoadingPolicy, setIsLoadingPolicy] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
   const [policyForm, setPolicyForm] = useState({
@@ -227,7 +232,7 @@ export const MembershipFreezeManager = () => {
     syncAll: false
   });
 
-  const isPolicyConfigured = Boolean(freezePolicy?.is_configured);
+  const isPolicyConfigured = Boolean(freezePolicy?.is_configured ?? true);
   const freezeMinMonths = Number(freezePolicy?.freeze_min_months ?? 6);
   const extensionMinMonths = Number(freezePolicy?.extension_min_months ?? 6);
   const transferMinMonths = Number(freezePolicy?.transfer_min_months ?? 6);
