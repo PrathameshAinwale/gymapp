@@ -146,7 +146,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
             {/* Gym Name & Desktop-only 'powered by ARCHFIT' */}
             <div className="flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-[280px] md:max-w-[340px] leading-tight">
+                <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[110px] min-[360px]:max-w-[140px] sm:max-w-[280px] md:max-w-[340px] leading-tight">
                   {gymName || 'Fitness Club'}
                 </span>
                 {/* Role badge visible only on desktop (moved to drawer on mobile) */}

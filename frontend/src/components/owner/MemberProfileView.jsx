@@ -125,10 +125,21 @@ export const MemberProfileView = ({
 
   const memberInvoices = (invoices || []).filter((inv) => {
     const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-    if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
     const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
-    if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
-    if (inv.memberName && inv.memberName.toLowerCase().trim() === memberNameClean) return true;
+
+    // Priority 1: Match by Member / User ID
+    if (cleanMemberId && cleanInvMemberId) {
+      return cleanMemberId === cleanInvMemberId;
+    }
+    // Priority 2: Match by exact 10-digit Phone
+    if (cleanMemberPhone && cleanInvPhone) {
+      return cleanMemberPhone === cleanInvPhone;
+    }
+    // Priority 3: Name match ONLY if invoice has neither ID nor Phone
+    if (!cleanInvMemberId && !cleanInvPhone && memberNameClean) {
+      const invName = (inv.memberName || inv.member_name || '').toLowerCase().trim();
+      return invName === memberNameClean;
+    }
     return false;
   }).sort(compareInvoicesDesc);
 

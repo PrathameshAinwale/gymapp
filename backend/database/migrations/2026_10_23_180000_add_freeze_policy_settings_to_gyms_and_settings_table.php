@@ -10,12 +10,20 @@ return new class extends Migration
     {
         if (Schema::hasTable('gyms') && !Schema::hasColumn('gyms', 'freeze_policy_settings')) {
             Schema::table('gyms', function (Blueprint $table) {
-                $table->text('freeze_policy_settings')->nullable()->after('payroll_attendance_settings');
+                if (Schema::hasColumn('gyms', 'payroll_attendance_settings')) {
+                    $table->text('freeze_policy_settings')->nullable()->after('payroll_attendance_settings');
+                } else {
+                    $table->text('freeze_policy_settings')->nullable();
+                }
             });
         }
         if (Schema::hasTable('gym_settings') && !Schema::hasColumn('gym_settings', 'freeze_policy_settings')) {
             Schema::table('gym_settings', function (Blueprint $table) {
-                $table->text('freeze_policy_settings')->nullable()->after('payroll_attendance_settings');
+                if (Schema::hasColumn('gym_settings', 'payroll_attendance_settings')) {
+                    $table->text('freeze_policy_settings')->nullable()->after('payroll_attendance_settings');
+                } else {
+                    $table->text('freeze_policy_settings')->nullable();
+                }
             });
         }
     }

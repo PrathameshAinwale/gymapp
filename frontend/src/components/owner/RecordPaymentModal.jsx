@@ -312,13 +312,20 @@ export const RecordPaymentModal = ({
     // Cross-reference uncancelled pending invoices
     if (Array.isArray(invoices) && invoices.length > 0) {
       const cleanMemberId = String(currentMember.id || currentMember.userId || '').replace(/\D/g, '');
+      const cleanMemberPhone = String(currentMember.phone || '').replace(/\D/g, '').slice(-10);
       for (const inv of invoices) {
         if (String(inv.status).toLowerCase() === 'paid' || String(inv.status).toLowerCase() === 'cancelled') continue;
         const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
-        const isMatch = (cleanMemberId && invMemId && cleanMemberId === invMemId) ||
-          (inv.memberId && String(inv.memberId) === String(currentMember.id)) ||
-          (currentMember.phone && String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10) === String(currentMember.phone).replace(/\D/g, '').slice(-10)) ||
-          (currentMember.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentMember.name.toLowerCase().trim());
+        const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+
+        let isMatch = false;
+        if (cleanMemberId && invMemId) {
+          isMatch = cleanMemberId === invMemId;
+        } else if (cleanMemberPhone && cleanInvPhone) {
+          isMatch = cleanMemberPhone === cleanInvPhone;
+        } else if (!invMemId && !cleanInvPhone && currentMember.name && inv.memberName) {
+          isMatch = inv.memberName.toLowerCase().trim() === currentMember.name.toLowerCase().trim();
+        }
 
         if (isMatch) {
           const invPending = [inv.pendingAmount, inv.pending_amount, inv.duesAmount, inv.dues_amount, inv.balanceDue, inv.balance_due];

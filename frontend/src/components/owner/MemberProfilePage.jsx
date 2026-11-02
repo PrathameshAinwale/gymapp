@@ -181,11 +181,11 @@ export const MemberProfilePage = ({
     return (invoices || [])
       .filter((inv) => {
         const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-        if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
+        if (cleanMemberId && cleanInvMemberId) return cleanMemberId === cleanInvMemberId;
         const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
-        if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
+        if (cleanMemberPhone && cleanInvPhone) return cleanMemberPhone === cleanInvPhone;
         const cleanInvName = (inv.memberName || inv.name || '').toLowerCase().trim();
-        if (memberNameClean && cleanInvName && memberNameClean === cleanInvName) return true;
+        if (!cleanInvMemberId && !cleanInvPhone && memberNameClean && cleanInvName) return memberNameClean === cleanInvName;
         return false;
       })
       .sort(compareInvoicesDesc);
@@ -501,10 +501,12 @@ export const MemberProfilePage = ({
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : effectiveStatus === 'Unassigned'
                     ? 'bg-slate-100 text-slate-700 border-slate-300'
+                    : effectiveStatus === 'Frozen' || effectiveStatus === 'Frozen (Paused)'
+                    ? 'bg-sky-50 text-sky-700 border-sky-200'
                     : 'bg-rose-50 text-rose-700 border-rose-200'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${effectiveStatus === 'Active' ? 'bg-emerald-500 animate-pulse' : effectiveStatus === 'Expiring Soon' ? 'bg-amber-500' : effectiveStatus === 'Unassigned' ? 'bg-slate-400' : 'bg-rose-500'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${effectiveStatus === 'Active' ? 'bg-emerald-500 animate-pulse' : effectiveStatus === 'Expiring Soon' ? 'bg-amber-500' : effectiveStatus === 'Unassigned' ? 'bg-slate-400' : (effectiveStatus === 'Frozen' || effectiveStatus === 'Frozen (Paused)') ? 'bg-sky-500' : 'bg-rose-500'}`} />
                 <span>{effectiveStatus}</span>
               </span>
             </div>
@@ -791,7 +793,13 @@ export const MemberProfilePage = ({
                     <div className="min-w-0 pr-2">
                       <div className="font-bold text-slate-900 flex items-center gap-1.5">
                         <span className="truncate">{pkg.packageType}</span>
-                        <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-bold shrink-0">Active</span>
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 border ${
+                          pkg.status === 'Frozen'
+                            ? 'bg-sky-100 text-sky-800 border-sky-300'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}>
+                          {pkg.status || 'Active'}
+                        </span>
                       </div>
                       <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
                     </div>

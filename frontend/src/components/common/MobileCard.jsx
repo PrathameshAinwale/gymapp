@@ -24,7 +24,7 @@ export const MobileCard = ({
   return (
     <div
       onClick={onClick}
-      className={`p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5 transition-all ${
+      className={`p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5 transition-all min-w-0 overflow-hidden ${
         onClick ? 'cursor-pointer active:scale-[0.99] hover:border-slate-300' : ''
       } ${className}`}
     >

@@ -102,3 +102,26 @@ npm start
 - Scan the QR code using the **Expo Go** app on your phone.
 - Or press `w` to preview in the web browser.
 
+---
+
+## 📄 PDF Generation & Overflow Prevention Architecture
+
+> **Rule:** All PDF text must go through the shared wrap helper. Never draw raw text directly.
+
+The ecosystem utilizes two dedicated PDF generation pipelines designed with zero text overflow tolerance:
+
+1. **Client-Side Engine (`jsPDF`)**:
+   - Helper: `frontend/src/utils/pdfLayoutHelper.js`
+   - Primary Generator: `frontend/src/utils/invoicePdfGenerator.js`
+   - Features: `wrapAndBreakText` with forced character-level breaking for unbroken strings, `measureTextHeight`, dynamic card/table/seal sizing, and `PdfPageManager` with running headers and footers.
+
+2. **Server-Side Engine (Adobe PDF 1.4 PostScript Stream)**:
+   - Primary Service: `backend/app/Services/InvoicePdfService.php`
+   - Features: Pure PHP zero-dependency vector stream generation, Helvetica AFM character metric wrapping (`wrapText`), dynamic Y coordinates, automatic page breaks with repeated table headers, and running footers with total page count.
+
+### Golden Rules for PDF Extensions:
+- Never hardcode fixed container or row heights for variable text.
+- Always check remaining page space before drawing cards or table rows.
+- Always wrap text using the shared wrap helper.
+
+

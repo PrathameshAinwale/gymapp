@@ -568,9 +568,9 @@ function MainApp() {
           setIsMobileOpen={setIsMobileMenuOpen}
         />
 
-        {/* Main Content Viewport: Full width responsive dashboard with 16px mobile padding */}
+        {/* Main Content Viewport: Full width responsive dashboard with safe mobile padding */}
         <main
-          className="flex-1 min-w-0 min-h-0 overflow-y-auto px-4 py-3.5 sm:px-6 sm:py-4 pb-12 safe-bottom"
+          className="flex-1 min-w-0 min-h-0 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 pb-12 safe-bottom"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           <Suspense fallback={<OwnerPageLoader activeTab={activeTab} />}>

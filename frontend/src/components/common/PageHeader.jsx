@@ -16,7 +16,7 @@ export const PageHeader = ({
 }) => {
   return (
     <div className={`bg-white border border-slate-200 p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs ${className}`}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-3">
         <div className="min-w-0 flex items-center gap-2">
           <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
             {title}
@@ -29,7 +29,7 @@ export const PageHeader = ({
         </div>
 
         {actions && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
             {actions}
           </div>
         )}

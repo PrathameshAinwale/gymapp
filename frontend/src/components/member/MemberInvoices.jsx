@@ -27,12 +27,15 @@ export const MemberInvoices = () => {
   const memberDues = Number(currentMember?.duesAmount ?? currentMember?.balanceDue ?? currentMember?.balance ?? 0);
 
   const cleanCurrentUserId = String(currentUser?.id || currentUser?.userId || '').replace(/\D/g, '');
+  const cleanCurrentUserPhone = String(currentUser?.phone || '').replace(/\D/g, '').slice(-10);
   const myInvoices = (invoices || [])
     .filter((inv) => {
       const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-      if (cleanCurrentUserId && cleanInvMemberId && cleanCurrentUserId === cleanInvMemberId) return true;
+      const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+      if (cleanCurrentUserId && cleanInvMemberId) return cleanCurrentUserId === cleanInvMemberId;
+      if (cleanCurrentUserPhone && cleanInvPhone) return cleanCurrentUserPhone === cleanInvPhone;
       if (currentUser?.email && inv.memberEmail && inv.memberEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
-      if (currentUser?.name && inv.memberName && inv.memberName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      if (!cleanInvMemberId && !cleanInvPhone && currentUser?.name && inv.memberName) return inv.memberName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
       return false;
     })
     .sort(compareInvoicesDesc);

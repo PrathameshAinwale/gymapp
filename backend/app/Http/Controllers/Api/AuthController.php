@@ -114,6 +114,14 @@ class AuthController extends Controller
                     $gym = \App\Models\Gym::find($user->gym_id);
                 }
                 if (!$gym) {
+                    // Fallback to active gym facility if user gym_id was unset or missing
+                    $gym = \App\Models\Gym::where('status', 'Active')->first() ?? \App\Models\Gym::first();
+                    if ($gym) {
+                        $user->gym_id = $gym->id;
+                        $user->save();
+                    }
+                }
+                if (!$gym) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Account not found. This gym account has been deleted.'

@@ -9,8 +9,131 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * INVOICE PDF GENERATION SERVICE (Backend Adobe PDF 1.4 PostScript Stream Engine)
+ *
+ * CORE ARCHITECTURAL RULES (PREVENT TEXT/CONTENT OVERFLOW):
+ * 1. ALWAYS WRAP: Every piece of text must be wrapped to its container's maximum width.
+ *    Never draw raw PostScript text without an explicit width constraint.
+ * 2. UNBROKEN STRINGS: Always break unbroken words (long names, URLs, emails, hashes)
+ *    using character-level splitting if they exceed maxWidth.
+ * 3. DYNAMIC HEIGHTS: Never hardcode fixed container/box/row heights for variable content.
+ *    Measure wrapped text height first, then draw the enclosing card, row, or box.
+ * 4. PAGINATION: Check remaining vertical space before rendering elements.
+ *    If an element would cross the bottom margin, start a new page.
+ *    Table headers must repeat on new pages, and rows must not be split across pages.
+ * 5. SAFE VALUES: Always sanitize and safely convert null, numbers, and strings before drawing.
+ * 6. ZERO DEPENDENCIES: Output strictly valid Adobe PDF 1.4 multi-page document structure.
+ */
 class InvoicePdfService
 {
+    /**
+     * Standard Helvetica character width metrics (1/1000 em).
+     */
+    private static function getCharWidths(): array
+    {
+        static $widths = [
+            ' ' => 278, '!' => 278, '"' => 355, '#' => 556, '$' => 556, '%' => 889, '&' => 667, '\'' => 191,
+            '(' => 333, ')' => 333, '*' => 389, '+' => 584, ',' => 278, '-' => 333, '.' => 278, '/' => 278,
+            '0' => 556, '1' => 556, '2' => 556, '3' => 556, '4' => 556, '5' => 556, '6' => 556, '7' => 556,
+            '8' => 556, '9' => 556, ':' => 278, ';' => 278, '<' => 584, '=' => 584, '>' => 584, '?' => 556,
+            '@' => 1015,
+            'A' => 667, 'B' => 667, 'C' => 722, 'D' => 722, 'E' => 667, 'F' => 611, 'G' => 778, 'H' => 722,
+            'I' => 278, 'J' => 500, 'K' => 667, 'L' => 556, 'M' => 833, 'N' => 722, 'O' => 778, 'P' => 667,
+            'Q' => 778, 'R' => 722, 'S' => 667, 'T' => 611, 'U' => 722, 'V' => 667, 'W' => 944, 'X' => 667,
+            'Y' => 667, 'Z' => 611,
+            '[' => 278, '\\' => 278, ']' => 278, '^' => 469, '_' => 556, '`' => 222,
+            'a' => 556, 'b' => 556, 'c' => 500, 'd' => 556, 'e' => 556, 'f' => 278, 'g' => 556, 'h' => 556,
+            'i' => 222, 'j' => 222, 'k' => 500, 'l' => 222, 'm' => 833, 'n' => 556, 'o' => 556, 'p' => 556,
+            'q' => 556, 'r' => 333, 's' => 500, 't' => 278, 'u' => 556, 'v' => 500, 'w' => 722, 'x' => 500,
+            'y' => 500, 'z' => 500,
+            '{' => 334, '|' => 260, '}' => 334, '~' => 584
+        ];
+        return $widths;
+    }
+
+    /**
+     * Measure text width in points using Helvetica metrics.
+     */
+    public static function getTextWidth(string $text, float $size = 10, bool $bold = false): float
+    {
+        $widths = self::getCharWidths();
+        $clean = preg_replace('/[^\x20-\x7E]/', '', $text);
+        $boldMultiplier = $bold ? 1.06 : 1.0;
+        $len = strlen($clean);
+        $w = 0;
+        for ($i = 0; $i < $len; $i++) {
+            $c = $clean[$i];
+            $charW = $widths[$c] ?? 556;
+            $w += ($charW / 1000.0) * $size * $boldMultiplier;
+        }
+        return $w;
+    }
+
+    /**
+     * Wrap text within maxWidth, forcing character-level breaking for unbroken words.
+     */
+    public static function wrapText(string $text, float $maxWidth, float $size = 10, bool $bold = false): array
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", (string)$text);
+        $paragraphs = explode("\n", $text);
+        $result = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $trimmed = trim($paragraph);
+            if ($trimmed === '') {
+                $result[] = '';
+                continue;
+            }
+
+            $words = preg_split('/\s+/', $trimmed);
+            $safeWords = [];
+
+            foreach ($words as $word) {
+                if (self::getTextWidth($word, $size, $bold) > $maxWidth) {
+                    // Character-level break for words exceeding maxWidth
+                    $chunk = '';
+                    $wLen = strlen($word);
+                    for ($i = 0; $i < $wLen; $i++) {
+                        $c = $word[$i];
+                        if (self::getTextWidth($chunk . $c, $size, $bold) <= $maxWidth) {
+                            $chunk .= $c;
+                        } else {
+                            if ($chunk !== '') {
+                                $safeWords[] = $chunk;
+                            }
+                            $chunk = $c;
+                        }
+                    }
+                    if ($chunk !== '') {
+                        $safeWords[] = $chunk;
+                    }
+                } else {
+                    $safeWords[] = $word;
+                }
+            }
+
+            // Word wrap
+            $currentLine = '';
+            foreach ($safeWords as $word) {
+                $testLine = $currentLine === '' ? $word : $currentLine . ' ' . $word;
+                if (self::getTextWidth($testLine, $size, $bold) <= $maxWidth) {
+                    $currentLine = $testLine;
+                } else {
+                    if ($currentLine !== '') {
+                        $result[] = $currentLine;
+                    }
+                    $currentLine = $word;
+                }
+            }
+            if ($currentLine !== '') {
+                $result[] = $currentLine;
+            }
+        }
+
+        return $result;
+    }
+
     /**
      * Ensure an invoice has a valid stored PDF file and return its public URL.
      */
@@ -68,7 +191,7 @@ class InvoicePdfService
     }
 
     /**
-     * Generate standard Adobe PDF 1.4 Tax Invoice binary document.
+     * Generate standard Adobe PDF 1.4 Tax Invoice binary document with dynamic wrapping and multi-page pagination.
      */
     public static function generate(Invoice $invoice): string
     {
@@ -81,7 +204,6 @@ class InvoicePdfService
             $gymAddress .= ', ' . $gym->city;
         }
         $gymPhone = $gym?->phone ?: ($gymSetting?->phone ?: '');
-        $gymEmail = $gym?->email ?: ($gymSetting?->email ?: '');
         $gymGst = $gym?->gst_number ?: ($gymSetting?->gst_number ?: '');
 
         $user = $invoice->user;
@@ -106,7 +228,7 @@ class InvoicePdfService
         $startDateStr = $invoice->start_date ? $invoice->start_date->format('d M Y') : $dateStr;
         $endDateStr = $invoice->end_date ? $invoice->end_date->format('d M Y') : 'Active';
 
-        // Prepare line items
+        // Prepare line items without truncating or arbitrary row limit
         $items = [];
         if (!empty($invoice->items) && is_array($invoice->items)) {
             foreach ($invoice->items as $it) {
@@ -138,10 +260,12 @@ class InvoicePdfService
             ];
         }
 
-        // Build PDF graphics stream
-        $s = "";
-        $stream = function ($cmd) use (&$s) {
-            $s .= $cmd . "\n";
+        // Multi-page streaming manager
+        $pages = [];
+        $currentPageStream = '';
+
+        $stream = function (string $cmd) use (&$currentPageStream) {
+            $currentPageStream .= $cmd . "\n";
         };
 
         $drawRect = function (float $x, float $y, float $w, float $h, float $r, float $g, float $b, bool $fill = true) use ($stream) {
@@ -171,85 +295,198 @@ class InvoicePdfService
             $stream("ET");
         };
 
+        $drawTableHeader = function (float $headerY) use ($drawRect, $addText) {
+            $drawRect(36, $headerY, 523, 24, 0.15, 0.20, 0.25, true);
+            $addText("#", 46, $headerY + 8, 'F2', 8.5, 1, 1, 1);
+            $addText("PLAN / SERVICE DESCRIPTION", 70, $headerY + 8, 'F2', 8.5, 1, 1, 1);
+            $addText("VALIDITY PERIOD", 310, $headerY + 8, 'F2', 8.5, 1, 1, 1);
+            $addText("AMOUNT (INR)", 470, $headerY + 8, 'F2', 8.5, 1, 1, 1);
+        };
+
+        $startNewPage = function () use (&$pages, &$currentPageStream, $invoiceNo, $drawRect, $addText, $drawTableHeader) {
+            $pages[] = $currentPageStream;
+            $currentPageStream = '';
+
+            // Continuation header at top of new page
+            $drawRect(36, 785, 523, 30, 0.024, 0.306, 0.231, true);
+            $titleLines = self::wrapText("INVOICE #" . $invoiceNo . " (Continued)", 490, 10, true);
+            $addText($titleLines[0] ?? "INVOICE (Continued)", 50, 795, 'F2', 10, 1, 1, 1);
+
+            // Redraw Table Header
+            $drawTableHeader(750);
+            return 726; // new rowY
+        };
+
+        // --- PAGE 1 RENDERING ---
         // 1. Top Header Banner (Dark Forest Emerald: #064E3B)
-        $drawRect(36, 735, 523, 75, 0.024, 0.306, 0.231, true);
-        $addText($gymName, 52, 782, 'F2', 17, 1, 1, 1);
-        $addText("OFFICIAL TAX INVOICE & MEMBERSHIP RECEIPT", 52, 766, 'F2', 9, 0.65, 0.95, 0.75);
         $gymSub = trim($gymAddress . ($gymPhone ? " | Ph: {$gymPhone}" : "") . ($gymGst ? " | GSTIN: {$gymGst}" : ""));
-        $addText(substr($gymSub, 0, 95), 52, 748, 'F1', 8, 0.85, 0.95, 0.90);
+        $gymSubLines = self::wrapText($gymSub, 480, 8, false);
+        $bannerHeight = max(75, 50 + (count($gymSubLines) * 11));
+        $bannerY = 810 - $bannerHeight;
+
+        $drawRect(36, $bannerY, 523, $bannerHeight, 0.024, 0.306, 0.231, true);
+        $addText($gymName, 52, $bannerY + $bannerHeight - 28, 'F2', 17, 1, 1, 1);
+        $addText("OFFICIAL TAX INVOICE & MEMBERSHIP RECEIPT", 52, $bannerY + $bannerHeight - 44, 'F2', 9, 0.65, 0.95, 0.75);
+
+        $subY = $bannerY + $bannerHeight - 58;
+        foreach ($gymSubLines as $subLine) {
+            $addText($subLine, 52, $subY, 'F1', 8, 0.85, 0.95, 0.90);
+            $subY -= 11;
+        }
 
         // 2. Invoice Meta Bar
-        $drawRect(36, 680, 523, 44, 0.96, 0.98, 0.97, true);
-        $drawRect(36, 680, 523, 44, 0.85, 0.90, 0.88, false);
+        $invNoLines = self::wrapText("#" . $invoiceNo, 120, 11, true);
+        $payModeLines = self::wrapText($paymentMethod, 115, 10, false);
+        $metaLinesCount = max(count($invNoLines), count($payModeLines), 1);
+        $metaHeight = max(44, 26 + ($metaLinesCount * 12));
+        $metaY = $bannerY - 12 - $metaHeight;
 
-        $addText("INVOICE NO:", 50, 706, 'F2', 8, 0.4, 0.45, 0.4);
-        $addText("#" . $invoiceNo, 50, 692, 'F2', 11, 0.05, 0.35, 0.2);
+        $drawRect(36, $metaY, 523, $metaHeight, 0.96, 0.98, 0.97, true);
+        $drawRect(36, $metaY, 523, $metaHeight, 0.85, 0.90, 0.88, false);
 
-        $addText("ISSUE DATE:", 180, 706, 'F2', 8, 0.4, 0.45, 0.4);
-        $addText($dateStr, 180, 692, 'F1', 10, 0.1, 0.1, 0.1);
+        $addText("INVOICE NO:", 50, $metaY + $metaHeight - 16, 'F2', 8, 0.4, 0.45, 0.4);
+        $iy = $metaY + $metaHeight - 29;
+        foreach ($invNoLines as $line) {
+            $addText($line, 50, $iy, 'F2', 11, 0.05, 0.35, 0.2);
+            $iy -= 12;
+        }
 
-        $addText("PAYMENT MODE:", 290, 706, 'F2', 8, 0.4, 0.45, 0.4);
-        $addText($paymentMethod, 290, 692, 'F1', 10, 0.1, 0.1, 0.1);
+        $addText("ISSUE DATE:", 180, $metaY + $metaHeight - 16, 'F2', 8, 0.4, 0.45, 0.4);
+        $addText($dateStr, 180, $metaY + $metaHeight - 29, 'F1', 10, 0.1, 0.1, 0.1);
+
+        $addText("PAYMENT MODE:", 290, $metaY + $metaHeight - 16, 'F2', 8, 0.4, 0.45, 0.4);
+        $py = $metaY + $metaHeight - 29;
+        foreach ($payModeLines as $line) {
+            $addText($line, 290, $py, 'F1', 10, 0.1, 0.1, 0.1);
+            $py -= 12;
+        }
 
         // Status Pill
+        $pillY = $metaY + ($metaHeight / 2) - 13;
         if ($isPaid) {
-            $drawRect(420, 688, 124, 26, 0.85, 0.98, 0.88, true);
-            $drawRect(420, 688, 124, 26, 0.30, 0.75, 0.40, false);
-            $addText("STATUS: " . $statusStr, 428, 698, 'F2', 8, 0.05, 0.45, 0.15);
+            $drawRect(420, $pillY, 124, 26, 0.85, 0.98, 0.88, true);
+            $drawRect(420, $pillY, 124, 26, 0.30, 0.75, 0.40, false);
+            $addText("STATUS: " . $statusStr, 428, $pillY + 9, 'F2', 8, 0.05, 0.45, 0.15);
         } else {
-            $drawRect(420, 688, 124, 26, 1.0, 0.92, 0.85, true);
-            $drawRect(420, 688, 124, 26, 0.95, 0.50, 0.20, false);
-            $addText("STATUS: " . $statusStr, 426, 698, 'F2', 8, 0.70, 0.25, 0.05);
+            $drawRect(420, $pillY, 124, 26, 1.0, 0.92, 0.85, true);
+            $drawRect(420, $pillY, 124, 26, 0.95, 0.50, 0.20, false);
+            $addText("STATUS: " . $statusStr, 426, $pillY + 9, 'F2', 8, 0.70, 0.25, 0.05);
         }
 
         // 3. Member Info Card
-        $drawRect(36, 580, 523, 85, 1, 1, 1, true);
-        $drawRect(36, 580, 523, 85, 0.88, 0.90, 0.90, false);
+        $nameLines = self::wrapText($memberName, 215, 10, true);
+        $emailLines = self::wrapText($memberEmail ?: 'N/A', 215, 9, false);
+        $memberCardHeight = max(85, 52 + ((count($nameLines) + count($emailLines) + 1) * 14));
+        $memberCardY = $metaY - 14 - $memberCardHeight;
 
-        $addText("MEMBER DETAILS (BILLED TO)", 50, 648, 'F2', 10, 0.02, 0.35, 0.25);
-        $drawLine(50, 642, 540, 642, 0.88, 0.92, 0.90, 0.5);
+        $drawRect(36, $memberCardY, 523, $memberCardHeight, 1, 1, 1, true);
+        $drawRect(36, $memberCardY, 523, $memberCardHeight, 0.88, 0.90, 0.90, false);
 
-        $addText("Name:", 50, 626, 'F1', 9, 0.45, 0.45, 0.45);
-        $addText($memberName, 110, 626, 'F2', 10, 0.1, 0.1, 0.1);
+        $addText("MEMBER DETAILS (BILLED TO)", 50, $memberCardY + $memberCardHeight - 20, 'F2', 10, 0.02, 0.35, 0.25);
+        $drawLine(50, $memberCardY + $memberCardHeight - 26, 540, $memberCardY + $memberCardHeight - 26, 0.88, 0.92, 0.90, 0.5);
 
-        $addText("Phone:", 50, 608, 'F1', 9, 0.45, 0.45, 0.45);
-        $addText($memberPhone ?: 'N/A', 110, 608, 'F1', 9.5, 0.1, 0.1, 0.1);
-
-        $addText("Email:", 50, 592, 'F1', 9, 0.45, 0.45, 0.45);
-        $addText($memberEmail ?: 'N/A', 110, 592, 'F1', 9, 0.2, 0.2, 0.2);
-
-        $addText("Turnstile Gate Access Pass ID:", 330, 626, 'F1', 9, 0.45, 0.45, 0.45);
-        $addText($qrCode ?: 'STANDARD ACCESS', 330, 610, 'F2', 11, 0.05, 0.35, 0.25);
-
-        // 4. Line Items Table
-        // Table Header
-        $drawRect(36, 532, 523, 24, 0.15, 0.20, 0.25, true);
-        $addText("#", 46, 541, 'F2', 8.5, 1, 1, 1);
-        $addText("PLAN / SERVICE DESCRIPTION", 70, 541, 'F2', 8.5, 1, 1, 1);
-        $addText("VALIDITY PERIOD", 310, 541, 'F2', 8.5, 1, 1, 1);
-        $addText("AMOUNT (INR)", 470, 541, 'F2', 8.5, 1, 1, 1);
-
-        // Rows
-        $rowY = 508;
-        $idx = 1;
-        foreach ($items as $item) {
-            $drawRect(36, $rowY - 8, 523, 26, ($idx % 2 === 0) ? 0.98 : 1.0, ($idx % 2 === 0) ? 0.98 : 1.0, 1.0, true);
-            $drawLine(36, $rowY - 8, 559, $rowY - 8, 0.90, 0.92, 0.92, 0.5);
-
-            $addText(strval($idx), 46, $rowY + 1, 'F1', 9, 0.3, 0.3, 0.3);
-            $addText(substr($item['name'], 0, 42), 70, $rowY + 1, 'F2', 9, 0.1, 0.1, 0.1);
-            $addText($item['validity'], 310, $rowY + 1, 'F1', 8.5, 0.3, 0.3, 0.3);
-            $addText("INR " . number_format($item['amount'], 2), 470, $rowY + 1, 'F2', 9, 0.1, 0.1, 0.1);
-
-            $rowY -= 28;
-            $idx++;
-            if ($idx > 4) break; // Limit items on single-page receipt
+        // Left column details
+        $detailY = $memberCardY + $memberCardHeight - 42;
+        $addText("Name:", 50, $detailY, 'F1', 9, 0.45, 0.45, 0.45);
+        foreach ($nameLines as $nl) {
+            $addText($nl, 110, $detailY, 'F2', 10, 0.1, 0.1, 0.1);
+            $detailY -= 14;
         }
 
-        // 5. Financial Summary Box (Right Side)
-        $summaryBoxY = $rowY - 110;
-        $drawRect(310, $summaryBoxY, 249, 120, 0.97, 0.98, 0.98, true);
-        $drawRect(310, $summaryBoxY, 249, 120, 0.85, 0.88, 0.88, false);
+        $addText("Phone:", 50, $detailY, 'F1', 9, 0.45, 0.45, 0.45);
+        $addText($memberPhone ?: 'N/A', 110, $detailY, 'F1', 9.5, 0.1, 0.1, 0.1);
+        $detailY -= 14;
+
+        $addText("Email:", 50, $detailY, 'F1', 9, 0.45, 0.45, 0.45);
+        foreach ($emailLines as $el) {
+            $addText($el, 110, $detailY, 'F1', 9, 0.2, 0.2, 0.2);
+            $detailY -= 14;
+        }
+
+        // Right column gate access
+        $addText("Turnstile Gate Access Pass ID:", 330, $memberCardY + $memberCardHeight - 42, 'F1', 9, 0.45, 0.45, 0.45);
+        $passLines = self::wrapText($qrCode ?: 'STANDARD ACCESS', 200, 11, true);
+        $passY = $memberCardY + $memberCardHeight - 58;
+        foreach ($passLines as $pl) {
+            $addText($pl, 330, $passY, 'F2', 11, 0.05, 0.35, 0.25);
+            $passY -= 14;
+        }
+
+        // 4. Line Items Table
+        $tableHeaderY = $memberCardY - 14 - 24;
+        $drawTableHeader($tableHeaderY);
+
+        $rowY = $tableHeaderY - 24;
+        $idx = 1;
+
+        foreach ($items as $item) {
+            $nameLines = self::wrapText($item['name'], 230, 9, true);
+            $validityLines = self::wrapText($item['validity'], 150, 8.5, false);
+            $lineCount = max(count($nameLines), count($validityLines), 1);
+            $rowHeight = max(26, 12 + ($lineCount * 13));
+
+            // Automatic page break if row crosses bottom margin limit
+            if ($rowY - $rowHeight < 80) {
+                $rowY = $startNewPage();
+            }
+
+            // Draw alternating row
+            $isEven = ($idx % 2 === 0);
+            $drawRect(36, $rowY - ($rowHeight - 20), 523, $rowHeight, $isEven ? 0.98 : 1.0, $isEven ? 0.98 : 1.0, 1.0, true);
+            $drawLine(36, $rowY - ($rowHeight - 20), 559, $rowY - ($rowHeight - 20), 0.90, 0.92, 0.92, 0.5);
+
+            $addText(strval($idx), 46, $rowY + 1, 'F1', 9, 0.3, 0.3, 0.3);
+
+            $ny = $rowY + 1;
+            foreach ($nameLines as $nl) {
+                $addText($nl, 70, $ny, 'F2', 9, 0.1, 0.1, 0.1);
+                $ny -= 13;
+            }
+
+            $vy = $rowY + 1;
+            foreach ($validityLines as $vl) {
+                $addText($vl, 310, $vy, 'F1', 8.5, 0.3, 0.3, 0.3);
+                $vy -= 13;
+            }
+
+            $addText("INR " . number_format($item['amount'], 2), 470, $rowY + 1, 'F2', 9, 0.1, 0.1, 0.1);
+
+            $rowY -= $rowHeight;
+            $idx++;
+        }
+
+        // 5. Financial Summary Box (Right) & Terms (Left)
+        $terms = [
+            "1. Membership fees once paid are non-transferable and non-refundable.",
+            "2. Turnstile gate scan is mandatory upon entry for biometric safety.",
+            "3. Members must adhere to gym floor safety guidelines and gym equipment etiquettes.",
+            "4. Official computer-generated receipt. Requires no manual physical signature."
+        ];
+
+        $termsLines = [];
+        foreach ($terms as $t) {
+            $wrappedT = self::wrapText($t, 250, 7.5, false);
+            foreach ($wrappedT as $wl) {
+                $termsLines[] = $wl;
+            }
+        }
+
+        $summaryBoxHeight = 120;
+        $neededSpace = max($summaryBoxHeight, (count($termsLines) * 12) + 30) + 15;
+
+        if ($rowY - $neededSpace < 80) {
+            $pages[] = $currentPageStream;
+            $currentPageStream = '';
+
+            // Compact header for summary page
+            $drawRect(36, 785, 523, 30, 0.024, 0.306, 0.231, true);
+            $addText("INVOICE #" . $invoiceNo . " (Summary & Terms)", 50, 795, 'F2', 10, 1, 1, 1);
+            $rowY = 760;
+        }
+
+        $summaryBoxY = $rowY - $summaryBoxHeight - 10;
+        $drawRect(310, $summaryBoxY, 249, $summaryBoxHeight, 0.97, 0.98, 0.98, true);
+        $drawRect(310, $summaryBoxY, 249, $summaryBoxHeight, 0.85, 0.88, 0.88, false);
 
         $addText("Total Bill Package:", 325, $summaryBoxY + 98, 'F1', 9, 0.4, 0.4, 0.4);
         $addText("INR " . number_format($totalAmount, 2), 460, $summaryBoxY + 98, 'F2', 10, 0.1, 0.1, 0.1);
@@ -265,20 +502,47 @@ class InvoicePdfService
         $addText("Payment Due Date:", 325, $summaryBoxY + 22, 'F1', 8.5, 0.4, 0.4, 0.4);
         $addText($dueDateStr, 460, $summaryBoxY + 22, 'F1', 8.5, 0.2, 0.2, 0.2);
 
-        // Terms and Left Notes
+        // Terms on left side
         $addText("PAYMENT NOTES & TERMS:", 40, $summaryBoxY + 98, 'F2', 8.5, 0.2, 0.25, 0.3);
-        $addText("1. Membership fees once paid are non-transferable and non-refundable.", 40, $summaryBoxY + 82, 'F1', 7.5, 0.45, 0.45, 0.45);
-        $addText("2. Turnstile gate scan is mandatory upon entry for biometric safety.", 40, $summaryBoxY + 69, 'F1', 7.5, 0.45, 0.45, 0.45);
-        $addText("3. Members must adhere to gym floor safety guidelines and gym equipment etiquettes.", 40, $summaryBoxY + 56, 'F1', 7.5, 0.45, 0.45, 0.45);
-        $addText("4. Official computer-generated receipt. Requires no manual physical signature.", 40, $summaryBoxY + 43, 'F1', 7.5, 0.45, 0.45, 0.45);
+        $ty = $summaryBoxY + 82;
+        foreach ($termsLines as $tl) {
+            $addText($tl, 40, $ty, 'F1', 7.5, 0.45, 0.45, 0.45);
+            $ty -= 12;
+        }
 
-        // 6. Footer Divider & Stamp
-        $drawLine(36, 95, 559, 95, 0.85, 0.88, 0.88, 1);
-        $addText("Thank you for training with " . ($gym?->name ?: 'our Fitness Family') . "! Let's crush your fitness goals together! 🚀", 52, 75, 'F2', 9, 0.05, 0.35, 0.25);
-        $addText("Generated on " . date('d M Y, h:i A') . " | Direct Online Verification: " . config('app.url', 'https://archfit.archenterprises.co.in'), 52, 60, 'F1', 7.5, 0.5, 0.5, 0.5);
+        // Push final page stream
+        $pages[] = $currentPageStream;
+        $totalPages = count($pages);
 
-        // Assemble PDF objects
-        $contentLen = strlen($s);
+        // 6. Running Document Footers across all pages
+        $finalPageStreams = [];
+        $footerMsg = "Thank you for training with " . ($gym?->name ?: 'our Fitness Family') . "! Let's crush your fitness goals together!";
+        $subFooter = "Generated on " . date('d M Y, h:i A') . " | Direct Online Verification: " . config('app.url', 'https://archfit.archenterprises.co.in');
+
+        foreach ($pages as $pIdx => $pStream) {
+            $pageNum = $pIdx + 1;
+            $fStream = $pStream;
+
+            // Footer divider
+            $fStream .= sprintf("%.2F w\n0.85 0.88 0.88 RG\n36.00 70.00 m 559.00 70.00 l S\n", 1.0);
+
+            // Left footer lines
+            $cleanMsg = preg_replace('/[^\x20-\x7E]/', '', $footerMsg);
+            $cleanSub = preg_replace('/[^\x20-\x7E]/', '', $subFooter);
+
+            $fStream .= "BT\n/F2 9.00 Tf\n0.05 0.35 0.25 rg\n52.00 54.00 Td\n(" . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $cleanMsg) . ") Tj\nET\n";
+            $fStream .= "BT\n/F1 7.50 Tf\n0.50 0.50 0.50 rg\n52.00 42.00 Td\n(" . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $cleanSub) . ") Tj\nET\n";
+
+            // Page numbers on right side when multi-page
+            if ($totalPages > 1) {
+                $pageLabel = "Page {$pageNum} of {$totalPages}";
+                $fStream .= "BT\n/F2 8.00 Tf\n0.40 0.45 0.45 rg\n495.00 42.00 Td\n(" . $pageLabel . ") Tj\nET\n";
+            }
+
+            $finalPageStreams[] = $fStream;
+        }
+
+        // Assemble standard PDF 1.4 binary
         $out = "%PDF-1.4\n";
         $offsets = [];
 
@@ -287,35 +551,47 @@ class InvoicePdfService
         $out .= "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
 
         // Obj 2: Pages
+        $kids = [];
+        for ($p = 1; $p <= $totalPages; $p++) {
+            $pageObjId = 4 + (2 * ($p - 1)) + 1;
+            $kids[] = "{$pageObjId} 0 R";
+        }
+        $kidsStr = implode(' ', $kids);
         $offsets[2] = strlen($out);
-        $out .= "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+        $out .= "2 0 obj\n<< /Type /Pages /Kids [{$kidsStr}] /Count {$totalPages} >>\nendobj\n";
 
-        // Obj 3: Page (A4: 595.28 x 841.89)
+        // Obj 3: Font F1
         $offsets[3] = strlen($out);
-        $out .= "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>\nendobj\n";
+        $out .= "3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
 
-        // Obj 4: Font F1 (Helvetica Regular)
+        // Obj 4: Font F2
         $offsets[4] = strlen($out);
-        $out .= "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
+        $out .= "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n";
 
-        // Obj 5: Font F2 (Helvetica Bold)
-        $offsets[5] = strlen($out);
-        $out .= "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n";
+        // Page objects & Content objects
+        for ($p = 1; $p <= $totalPages; $p++) {
+            $pageObjId = 4 + (2 * ($p - 1)) + 1;
+            $contentObjId = $pageObjId + 1;
+            $contentStream = $finalPageStreams[$p - 1];
+            $streamLen = strlen($contentStream);
 
-        // Obj 6: Content Stream
-        $offsets[6] = strlen($out);
-        $out .= "6 0 obj\n<< /Length {$contentLen} >>\nstream\n" . $s . "endstream\nendobj\n";
+            // Page obj
+            $offsets[$pageObjId] = strlen($out);
+            $out .= "{$pageObjId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {$contentObjId} 0 R >>\nendobj\n";
 
-        // xref table
+            // Content obj
+            $offsets[$contentObjId] = strlen($out);
+            $out .= "{$contentObjId} 0 obj\n<< /Length {$streamLen} >>\nstream\n{$contentStream}\nendstream\nendobj\n";
+        }
+
+        $totalObjs = 4 + (2 * $totalPages);
         $xrefOffset = strlen($out);
-        $out .= "xref\n0 7\n0000000000 65535 f \n";
-        for ($i = 1; $i <= 6; $i++) {
+        $out .= "xref\n0 " . ($totalObjs + 1) . "\n0000000000 65535 f \n";
+        for ($i = 1; $i <= $totalObjs; $i++) {
             $out .= sprintf("%010d 00000 n \n", $offsets[$i]);
         }
 
-        // trailer
-        $out .= "trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF\n";
-
+        $out .= "trailer\n<< /Size " . ($totalObjs + 1) . " /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF\n";
         return $out;
     }
 }

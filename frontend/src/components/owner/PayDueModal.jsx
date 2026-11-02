@@ -285,14 +285,17 @@ export const PayDueModal = ({
       // 2. Clear or update any matching pending invoices for this member
       if (Array.isArray(invoices) && invoices.length > 0 && api.invoices?.update) {
         const cleanMemIdStr = String(rawId || '').replace(/\D/g, '');
+        const cleanMemPhone = String(member.phone || '').replace(/\D/g, '').slice(-10);
         const matchingPendingInvoices = invoices.filter((inv) => {
           if (member.invoiceId && (String(inv.id) === String(member.invoiceId) || String(inv.invoiceNumber) === String(member.invoiceId))) return true;
           if (String(inv.status).toLowerCase() === 'paid') return false;
           const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
-          if (cleanMemIdStr && invMemId && cleanMemIdStr === invMemId) return true;
-          if (inv.memberId && String(inv.memberId) === String(targetMemberId)) return true;
+          const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+
+          if (cleanMemIdStr && invMemId) return cleanMemIdStr === invMemId;
+          if (cleanMemPhone && cleanInvPhone) return cleanMemPhone === cleanInvPhone;
           if (member.email && inv.memberEmail && inv.memberEmail.toLowerCase() === member.email.toLowerCase()) return true;
-          if (member.name && inv.memberName && inv.memberName.toLowerCase().trim() === member.name.toLowerCase().trim()) return true;
+          if (!invMemId && !cleanInvPhone && member.name && inv.memberName) return inv.memberName.toLowerCase().trim() === member.name.toLowerCase().trim();
           return false;
         });
 

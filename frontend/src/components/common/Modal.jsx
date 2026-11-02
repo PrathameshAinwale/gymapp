@@ -97,7 +97,7 @@ export const Modal = ({
                 onCloseRef.current?.();
               }}
               type="button"
-              className="sm:hidden p-1.5 -ml-1 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 active:scale-95 transition-all cursor-pointer shrink-0"
+              className="sm:hidden w-10 h-10 min-w-[40px] min-h-[40px] -ml-1 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center justify-center"
               title="Back"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -112,7 +112,7 @@ export const Modal = ({
               onCloseRef.current?.();
             }}
             type="button"
-            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0 active:scale-95"
+            className="w-10 h-10 min-w-[40px] min-h-[40px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0 active:scale-95 flex items-center justify-center"
             title="Close dialog"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -122,7 +122,7 @@ export const Modal = ({
         {/* Content */}
         <div
           ref={contentRef}
-          className="p-4 sm:p-6 overflow-y-auto overscroll-contain flex-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+          className="p-3.5 sm:p-6 overflow-y-auto overscroll-contain flex-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         >
           {children}
         </div>

@@ -621,6 +621,8 @@ class PlanChainingService
                         'amount' => (float)($item['net_amount'] ?? $item['price'] ?? 0),
                     ];
 
+                    $isMemberFrozen = in_array($profileStatus, ['Frozen', 'Frozen (Paused)']);
+
                     if ($itemTransferred) {
                         $planItem['status'] = 'Transferred';
                         $expiredPlans[] = $planItem;
@@ -631,7 +633,7 @@ class PlanChainingService
                         $planItem['status'] = 'Expired';
                         $expiredPlans[] = $planItem;
                     } else {
-                        $planItem['status'] = 'Active';
+                        $planItem['status'] = $isMemberFrozen ? 'Frozen' : 'Active';
                         $activePlans[] = $planItem;
                         if (!isset($activeGrouped[$pkgType]) || $endDate > $activeGrouped[$pkgType]['endDate']) {
                             $activeGrouped[$pkgType] = $planItem;
@@ -689,6 +691,8 @@ class PlanChainingService
                 'amount' => (float)$inv->amount,
             ];
 
+            $isMemberFrozen = in_array($profileStatus, ['Frozen', 'Frozen (Paused)']);
+
             if ($invTransferred) {
                 $planItem['status'] = 'Transferred';
                 $expiredPlans[] = $planItem;
@@ -699,7 +703,7 @@ class PlanChainingService
                 $planItem['status'] = 'Expired';
                 $expiredPlans[] = $planItem;
             } else {
-                $planItem['status'] = 'Active';
+                $planItem['status'] = $isMemberFrozen ? 'Frozen' : 'Active';
                 $activePlans[] = $planItem;
                 if (!isset($activeGrouped[$pkgType]) || $endDate > $activeGrouped[$pkgType]['endDate']) {
                     $activeGrouped[$pkgType] = $planItem;

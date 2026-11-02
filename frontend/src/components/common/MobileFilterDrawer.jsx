@@ -43,7 +43,7 @@ export const MobileFilterDrawer = ({
       {/* Sheet Container: Bottom sheet on mobile, centered modal on desktop */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 max-h-[85vh] sm:max-h-[80vh] animate-slideUp sm:animate-scaleUp pb-[env(safe-area-inset-bottom,0px)]"
+        className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-10 max-h-[85dvh] sm:max-h-[80vh] animate-slideUp sm:animate-scaleUp pb-[env(safe-area-inset-bottom,0px)]"
       >
         {/* Header */}
         <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">

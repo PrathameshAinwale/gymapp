@@ -23,7 +23,7 @@ export const LogoutConfirmModal = () => {
           type="button"
           onClick={cancelLogout}
           disabled={isLoggingOut}
-          className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+          className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 w-9 h-9 min-w-[36px] min-h-[36px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
           aria-label="Close"
         >
           <X className="w-4 h-4" />
@@ -56,7 +56,7 @@ export const LogoutConfirmModal = () => {
             type="button"
             onClick={cancelLogout}
             disabled={isLoggingOut}
-            className="w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             Cancel
           </button>
@@ -64,7 +64,7 @@ export const LogoutConfirmModal = () => {
             type="button"
             onClick={confirmLogout}
             disabled={isLoggingOut}
-            className="w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
+            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
           >
             {isLoggingOut ? (
               <>

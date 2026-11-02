@@ -16,7 +16,7 @@ export const ToastContainer = () => {
   return createPortal(
     <div
       style={{ zIndex: 999999 }}
-      className="fixed top-4 sm:top-6 right-4 sm:right-6 z-[999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-3 sm:px-0"
+      className="fixed top-4 sm:top-6 inset-x-3 sm:inset-x-auto sm:right-6 z-[999999] flex flex-col gap-2 sm:max-w-sm w-auto sm:w-full pointer-events-none px-0"
     >
       {toasts.map((toast) => {
         let Icon = CheckCircle2;

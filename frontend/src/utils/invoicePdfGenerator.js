@@ -1,5 +1,22 @@
 import { jsPDF } from 'jspdf';
 import { formatWhatsAppPhone, openWhatsApp } from './whatsapp.js';
+import {
+  PDF_PAGE_WIDTH,
+  PDF_PAGE_HEIGHT,
+  PDF_MARGIN_LEFT,
+  PDF_MARGIN_RIGHT,
+  PDF_MARGIN_TOP,
+  PDF_MARGIN_BOTTOM,
+  PDF_CONTENT_WIDTH,
+  PDF_USABLE_HEIGHT,
+  safeString,
+  wrapAndBreakText,
+  measureTextHeight,
+  PdfPageManager
+} from './pdfLayoutHelper.js';
+
+// Re-export shared wrap helper for backward-compatibility with existing tests and callers
+export { wrapAndBreakText };
 
 // Helper to convert numbers to Indian Rupee Words
 function numberToWordsINR(amount) {
@@ -45,7 +62,6 @@ export function downloadPdfBlob(blob, fileName, doc = null) {
   let actualBlob = blob;
   let actualDoc = doc;
 
-  // Handle case where result object from generateInvoicePdf was passed directly
   if (blob && typeof blob === 'object' && !(blob instanceof Blob)) {
     if (blob.blob instanceof Blob) actualBlob = blob.blob;
     if (blob.doc) actualDoc = blob.doc;
@@ -130,38 +146,6 @@ export function formatInvoiceDate(rawDate) {
   }
 }
 
-// Helper to wrap text within a maximum width and break long unbroken strings (e.g. emails)
-export function wrapAndBreakText(doc, text, maxWidth) {
-  if (!text) return [];
-  const str = String(text).trim();
-  if (!str) return [];
-
-  // Split on spaces first
-  const words = str.split(/\s+/);
-  const brokenWords = [];
-
-  for (const word of words) {
-    if (doc.getTextWidth(word) > maxWidth) {
-      // Break the word into chunks that fit within maxWidth
-      let chunk = '';
-      for (let i = 0; i < word.length; i++) {
-        const char = word[i];
-        if (doc.getTextWidth(chunk + char) <= maxWidth) {
-          chunk += char;
-        } else {
-          if (chunk) brokenWords.push(chunk);
-          chunk = char;
-        }
-      }
-      if (chunk) brokenWords.push(chunk);
-    } else {
-      brokenWords.push(word);
-    }
-  }
-
-  return doc.splitTextToSize(brokenWords.join(' '), maxWidth);
-}
-
 /**
  * Shared helper to format start and end date for any package/plan line item.
  * Always formats as "<start date> – <end date>".
@@ -191,7 +175,6 @@ export function formatPackageDateRange(pkg, invoice = {}, member = {}) {
   const durationMonths = Number(pkg?.durationMonths || pkg?.duration_months || pkg?.duration || invoice?.durationMonths || invoice?.duration_months || 0);
   const durationDays = Number(pkg?.durationDays || pkg?.duration_days || (durationMonths > 0 ? durationMonths * 30 : 0));
 
-  // If start is missing but end exists: derive start from duration
   if (!rawStart && rawEnd && durationDays > 0) {
     try {
       const d = new Date(rawEnd);
@@ -202,7 +185,6 @@ export function formatPackageDateRange(pkg, invoice = {}, member = {}) {
     } catch (_) {}
   }
 
-  // If end is missing but start exists: derive end from duration (default 30 days if plan/package)
   if (rawStart && !rawEnd) {
     try {
       const daysToAdd = durationDays > 0 ? durationDays : 30;
@@ -214,7 +196,6 @@ export function formatPackageDateRange(pkg, invoice = {}, member = {}) {
     } catch (_) {}
   }
 
-  // Fallback to invoice start/end if item still has no dates
   if (!rawStart && invoice?.startDate) rawStart = invoice.startDate;
   if (!rawStart && invoice?.date) rawStart = invoice.date;
   if (!rawEnd && (invoice?.endDate || invoice?.expiryDate)) rawEnd = invoice.endDate || invoice.expiryDate;
@@ -241,8 +222,8 @@ export function formatPackageDateRange(pkg, invoice = {}, member = {}) {
 }
 
 /**
- * Generate a modern, elegant Gym Membership & Payment Receipt PDF
- * (Clean fitness club format — easy to read, transparent, and aesthetically premium)
+ * Generate a modern, elegant Gym Membership & Payment Receipt PDF with strict
+ * text-wrapping, dynamic sizing, and multi-page pagination.
  */
 export function generateInvoicePdf(arg1, arg2, arg3) {
   let invoice = null;
@@ -278,10 +259,10 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     format: 'a4'
   });
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 16;
-  const contentWidth = pageWidth - margin * 2;
+  const pageWidth = PDF_PAGE_WIDTH;
+  const pageHeight = PDF_PAGE_HEIGHT;
+  const margin = PDF_MARGIN_LEFT;
+  const contentWidth = PDF_CONTENT_WIDTH;
 
   const gymName = gymInfo?.name || invoice?.gymName || '';
   const gymAddress = gymInfo?.address || '';
@@ -328,8 +309,6 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   const invoiceId = (invoice.id || invoice.invoiceNumber || invoice.invoice_number || 'INV-001').toString().toUpperCase();
 
-  // Safely resolve the invoice Issue Date from the exact same source fields the invoice list uses
-  // Avoid confusing the package start date with the invoice issue date
   const candidateStartDate = (invoice.startDate || invoice.start_date || member?.startDate || member?.start_date || '').toString().split('T')[0].trim();
   let rawIssueDate =
     invoice.issueDate ||
@@ -340,7 +319,6 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   if (!rawIssueDate && invoice.date) {
     const candidate = String(invoice.date).split('T')[0].trim();
-    // If invoice.date was mistakenly assigned the package start date while a true creation or payment date exists, use that
     if (candidateStartDate && candidate === candidateStartDate && (invoice.paymentDate || invoice.payment_date || invoice.created_at || invoice.createdAt)) {
       rawIssueDate = (invoice.paymentDate || invoice.payment_date || invoice.created_at || invoice.createdAt).toString().split('T')[0].trim();
     } else {
@@ -384,20 +362,36 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const sgst = hasGst ? (totalGst - cgst) : 0;
   const amountWords = numberToWordsINR(totalAmount);
 
-  // Background canvas
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+  // Helper function to draw top accent bar on any page
+  const drawTopAccentBar = () => {
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+    if (isPending) {
+      doc.setFillColor(245, 158, 11); // amber-500
+    } else {
+      doc.setFillColor(16, 185, 129); // emerald-500
+    }
+    doc.rect(0, 0, pageWidth, 4, 'F');
+  };
 
-  // Top Accent Bar (Amber for pending, emerald for paid)
-  if (isPending) {
-    doc.setFillColor(245, 158, 11); // amber-500
-  } else {
-    doc.setFillColor(16, 185, 129); // emerald-500
-  }
-  doc.rect(0, 0, pageWidth, 4, 'F');
+  // Initialize Page Manager
+  const layout = new PdfPageManager(doc, {
+    pageWidth,
+    pageHeight,
+    marginLeft: margin,
+    marginRight: margin,
+    marginTop: margin + 3,
+    marginBottom: margin,
+    onNewPage: (mgr) => {
+      drawTopAccentBar();
+    }
+  });
+
+  // Draw Page 1 Top Accent Bar
+  drawTopAccentBar();
 
   // 1. BRAND & RECEIPT HEADER
-  let curY = margin + 3;
+  let curY = layout.curY;
 
   // Gym Monogram Logo Mark
   const monogram = (gymName || '')
@@ -419,7 +413,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setTextColor(255, 255, 255);
   doc.text(monogram, margin + 5.5, curY + 7.5, { align: 'center' });
 
-  // Gym Title (Wrapped with max width so long names never overflow)
+  // Gym Title (Wrapped with maxWidth 95mm so long gym names wrap cleanly)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42); // slate-900
@@ -428,14 +422,19 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.text(gymNameLines, margin + 14, curY + 5.5);
 
   const gymNameH = gymNameLines.length * 4.5;
+
+  // Gym Tagline (Wrapped safely to 95mm so long taglines never collide with header right block)
+  let taglineH = 0;
   if (gymTagline) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text(gymTagline, margin + 14, curY + 6.5 + gymNameH);
+    const taglineLines = wrapAndBreakText(doc, gymTagline, 95);
+    doc.text(taglineLines, margin + 14, curY + 6.5 + gymNameH);
+    taglineH = taglineLines.length * 3.5;
   }
 
-  // Right Side Header Box: Status Pill, Invoice Number & Issue Date clearly visible
+  // Right Side Header Box: Status Pill, Invoice Number & Issue Date
   const headerRightW = 68;
   const headerRightX = pageWidth - margin - headerRightW;
 
@@ -468,19 +467,21 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.text('PAYMENT RECEIPT • VERIFIED', headerRightX + headerRightW / 2, curY + 4.5, { align: 'center' });
   }
 
-  // Header: Invoice Number & Issue Date prominently displayed near each other
+  // Header: Invoice Number & Issue Date wrapped to headerRightW
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
   const invNumLines = wrapAndBreakText(doc, `Invoice #: ${invoiceId}`, headerRightW);
   doc.text(invNumLines, headerRightX + headerRightW, curY + 12, { align: 'right' });
 
+  const invNumH = invNumLines.length * 3.5;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Issue Date: ${invoiceDate}`, headerRightX + headerRightW, curY + 16.5 + (invNumLines.length - 1) * 3.5, { align: 'right' });
+  const issueDateLines = wrapAndBreakText(doc, `Issue Date: ${invoiceDate}`, headerRightW);
+  doc.text(issueDateLines, headerRightX + headerRightW, curY + 13 + invNumH, { align: 'right' });
 
-  // Gym Contact Sub-bar below branding (Only show available fields; hide if empty)
+  // Gym Contact Sub-bar below branding
   const contactParts = [];
   if (gymAddress) contactParts.push(gymAddress);
   if (gymPhone) contactParts.push(`Phone: ${gymPhone}`);
@@ -490,7 +491,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   const contactText = contactParts.join('  •  ');
   const contactLines = contactText ? wrapAndBreakText(doc, contactText, 105) : [];
-  const contactY = curY + 12 + gymNameH;
+  const contactY = curY + 12 + gymNameH + taglineH;
   if (contactLines.length > 0) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
@@ -557,7 +558,9 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const createdByName = (!isGenericStaff(candidateCreator) && candidateCreator) ? candidateCreator : 'Staff';
 
   // Dynamic Header advancement
-  const headerTotalH = Math.max(contactY + contactLines.length * 3.5 - curY, 20);
+  const headerLeftH = contactY + contactLines.length * 3.5 - curY;
+  const headerRightTotalH = 13 + invNumH + issueDateLines.length * 3.5;
+  const headerTotalH = Math.max(headerLeftH, headerRightTotalH, 20);
   curY += headerTotalH + 3;
 
   // Soft Divider
@@ -578,11 +581,34 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  const memberIdLabel = isProductSale && isWalkIn ? 'Customer Type: Walk-in / Counter Sale' : `Member ID: ${memberId}`;
+  const memberIdLines = wrapAndBreakText(doc, memberIdLabel, textMaxW);
+
+  const memberPhoneLines = memberPhone && memberPhone !== 'N/A'
+    ? wrapAndBreakText(doc, `Mobile: ${memberPhone}`, textMaxW)
+    : [];
+
   const memberEmailLines = memberEmail && memberEmail !== 'N/A'
     ? wrapAndBreakText(doc, `Email: ${memberEmail}`, textMaxW)
     : [];
 
-  const cardAHeight = 6 + memberNameLines.length * 4.5 + 4 + 4.5 + (memberEmailLines.length > 0 ? memberEmailLines.length * 3.8 : 4) + 6;
+  const stateStr = member?.state || gymInfo?.state;
+  const stateLines = stateStr ? wrapAndBreakText(doc, `State: ${stateStr}`, textMaxW) : [];
+
+  const kycNoteText = isProductSale
+    ? (isWalkIn ? 'Verification: Point of Sale (POS) Counter Receipt' : 'Verification: Registered Club Member')
+    : 'Verification: KYC Verified Athlete';
+  const kycNoteLines = wrapAndBreakText(doc, kycNoteText, textMaxW);
+
+  const cardAHeight =
+    6 +
+    memberNameLines.length * 4.5 +
+    memberIdLines.length * 4 +
+    (memberPhoneLines.length > 0 ? memberPhoneLines.length * 4 : 0) +
+    (memberEmailLines.length > 0 ? memberEmailLines.length * 3.8 : 0) +
+    (stateLines.length > 0 ? stateLines.length * 3.8 : 0) +
+    kycNoteLines.length * 3.5 +
+    7;
 
   // Pre-calculate wrapped lines for Card B (Receipt Details)
   doc.setFont('helvetica', 'bold');
@@ -591,15 +617,28 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  const cardBDateLines = wrapAndBreakText(doc, `Issue Date: ${invoiceDate}`, textMaxW);
   const modeLines = wrapAndBreakText(doc, `Payment: ${paymentMode}`, textMaxW);
   const creatorLines = wrapAndBreakText(doc, `Created By: ${createdByName}`, textMaxW);
 
-  const cardBHeight = 6 + cardBInvLines.length * 4 + 4.5 + modeLines.length * 3.8 + creatorLines.length * 3.8 + 7;
+  const statusLabel = isPending
+    ? `Status: Pending (Rs. ${pendingAmount.toLocaleString('en-IN')} Due)`
+    : `Status: Paid & Settled (Full)`;
+  const statusLines = wrapAndBreakText(doc, statusLabel, textMaxW);
+
+  const cardBHeight =
+    6 +
+    cardBInvLines.length * 4 +
+    cardBDateLines.length * 4 +
+    modeLines.length * 3.8 +
+    creatorLines.length * 3.8 +
+    statusLines.length * 3.5 +
+    7;
 
   // Both cards expand dynamically to the maximum needed height
   const cardH = Math.max(cardAHeight, cardBHeight, 40);
 
-  // Card A: Member Info
+  // Card A: Member Info Box
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(226, 232, 240); // slate-200
   doc.roundedRect(margin, curY, colW, cardH, 2.5, 2.5, 'FD');
@@ -619,41 +658,32 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  if (isProductSale && isWalkIn) {
-    doc.text(`Customer Type: Walk-in / Counter Sale`, margin + cardPad, mY);
-    mY += 4.5;
-  } else {
-    doc.text(`Member ID: ${memberId}`, margin + cardPad, mY);
-    mY += 4.5;
-  }
+  doc.text(memberIdLines, margin + cardPad, mY);
+  mY += memberIdLines.length * 4;
 
-  if (memberPhone && memberPhone !== 'N/A') {
-    doc.text(`Mobile: ${memberPhone}`, margin + cardPad, mY);
-    mY += 4.5;
+  if (memberPhoneLines.length > 0) {
+    doc.text(memberPhoneLines, margin + cardPad, mY);
+    mY += memberPhoneLines.length * 4;
   }
 
   if (memberEmailLines.length > 0) {
     doc.text(memberEmailLines, margin + cardPad, mY);
     mY += memberEmailLines.length * 3.8;
   }
-  const stateStr = member?.state || gymInfo?.state;
-  if (stateStr) {
-    doc.text(`State: ${stateStr}`, margin + cardPad, mY);
-    mY += 4;
+
+  if (stateLines.length > 0) {
+    doc.text(stateLines, margin + cardPad, mY);
+    mY += stateLines.length * 3.8;
   }
 
+  // Card A Verification note positioned dynamically without clipping
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(
-    isProductSale
-      ? (isWalkIn ? 'Verification: Point of Sale (POS) Counter Receipt' : 'Verification: Registered Club Member')
-      : 'Verification: KYC Verified Athlete',
-    margin + cardPad,
-    curY + cardH - 3.5
-  );
+  const kycY = Math.max(mY + 1.5, curY + cardH - (kycNoteLines.length * 3.2));
+  doc.text(kycNoteLines, margin + cardPad, kycY);
 
-  // Card B: Receipt / Invoice Details
+  // Card B: Receipt / Invoice Details Box
   const cardBX = margin + colW + 6;
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(cardBX, curY, colW, cardH, 2.5, 2.5, 'FD');
@@ -673,8 +703,8 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Issue Date: ${invoiceDate}`, cardBX + cardPad, rDetailY);
-  rDetailY += 4.5;
+  doc.text(cardBDateLines, cardBX + cardPad, rDetailY);
+  rDetailY += cardBDateLines.length * 4;
 
   doc.text(modeLines, cardBX + cardPad, rDetailY);
   rDetailY += modeLines.length * 3.8;
@@ -683,16 +713,18 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFontSize(8);
   doc.setTextColor(79, 70, 229); // indigo-600
   doc.text(creatorLines, cardBX + cardPad, rDetailY);
+  rDetailY += creatorLines.length * 3.8; // Correctly increment rDetailY!
 
+  // Card B Status note positioned dynamically
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   if (isPending) {
     doc.setTextColor(217, 119, 6); // amber-600
-    doc.text(`Status: Pending (Rs. ${pendingAmount.toLocaleString('en-IN')} Due)`, cardBX + cardPad, curY + cardH - 3.5);
   } else {
     doc.setTextColor(5, 150, 105);
-    doc.text(`Status: Paid & Settled (Full)`, cardBX + cardPad, curY + cardH - 3.5);
   }
+  const statusY = Math.max(rDetailY + 1.5, curY + cardH - (statusLines.length * 3.2));
+  doc.text(statusLines, cardBX + cardPad, statusY);
 
   // 3. PACKAGES & SUBSCRIPTION / PRODUCT LINE ITEMS TABLE
   curY += cardH + 7;
@@ -705,7 +737,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   curY += 3;
 
-  // Normalize packages list (support multi-package checkouts, store items, and single plans)
+  // Normalize packages list
   let packagesList = [];
   if (Array.isArray(invoice.items) && invoice.items.length > 0) {
     packagesList = invoice.items;
@@ -729,7 +761,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     ];
   }
 
-  // Pre-calculate rows and dynamic package card height
+  // Pre-calculate rows with strict text-wrapping on every column
   const pkgColWidth = contentWidth - 45;
   const packageRows = packagesList.map((pkg) => {
     if (isProductSale) {
@@ -748,19 +780,19 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
       if (unitPriceVal > 0) detailsParts.push(`Rate: ${pdfCurrencySymbol} ${unitPriceVal.toLocaleString('en-IN')}`);
       if (categoryStr) detailsParts.push(`Category: ${categoryStr}`);
       const shortDesc = detailsParts.join('   •   ');
+      const descLines = shortDesc ? wrapAndBreakText(doc, shortDesc, pkgColWidth) : [];
 
-      const rowHeight = Math.max(titleLines.length * 4.5 + (shortDesc ? 4 : 0) + 4, 12);
+      const rowHeight = Math.max(titleLines.length * 4.5 + (descLines.length > 0 ? descLines.length * 3.8 + 1 : 0) + 4, 12);
 
       return {
         titleLines,
-        dateText: '',
-        shortDesc,
+        dateLines: [],
+        descLines,
         priceVal: linePriceVal > 0 ? linePriceVal : totalAmount,
         rowHeight
       };
     }
 
-    // Package Type comes at the top, Plan Name comes at the bottom
     const pkgType = pkg.packageType || pkg.package_type || 'Membership';
     const pkgName = pkg.name || pkg.planName || pkg.plan_name || '';
 
@@ -768,96 +800,125 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     doc.setFontSize(10);
     const titleLines = wrapAndBreakText(doc, pkgType, pkgColWidth);
 
-    // Shared start/end date calculation across all package types
     const dateText = formatPackageDateRange(pkg, invoice, member);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const dateLines = dateText ? wrapAndBreakText(doc, dateText, pkgColWidth) : [];
 
-    // Package Name comes at the bottom in place of package type
     let shortDesc = '';
     if (pkgName && pkgName.toLowerCase() !== pkgType.toLowerCase()) {
       shortDesc = `Plan: ${pkgName}`;
     } else if (pkg.description) {
       shortDesc = pkg.description;
     }
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    const descLines = shortDesc ? wrapAndBreakText(doc, shortDesc, pkgColWidth) : [];
 
-    const rowHeight = Math.max(titleLines.length * 4.5 + (dateText ? 4 : 0) + (shortDesc ? 3.5 : 0) + 4, 12);
+    const rowHeight = Math.max(
+      titleLines.length * 4.5 +
+      (dateLines.length > 0 ? dateLines.length * 3.8 + 1 : 0) +
+      (descLines.length > 0 ? descLines.length * 3.5 + 1 : 0) +
+      4,
+      12
+    );
     const priceVal = Number(pkg.price ?? (packagesList.length === 1 ? totalAmount : 0));
 
     return {
       titleLines,
-      dateText,
-      shortDesc,
+      dateLines,
+      descLines,
       priceVal,
       rowHeight
     };
   });
 
   const tableHeaderH = 7.5;
-  const totalPackagesH = tableHeaderH + packageRows.reduce((sum, r) => sum + r.rowHeight, 0) + 2;
 
-  // Outer Box for Subscription Line Items
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, curY, contentWidth, totalPackagesH, 2.5, 2.5, 'FD');
+  // Helper to draw table column headers
+  const drawTableHeader = (headerY) => {
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(margin, headerY, contentWidth, tableHeaderH, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(isProductSale ? 'PRODUCT / STORE ITEM' : 'PACKAGE / PLAN ITEM', margin + 4, headerY + 5);
+    doc.text('AMOUNT', pageWidth - margin - 4, headerY + 5, { align: 'right' });
 
-  // Table Column Header Bar
-  doc.setFillColor(248, 250, 252); // slate-50
-  doc.roundedRect(margin, curY, contentWidth, tableHeaderH, 2.5, 2.5, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text(isProductSale ? 'PRODUCT / STORE ITEM' : 'PACKAGE / PLAN ITEM', margin + 4, curY + 5);
-  doc.text('AMOUNT', pageWidth - margin - 4, curY + 5, { align: 'right' });
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, headerY + tableHeaderH, pageWidth - margin, headerY + tableHeaderH);
+  };
 
-  // Divider below table header
-  doc.setDrawColor(226, 232, 240);
-  doc.line(margin, curY + tableHeaderH, pageWidth - margin, curY + tableHeaderH);
+  // Check if initial table header fits on current page
+  if (curY + tableHeaderH + 15 > pageHeight - margin) {
+    layout.addNewPage();
+    curY = layout.curY;
+  }
 
-  let pkgY = curY + tableHeaderH + 1.5;
+  drawTableHeader(curY);
+  curY += tableHeaderH;
 
+  // Render Table Rows with Automatic Pagination
   packageRows.forEach((row, idx) => {
-    // Package Type at the top
+    // Check if row fits on current page; if not, break to new page and repeat header
+    if (curY + row.rowHeight > pageHeight - margin - 8) {
+      layout.addNewPage();
+      curY = layout.curY;
+      drawTableHeader(curY);
+      curY += tableHeaderH;
+    }
+
+    const rowY = curY;
+
+    // Row alternating background
+    doc.setFillColor(idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 250);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, rowY, contentWidth, row.rowHeight, 'F');
+    doc.line(margin, rowY + row.rowHeight, pageWidth - margin, rowY + row.rowHeight);
+
+    // Title Lines
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
-    doc.text(row.titleLines, margin + 4, pkgY + 4);
+    doc.text(row.titleLines, margin + 4, rowY + 4.5);
 
-    let subY = pkgY + 4 + (row.titleLines.length - 1) * 4.5;
+    let subY = rowY + 4.5 + (row.titleLines.length - 1) * 4.5;
 
-    // Package Dates: Start Date and End Date directly below
-    if (row.dateText) {
+    // Date Lines
+    if (row.dateLines.length > 0) {
       subY += 4;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139); // slate-500 muted
-      doc.text(row.dateText, margin + 4, subY);
+      doc.setTextColor(100, 116, 139);
+      doc.text(row.dateLines, margin + 4, subY);
+      subY += (row.dateLines.length - 1) * 3.8;
     }
 
-    // Package Name at the bottom
-    if (row.shortDesc) {
+    // Description / Plan Name Lines
+    if (row.descLines.length > 0) {
       subY += 3.5;
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(7.5);
-      doc.setTextColor(148, 163, 184); // slate-400
-      doc.text(row.shortDesc, margin + 4, subY);
+      doc.setTextColor(148, 163, 184);
+      doc.text(row.descLines, margin + 4, subY);
     }
 
-    // Price on the Right
+    // Price aligned to the right
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(`${pdfCurrencySymbol} ${row.priceVal.toLocaleString('en-IN')}`, pageWidth - margin - 4, pkgY + 4.5, { align: 'right' });
+    doc.text(`${pdfCurrencySymbol} ${row.priceVal.toLocaleString('en-IN')}`, pageWidth - margin - 4, rowY + 5, { align: 'right' });
 
-    pkgY += row.rowHeight;
-
-    // Subtle line between multiple package rows
-    if (idx < packageRows.length - 1) {
-      doc.setDrawColor(241, 245, 249);
-      doc.line(margin + 4, pkgY, pageWidth - margin - 4, pkgY);
-    }
+    curY += row.rowHeight;
   });
 
+  // Table bottom border
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, curY, pageWidth - margin, curY);
+
   // 4. FINANCIAL SUMMARY & AMOUNT IN WORDS
-  curY += totalPackagesH + 7;
+  curY += 7;
 
   const sumBoxW = 78;
   const sumBoxX = pageWidth - margin - sumBoxW;
@@ -873,9 +934,33 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFontSize(7.5);
   const notesLines = rawNotes ? wrapAndBreakText(doc, `Notes: ${rawNotes}`, leftBoxW - 10) : [];
 
-  const leftFinH = 6 + wordsLines.length * 4 + (notesLines.length > 0 ? notesLines.length * 3.5 + 4 : 0) + 12;
-  const rightFinH = hasGst ? 46 : (isPending && pendingAmount > 0 ? 44 : 38);
+  const leftNoteText = hasGst
+    ? 'Valid for Corporate Wellness Reimbursement & Official Tax Records'
+    : 'Official Payment Receipt • Non-GST Payment Record';
+  const leftNoteLines = wrapAndBreakText(doc, leftNoteText, leftBoxW - 10);
+
+  const leftFinH =
+    6 +
+    wordsLines.length * 4 +
+    (notesLines.length > 0 ? notesLines.length * 3.5 + 4 : 0) +
+    leftNoteLines.length * 3.2 +
+    8;
+
+  const halfTaxRate = (taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1);
+  const discountVal = Number(invoice.discount ?? invoice.discountAmount ?? invoice.discount_amount ?? 0);
+  const subtotalVal = Number(invoice.subtotal ?? invoice.totalAmount ?? invoice.total_amount ?? (totalAmount + discountVal));
+
+  let rightItemsCount = hasGst ? 3 : (discountVal > 0 ? 3 : 2);
+  if (isPending && pendingAmount > 0) rightItemsCount += 1;
+  const rightFinH = 6 + rightItemsCount * 5 + 16;
+
   const finH = Math.max(leftFinH, rightFinH, 38);
+
+  // Pagination check: Ensure summary box fits on current page
+  if (curY + finH > pageHeight - margin - 8) {
+    layout.addNewPage();
+    curY = layout.curY;
+  }
 
   // Left Box: Amount in words & payment details
   doc.setFillColor(248, 250, 252);
@@ -904,15 +989,10 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(
-    hasGst
-      ? 'Valid for Corporate Wellness Reimbursement & Official Tax Records'
-      : 'Official Payment Receipt • Non-GST Payment Record',
-    margin + 5,
-    curY + finH - 3.5
-  );
+  const leftNoteY = Math.max(nY + 2, curY + finH - (leftNoteLines.length * 3.2));
+  doc.text(leftNoteLines, margin + 5, leftNoteY);
 
-  // Right Box: Clean Transparent Financial Breakdown
+  // Right Box: Financial Breakdown
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(sumBoxX, curY, sumBoxW, finH, 2.5, 2.5, 'FD');
@@ -921,10 +1001,6 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-
-  const halfTaxRate = (taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1);
-  const discountVal = Number(invoice.discount ?? invoice.discountAmount ?? invoice.discount_amount ?? 0);
-  const subtotalVal = Number(invoice.subtotal ?? invoice.totalAmount ?? invoice.total_amount ?? (totalAmount + discountVal));
 
   if (hasGst) {
     doc.text(isProductSale ? 'Taxable Base:' : 'Plan Base Fee:', sumBoxX + 5, rY);
@@ -961,7 +1037,7 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   }
 
   // Total Banner inside box
-  rY += 3;
+  rY += 3.5;
   doc.setDrawColor(203, 213, 225);
   doc.line(sumBoxX + 4, rY, pageWidth - margin - 4, rY);
 
@@ -994,80 +1070,138 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   // 5. CLUB POLICIES & DIGITAL SEAL
   curY += finH + 7;
+
+  // Pre-calculate Policies on Left and Seal on Right
+  const sealW = 54;
+  const sealX = pageWidth - margin - sealW;
+  const policyColW = sealX - margin - 8;
+
+  // Left Policy Lines (wrapped cleanly)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  const customTerms = gymInfo?.terms_and_conditions || gymInfo?.terms;
+  const policyParagraphs = [];
+
+  if (isProductSale) {
+    policyParagraphs.push('1. Pro Shop & counter inventory items are inspected and verified prior to sale.');
+    policyParagraphs.push('2. Unopened supplements or accessories with original seal intact can be exchanged within 3 days.');
+    const helpContact = gymEmail || (gymPhone ? `phone ${gymPhone}` : 'the front desk');
+    policyParagraphs.push(`3. For product support or inquiries, visit the front desk or reach ${helpContact}.`);
+  } else if (customTerms) {
+    const termLines = String(customTerms).split('\n').map((l) => l.trim()).filter(Boolean);
+    termLines.slice(0, 4).forEach((line, i) => {
+      policyParagraphs.push(line.replace(/^[-•*]\s*/, `${i + 1}. `));
+    });
+  } else {
+    policyParagraphs.push('1. Present your Mobile App QR Turnstile Pass at the front gate for entry.');
+    policyParagraphs.push('2. Membership subscriptions once processed are non-transferable & non-refundable.');
+    const helpContact = gymEmail || (gymPhone ? `phone ${gymPhone}` : 'the front desk');
+    policyParagraphs.push(`3. Inquiries & Freeze requests: Contact front desk or reach ${helpContact}.`);
+  }
+
+  const wrappedPolicies = policyParagraphs.map((p) => wrapAndBreakText(doc, p, policyColW));
+  const policyTextH = wrappedPolicies.reduce((sum, lines) => sum + lines.length * 3.5 + 1, 0) + 6;
+
+  // Right Digital Seal Lines
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  const sealGymTitle = wrapAndBreakText(doc, (gymName || 'AUTHORIZED GYM').toUpperCase(), sealW - 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  const sealCreatorLines = wrapAndBreakText(doc, createdByName, sealW - 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  const signatoryTitle = gymInfo?.signatory_text || gymInfo?.signatoryText || 'Authorized Signatory';
+  const signatoryLines = wrapAndBreakText(doc, signatoryTitle, sealW - 6);
+
+  const sealH = Math.max(
+    6 +
+    sealGymTitle.length * 3.5 +
+    4 + // 'Verified Digital Receipt'
+    sealCreatorLines.length * 3.5 +
+    signatoryLines.length * 3 +
+    5,
+    22
+  );
+
+  const policySectionH = Math.max(policyTextH, sealH) + 6;
+
+  // Pagination check: Ensure policies & seal fit on current page
+  if (curY + policySectionH > pageHeight - margin - 8) {
+    layout.addNewPage();
+    curY = layout.curY;
+  }
+
   doc.setDrawColor(241, 245, 249);
   doc.line(margin, curY, pageWidth - margin, curY);
-
   curY += 4;
-  // Left: Club guidelines
+
+  // Render Policies on Left
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
   doc.text(isProductSale ? 'STORE PURCHASE POLICY & SUPPORT' : 'MEMBERSHIP GUIDELINES & SUPPORT', margin, curY);
 
+  let pY = curY + 4.5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  const customTerms = gymInfo?.terms_and_conditions || gymInfo?.terms;
-  if (isProductSale) {
-    doc.text('1. Pro Shop & counter inventory items are inspected and verified prior to sale.', margin, curY + 4.5);
-    doc.text('2. Unopened supplements or accessories with original seal intact can be exchanged within 3 days.', margin, curY + 8.5);
-    const helpContact = gymEmail || (gymPhone ? `phone ${gymPhone}` : 'the front desk');
-    doc.text(`3. For product support or inquiries, visit the front desk or reach ${helpContact}.`, margin, curY + 12.5);
-  } else if (customTerms) {
-    const termLines = String(customTerms).split('\n').map((l) => l.trim()).filter(Boolean);
-    termLines.slice(0, 3).forEach((line, i) => {
-      doc.text(line.replace(/^[-•*]\s*/, `${i + 1}. `), margin, curY + 4.5 + i * 4);
-    });
-  } else {
-    doc.text('1. Present your Mobile App QR Turnstile Pass at the front gate for entry.', margin, curY + 4.5);
-    doc.text('2. Membership subscriptions once processed are non-transferable & non-refundable.', margin, curY + 8.5);
-    const helpContact = gymEmail || (gymPhone ? `phone ${gymPhone}` : 'the front desk');
-    doc.text(`3. Inquiries & Freeze requests: Contact front desk or reach ${helpContact}.`, margin, curY + 12.5);
-  }
+  wrappedPolicies.forEach((lines) => {
+    doc.text(lines, margin, pY);
+    pY += lines.length * 3.5 + 1;
+  });
 
-  // Right: Clean Digital Stamp
-  const sealX = pageWidth - margin - 54;
+  // Render Digital Seal Box on Right (Grows dynamically to show all lines)
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(sealX, curY - 2, 54, 21, 2, 2, 'FD');
+  doc.roundedRect(sealX, curY - 2, sealW, sealH, 2, 2, 'FD');
 
+  let sY = curY + 3.5;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(5, 150, 105);
-  const sealGymTitle = wrapAndBreakText(doc, (gymName || 'AUTHORIZED GYM').toUpperCase(), 48);
-  doc.text(sealGymTitle[0] || 'AUTHORIZED GYM', sealX + 27, curY + 3.5, { align: 'center' });
+  doc.text(sealGymTitle, sealX + sealW / 2, sY, { align: 'center' });
+  sY += sealGymTitle.length * 3.5;
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  doc.text('Verified Digital Receipt', sealX + 27, curY + 7.5, { align: 'center' });
+  doc.text('Verified Digital Receipt', sealX + sealW / 2, sY, { align: 'center' });
+  sY += 4;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(15, 23, 42);
-  const sealCreatorLines = wrapAndBreakText(doc, createdByName, 48);
-  doc.text(sealCreatorLines[0] || 'Staff', sealX + 27, curY + 12.5, { align: 'center' });
+  doc.text(sealCreatorLines, sealX + sealW / 2, sY, { align: 'center' });
+  sY += sealCreatorLines.length * 3.5;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  const signatoryTitle = gymInfo?.signatory_text || gymInfo?.signatoryText || 'Authorized Signatory';
-  doc.text(signatoryTitle, sealX + 27, curY + 17, { align: 'center' });
+  doc.text(signatoryLines, sealX + sealW / 2, sY, { align: 'center' });
 
-  // Footer Note
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
+  // 6. Running Document Footer & Page Numbers stamped across all pages
   const customFooter = gymInfo?.footer_text || gymInfo?.footerText;
   const defaultFooter = gymName
     ? (hasGst ? `Thank you for choosing ${gymName} • Official Tax Invoice & Payment Receipt` : `Thank you for choosing ${gymName} • Official Payment Receipt`)
     : (hasGst ? 'Official Tax Invoice & Payment Receipt' : 'Official Payment Receipt');
-  doc.text(
-    customFooter || defaultFooter,
-    pageWidth / 2,
-    pageHeight - margin + 2,
-    { align: 'center' }
-  );
+
+  layout.finalizeFooters((mgr, pageNum, totalPages) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+
+    const footerY = pageHeight - margin + 2;
+
+    if (totalPages > 1) {
+      doc.text(customFooter || defaultFooter, margin, footerY);
+      doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, footerY, { align: 'right' });
+    } else {
+      doc.text(customFooter || defaultFooter, pageWidth / 2, footerY, { align: 'center' });
+    }
+  });
 
   const blob = doc.output('blob');
   const safeMemberFile = memberName.replace(/[^a-zA-Z0-9]/g, '_');
@@ -1149,27 +1283,25 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
         : 0)
     );
     const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
-    const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
-    const displayDate = formatInvoiceDate(invoice.issueDate || invoice.issue_date || invoice.invoiceDate || invoice.date) || 'Today';
 
-    const messageText = isPending
+    const displayDate = formatInvoiceDate(invoice.issueDate || invoice.date || invoice.createdAt || new Date());
+    const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
+
+    const message = isPending
       ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`
       : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`;
 
-    // 1. Download PDF receipt blob immediately to ensure user has the file
     downloadPdfBlob(blob, fileName);
 
-    // 2. Open WhatsApp directly with prefilled message
-    openWhatsApp({
-      phone: cleanPhone,
-      text: messageText,
-      recipientName: memberName,
-      onToast: onToast
-        ? () => onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success')
-        : null
-    });
+    const successCallback = onToast
+      ? () => onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success')
+      : null;
 
-    return true;
+    return openWhatsApp({
+      phone: cleanPhone,
+      message,
+      onSuccess: successCallback
+    });
   } catch (error) {
     console.error('Failed to share invoice PDF:', error);
     if (onToast) {

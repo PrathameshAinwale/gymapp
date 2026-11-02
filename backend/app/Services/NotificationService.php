@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Invoice;
 use App\Models\MemberProfile;
+use App\Models\MembershipFreeze;
 use App\Models\NotificationRead;
 use App\Models\User;
 use Carbon\Carbon;
@@ -129,6 +130,14 @@ class NotificationService
         $today = Carbon::now(self::TIMEZONE)->format('Y-m-d');
         $maxExpiringDate = Carbon::now(self::TIMEZONE)->addDays(self::PLAN_EXPIRING_DAYS_WINDOW)->format('Y-m-d');
 
+        // Pre-fetch member IDs currently on active freeze today to prevent notifications for paused memberships
+        $activeFrozenUserIds = MembershipFreeze::where('gym_id', $gymId)
+            ->whereIn('status', ['Active Freeze', 'Approved', 'Active'])
+            ->whereDate('freeze_end_date', '>=', $today)
+            ->pluck('member_id')
+            ->flip()
+            ->all();
+
         // 1. Direct indexed candidate lookup: invoices expiring within window
         $candidateInvoices = Invoice::with(['user.memberProfile', 'plan'])
             ->where('gym_id', $gymId)
@@ -139,7 +148,7 @@ class NotificationService
             ->whereHas('user', function ($q) {
                 $q->where('role', 'member')
                     ->whereHas('memberProfile', function ($mq) {
-                        $mq->whereNotIn('status', ['Inactive', 'Deleted']);
+                        $mq->whereNotIn('status', ['Inactive', 'Deleted', 'Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended']);
                     });
             })
             ->get();
@@ -167,6 +176,19 @@ class NotificationService
         foreach ($candidateInvoices as $inv) {
             $member = $inv->user;
             if (!$member) continue;
+
+            // Suppress notification if member is actively frozen
+            if (isset($activeFrozenUserIds[$member->id])) {
+                continue;
+            }
+
+            $profile = $member->memberProfile;
+            if ($profile) {
+                // If member status is frozen or suspended, suppress expiring notifications
+                if (in_array($profile->status, ['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended', 'Inactive', 'Deleted'])) {
+                    continue;
+                }
+            }
 
             $pkgType = $this->normalizePackageType($inv->package_type ?: ($inv->plan?->package_type ?: 'Gym-Cardio'));
             $memberPkgKey = "{$member->id}:{$pkgType}";
@@ -213,7 +235,7 @@ class NotificationService
             ->whereNotNull('expiry_date')
             ->where('expiry_date', '>=', $today)
             ->where('expiry_date', '<=', $maxExpiringDate)
-            ->whereNotIn('status', ['Inactive', 'Deleted'])
+            ->whereNotIn('status', ['Inactive', 'Deleted', 'Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended'])
             ->where(function ($q) {
                 $q->whereNotNull('plan_id')
                     ->orWhereHas('user.invoices', function ($qi) {
@@ -232,6 +254,10 @@ class NotificationService
         foreach ($legacyCandidates as $profile) {
             $member = $profile->user;
             if (!$member) continue;
+
+            if (isset($activeFrozenUserIds[$member->id])) {
+                continue;
+            }
 
             $pkgType = 'Gym-Cardio';
             $memberPkgKey = "{$member->id}:{$pkgType}";

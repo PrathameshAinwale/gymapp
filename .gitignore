@@ -66,3 +66,6 @@ device-sync-service/config.json
 
 # Biometric sync service logs
 device-sync-service/logs/
+
+# Local testing and scratch directory
+scratch/

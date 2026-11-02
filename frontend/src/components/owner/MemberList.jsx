@@ -40,7 +40,8 @@ import {
   Lock,
   KeyRound,
   Cake,
-  Fingerprint
+  Fingerprint,
+  PauseCircle
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
@@ -242,14 +243,17 @@ export const MemberList = ({
     // 2. Cross-reference invoices for this member
     if (Array.isArray(invoices) && invoices.length > 0) {
       const cleanMemberId = String(m?.id || m?.userId || '').replace(/\D/g, '');
+      const cleanMemberPhone = String(m?.phone || '').replace(/\D/g, '').slice(-10);
       const memberInvoices = invoices.filter((inv) => {
         // Skip invoices already marked Paid
         if (String(inv.status).toLowerCase() === 'paid') return false;
         const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
-        if (cleanMemberId && invMemId && cleanMemberId === invMemId) return true;
-        if (inv.memberId && String(inv.memberId) === String(m.id)) return true;
+        const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+
+        if (cleanMemberId && invMemId) return cleanMemberId === invMemId;
+        if (cleanMemberPhone && cleanInvPhone) return cleanMemberPhone === cleanInvPhone;
         if (m.email && inv.memberEmail && inv.memberEmail.toLowerCase() === m.email.toLowerCase()) return true;
-        if (m.name && inv.memberName && inv.memberName.toLowerCase().trim() === m.name.toLowerCase().trim()) return true;
+        if (!invMemId && !cleanInvPhone && m.name && inv.memberName) return inv.memberName.toLowerCase().trim() === m.name.toLowerCase().trim();
         return false;
       });
 
@@ -621,33 +625,36 @@ export const MemberList = ({
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
 
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                 Member Directory
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-[11px] text-slate-500 hidden sm:block truncate">
                 Manage athletes, track subscription validity, and issue instant login credentials.
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium sm:hidden truncate">
+                {filteredMembers.length} {filteredMembers.length === 1 ? 'athlete' : 'athletes'}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={handleRefreshMembers}
             disabled={isRefreshing}
-            className="w-11 h-11 sm:w-auto sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh members list from database"
             aria-label="Refresh members"
           >
-            <RefreshCw className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
             <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
           <button
@@ -664,10 +671,12 @@ export const MemberList = ({
                 setIsOpenAddModal?.(true);
               }
             }}
-            className="h-11 px-3.5 sm:px-4 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Add Member"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Member</span>
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+            <span className="hidden sm:inline">Add Member</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -780,14 +789,14 @@ export const MemberList = ({
                 setSearchTerm(e.target.value);
                 setIsSearchDropdownOpen(true);
               }}
-              placeholder="Search name, phone, plan..."
-              className="w-full pl-9 pr-9 h-12 sm:h-9 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
+              placeholder="Search members, phone..."
+              className="w-full pl-9 pr-8 h-9.5 sm:h-9 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium transition-colors"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
                 title="Clear search"
                 aria-label="Clear search"
               >
@@ -837,17 +846,17 @@ export const MemberList = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated Filter Button */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3.5 h-12 sm:h-9 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer border ${activeFiltersCount > 0
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
             >
-              <Filter className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
                 <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
@@ -971,6 +980,7 @@ export const MemberList = ({
         ) : (
           filteredMembers.map((member) => {
             const effectiveStatus = getMemberEffectiveStatus(member);
+            const isFrozen = effectiveStatus === 'Frozen' || effectiveStatus === 'Frozen (Paused)' || member.status === 'Frozen';
             const isExpiring = effectiveStatus === 'Expiring Soon';
             const isExpired = effectiveStatus === 'Expired';
             const isUnassigned = effectiveStatus === 'Unassigned' || !member.expiryDate;
@@ -982,7 +992,13 @@ export const MemberList = ({
               </span>
             );
 
-            if (isUnassigned) {
+            if (isFrozen) {
+              statusBadge = (
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
+                  <PauseCircle className="w-2.5 h-2.5" /> Frozen
+                </span>
+              );
+            } else if (isUnassigned) {
               statusBadge = (
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
                   <Clock className="w-2.5 h-2.5" /> Unassigned
@@ -1106,9 +1122,9 @@ export const MemberList = ({
                         href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from Pulse Fitness!`)}
                         target="_blank"
                         rel="noreferrer"
-                        className="h-11 px-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                        className="h-8.5 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-2xs"
                       >
-                        <MessageCircle className="w-4 h-4 text-emerald-600" />
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Chat</span>
                       </a>
                     )}
@@ -1120,20 +1136,20 @@ export const MemberList = ({
                         <button
                           type="button"
                           onClick={() => openEditModal(member)}
-                          className="w-11 h-11 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+                          className="w-8.5 h-8.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-2xs"
                           title="Edit"
                           aria-label="Edit Member"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setMemberToDelete(member)}
-                          className="w-11 h-11 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+                          className="w-8.5 h-8.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-2xs"
                           title="Delete"
                           aria-label="Delete Member"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </>
                     )}
@@ -1188,6 +1204,7 @@ export const MemberList = ({
               ) : (
                 filteredMembers.map((member) => {
                   const effectiveStatus = getMemberEffectiveStatus(member);
+                  const isFrozen = effectiveStatus === 'Frozen' || effectiveStatus === 'Frozen (Paused)' || member.status === 'Frozen';
                   const isExpiring = effectiveStatus === 'Expiring Soon';
                   const isExpired = effectiveStatus === 'Expired';
                   const isUnassigned = effectiveStatus === 'Unassigned' || !member.expiryDate;
@@ -1199,7 +1216,13 @@ export const MemberList = ({
                     </span>
                   );
 
-                  if (isUnassigned) {
+                  if (isFrozen) {
+                    statusBadge = (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
+                        <PauseCircle className="w-3 h-3" /> Frozen
+                      </span>
+                    );
+                  } else if (isUnassigned) {
                     statusBadge = (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
                         <Clock className="w-3 h-3" /> Unassigned
@@ -1414,10 +1437,13 @@ export const MemberList = ({
 
           const memberInvoices = (invoices || []).filter((inv) => {
             const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
-            if (cleanMemberId && cleanInvMemberId && cleanMemberId === cleanInvMemberId) return true;
             const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
-            if (cleanMemberPhone && cleanInvPhone && cleanMemberPhone === cleanInvPhone) return true;
-            if (inv.memberName && inv.memberName.toLowerCase().trim() === memberNameClean) return true;
+
+            if (cleanMemberId && cleanInvMemberId) return cleanMemberId === cleanInvMemberId;
+            if (cleanMemberPhone && cleanInvPhone) return cleanMemberPhone === cleanInvPhone;
+            if (!cleanInvMemberId && !cleanInvPhone && memberNameClean && inv.memberName) {
+              return inv.memberName.toLowerCase().trim() === memberNameClean;
+            }
             return false;
           }).sort(compareInvoicesDesc);
 

@@ -398,16 +398,36 @@ export const InvoicesPage = ({
       const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
       const invName = (inv.memberName || inv.member_name || '').trim().toLowerCase();
 
-      const matchedMember = (members || []).find((m) => {
-        const cleanMId = cleanId(m.id || m.userId || m.user_id);
-        if (cleanInvId && cleanMId && cleanInvId === cleanMId) return true;
-        const cleanMPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
-        if (cleanInvPhone && cleanMPhone && cleanInvPhone === cleanMPhone) return true;
-        if (invName && (m.name || '').trim().toLowerCase() === invName) return true;
-        return false;
-      });
+      // Priority 1: Exact Member / User ID match
+      let matchedMember = null;
+      if (cleanInvId) {
+        matchedMember = (members || []).find((m) => {
+          const cleanMId = cleanId(m.id || m.userId || m.user_id);
+          return cleanMId && cleanInvId === cleanMId;
+        });
+      }
 
-      const memberKey = matchedMember?.id || (cleanInvId ? `mem-${cleanInvId}` : (inv.memberId || invName || 'Unknown'));
+      // Priority 2: Exact 10-digit Phone match
+      if (!matchedMember && cleanInvPhone) {
+        matchedMember = (members || []).find((m) => {
+          const cleanMPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
+          return cleanMPhone && cleanInvPhone === cleanMPhone;
+        });
+      }
+
+      // Priority 3: Fallback to Name ONLY if invoice has neither ID nor Phone,
+      // and only if exactly one member in the gym has this name (avoids same-name collisions)
+      if (!matchedMember && invName && !cleanInvId && !cleanInvPhone) {
+        const candidateMembers = (members || []).filter(
+          (m) => (m.name || '').trim().toLowerCase() === invName
+        );
+        if (candidateMembers.length === 1) {
+          matchedMember = candidateMembers[0];
+        }
+      }
+
+      const memberKey = matchedMember?.id
+        || (cleanInvId ? `mem-${cleanInvId}` : (cleanInvPhone ? `phone-${cleanInvPhone}` : (inv.memberId || `inv-${inv.id || inv.invoiceNumber}`)));
       const memberName = matchedMember?.name || inv.memberName || inv.member_name || 'Member';
       const memberAvatar = matchedMember?.avatar || null;
       const memberPhone = matchedMember?.phone || inv.memberPhone || inv.phone || '';
@@ -435,16 +455,25 @@ export const InvoicesPage = ({
     const result = [];
     map.forEach((item) => {
       const sortedInvoices = [...item.invoices].sort(compareInvoicesDesc);
-      const matchedMemberObj = item.matchedMember || (members || []).find((m) => {
-        const cleanMId = cleanId(m.id || m.userId || m.user_id);
+      const matchedMemberObj = item.matchedMember || (() => {
+        if (!members || members.length === 0) return null;
         const cleanItemId = cleanId(item.memberId || item.id);
-        if (cleanMId && cleanItemId && cleanMId === cleanItemId) return true;
-        const cleanMPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
         const cleanItemPhone = String(item.phone || '').replace(/\D/g, '').slice(-10);
-        if (cleanMPhone && cleanItemPhone && cleanMPhone === cleanItemPhone) return true;
-        if (item.name && (m.name || '').trim().toLowerCase() === (item.name || '').trim().toLowerCase()) return true;
-        return false;
-      });
+        if (cleanItemId) {
+          const byId = members.find((m) => cleanId(m.id || m.userId || m.user_id) === cleanItemId);
+          if (byId) return byId;
+        }
+        if (cleanItemPhone) {
+          const byPhone = members.find((m) => String(m.phone || '').replace(/\D/g, '').slice(-10) === cleanItemPhone);
+          if (byPhone) return byPhone;
+        }
+        if (item.name && !cleanItemId && !cleanItemPhone) {
+          const cleanItemName = (item.name || '').trim().toLowerCase();
+          const nameMatches = members.filter((m) => (m.name || '').trim().toLowerCase() === cleanItemName);
+          if (nameMatches.length === 1) return nameMatches[0];
+        }
+        return null;
+      })();
 
       // Member Directory dues extraction (same logic as MemberList.getMemberDues)
       const memberDuesFields = [
@@ -519,23 +548,39 @@ export const InvoicesPage = ({
     return result.sort((a, b) => compareInvoicesDesc(a.latestInvoice, b.latestInvoice));
   }, [gymInvoices, members]);
 
-  // Selected Invoice Member Resolution
+  // Selected Invoice Member Resolution (Strict ID / Phone precedence to avoid same-name collisions)
   const selectedInvoiceMember = useMemo(() => {
     if (!selectedInvoice) return null;
     const cleanId = (v) => String(v || '').replace(/\D/g, '');
     const cleanInvId = cleanId(selectedInvoice.memberId || selectedInvoice.userId || selectedInvoice.user_id);
+    const cleanInvPhone = String(selectedInvoice.memberPhone || selectedInvoice.phone || '').replace(/\D/g, '').slice(-10);
     const invName = (selectedInvoice.memberName || selectedInvoice.member_name || '').trim().toLowerCase();
 
+    let matched = null;
+    if (cleanInvId) {
+      matched = (members || []).find((m) => {
+        const cleanMId = cleanId(m.id || m.userId || m.user_id);
+        return cleanMId && cleanInvId === cleanMId;
+      });
+    }
+    if (!matched && cleanInvPhone) {
+      matched = (members || []).find((m) => {
+        const cleanMPhone = String(m.phone || '').replace(/\D/g, '').slice(-10);
+        return cleanMPhone && cleanInvPhone === cleanMPhone;
+      });
+    }
+    if (!matched && invName && !cleanInvId && !cleanInvPhone) {
+      const candidates = (members || []).filter(
+        (m) => (m.name || '').trim().toLowerCase() === invName
+      );
+      if (candidates.length === 1) {
+        matched = candidates[0];
+      }
+    }
+
     return (
-      members.find(
-        (m) => {
-          const cleanMId = cleanId(m.id || m.userId || m.user_id);
-          if (cleanInvId && cleanMId && cleanInvId === cleanMId) return true;
-          if (invName && (m.name || '').trim().toLowerCase() === invName) return true;
-          return false;
-        }
-      ) || {
-        name: selectedInvoice.memberName,
+      matched || {
+        name: selectedInvoice.memberName || selectedInvoice.member_name,
         phone: selectedInvoice.phone || selectedInvoice.memberPhone || '',
         email: selectedInvoice.email || selectedInvoice.memberEmail || '',
         id: selectedInvoice.memberId || selectedInvoice.userId || 'PF-M',
@@ -812,13 +857,32 @@ export const InvoicesPage = ({
     }
   }, [searchTerm, filteredMembers]);
 
+  // Helper to resolve member for an invoice with strict ID / Phone priority (avoids same-name collisions)
+  const resolveInvoiceMember = (inv, memb) => {
+    if (memb) return memb;
+    const cleanId = (v) => String(v || '').replace(/\D/g, '');
+    const cleanInvId = cleanId(inv.memberId || inv.userId || inv.user_id);
+    const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
+    const invName = (inv.memberName || inv.member_name || '').trim().toLowerCase();
+
+    if (cleanInvId) {
+      const byId = (members || []).find((m) => cleanId(m.id || m.userId || m.user_id) === cleanInvId);
+      if (byId) return byId;
+    }
+    if (cleanInvPhone) {
+      const byPhone = (members || []).find((m) => String(m.phone || '').replace(/\D/g, '').slice(-10) === cleanInvPhone);
+      if (byPhone) return byPhone;
+    }
+    if (invName && !cleanInvId && !cleanInvPhone) {
+      const candidateMembers = (members || []).filter((m) => (m.name || '').trim().toLowerCase() === invName);
+      if (candidateMembers.length === 1) return candidateMembers[0];
+    }
+    return null;
+  };
+
   // Direct PDF Download Handler
   const handleDownloadInvoicePdf = (inv, memb) => {
-    const targetMember = memb || members.find(
-      (m) =>
-        (inv.memberId && String(m.id) === String(inv.memberId)) ||
-        (m.name || '').toLowerCase() === (inv.memberName || inv.member_name || '').toLowerCase()
-    );
+    const targetMember = resolveInvoiceMember(inv, memb);
 
     const generated = generateInvoicePdf({
       invoice: inv,
@@ -834,13 +898,9 @@ export const InvoicesPage = ({
 
   // Share Invoice PDF to Mobile
   const handleSharePdfToMobileNumber = async (inv, memb) => {
-    const targetMember = memb || members.find(
-      (m) =>
-        (inv.memberId && String(m.id) === String(inv.memberId)) ||
-        (m.name || '').toLowerCase() === (inv.memberName || inv.member_name || '').toLowerCase()
-    ) || {
-      name: inv.memberName,
-      phone: inv.phone || ''
+    const targetMember = resolveInvoiceMember(inv, memb) || {
+      name: inv.memberName || inv.member_name,
+      phone: inv.phone || inv.memberPhone || ''
     };
 
     await shareInvoicePdfToMobile({

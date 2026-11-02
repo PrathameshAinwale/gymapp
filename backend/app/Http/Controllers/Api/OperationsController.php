@@ -586,6 +586,33 @@ class OperationsController extends Controller
                 $profile->status = MemberController::computeMemberStatus($newExpiryDate, 'Active', $profile->join_date);
             }
             $profile->save();
+
+            // Synchronize active subscription invoice end_date with the extended expiry date
+            if ($memberId) {
+                $activeInvoices = Invoice::where('user_id', $memberId)
+                    ->whereNotIn('status', ['Cancelled', 'Refunded', 'Transferred'])
+                    ->whereNotNull('end_date')
+                    ->whereDate('end_date', '>=', min($freezeStartDate, now()->toDateString()))
+                    ->get();
+
+                foreach ($activeInvoices as $aInv) {
+                    $curEnd = \Carbon\Carbon::parse($aInv->end_date);
+                    $extendedEnd = $curEnd->addDays($daysFrozen)->toDateString();
+                    $aInv->end_date = $extendedEnd;
+
+                    if (!empty($aInv->items) && is_array($aInv->items)) {
+                        $updatedItems = $aInv->items;
+                        foreach ($updatedItems as &$it) {
+                            if (!empty($it['end_date'])) {
+                                $it['end_date'] = \Carbon\Carbon::parse($it['end_date'])->addDays($daysFrozen)->toDateString();
+                            }
+                        }
+                        unset($it);
+                        $aInv->items = $updatedItems;
+                    }
+                    $aInv->save();
+                }
+            }
         }
 
         // Auto-generate official Invoice and Cash Inflow

@@ -103,7 +103,7 @@ export const ConfirmDeleteModal = ({
             type="button"
             onClick={handleCancel}
             disabled={isDeleting}
-            className="w-1/2 py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-1/2 min-h-[40px] py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {cancelText}
           </button>
@@ -112,7 +112,7 @@ export const ConfirmDeleteModal = ({
             type="button"
             onClick={handleConfirm}
             disabled={isDeleting}
-            className="w-1/2 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-md shadow-rose-600/20 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-1/2 min-h-[40px] py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-md shadow-rose-600/20 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isDeleting ? (
               <>

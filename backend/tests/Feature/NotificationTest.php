@@ -332,4 +332,68 @@ class NotificationTest extends TestCase
         // Clean up test records
         Gym::whereIn('id', [$gymA->id, $gymB->id])->delete();
     }
+
+    /**
+     * Test that frozen members do not trigger "Plan Expiring Soon" notifications.
+     */
+    public function test_frozen_member_suppressed_from_expiring_notifications(): void
+    {
+        $gym = Gym::create(['name' => 'Freeze Notif Gym', 'slug' => 'freeze-notif-gym']);
+        $owner = User::create([
+            'name' => 'Owner Freeze Test',
+            'email' => 'owner_frz_' . uniqid() . '@test.com',
+            'password' => bcrypt('secret123'),
+            'role' => 'owner',
+            'gym_id' => $gym->id,
+        ]);
+
+        $today = Carbon::now(NotificationService::TIMEZONE)->format('Y-m-d');
+        $expiryIn2Days = Carbon::now(NotificationService::TIMEZONE)->addDays(2)->format('Y-m-d');
+
+        $member = User::create([
+            'name' => 'Frozen Member',
+            'email' => 'frozen_' . uniqid() . '@test.com',
+            'password' => bcrypt('secret123'),
+            'role' => 'member',
+            'gym_id' => $gym->id,
+        ]);
+
+        MemberProfile::create([
+            'user_id' => $member->id,
+            'status' => 'Frozen',
+            'expiry_date' => Carbon::now(NotificationService::TIMEZONE)->addDays(16)->format('Y-m-d'),
+        ]);
+
+        Invoice::create([
+            'gym_id' => $gym->id,
+            'invoice_number' => 'INV-FRZ-NOTIF-' . uniqid(),
+            'user_id' => $member->id,
+            'package_type' => 'Gym-Cardio',
+            'start_date' => Carbon::now(NotificationService::TIMEZONE)->subDays(10)->format('Y-m-d'),
+            'end_date' => $expiryIn2Days,
+            'amount' => 2000,
+            'pending_amount' => 0,
+            'status' => 'Paid',
+            'date' => $today,
+        ]);
+
+        \App\Models\MembershipFreeze::create([
+            'gym_id' => $gym->id,
+            'member_id' => $member->id,
+            'member_name' => $member->name,
+            'freeze_start_date' => $today,
+            'freeze_end_date' => Carbon::now(NotificationService::TIMEZONE)->addDays(14)->format('Y-m-d'),
+            'days_frozen' => 14,
+            'status' => 'Active Freeze',
+            'type' => 'freeze',
+        ]);
+
+        $service = new NotificationService();
+        $res = $service->getNotificationsForUser($gym->id, $owner->id);
+
+        $this->assertEquals(0, $res['plan_expiring']['total'], 'Frozen member must not trigger plan expiring notification');
+        $this->assertEquals(0, $res['unread_count']);
+
+        $gym->delete();
+    }
 }

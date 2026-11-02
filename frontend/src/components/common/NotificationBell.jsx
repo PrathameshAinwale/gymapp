@@ -219,7 +219,7 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
       {/* Dropdown Container */}
       {isOpen && (
         <div
-          className="fixed inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2.5 w-auto sm:w-[390px] md:w-[420px] max-h-[82vh] sm:max-h-[540px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-2.5 min-[380px]:inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2.5 w-auto sm:w-[390px] md:w-[420px] max-h-[82dvh] sm:max-h-[540px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95"
           style={{ transformOrigin: 'top right' }}
         >
           {/* Header */}
@@ -244,17 +244,17 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
                   type="button"
                   onClick={handleMarkAllRead}
                   disabled={isMarkingAll}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1 min-h-[36px] rounded-lg text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden xs:inline">Mark all read</span>
+                  <span className="hidden sm:inline">Mark all read</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer flex items-center justify-center"
                 title="Close"
               >
                 <X className="w-4 h-4" />

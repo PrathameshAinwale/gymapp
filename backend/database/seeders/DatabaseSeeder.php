@@ -129,8 +129,11 @@ class DatabaseSeeder extends Seeder
             'role' => 'owner',
             'password' => Hash::make('admin123'),
             'phone' => '+91 98201 54321',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
         ]);
+        $gym->owner_id = $owner->id;
+        $gym->save();
 
         // 4. Trainers Accounts
         $trainer1 = User::create([
@@ -139,6 +142,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'trainer',
             'password' => Hash::make('trainer123'),
             'phone' => '+91 98201 11223',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=200&auto=format&fit=crop&q=80',
         ]);
         TrainerProfile::create([
@@ -157,6 +161,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'trainer',
             'password' => Hash::make('trainer123'),
             'phone' => '+91 98201 22334',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=200&auto=format&fit=crop&q=80',
         ]);
         TrainerProfile::create([
@@ -175,6 +180,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'trainer',
             'password' => Hash::make('trainer123'),
             'phone' => '+91 98201 33445',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
         ]);
         TrainerProfile::create([
@@ -194,6 +200,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'member',
             'password' => Hash::make('member123'),
             'phone' => '+91 98765 43210',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
         ]);
         MemberProfile::create([
@@ -223,6 +230,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'member',
             'password' => Hash::make('member123'),
             'phone' => '+91 98112 34567',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
         ]);
         MemberProfile::create([
@@ -252,6 +260,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'member',
             'password' => Hash::make('member123'),
             'phone' => '+91 98223 45678',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80',
         ]);
         MemberProfile::create([
@@ -281,6 +290,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'member',
             'password' => Hash::make('member123'),
             'phone' => '+91 98334 56789',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
         ]);
         MemberProfile::create([
@@ -310,6 +320,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'member',
             'password' => Hash::make('member123'),
             'phone' => '+91 98445 67890',
+            'gym_id' => $gym->id,
             'avatar' => 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
         ]);
         MemberProfile::create([
@@ -635,6 +646,7 @@ class DatabaseSeeder extends Seeder
             ExpensesAndEnquiriesSeeder::class,
             OperationsSeeder::class,
             PlatformUpgradeSeeder::class,
+            SuperadminSeeder::class,
         ]);
 
         // Re-enable FK checks

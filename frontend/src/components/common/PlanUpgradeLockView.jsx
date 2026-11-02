@@ -25,9 +25,9 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
   const requiredFeature = ALL_SYSTEM_FEATURES.find((f) => f.id === requiredFeatureId);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-fadeIn">
+    <div className="max-w-5xl mx-auto py-4 sm:py-8 px-2 sm:px-6 space-y-6 sm:space-y-8 animate-fadeIn">
       {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-indigo-500/30 p-8 sm:p-10 shadow-2xl text-white">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-indigo-500/30 p-5 sm:p-10 shadow-2xl text-white">
         {/* Background glow effects */}
         <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />

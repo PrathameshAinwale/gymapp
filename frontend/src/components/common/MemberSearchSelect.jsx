@@ -132,7 +132,7 @@ export function MemberSearchSelect({
               onClick={(e) => e.stopPropagation()}
             />
           ) : selectedMember ? (
-            <div className="flex items-center gap-2 truncate text-left">
+            <div className="flex items-center gap-1.5 sm:gap-2 truncate text-left min-w-0 flex-1">
               <span className="font-semibold text-sm text-slate-900 truncate">
                 {selectedMember.name}
               </span>
@@ -143,7 +143,7 @@ export function MemberSearchSelect({
                 </span>
               )}
               {selectedMember.planName && (
-                <span className="text-[11px] font-medium px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                <span className="hidden sm:inline-flex text-[11px] font-medium px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
                   {selectedMember.planName}
                 </span>
               )}

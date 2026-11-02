@@ -528,3 +528,50 @@ input[type="number"] {
 .sidebar-active-glow {
   animation: tabGlowPulse 2.8s ease-in-out infinite;
 }
+
+/* ===== STEP 2: SHARED RESPONSIVE FOUNDATION (SCOPED TO MOBILE/TABLET <= 767px) ===== */
+@media (max-width: 767px) {
+  /* Prevent unbreakable string/text overflows in mobile containers */
+  .mobile-break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Safe interactive touch target (Apple/Google HIG standard min 38-44px) */
+  .touch-target {
+    min-height: 38px;
+    min-width: 38px;
+    touch-action: manipulation;
+  }
+
+  /* Compact responsive buttons on phones */
+  .btn-mobile-compact {
+    min-height: 38px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  /* Drawer panel width optimized for mobile handsets */
+  .drawer-panel {
+    width: min(20rem, 88vw);
+  }
+}
+
+/* Universal Table Responsive Container: desktop displays native table; mobile enables smooth horizontal touch scroll */
+.table-responsive-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe areas for mobile viewports, notched phones, and Android gesture nav */
+@supports (padding: max(0px)) {
+  .safe-area-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .safe-area-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
+
