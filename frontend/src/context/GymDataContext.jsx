@@ -2394,7 +2394,7 @@ export const GymDataProvider = ({ children }) => {
     }
   }, [members, addToast, fetchAllFromBackend]);
 
-  // PUNCH OUT MEMBER
+  // PUNCH OUT MEMBER OR STAFF
   const punchOutMember = useCallback(async (attendanceId) => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2403,11 +2403,12 @@ export const GymDataProvider = ({ children }) => {
     setAttendance((prev) =>
       prev.map((att) => {
         if (att.id === attendanceId) {
+          const isStaff = (att.role && att.role !== 'member') || att.status === 'On Duty';
           return {
             ...att,
             checkOutTime: timeStr,
-            duration: att.duration && att.duration !== '--' ? att.duration : '1h 15m',
-            status: 'Completed'
+            duration: att.duration && att.duration !== '--' ? att.duration : '8h 00m',
+            status: isStaff ? 'Completed Shift' : 'Completed'
           };
         }
         return att;
@@ -2420,23 +2421,25 @@ export const GymDataProvider = ({ children }) => {
         setAttendance((prev) =>
           prev.map((att) => {
             if (att.id === attendanceId) {
+              const isStaff = (att.role && att.role !== 'member') || att.status === 'On Duty' || res.attendance?.status === 'Completed Shift';
               return {
                 ...att,
                 checkOutTime: res.punch_out || timeStr,
                 duration: res.duration || att.duration,
-                status: 'Completed'
+                status: isStaff ? 'Completed Shift' : (res.attendance?.status || 'Completed')
               };
             }
             return att;
           })
         );
-        addToast(res.message || `Punch-out recorded at ${timeStr}. Workout completed!`, 'info');
+        addToast(res.message || `Punch-out recorded at ${timeStr}.`, 'info');
+        fetchAttendance?.();
       }
     } catch (err) {
       console.warn('Backend attendance punch-out note:', err.message);
       addToast(`Punch-out recorded at ${timeStr}. Workout completed!`, 'info');
     }
-  }, [addToast]);
+  }, [addToast, fetchAttendance]);
 
   // CLASS BOOKING
   const toggleBookClass = useCallback(async (classId) => {
@@ -3952,70 +3955,23 @@ export const GymDataProvider = ({ children }) => {
     return newRev;
   };
 
-  // Staff Attendance Handlers
-  const recordStaffCheckIn = (staffId) => {
-    const staff = trainers.find((t) => t.id === staffId);
-    if (!staff) return;
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const todayIso = getTodayIso();
-
-    const existingToday = staffAttendanceLogs.find(
-      (l) => l.staffId === staffId && recordMatchesDate(l, todayIso) && !l.checkOutTime
-    );
-
-    if (existingToday) {
-      // Calculate total hours
-      let calculatedHours = '8.0 hrs';
-      try {
-        const timeRegex = /(\d+):(\d+)\s*(AM|PM)?/i;
-        const inMatch = existingToday.checkInTime ? existingToday.checkInTime.match(timeRegex) : null;
-        if (inMatch) {
-          let [_, hStr, mStr, period] = inMatch;
-          let h = parseInt(hStr, 10);
-          let m = parseInt(mStr, 10);
-          if (period) {
-            if (period.toUpperCase() === 'PM' && h < 12) h += 12;
-            if (period.toUpperCase() === 'AM' && h === 12) h = 0;
-          }
-          const checkInDate = new Date();
-          checkInDate.setHours(h, m, 0, 0);
-          const diffMs = Math.max(0, now.getTime() - checkInDate.getTime());
-          const diffHrs = diffMs / (1000 * 60 * 60);
-          if (diffHrs < 0.1) {
-            calculatedHours = `${Math.max(1, Math.round(diffMs / (1000 * 60)))} mins`;
-          } else {
-            calculatedHours = `${diffHrs.toFixed(1)} hrs`;
-          }
+  // Staff Attendance Handlers (Direct backend sync with optimistic update)
+  const recordStaffCheckIn = async (staffId, gate = 'Staff Gate / Reception') => {
+    const cleanId = String(staffId).replace(/\D/g, '');
+    try {
+      if (api.attendance?.checkIn) {
+        const res = await api.attendance.checkIn(cleanId, gate);
+        if (res?.success) {
+          addToast(res.message || 'Staff punch-in recorded successfully!', 'success');
+          await fetchAttendance();
+          return res;
         }
-      } catch (e) {
-        calculatedHours = '8.0 hrs';
       }
-
-      setStaffAttendanceLogs((prev) =>
-        prev.map((l) =>
-          l.id === existingToday.id
-            ? { ...l, checkOutTime: timeStr, status: 'Completed Shift', totalHours: calculatedHours }
-            : l
-        )
-      );
-      addToast(`${staff.name} punched OUT at ${timeStr}`);
-    } else {
-      const newLog = {
-        id: `stf-att-${Date.now()}`,
-        staffId,
-        staffName: staff.name,
-        role: staff.specialty || staff.role || 'Fitness Coach',
-        date: todayIso,
-        rawDate: todayIso,
-        displayDate: 'Today',
-        checkInTime: timeStr,
-        checkOutTime: null,
-        status: 'On Premises (Active)',
-        totalHours: 'In progress'
-      };
-      setStaffAttendanceLogs((prev) => [newLog, ...prev]);
-      addToast(`${staff.name} punched IN at ${timeStr}`);
+    } catch (err) {
+      console.warn('Staff check-in backend note:', err.message);
+      const errMsg = err.data?.message || err.message || 'Failed to punch in staff';
+      addToast(errMsg, 'error');
+      throw err;
     }
   };
 

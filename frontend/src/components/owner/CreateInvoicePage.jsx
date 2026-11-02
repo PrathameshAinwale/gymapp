@@ -866,8 +866,15 @@ export const CreateInvoicePage = ({
 
   // Handle Member Change
   const handleMemberChange = (newMemberId) => {
-    setSelectedMemberId(newMemberId);
-    const m = members.find((item) => String(item.id) === String(newMemberId));
+    const resolvedId = typeof newMemberId === 'object' && newMemberId !== null && 'target' in newMemberId
+      ? newMemberId.target.value
+      : (typeof newMemberId === 'object' && newMemberId !== null && 'member' in newMemberId ? newMemberId.member?.id : newMemberId);
+    setSelectedMemberId(resolvedId);
+    const cleanNum = String(resolvedId || '').replace(/\D/g, '');
+    const m = members.find((item) =>
+      String(item.id) === String(resolvedId) ||
+      (cleanNum && (String(item.id).replace(/\D/g, '') === cleanNum || String(item.userId) === cleanNum))
+    );
     if (m?.name) {
       setMemberName(m.name);
     }
@@ -877,7 +884,7 @@ export const CreateInvoicePage = ({
 
     setSelectedPackages((prev) => {
       const resetCustom = prev.map((row) => ({ ...row, isCustomStartDate: false }));
-      return recalculatePackageRows(resetCustom, newMemberId);
+      return recalculatePackageRows(resetCustom, resolvedId);
     });
   };
 

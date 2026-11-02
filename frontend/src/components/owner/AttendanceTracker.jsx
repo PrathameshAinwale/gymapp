@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import api from '../../services/api';
 import { useGymData } from '../../context/GymDataContext';
 import {
   CalendarCheck,
@@ -92,6 +93,30 @@ export const AttendanceTracker = () => {
   }, []);
 
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
+  const [isStaffCheckInModalOpen, setIsStaffCheckInModalOpen] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [selectedStaffGate, setSelectedStaffGate] = useState('Staff Gate / Reception');
+  const [isCheckingInStaff, setIsCheckingInStaff] = useState(false);
+  const [staffAccounts, setStaffAccounts] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadStaff = async () => {
+      try {
+        if (api.staff?.getAll) {
+          const res = await api.staff.getAll();
+          if (isMounted && Array.isArray(res?.data)) {
+            setStaffAccounts(res.data);
+          }
+        }
+      } catch (e) {
+        console.warn('Fetch staff for attendance tracker error:', e);
+      }
+    };
+    loadStaff();
+    return () => { isMounted = false; };
+  }, []);
+
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false);
   const [isSimulateModalOpen, setIsSimulateModalOpen] = useState(false);
@@ -101,6 +126,50 @@ export const AttendanceTracker = () => {
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [loadingStaffId, setLoadingStaffId] = useState(null);
   const [isCheckingInManual, setIsCheckingInManual] = useState(false);
+
+  // Consolidated Gym Staff Directory (Managers, Trainers, Accountants, Receptionists, Cleaners)
+  const allGymStaff = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (staffAccounts || []).forEach((s) => {
+      const cleanId = String(s.id).replace(/\D/g, '');
+      if (cleanId && !seen.has(cleanId)) {
+        seen.add(cleanId);
+        list.push({
+          id: s.id,
+          userId: cleanId,
+          name: s.name,
+          role: s.gymRole?.name || (s.role ? (s.role.charAt(0).toUpperCase() + s.role.slice(1)) : 'Staff'),
+          avatar: s.avatar,
+          phone: s.phone
+        });
+      }
+    });
+
+    (trainers || []).forEach((t) => {
+      const cleanId = String(t.id || t.userId).replace(/\D/g, '');
+      if (cleanId && !seen.has(cleanId)) {
+        seen.add(cleanId);
+        list.push({
+          id: t.id,
+          userId: cleanId,
+          name: t.name,
+          role: t.specialty || t.role || 'Trainer / Coach',
+          avatar: t.avatar,
+          phone: t.phone
+        });
+      }
+    });
+
+    return list;
+  }, [staffAccounts, trainers]);
+
+  useEffect(() => {
+    if (allGymStaff.length > 0 && !selectedStaffId) {
+      setSelectedStaffId(allGymStaff[0].userId || allGymStaff[0].id);
+    }
+  }, [allGymStaff, selectedStaffId]);
 
   const handleSimulatePunch = async (e) => {
     e.preventDefault();
@@ -160,15 +229,17 @@ export const AttendanceTracker = () => {
     );
   }, [attendance, selectedDate]);
 
-  // 2. Trainer Shifts tab: Automatically map all staff (Trainer, Manager, Accountant) punches
+  // 2. Staff Attendance tab: Automatically map all staff (Manager, Trainer, Accountant, Receptionist, etc.) punches
   const staffAttendanceFromDb = useMemo(() => {
     return attendance
       .filter((a) => recordMatchesDate(a, selectedDate) && a.role && a.role !== 'member')
       .map((a) => ({
         id: a.id,
+        attendanceId: a.id,
         staffId: a.userId ? `trn-${a.userId}` : a.id,
+        userId: a.userId,
         staffName: a.memberName,
-        role: a.role ? (a.role.charAt(0).toUpperCase() + a.role.slice(1)) : 'Staff Coach',
+        role: a.planName || (a.role ? (a.role.charAt(0).toUpperCase() + a.role.slice(1)) : 'Staff'),
         date: a.date,
         rawDate: a.rawDate,
         displayDate: a.displayDate,
@@ -180,9 +251,11 @@ export const AttendanceTracker = () => {
       }));
   }, [attendance, selectedDate]);
 
-  // Merge database records with any manual UI check-ins
+  // Merge database records with registered staff roster for today's view
   const dayStaffAttendance = useMemo(() => {
     const combined = [...staffAttendanceFromDb];
+
+    // Merge manual memory records if any
     staffAttendanceLogs
       .filter((s) => recordMatchesDate(s, selectedDate))
       .forEach((manual) => {
@@ -190,8 +263,39 @@ export const AttendanceTracker = () => {
           combined.push(manual);
         }
       });
+
+    // If viewing today, also show all gym staff members so owner/manager can punch them in
+    if (isToday && allGymStaff.length > 0) {
+      allGymStaff.forEach((staff) => {
+        const staffNumId = String(staff.userId || staff.id).replace(/\D/g, '');
+        const hasRecord = combined.some((c) => {
+          const cNumId = String(c.userId || c.staffId || '').replace(/\D/g, '');
+          return (staffNumId && cNumId && staffNumId === cNumId) || (c.staffName && c.staffName.toLowerCase() === staff.name.toLowerCase());
+        });
+
+        if (!hasRecord) {
+          combined.push({
+            id: `stf-idle-${staff.id}`,
+            staffId: staff.id,
+            userId: staff.userId,
+            staffName: staff.name,
+            role: staff.role || 'Staff',
+            date: todayIso,
+            rawDate: todayIso,
+            displayDate: 'Today',
+            checkInTime: null,
+            checkOutTime: null,
+            status: 'Not Checked In',
+            totalHours: '--',
+            avatar: staff.avatar,
+            isNotCheckedIn: true,
+          });
+        }
+      });
+    }
+
     return combined;
-  }, [staffAttendanceFromDb, staffAttendanceLogs, selectedDate]);
+  }, [staffAttendanceFromDb, staffAttendanceLogs, allGymStaff, isToday, selectedDate, todayIso]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -302,12 +406,41 @@ export const AttendanceTracker = () => {
     }
   };
 
-  const handleRecordPunch = async (staffId) => {
-    setLoadingStaffId(staffId);
+  const handleRecordStaffPunch = async (stf) => {
+    const rawId = stf.staffId || stf.id;
+    setLoadingStaffId(rawId);
     try {
-      await recordStaffCheckIn(staffId);
+      const isOnDuty = isToday && (stf.status === 'On Premises (Active)' || (stf.checkInTime && !stf.checkOutTime));
+      if (isOnDuty) {
+        const attId = stf.attendanceId || (String(stf.id).startsWith('att-') ? stf.id : null);
+        if (attId) {
+          await punchOutMember(attId);
+        } else {
+          await punchOutMember(stf.id);
+        }
+      } else {
+        const cleanId = stf.userId || String(stf.staffId || stf.id).replace(/\D/g, '');
+        await recordStaffCheckIn(cleanId, 'Staff Gate / Reception');
+      }
+    } catch (err) {
+      console.warn('Error recording staff punch:', err);
     } finally {
       setLoadingStaffId(null);
+    }
+  };
+
+  const handleManualStaffCheckIn = async (e) => {
+    e.preventDefault();
+    if (!selectedStaffId) return;
+
+    setIsCheckingInStaff(true);
+    try {
+      await recordStaffCheckIn(selectedStaffId, selectedStaffGate || 'Staff Gate / Reception');
+      setIsStaffCheckInModalOpen(false);
+    } catch (err) {
+      console.warn('Manual staff check-in failed:', err);
+    } finally {
+      setIsCheckingInStaff(false);
     }
   };
 
@@ -345,11 +478,11 @@ export const AttendanceTracker = () => {
           {isToday ? (
             <button
               type="button"
-              onClick={() => setIsMemberCheckInModalOpen(true)}
+              onClick={() => activeTab === 'staff' ? setIsStaffCheckInModalOpen(true) : setIsMemberCheckInModalOpen(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm shadow-emerald-600/20"
             >
               <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              <span>Punch In</span>
+              <span>{activeTab === 'staff' ? 'Punch In Staff' : 'Punch In Member'}</span>
             </button>
           ) : (
             <button
@@ -467,10 +600,10 @@ export const AttendanceTracker = () => {
             {isToday ? 'Staff on Duty' : 'Staff On Shift'}
           </span>
           <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-            {staffOnDuty} Coaches
+            {staffOnDuty} On Duty
           </div>
           <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">
-            {isToday ? 'Active duty shifts' : `Coaches logged on ${formatDateDisplay(selectedDate)}`}
+            {isToday ? 'Active duty shifts' : `Staff logged on ${formatDateDisplay(selectedDate)}`}
           </span>
         </div>
       </div>
@@ -498,7 +631,7 @@ export const AttendanceTracker = () => {
                 : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
-              Trainer Shifts ({dayStaffAttendance.length})
+              Staff & Trainers ({dayStaffAttendance.length})
             </button>
           </div>
 
@@ -888,12 +1021,12 @@ export const AttendanceTracker = () => {
                         {isOnDuty ? (
                           <button
                             type="button"
-                            disabled={loadingStaffId === stf.staffId}
-                            onClick={() => handleRecordPunch(stf.staffId)}
+                            disabled={loadingStaffId === (stf.staffId || stf.id)}
+                            onClick={() => handleRecordStaffPunch(stf)}
                             className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
                           >
-                            {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
-                            <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
+                            {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                            <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch Out'}</span>
                           </button>
                         ) : isPunchedOut ? (
                           <span className="text-emerald-700 font-bold text-[10px] flex items-center gap-1">
@@ -902,12 +1035,12 @@ export const AttendanceTracker = () => {
                         ) : (
                           <button
                             type="button"
-                            disabled={loadingStaffId === stf.staffId}
-                            onClick={() => handleRecordPunch(stf.staffId)}
+                            disabled={loadingStaffId === (stf.staffId || stf.id)}
+                            onClick={() => handleRecordStaffPunch(stf)}
                             className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
                           >
-                            {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
-                            <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
+                            {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                            <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch In'}</span>
                           </button>
                         )}
                       </div>
@@ -1011,12 +1144,12 @@ export const AttendanceTracker = () => {
                               isOnDuty ? (
                                 <button
                                   type="button"
-                                  disabled={loadingStaffId === stf.staffId}
-                                  onClick={() => handleRecordPunch(stf.staffId)}
+                                  disabled={loadingStaffId === (stf.staffId || stf.id)}
+                                  onClick={() => handleRecordStaffPunch(stf)}
                                   className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
                                 >
-                                  {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
-                                  <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch Out'}</span>
+                                  {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
+                                  <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch Out'}</span>
                                 </button>
                               ) : isPunchedOut ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
@@ -1026,12 +1159,12 @@ export const AttendanceTracker = () => {
                               ) : (
                                 <button
                                   type="button"
-                                  disabled={loadingStaffId === stf.staffId}
-                                  onClick={() => handleRecordPunch(stf.staffId)}
+                                  disabled={loadingStaffId === (stf.staffId || stf.id)}
+                                  onClick={() => handleRecordStaffPunch(stf)}
                                   className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
                                 >
-                                  {loadingStaffId === stf.staffId && <Loader2 className="w-3 h-3 animate-spin text-white" />}
-                                  <span>{loadingStaffId === stf.staffId ? 'Saving...' : 'Punch In'}</span>
+                                  {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                                  <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch In'}</span>
                                 </button>
                               )
                             ) : (
@@ -1097,6 +1230,73 @@ export const AttendanceTracker = () => {
             >
               {isCheckingInManual && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
               <span>{isCheckingInManual ? 'Punching In...' : 'Confirm Punch In'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Manual Check-in Modal for Gym Staff (Owner & Manager can mark staff attendance) */}
+      <Modal
+        isOpen={isStaffCheckInModalOpen}
+        onClose={() => setIsStaffCheckInModalOpen(false)}
+        title="Punch In Gym Staff"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleManualStaffCheckIn} className="space-y-3 sm:space-y-4">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Staff Member *</label>
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              {allGymStaff.map((s) => (
+                <option key={s.id || s.userId} value={s.userId || s.id}>
+                  {s.name} ({s.role} • ID: {s.userId || s.id})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Check-in Gate / Station</label>
+            <select
+              value={selectedStaffGate}
+              onChange={(e) => setSelectedStaffGate(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="Staff Gate / Reception">Staff Gate / Reception</option>
+              <option value="Main Reception Desk">Main Reception Desk</option>
+              <option value="Training Floor Gate">Training Floor Gate</option>
+              <option value="Manager Office">Manager Office</option>
+            </select>
+          </div>
+
+          <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center gap-2.5">
+            <Award className="w-6 h-6 text-purple-600 shrink-0" />
+            <div className="text-xs">
+              <span className="font-bold text-purple-800 block text-[11px]">Staff Duty Shift Record</span>
+              <p className="text-purple-700 text-[10px]">
+                Marks this staff member On Duty on the server and begins calculating their shift duration.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsStaffCheckInModalOpen(false)}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCheckingInStaff || !selectedStaffId}
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
+            >
+              {isCheckingInStaff && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+              <span>{isCheckingInStaff ? 'Punching In...' : 'Confirm Staff Punch In'}</span>
             </button>
           </div>
         </form>

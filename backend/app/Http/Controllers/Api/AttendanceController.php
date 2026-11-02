@@ -53,14 +53,21 @@ class AttendanceController extends Controller
                     } catch (\Throwable $e) {}
                 }
 
+                $isStaff = $att->user && $att->user->role !== 'member';
+                $roleLabel = $att->user ? (method_exists($att->user, 'gymRole') && $att->user->gymRole ? $att->user->gymRole->name : ucfirst($att->user->role)) : 'Staff';
+                $planName = $att->plan_name;
+                if (!$planName) {
+                    $planName = $isStaff ? $roleLabel : ($att->user?->memberProfile?->plan?->name ?? 'Active Plan');
+                }
+
                 return [
                     'id'           => 'att-' . $att->id,
-                    'memberId'     => 'mem-' . $att->user_id,
+                    'memberId'     => ($isStaff ? 'stf-' : 'mem-') . $att->user_id,
                     'userId'       => $att->user_id,
                     'role'         => $att->user?->role ?? 'member',
                     'memberName'   => $att->member_name ?? $att->user?->name ?? 'Unknown Member',
                     'avatar'       => $att->member_avatar ?? $att->user?->avatar,
-                    'planName'     => $att->plan_name ?? $att->user?->memberProfile?->plan?->name ?? 'Active Plan',
+                    'planName'     => $planName,
                     'checkInTime'  => $att->check_in_time ? date('h:i A', strtotime($att->check_in_time)) : '--',
                     'checkOutTime' => $att->check_out_time ? date('h:i A', strtotime($att->check_out_time)) : '--',
                     'punchOutTime' => $att->punch_out_time ? date('h:i A', strtotime($att->punch_out_time)) : '--',
@@ -89,9 +96,10 @@ class AttendanceController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'qr_code'   => 'required_without_all:user_id,member_id|string',
+            'qr_code'   => 'required_without_all:user_id,member_id,staff_id|string',
             'user_id'   => 'required_without:qr_code',
             'member_id' => 'sometimes',
+            'staff_id'  => 'sometimes',
             'gate'      => 'nullable|string',
         ]);
 
@@ -106,36 +114,37 @@ class AttendanceController extends Controller
             if ($profile) {
                 $user = $profile->user;
             } else {
-                // If the QR string was actually a member ID
-                $numericId = (int)str_replace('mem-', '', $code);
+                // If the QR string was actually a member or staff ID
+                $numericId = (int)preg_replace('/[^0-9]/', '', (string)$code);
                 if ($numericId > 0) {
-                    $user = User::where('role', 'member')->find($numericId);
+                    $user = User::find($numericId);
                 }
             }
         }
 
-        if (!$user && ($request->filled('user_id') || $request->filled('member_id'))) {
-            $rawId = $request->user_id ?? $request->member_id;
+        if (!$user && ($request->filled('user_id') || $request->filled('member_id') || $request->filled('staff_id'))) {
+            $rawId = $request->user_id ?? $request->member_id ?? $request->staff_id;
             // Check if it matches QR code first
             $profile = MemberProfile::where('qr_pass_code', $rawId)->first();
             if ($profile) {
                 $user = $profile->user;
             } else {
-                $numericId = (int)str_replace('mem-', '', (string)$rawId);
-                $user = User::where('role', 'member')->find($numericId);
+                $numericId = (int)preg_replace('/[^0-9]/', '', (string)$rawId);
+                $user = User::find($numericId);
             }
         }
 
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid QR Code or Member ID not found'
+                'message' => 'Invalid QR Code, Staff ID, or Member ID not found'
             ], 404);
         }
 
+        $isStaff = $user->role !== 'member';
         $profile = $user->memberProfile;
 
-        if ($profile && $profile->status === 'Expired') {
+        if (!$isStaff && $profile && $profile->status === 'Expired') {
             return response()->json([
                 'success' => false,
                 'message' => 'Access Denied: Membership package has expired. Please renew.'
@@ -144,27 +153,32 @@ class AttendanceController extends Controller
 
         $existing = Attendance::where('user_id', $user->id)
             ->whereDate('date', now()->toDateString())
-            ->where('status', 'Inside Gym')
+            ->whereIn('status', ['Inside Gym', 'On Duty'])
             ->first();
 
         if ($existing) {
             return response()->json([
                 'success'       => true,
                 'alreadyInside' => true,
-                'message'       => "{$user->name} is already checked in at {$existing->check_in_time}",
+                'message'       => "{$user->name} is already punched in at {$existing->check_in_time}",
                 'attendance'    => $existing,
             ]);
         }
+
+        $roleLabel = method_exists($user, 'gymRole') && $user->gymRole ? $user->gymRole->name : ucfirst($user->role);
+        $planName = $isStaff ? $roleLabel : ($profile?->plan?->name ?? 'Active Plan');
+        $status = $isStaff ? 'On Duty' : 'Inside Gym';
+        $gate = $request->gate ?? ($isStaff ? 'Staff Gate / Reception' : 'Main Turnstile A');
 
         $attendance = Attendance::create([
             'user_id'       => $user->id,
             'member_name'   => $user->name,
             'member_avatar' => $user->avatar,
-            'plan_name'     => $profile?->plan?->name ?? 'Active Plan',
+            'plan_name'     => $planName,
             'check_in_time' => now()->toTimeString(),
             'date'          => now()->toDateString(),
-            'status'        => 'Inside Gym',
-            'gate'          => $request->gate ?? 'Main Turnstile A',
+            'status'        => $status,
+            'gate'          => $gate,
         ]);
 
         if ($profile) {
@@ -175,11 +189,12 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Access Granted! Welcome to PulseFit, {$user->name}.",
+            'message' => $isStaff ? "Shift Punch-In recorded for {$user->name} ({$roleLabel})." : "Access Granted! Welcome to PulseFit, {$user->name}.",
             'member'  => [
-                'id'     => 'mem-' . $user->id,
+                'id'     => ($isStaff ? 'stf-' : 'mem-') . $user->id,
                 'name'   => $user->name,
-                'plan'   => $profile?->plan?->name,
+                'plan'   => $planName,
+                'role'   => $user->role,
                 'streak' => $profile?->attendance_streak,
             ],
             'attendance' => $attendance,
@@ -193,13 +208,13 @@ class AttendanceController extends Controller
             return response()->json(['success' => false, 'message' => 'Attendance ID is required.'], 422);
         }
 
-        $numericId  = str_replace('att-', '', (string)$id);
+        $numericId  = (int)preg_replace('/[^0-9]/', '', (string)$id);
         $attendance = Attendance::findOrFail($numericId);
 
         $punchOutTime = now()->toTimeString();
         $duration     = '--';
 
-        // Calculate workout duration from check-in to punch-out
+        // Calculate workout / shift duration from check-in to punch-out
         if ($attendance->check_in_time) {
             try {
                 $in   = Carbon::parse($attendance->date . ' ' . $attendance->check_in_time);
@@ -211,16 +226,19 @@ class AttendanceController extends Controller
             } catch (\Throwable $e) {}
         }
 
+        $isStaff = ($attendance->user && $attendance->user->role !== 'member') || $attendance->status === 'On Duty';
+        $newStatus = $isStaff ? 'Completed Shift' : 'Completed';
+
         $attendance->update([
             'check_out_time' => $punchOutTime,
             'punch_out_time' => $punchOutTime,
             'duration'       => $duration,
-            'status'         => 'Completed',
+            'status'         => $newStatus,
         ]);
 
         return response()->json([
             'success'    => true,
-            'message'    => 'Checked out successfully. Workout duration: ' . $duration,
+            'message'    => ($isStaff ? 'Shift punched out successfully. Total shift duration: ' : 'Checked out successfully. Workout duration: ') . $duration,
             'punch_out'  => date('h:i A', strtotime($punchOutTime)),
             'duration'   => $duration,
             'attendance' => $attendance,
