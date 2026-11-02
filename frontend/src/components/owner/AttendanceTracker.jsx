@@ -334,26 +334,6 @@ export const AttendanceTracker = () => {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setIsBiometricModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
-            title="Configure eSSL ADMS Cloud Server"
-          >
-            <Fingerprint className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">eSSL Machine Config</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsSimulateModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
-            title="Simulate / Test a Biometric Punch"
-          >
-            <Radio className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-purple-600" />
-            <span className="hidden sm:inline">Test Punch</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setIsReportModalOpen(true)}
             className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
             title="Muster Report"

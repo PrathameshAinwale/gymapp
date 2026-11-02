@@ -193,46 +193,49 @@ jobs:
 
               clean_files = [f.replace('\\', '/').split('/')[-1] for f in raw_files]
 
-              # Determine if we are at home root (identified ONLY by the DO_NOT_UPLOAD_HERE marker)
-              is_home_root = 'DO_NOT_UPLOAD_HERE' in clean_files
+              target_subdomain = 'archfit.archenterprises.co.in'
+
+              # Determine if we are at home root (identified by DO_NOT_UPLOAD_HERE or domains directory)
+              is_home_root = 'DO_NOT_UPLOAD_HERE' in clean_files or ('domains' in clean_files and 'public_html' in clean_files)
 
               if is_home_root:
                   print("FTP root is Home Directory (🏠).")
-                  frontend_dir = 'public_html/'
-                  backend_dir = 'backend/'
-              else:
-                  print("FTP root is NOT Home Directory (currently inside public_html).")
-                  can_reach_parent = False
-                  try:
-                      ftp.cwd('..')
-                      parent_clean = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst()]
-                      print(f"Parent directory contents: {parent_clean}")
-                      if 'DO_NOT_UPLOAD_HERE' in parent_clean:
-                          print("Successfully verified parent directory is Home Root (🏠)!")
-                          can_reach_parent = True
-                      ftp.cwd(pwd)
-                  except Exception as e:
-                      print(f"Notice on checking parent directory: {e}")
+                  subdomain_detected = False
+                  if 'domains' in clean_files:
+                      try:
+                          ftp.cwd('domains')
+                          dom_files = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst()]
+                          print(f"Subdomains found in /domains: {dom_files}")
+                          for candidate in [target_subdomain, 'archfit']:
+                              if candidate in dom_files:
+                                  frontend_dir = f'domains/{candidate}/public_html/'
+                                  backend_dir = f'domains/{candidate}/backend/'
+                                  subdomain_detected = True
+                                  print(f"Mapped to Hostinger subdomain: frontend='{frontend_dir}', backend='{backend_dir}'")
+                                  break
+                          ftp.cwd(pwd)
+                      except Exception as e:
+                          print(f"Notice during domains inspection: {e}")
 
-                  if can_reach_parent:
-                      print("Navigating outside public_html: backend='../backend/', frontend='./'")
-                      backend_dir = '../backend/'
-                      frontend_dir = './'
+                  if not subdomain_detected:
+                      frontend_dir = 'public_html/'
+                      backend_dir = 'backend/'
+              else:
+                  print("FTP root is NOT Home Directory.")
+                  if 'public_html' in clean_files:
+                      print("FTP root is domain root containing public_html/ folder.")
+                      frontend_dir = 'public_html/'
+                      backend_dir = 'backend/'
                   else:
-                      print("WARNING: FTP account appears restricted to public_html directly.")
-                      backend_dir = '../backend/'
+                      print("FTP root appears to be public_html directly.")
                       frontend_dir = './'
+                      backend_dir = '../backend/'
 
               if override:
                   override_clean = override.strip('/')
                   print(f"HOSTINGER_SERVER_DIR provided: '{override}'")
                   if override_clean in ('public_html', './public_html', '/public_html', ''):
-                      if is_home_root:
-                          frontend_dir = 'public_html/'
-                          backend_dir = 'backend/'
-                      else:
-                          frontend_dir = './'
-                          backend_dir = '../backend/'
+                      pass  # Retain auto-detected subdomain paths
                   elif 'public_html' in override_clean:
                       base = override_clean.rsplit('public_html', 1)[0].rstrip('/')
                       frontend_dir = f"{override_clean}/"
@@ -247,11 +250,19 @@ jobs:
               # 1. Ensure backend directory exists outside public_html
               clean_backend = backend_dir.strip('/')
               if clean_backend and clean_backend not in ('.', '..'):
-                  try:
-                      ftp.mkd(clean_backend)
-                      print(f"Verified/Created target backend directory: {clean_backend}")
-                  except Exception:
-                      print(f"Target backend directory ready: {clean_backend}")
+                  b_parts = [p for p in clean_backend.replace('\\', '/').split('/') if p and p != '.']
+                  ftp.cwd('/')
+                  for bp in b_parts:
+                      try:
+                          ftp.cwd(bp)
+                      except Exception:
+                          try:
+                              ftp.mkd(bp)
+                          except Exception:
+                              pass
+                          ftp.cwd(bp)
+                  ftp.cwd(pwd)
+                  print(f"Verified/Created target backend directory: {clean_backend}")
 
               # 2. Inspect and clean unwanted directories inside public_html
               target_pub = frontend_dir if frontend_dir != './' else ''
@@ -506,7 +517,7 @@ jobs:
               return None, None
 
           def ensure_remote_dir(ftp, remote_dir):
-              parts = [p for p in remote_dir.replace('\\', '/').split('/') if p]
+              parts = [p for p in remote_dir.replace('\\', '/').split('/') if p and p != '.']
               ftp.cwd('/')
               for p in parts:
                   try:

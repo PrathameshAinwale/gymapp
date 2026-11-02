@@ -34,6 +34,15 @@
     RewriteRule ^extract_vendor\.php$ extract_vendor.php [L,QSA]
     RewriteRule ^migrate_backend\.php$ migrate_backend.php [L,QSA]
 
+    # Ensure index.html is never aggressively cached by CDN or browser
+    <Files "index.html">
+        <IfModule mod_headers.c>
+            Header set Cache-Control "no-cache, no-store, must-revalidate"
+            Header set Pragma "no-cache"
+            Header set Expires 0
+        </IfModule>
+    </Files>
+
     # 4. Existing files and directories are served directly (JS, CSS, images, fonts)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
