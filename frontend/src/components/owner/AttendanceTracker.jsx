@@ -1207,16 +1207,6 @@ export const AttendanceTracker = () => {
             </select>
           </div>
 
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5">
-            <QrCode className="w-6 h-6 text-emerald-600 shrink-0" />
-            <div className="text-xs">
-              <span className="font-bold text-emerald-800 block text-[11px]">Instant Attendance Record</span>
-              <p className="text-emerald-700 text-[10px]">
-                Immediately logs member's punch-in timestamp and marks attendance as Present.
-              </p>
-            </div>
-          </div>
-
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <button
               type="button"
@@ -1258,16 +1248,6 @@ export const AttendanceTracker = () => {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center gap-2.5">
-            <Award className="w-6 h-6 text-purple-600 shrink-0" />
-            <div className="text-xs">
-              <span className="font-bold text-purple-800 block text-[11px]">Staff Duty Shift Record</span>
-              <p className="text-purple-700 text-[10px]">
-                Marks this staff member On Duty on the server and begins calculating their shift duration.
-              </p>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
