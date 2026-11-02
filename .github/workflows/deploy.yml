@@ -568,6 +568,11 @@ jobs:
                       total_bytes += sub_bytes
                       ensure_remote_dir(ftp, remote_path)
                   else:
+                      if item in ('index.html', '.htaccess'):
+                          try:
+                              ftp.delete(item)
+                          except Exception:
+                              pass
                       with open(l_item, 'rb') as f:
                           size = os.path.getsize(l_item)
                           ftp.storbinary(f"STOR {item}", f)
@@ -636,6 +641,9 @@ jobs:
 
       - name: Verify Live Deployment
         run: |
+          echo "Purging Hostinger / LiteSpeed edge cache..."
+          curl -s -k -X PURGE "https://archfit.archenterprises.co.in/*" || true
+          curl -s -k -H "X-LiteSpeed-Purge: *" "https://archfit.archenterprises.co.in/" || true
           echo "Verifying live deployment on https://archfit.archenterprises.co.in/..."
           sleep 5
           HTTP_RESP=$(curl -s -k -i "https://archfit.archenterprises.co.in/?v=$(date +%s)")

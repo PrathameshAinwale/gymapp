@@ -814,7 +814,7 @@ export const AttendanceTracker = () => {
                   <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
                     <div>
                       <span className="text-[9px] text-slate-400 uppercase font-bold block">In Time</span>
-                      <span className="font-semibold text-emerald-700">{log.checkInTime || log.punchInTime || '07:15 AM'}</span>
+                      <span className="font-semibold text-emerald-700">{log.checkInTime || log.punchInTime || '--'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] text-slate-400 uppercase font-bold block">Out Time</span>
@@ -822,7 +822,7 @@ export const AttendanceTracker = () => {
                     </div>
                     <div className="text-right">
                       <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
-                      <span className="font-medium text-slate-600">{log.duration || (log.checkOutTime ? '1h 15m' : 'In gym')}</span>
+                      <span className="font-medium text-slate-600">{log.duration || (log.checkOutTime && log.checkOutTime !== '--' ? '1h 15m' : (log.checkInTime ? 'In gym' : '--'))}</span>
                     </div>
                   </div>
 
@@ -893,13 +893,13 @@ export const AttendanceTracker = () => {
                           </div>
                         </td>
                         <td className="py-3.5 px-5 text-emerald-700 font-bold">
-                          {log.checkInTime || log.punchInTime || '07:15 AM'}
+                          {log.checkInTime || log.punchInTime || '--'}
                         </td>
                         <td className="py-3.5 px-5 text-slate-700 font-semibold">
                           {log.checkOutTime || '--'}
                         </td>
                         <td className="py-3.5 px-5 text-slate-500 font-medium">
-                          {log.duration || (log.checkOutTime ? '1h 15m' : <span className="text-emerald-600 font-bold">In Progress</span>)}
+                          {log.duration || (log.checkOutTime && log.checkOutTime !== '--' ? '1h 15m' : (log.checkInTime ? <span className="text-emerald-600 font-bold">In Progress</span> : '--'))}
                         </td>
                         <td className="py-3.5 px-5">
                           {(!log.checkOutTime || log.checkOutTime === '--' || log.status === 'Inside Gym') ? (
@@ -977,15 +977,17 @@ export const AttendanceTracker = () => {
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : isPunchedOut
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
                           }`}
                       >
                         {stf.status === 'Unpaid Leave' ? (
                           <XCircle className="w-2.5 h-2.5 text-rose-600" />
                         ) : isOnDuty ? (
                           <Clock className="w-2.5 h-2.5" />
-                        ) : (
+                        ) : isPunchedOut ? (
                           <CheckCircle2 className="w-2.5 h-2.5" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                         )}
                         <span>
                           {stf.status === 'Unpaid Leave'
@@ -994,7 +996,7 @@ export const AttendanceTracker = () => {
                               ? 'On Duty'
                               : isPunchedOut
                                 ? 'Shift Completed'
-                                : 'Completed'}
+                                : (stf.isNotCheckedIn || !stf.checkInTime ? 'Not Checked In' : (stf.status || 'Not Checked In'))}
                         </span>
                       </span>
                     </div>
@@ -1012,7 +1014,7 @@ export const AttendanceTracker = () => {
                       </div>
                       <div className="text-right">
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Total Hours</span>
-                        <span className="font-bold text-emerald-700">{stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}</span>
+                        <span className="font-bold text-emerald-700">{stf.totalHours || (isOnDuty ? 'In progress' : (isPunchedOut ? '8.0 hrs' : '--'))}</span>
                       </div>
                     </div>
 
@@ -1110,7 +1112,7 @@ export const AttendanceTracker = () => {
                             {stf.checkOutTime || (isOnDuty ? '--' : '—')}
                           </td>
                           <td className="py-3.5 px-5 text-slate-600">
-                            {stf.totalHours || (isOnDuty ? 'In progress' : '8.0 hrs')}
+                            {stf.totalHours || (isOnDuty ? 'In progress' : (isPunchedOut ? '8.0 hrs' : '--'))}
                           </td>
                           <td className="py-3.5 px-5">
                             {stf.status === 'Unpaid Leave' ? (
@@ -1129,8 +1131,9 @@ export const AttendanceTracker = () => {
                                 <span>Shift Completed</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                <span>Completed</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                <span>{stf.isNotCheckedIn || !stf.checkInTime ? 'Not Checked In' : (stf.status || 'Not Checked In')}</span>
                               </span>
                             )}
                           </td>

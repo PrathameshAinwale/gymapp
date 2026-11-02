@@ -12,10 +12,12 @@ use Illuminate\Support\Carbon;
 
 class AttendanceController extends Controller
 {
+    public const TIMEZONE = 'Asia/Kolkata';
+
     public function index(Request $request)
     {
         // Auto check-out members who have exceeded 2 hours (throttled to at most once every 5 minutes to avoid polling DB exhaustion)
-        if (\Illuminate\Support\Facades\Cache::add('attendance_auto_checkout_lock', true, now()->addMinutes(5))) {
+        if (\Illuminate\Support\Facades\Cache::add('attendance_auto_checkout_lock', true, Carbon::now(self::TIMEZONE)->addMinutes(5))) {
             $this->autoCheckOutOverdueMembers();
         }
 
@@ -38,14 +40,16 @@ class AttendanceController extends Controller
             ->limit(100)
             ->get()
             ->map(function ($att) {
+                $tz = self::TIMEZONE;
+
                 // Duration: calculate from check_in_time and punch_out_time or check_out_time
                 $duration = $att->duration ?? '--';
                 if (!$att->duration && $att->check_in_time && ($att->punch_out_time ?? $att->check_out_time)) {
                     $outTime = $att->punch_out_time ?? $att->check_out_time;
                     try {
                         $dateStr = $att->date instanceof \Illuminate\Support\Carbon ? $att->date->toDateString() : (string)$att->date;
-                        $in   = Carbon::parse($dateStr . ' ' . $att->check_in_time);
-                        $out  = Carbon::parse($dateStr . ' ' . $outTime);
+                        $in   = Carbon::parse($dateStr . ' ' . $att->check_in_time, $tz);
+                        $out  = Carbon::parse($dateStr . ' ' . $outTime, $tz);
                         $mins = max(0, $in->diffInMinutes($out));
                         $h    = intdiv($mins, 60);
                         $m    = $mins % 60;
@@ -60,6 +64,17 @@ class AttendanceController extends Controller
                     $planName = $isStaff ? $roleLabel : ($att->user?->memberProfile?->plan?->name ?? 'Active Plan');
                 }
 
+                $formatTime = function ($timeStr) use ($tz) {
+                    if (!$timeStr || $timeStr === '--' || $timeStr === 'null') return '--';
+                    try {
+                        return Carbon::parse($timeStr, $tz)->format('h:i A');
+                    } catch (\Throwable $e) {
+                        return date('h:i A', strtotime($timeStr));
+                    }
+                };
+
+                $currentDate = Carbon::now($tz)->toDateString();
+
                 return [
                     'id'           => 'att-' . $att->id,
                     'memberId'     => ($isStaff ? 'stf-' : 'mem-') . $att->user_id,
@@ -68,12 +83,12 @@ class AttendanceController extends Controller
                     'memberName'   => $att->member_name ?? $att->user?->name ?? 'Unknown Member',
                     'avatar'       => $att->member_avatar ?? $att->user?->avatar,
                     'planName'     => $planName,
-                    'checkInTime'  => $att->check_in_time ? date('h:i A', strtotime($att->check_in_time)) : '--',
-                    'checkOutTime' => $att->check_out_time ? date('h:i A', strtotime($att->check_out_time)) : '--',
-                    'punchOutTime' => $att->punch_out_time ? date('h:i A', strtotime($att->punch_out_time)) : '--',
+                    'checkInTime'  => $formatTime($att->check_in_time),
+                    'checkOutTime' => $formatTime($att->check_out_time),
+                    'punchOutTime' => $formatTime($att->punch_out_time),
                     'duration'     => $duration,
-                    'date'         => $att->date ? $att->date->format('Y-m-d') : now()->toDateString(),
-                    'rawDate'      => $att->date ? $att->date->format('Y-m-d') : now()->toDateString(),
+                    'date'         => $att->date ? $att->date->format('Y-m-d') : $currentDate,
+                    'rawDate'      => $att->date ? $att->date->format('Y-m-d') : $currentDate,
                     'displayDate'  => $att->date ? ($att->date->isToday() ? 'Today' : $att->date->format('d M Y')) : 'Today',
                     'status'       => $att->status,
                     'gate'         => $att->gate,
@@ -151,16 +166,20 @@ class AttendanceController extends Controller
             ], 403);
         }
 
+        $tz = self::TIMEZONE;
+        $now = Carbon::now($tz);
+
         $existing = Attendance::where('user_id', $user->id)
-            ->whereDate('date', now()->toDateString())
+            ->whereDate('date', $now->toDateString())
             ->whereIn('status', ['Inside Gym', 'On Duty'])
             ->first();
 
         if ($existing) {
+            $existingInTime = $existing->check_in_time ? Carbon::parse($existing->check_in_time, $tz)->format('h:i A') : $existing->check_in_time;
             return response()->json([
                 'success'       => true,
                 'alreadyInside' => true,
-                'message'       => "{$user->name} is already punched in at {$existing->check_in_time}",
+                'message'       => "{$user->name} is already punched in at {$existingInTime}",
                 'attendance'    => $existing,
             ]);
         }
@@ -170,20 +189,23 @@ class AttendanceController extends Controller
         $status = $isStaff ? 'On Duty' : 'Inside Gym';
         $gate = $request->gate ?? ($isStaff ? 'Staff Gate / Reception' : 'Main Turnstile A');
 
+        $timeStr = $now->format('H:i:s');
+        $dateStr = $now->toDateString();
+
         $attendance = Attendance::create([
             'user_id'       => $user->id,
             'member_name'   => $user->name,
             'member_avatar' => $user->avatar,
             'plan_name'     => $planName,
-            'check_in_time' => now()->toTimeString(),
-            'date'          => now()->toDateString(),
+            'check_in_time' => $timeStr,
+            'date'          => $dateStr,
             'status'        => $status,
             'gate'          => $gate,
         ]);
 
         if ($profile) {
             $profile->increment('attendance_streak');
-            $profile->last_check_in = now();
+            $profile->last_check_in = $now;
             $profile->save();
         }
 
@@ -211,14 +233,17 @@ class AttendanceController extends Controller
         $numericId  = (int)preg_replace('/[^0-9]/', '', (string)$id);
         $attendance = Attendance::findOrFail($numericId);
 
-        $punchOutTime = now()->toTimeString();
+        $tz = self::TIMEZONE;
+        $now = Carbon::now($tz);
+        $punchOutTime = $now->format('H:i:s');
         $duration     = '--';
 
         // Calculate workout / shift duration from check-in to punch-out
         if ($attendance->check_in_time) {
             try {
-                $in   = Carbon::parse($attendance->date . ' ' . $attendance->check_in_time);
-                $out  = Carbon::parse($attendance->date . ' ' . $punchOutTime);
+                $dateStr = $attendance->date instanceof Carbon ? $attendance->date->toDateString() : (string)$attendance->date;
+                $in   = Carbon::parse($dateStr . ' ' . $attendance->check_in_time, $tz);
+                $out  = Carbon::parse($dateStr . ' ' . $punchOutTime, $tz);
                 $mins = max(0, $in->diffInMinutes($out));
                 $h    = intdiv($mins, 60);
                 $m    = $mins % 60;
@@ -239,7 +264,7 @@ class AttendanceController extends Controller
         return response()->json([
             'success'    => true,
             'message'    => ($isStaff ? 'Shift punched out successfully. Total shift duration: ' : 'Checked out successfully. Workout duration: ') . $duration,
-            'punch_out'  => date('h:i A', strtotime($punchOutTime)),
+            'punch_out'  => $now->format('h:i A'),
             'duration'   => $duration,
             'attendance' => $attendance,
         ]);

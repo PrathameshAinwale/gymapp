@@ -34,14 +34,20 @@
     RewriteRule ^extract_vendor\.php$ extract_vendor.php [L,QSA]
     RewriteRule ^migrate_backend\.php$ migrate_backend.php [L,QSA]
 
-    # Ensure index.html is never aggressively cached by CDN or browser
-    <Files "index.html">
+    # Ensure index.html, root SPA and HTML responses are never cached by CDN, LiteSpeed or browser
+    <FilesMatch "\.(html|htm)$">
         <IfModule mod_headers.c>
-            Header set Cache-Control "no-cache, no-store, must-revalidate"
+            Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0"
             Header set Pragma "no-cache"
-            Header set Expires 0
+            Header set Expires "0"
+            Header set X-LiteSpeed-Cache-Control "no-cache"
         </IfModule>
-    </Files>
+    </FilesMatch>
+
+    <IfModule LiteSpeed>
+        CacheDisable public /
+        CacheDisable private /
+    </IfModule>
 
     # 4. Existing files and directories are served directly (JS, CSS, images, fonts)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
