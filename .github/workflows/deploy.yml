@@ -191,51 +191,75 @@ jobs:
               print(f"FTP initial PWD: {pwd}")
               print(f"FTP initial contents: {raw_files}")
 
-              clean_files = [f.replace('\\', '/').split('/')[-1] for f in raw_files]
+              clean_files = [f.replace('\\', '/').rstrip('/').split('/')[-1] for f in raw_files]
 
               target_subdomain = 'archfit.archenterprises.co.in'
+              frontend_dir = None
+              backend_dir = None
 
-              # Determine if we are at home root (identified by DO_NOT_UPLOAD_HERE or domains directory)
-              is_home_root = 'DO_NOT_UPLOAD_HERE' in clean_files or ('domains' in clean_files and 'public_html' in clean_files)
-
-              if is_home_root:
-                  print("FTP root is Home Directory (🏠).")
-                  subdomain_detected = False
-                  if 'domains' in clean_files:
+              # Priority 1: Direct navigation probe to Hostinger subdomain under /domains/
+              for sub in [target_subdomain, 'archfit']:
+                  try:
+                      ftp.cwd('/')
+                      ftp.cwd('domains')
+                      ftp.cwd(sub)
+                      ftp.cwd('public_html')
+                      frontend_dir = f'domains/{sub}/public_html/'
+                      backend_dir = f'domains/{sub}/backend/'
+                      print(f"Direct probe SUCCESS: Mapped to Hostinger subdomain: '{frontend_dir}'")
+                      ftp.cwd(pwd)
+                      break
+                  except Exception as e:
+                      print(f"Direct probe for domains/{sub}/public_html notice: {e}")
                       try:
-                          ftp.cwd('domains')
-                          dom_files = [f.replace('\\', '/').split('/')[-1] for f in ftp.nlst()]
-                          print(f"Subdomains found in /domains: {dom_files}")
-                          for candidate in [target_subdomain, 'archfit']:
-                              if candidate in dom_files:
-                                  frontend_dir = f'domains/{candidate}/public_html/'
-                                  backend_dir = f'domains/{candidate}/backend/'
-                                  subdomain_detected = True
-                                  print(f"Mapped to Hostinger subdomain: frontend='{frontend_dir}', backend='{backend_dir}'")
-                                  break
                           ftp.cwd(pwd)
-                      except Exception as e:
-                          print(f"Notice during domains inspection: {e}")
+                      except Exception:
+                          pass
 
-                  if not subdomain_detected:
+              # Priority 2: Relative subdomain probe
+              if not frontend_dir:
+                  for sub in [target_subdomain, 'archfit']:
+                      try:
+                          ftp.cwd(pwd)
+                          ftp.cwd(sub)
+                          ftp.cwd('public_html')
+                          frontend_dir = f'{sub}/public_html/'
+                          backend_dir = f'{sub}/backend/'
+                          print(f"Direct probe SUCCESS: Mapped to relative subdomain: '{frontend_dir}'")
+                          ftp.cwd(pwd)
+                          break
+                      except Exception:
+                          try:
+                              ftp.cwd(pwd)
+                          except Exception:
+                              pass
+
+              # Priority 3: Subdomain root containing public_html
+              if not frontend_dir:
+                  try:
+                      ftp.cwd(pwd)
+                      ftp.cwd('public_html')
                       frontend_dir = 'public_html/'
                       backend_dir = 'backend/'
-              else:
-                  print("FTP root is NOT Home Directory.")
-                  if 'public_html' in clean_files:
-                      print("FTP root is domain root containing public_html/ folder.")
-                      frontend_dir = 'public_html/'
-                      backend_dir = 'backend/'
-                  else:
-                      print("FTP root appears to be public_html directly.")
-                      frontend_dir = './'
-                      backend_dir = '../backend/'
+                      print(f"Direct probe SUCCESS: Mapped to public_html: '{frontend_dir}'")
+                      ftp.cwd(pwd)
+                  except Exception as e:
+                      print(f"Notice on public_html check: {e}")
+                      try:
+                          ftp.cwd(pwd)
+                      except Exception:
+                          pass
+
+              # Priority 4: Fallback to current working directory
+              if not frontend_dir:
+                  frontend_dir = './'
+                  backend_dir = '../backend/'
 
               if override:
                   override_clean = override.strip('/')
                   print(f"HOSTINGER_SERVER_DIR provided: '{override}'")
                   if override_clean in ('public_html', './public_html', '/public_html', ''):
-                      pass  # Retain auto-detected subdomain paths
+                      pass  # Retain verified target paths
                   elif 'public_html' in override_clean:
                       base = override_clean.rsplit('public_html', 1)[0].rstrip('/')
                       frontend_dir = f"{override_clean}/"
@@ -553,15 +577,41 @@ jobs:
               return files_uploaded, total_bytes
 
           success = False
+          resolved_target = server_dir
           for attempt in range(1, 4):
               print(f"\n=== Frontend Deployment Attempt {attempt}/3 ===")
               ftp, host = connect_ftp()
               if ftp:
                   try:
+                      # Directly verify and force Hostinger subdomain path if available
+                      target_subdomain = 'archfit.archenterprises.co.in'
+                      try:
+                          ftp.cwd('/')
+                          ftp.cwd('domains')
+                          ftp.cwd(target_subdomain)
+                          ftp.cwd('public_html')
+                          resolved_target = f'domains/{target_subdomain}/public_html/'
+                          print(f"Verified & Resolved target directory: '{resolved_target}'")
+                      except Exception as e:
+                          print(f"Subdomain probe notice: {e}. Using server_dir: '{resolved_target}'")
+
                       t0 = time.time()
-                      count, b_total = upload_directory(ftp, local_dir, server_dir)
+                      count, b_total = upload_directory(ftp, local_dir, resolved_target)
                       elapsed = time.time() - t0
-                      print(f"\nSUCCESS: Deployed {count} frontend files ({b_total:,} bytes) in {elapsed:.1f}s to {host}:{server_dir}!")
+                      print(f"\nSUCCESS: Deployed {count} frontend files ({b_total:,} bytes) in {elapsed:.1f}s to {host}:{resolved_target}!")
+
+                      step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
+                      if step_summary:
+                          try:
+                              with open(step_summary, 'a') as f:
+                                  f.write("### Frontend Deployment Result\n")
+                                  f.write(f"- Status: **SUCCESS**\n")
+                                  f.write(f"- Target Directory: `{resolved_target}`\n")
+                                  f.write(f"- Files Uploaded: **{count}**\n")
+                                  f.write(f"- Total Size: **{b_total:,} bytes**\n")
+                          except Exception:
+                              pass
+
                       try:
                           ftp.quit()
                       except Exception:
@@ -583,3 +633,10 @@ jobs:
               print("ERROR: All frontend deployment attempts failed.")
               sys.exit(1)
           PYEOF
+
+      - name: Verify Live Deployment
+        run: |
+          echo "Verifying live deployment on https://archfit.archenterprises.co.in/..."
+          sleep 5
+          HTTP_RESP=$(curl -s -k -i "https://archfit.archenterprises.co.in/?v=$(date +%s)")
+          echo "$HTTP_RESP" | head -n 35
