@@ -95,7 +95,6 @@ export const AttendanceTracker = () => {
   const [isMemberCheckInModalOpen, setIsMemberCheckInModalOpen] = useState(false);
   const [isStaffCheckInModalOpen, setIsStaffCheckInModalOpen] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState('');
-  const [selectedStaffGate, setSelectedStaffGate] = useState('Staff Gate / Reception');
   const [isCheckingInStaff, setIsCheckingInStaff] = useState(false);
   const [staffAccounts, setStaffAccounts] = useState([]);
 
@@ -420,7 +419,7 @@ export const AttendanceTracker = () => {
         }
       } else {
         const cleanId = stf.userId || String(stf.staffId || stf.id).replace(/\D/g, '');
-        await recordStaffCheckIn(cleanId, 'Staff Gate / Reception');
+        await recordStaffCheckIn(cleanId);
       }
     } catch (err) {
       console.warn('Error recording staff punch:', err);
@@ -435,7 +434,7 @@ export const AttendanceTracker = () => {
 
     setIsCheckingInStaff(true);
     try {
-      await recordStaffCheckIn(selectedStaffId, selectedStaffGate || 'Staff Gate / Reception');
+      await recordStaffCheckIn(selectedStaffId);
       setIsStaffCheckInModalOpen(false);
     } catch (err) {
       console.warn('Manual staff check-in failed:', err);
@@ -1258,20 +1257,6 @@ export const AttendanceTracker = () => {
                   {s.name} ({s.role} • ID: {s.userId || s.id})
                 </option>
               ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Check-in Gate / Station</label>
-            <select
-              value={selectedStaffGate}
-              onChange={(e) => setSelectedStaffGate(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              <option value="Staff Gate / Reception">Staff Gate / Reception</option>
-              <option value="Main Reception Desk">Main Reception Desk</option>
-              <option value="Training Floor Gate">Training Floor Gate</option>
-              <option value="Manager Office">Manager Office</option>
             </select>
           </div>
 
