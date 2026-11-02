@@ -40,6 +40,7 @@ Route::post('/attendance/sync', [AttendanceSyncController::class, 'sync']);
 Route::post('/attendance/reconcile-machine-users', [AttendanceSyncController::class, 'reconcileUsers']);
 Route::match(['get', 'post'], '/attendance/pending-users', [AttendanceSyncController::class, 'getPendingUsers']);
 Route::post('/attendance/mark-users-synced', [AttendanceSyncController::class, 'markUsersSynced']);
+Route::match(['get', 'post'], '/attendance/auto-checkout', [AttendanceController::class, 'triggerAutoCheckOut']);
 
 
 

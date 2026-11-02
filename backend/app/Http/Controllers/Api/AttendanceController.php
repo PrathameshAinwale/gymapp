@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\MemberProfile;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -16,8 +17,8 @@ class AttendanceController extends Controller
 
     public function index(Request $request)
     {
-        // Auto check-out members who have exceeded 2 hours (throttled to at most once every 5 minutes to avoid polling DB exhaustion)
-        if (\Illuminate\Support\Facades\Cache::add('attendance_auto_checkout_lock', true, Carbon::now(self::TIMEZONE)->addMinutes(5))) {
+        // Auto check-out members and staff whose workout or shift has ended (throttled to 30 seconds)
+        if (\Illuminate\Support\Facades\Cache::add('attendance_auto_checkout_lock', true, Carbon::now(self::TIMEZONE)->addSeconds(30))) {
             $this->autoCheckOutOverdueMembers();
         }
 
@@ -271,8 +272,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Parse shift timings from string like "manager shift (06:00 AM - 02:00 PM)"
-     * Takes only timings inside parentheses or formatted range, ignoring variable shift prefix names.
+     * Parse shift timings from string like "Morning Shift (06:00 AM - 02:00 PM)" or "06:00 AM - 02:00 PM"
      */
     public static function parseShiftTimings(?string $shiftString): ?array
     {
@@ -286,7 +286,7 @@ class AttendanceController extends Controller
             ];
         }
 
-        // 2. Direct range without parentheses: 06:00 AM - 02:00 PM
+        // 2. Direct range without parentheses: 06:00 AM - 02:00 PM or 06:00 - 14:00
         if (preg_match('/([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)\s*[-–to]+\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM|am|pm))?)/i', $shiftString, $m)) {
             return [
                 'start' => trim($m[1]),
@@ -298,12 +298,97 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Resolve exact shift end Carbon datetime for a staff member.
+     */
+    public static function resolveStaffShiftEnd($user, $attDate, $checkInTime, string $tz = self::TIMEZONE): ?Carbon
+    {
+        if (!$user) return null;
+        $dateStr = $attDate instanceof Carbon ? $attDate->toDateString() : (string)$attDate;
+        $checkInDateTime = Carbon::parse($dateStr . ' ' . $checkInTime, $tz);
+
+        // 1. Check user->shifts string for embedded timings (e.g. "Morning (06:00 AM - 02:00 PM)")
+        $rawShift = $user->shifts ?? null;
+        if (!empty($rawShift)) {
+            $parsed = self::parseShiftTimings($rawShift);
+            if ($parsed && !empty($parsed['end'])) {
+                try {
+                    $shiftEnd = Carbon::parse($dateStr . ' ' . $parsed['end'], $tz);
+                    if ($shiftEnd->lessThan($checkInDateTime)) {
+                        $shiftEnd->addDay();
+                    }
+                    return $shiftEnd;
+                } catch (\Throwable $e) {}
+            }
+
+            // 2. Lookup by shift name or ID in shifts table
+            try {
+                $cleanShiftName = trim(preg_replace('/\s*\(.*?\)/', '', $rawShift));
+                $shiftQuery = Shift::where('is_active', true);
+                if ($user->gym_id) {
+                    $shiftQuery->where('gym_id', $user->gym_id);
+                }
+                $shiftRecord = $shiftQuery->where(function ($q) use ($cleanShiftName, $rawShift) {
+                    $q->where('name', $cleanShiftName)
+                      ->orWhere('name', 'like', "%{$cleanShiftName}%")
+                      ->orWhere('id', (int)preg_replace('/[^0-9]/', '', (string)$rawShift));
+                })->first();
+
+                if ($shiftRecord && !empty($shiftRecord->timings)) {
+                    $timings = is_array($shiftRecord->timings) ? $shiftRecord->timings : json_decode($shiftRecord->timings, true);
+                    if (is_array($timings)) {
+                        $endTimeStr = null;
+                        foreach ($timings as $t) {
+                            if (!empty($t['end_time'])) {
+                                $endTimeStr = $t['end_time'];
+                                break;
+                            }
+                        }
+                        if ($endTimeStr) {
+                            $shiftEnd = Carbon::parse($dateStr . ' ' . $endTimeStr, $tz);
+                            if ($shiftEnd->lessThan($checkInDateTime)) {
+                                $shiftEnd->addDay();
+                            }
+                            return $shiftEnd;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        // 3. Fallback: check all active shifts in the gym to see if checkInTime matches a shift start
+        try {
+            $gymShifts = Shift::where('is_active', true)
+                ->when($user->gym_id, fn($q) => $q->where('gym_id', $user->gym_id))
+                ->get();
+
+            foreach ($gymShifts as $sh) {
+                $timings = is_array($sh->timings) ? $sh->timings : json_decode($sh->timings, true);
+                if (is_array($timings)) {
+                    foreach ($timings as $t) {
+                        if (!empty($t['start_time']) && !empty($t['end_time'])) {
+                            $tStart = Carbon::parse($dateStr . ' ' . $t['start_time'], $tz);
+                            $tEnd = Carbon::parse($dateStr . ' ' . $t['end_time'], $tz);
+                            if ($tEnd->lessThan($tStart)) $tEnd->addDay();
+                            if (abs($checkInDateTime->diffInMinutes($tStart, false)) <= 120) {
+                                return $tEnd;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 4. Default 8 hours shift after check-in
+        return $checkInDateTime->copy()->addHours(8);
+    }
+
+    /**
      * Automatically check out members and staff whose shift or gym session has ended.
      */
     public function autoCheckOutOverdueMembers(): int
     {
         try {
-            $tz = 'Asia/Kolkata';
+            $tz = self::TIMEZONE;
             $now = Carbon::now($tz);
             $updatedCount = 0;
 
@@ -315,10 +400,9 @@ class AttendanceController extends Controller
                 if (is_array($parsed)) $settings = array_replace_recursive($settings, $parsed);
             }
 
-            // 1. Members Auto Check-Out
+            // 1. Members Auto Check-Out (default 2 hours max workout)
             $memberSettings = $settings['member'] ?? ['auto_checkout' => true, 'auto_checkout_hours' => 2];
             if (!empty($memberSettings['auto_checkout'])) {
-                $isShiftBased = false; // Members do not use shifts; they use workout duration hours (default 2 hrs)
                 $maxHours = (float)($memberSettings['auto_checkout_hours'] ?? 2);
                 $maxMinutes = (int)($maxHours * 60);
 
@@ -334,35 +418,9 @@ class AttendanceController extends Controller
                     $dateStr = $att->date instanceof Carbon ? $att->date->toDateString() : (string)$att->date;
                     $checkInDateTime = Carbon::parse($dateStr . ' ' . $att->check_in_time, $tz);
 
-                    if ($isShiftBased) {
-                        $shiftTimings = self::parseShiftTimings($att->user?->shifts);
-                        if ($shiftTimings && !empty($shiftTimings['end'])) {
-                            $shiftEnd = Carbon::parse($dateStr . ' ' . $shiftTimings['end'], $tz);
-                            if ($shiftEnd->lessThan($checkInDateTime)) {
-                                $shiftEnd->addDay();
-                            }
-                            if ($now->greaterThanOrEqualTo($shiftEnd)) {
-                                $outTimeStr = $shiftEnd->toTimeString();
-                                $mins = max(1, $checkInDateTime->diffInMinutes($shiftEnd));
-                                $h = floor($mins / 60);
-                                $m = $mins % 60;
-                                $durationStr = $h > 0 ? "{$h}h {$m}m" : "{$mins}m";
-
-                                $att->update([
-                                    'check_out_time' => $outTimeStr,
-                                    'punch_out_time' => $outTimeStr,
-                                    'duration'       => $durationStr,
-                                    'status'         => 'Completed',
-                                ]);
-                                $updatedCount++;
-                            }
-                            continue;
-                        }
-                    }
-
                     if ($checkInDateTime->diffInMinutes($now, false) >= $maxMinutes) {
                         $autoOutTime = $checkInDateTime->copy()->addMinutes($maxMinutes);
-                        $outTimeStr = $autoOutTime->toTimeString();
+                        $outTimeStr = $autoOutTime->format('H:i:s');
                         $durationStr = $maxHours >= 1 ? (floor($maxHours) == $maxHours ? "{$maxHours}h 0m" : round($maxHours, 1) . "h") : "{$maxMinutes}m";
 
                         $att->update([
@@ -376,68 +434,48 @@ class AttendanceController extends Controller
                 }
             }
 
-            // 2. Staff (Trainer, Manager, Accountant) Auto Check-Out
-            $roles = ['trainer', 'manager', 'accounts'];
-            foreach ($roles as $role) {
-                $roleSettings = $settings[$role] ?? null;
-                if ($roleSettings && !empty($roleSettings['auto_checkout'])) {
-                    $isShiftBased = (($roleSettings['auto_checkout_hours'] ?? null) === 'shift' || ($roleSettings['auto_checkout_hours'] ?? null) === 'shifts');
-                    $maxHours = is_numeric($roleSettings['auto_checkout_hours'] ?? null) ? (float)$roleSettings['auto_checkout_hours'] : 8;
-                    $maxMinutes = (int)($maxHours * 60);
+            // 2. Staff Auto Check-Out (When staff shift ends, automatically punch them out at exact shift end)
+            $activeStaff = Attendance::with(['user'])->where('status', 'On Duty')
+                ->whereNull('check_out_time')
+                ->whereHas('user', function ($q) {
+                    $q->where('role', '!=', 'member');
+                })
+                ->get();
 
-                    $activeStaff = Attendance::with('user')->where('status', 'On Duty')
-                        ->whereNull('check_out_time')
-                        ->whereHas('user', function ($q) use ($role) {
-                            $q->where('role', $role);
-                        })
-                        ->get();
+            foreach ($activeStaff as $att) {
+                if (!$att->check_in_time || !$att->date) continue;
+                $dateStr = $att->date instanceof Carbon ? $att->date->toDateString() : (string)$att->date;
+                $checkInDateTime = Carbon::parse($dateStr . ' ' . $att->check_in_time, $tz);
 
-                    foreach ($activeStaff as $att) {
-                        if (!$att->check_in_time || !$att->date) continue;
-                        $dateStr = $att->date instanceof Carbon ? $att->date->toDateString() : (string)$att->date;
-                        $checkInDateTime = Carbon::parse($dateStr . ' ' . $att->check_in_time, $tz);
+                $shiftEnd = self::resolveStaffShiftEnd($att->user, $att->date, $att->check_in_time, $tz);
+                if ($shiftEnd && $now->greaterThanOrEqualTo($shiftEnd)) {
+                    $outTimeStr = $shiftEnd->format('H:i:s');
+                    $mins = max(1, $checkInDateTime->diffInMinutes($shiftEnd));
+                    $h = floor($mins / 60);
+                    $m = $mins % 60;
+                    $durationStr = $h > 0 ? "{$h}h {$m}m" : "{$mins}m";
 
-                        if ($isShiftBased) {
-                            $shiftTimings = self::parseShiftTimings($att->user?->shifts);
-                            if ($shiftTimings && !empty($shiftTimings['end'])) {
-                                $shiftEnd = Carbon::parse($dateStr . ' ' . $shiftTimings['end'], $tz);
-                                if ($shiftEnd->lessThan($checkInDateTime)) {
-                                    $shiftEnd->addDay();
-                                }
-                                if ($now->greaterThanOrEqualTo($shiftEnd)) {
-                                    $outTimeStr = $shiftEnd->toTimeString();
-                                    $mins = max(1, $checkInDateTime->diffInMinutes($shiftEnd));
-                                    $h = floor($mins / 60);
-                                    $m = $mins % 60;
-                                    $durationStr = $h > 0 ? "{$h}h {$m}m" : "{$mins}m";
+                    $att->update([
+                        'check_out_time' => $outTimeStr,
+                        'punch_out_time' => $outTimeStr,
+                        'duration'       => $durationStr,
+                        'status'         => 'Completed Shift',
+                    ]);
+                    $updatedCount++;
+                    continue;
+                }
 
-                                    $att->update([
-                                        'check_out_time' => $outTimeStr,
-                                        'punch_out_time' => $outTimeStr,
-                                        'duration'       => $durationStr,
-                                        'status'         => 'Completed Shift',
-                                    ]);
-                                    $updatedCount++;
-                                }
-                                continue;
-                            }
-                        }
-
-                        // Fixed duration fallback
-                        if ($checkInDateTime->diffInMinutes($now, false) >= $maxMinutes) {
-                            $autoOutTime = $checkInDateTime->copy()->addMinutes($maxMinutes);
-                            $outTimeStr = $autoOutTime->toTimeString();
-                            $durationStr = "{$maxHours}h 0m";
-
-                            $att->update([
-                                'check_out_time' => $outTimeStr,
-                                'punch_out_time' => $outTimeStr,
-                                'duration'       => $durationStr,
-                                'status'         => 'Completed Shift',
-                            ]);
-                            $updatedCount++;
-                        }
-                    }
+                // Safety fallback: if checked in over 12 hours ago
+                if ($checkInDateTime->diffInHours($now, false) >= 12) {
+                    $fallbackEnd = $checkInDateTime->copy()->addHours(8);
+                    $outTimeStr = $fallbackEnd->format('H:i:s');
+                    $att->update([
+                        'check_out_time' => $outTimeStr,
+                        'punch_out_time' => $outTimeStr,
+                        'duration'       => '8h 0m',
+                        'status'         => 'Completed Shift',
+                    ]);
+                    $updatedCount++;
                 }
             }
 
@@ -446,5 +484,18 @@ class AttendanceController extends Controller
             \Illuminate\Support\Facades\Log::warning("Auto check-out error: " . $e->getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Trigger auto check-out endpoint.
+     */
+    public function triggerAutoCheckOut(Request $request)
+    {
+        $count = $this->autoCheckOutOverdueMembers();
+        return response()->json([
+            'success' => true,
+            'message' => "Auto check-out executed. {$count} records updated.",
+            'updated' => $count
+        ]);
     }
 }
