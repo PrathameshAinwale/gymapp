@@ -877,11 +877,84 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Generate a temporary signed URL for public PDF download (30-day expiry).
+     * Scoped strictly to the authenticated user's gym.
+     */
+    public function getSignedPdfUrl(Request $request, $id)
+    {
+        $gymId = $this->resolveGymId($request);
+        if (!$gymId) {
+            return response()->json(['success' => false, 'message' => 'Gym context is required.'], 403);
+        }
+
+        $cleanId = str_replace('inv-', '', $id);
+        $invoice = Invoice::where('gym_id', $gymId)
+            ->where(function ($q) use ($id, $cleanId) {
+                $q->where('id', $cleanId)
+                  ->orWhere('invoice_number', $id)
+                  ->orWhere('invoice_number', $cleanId);
+            })
+            ->first();
+
+        if (!$invoice) {
+            return response()->json(['success' => false, 'message' => 'Invoice record not found.'], 404);
+        }
+
+        $signedUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'api.v1.invoices.signed_pdf',
+            now()->addDays(30),
+            ['invoice_number' => $invoice->invoice_number]
+        );
+
+        return response()->json([
+            'success' => true,
+            'signed_url' => $signedUrl,
+            'expires_at' => now()->addDays(30)->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Public endpoint to download or stream invoice PDF without login requirements.
      */
     public function publicDownloadPdf($invoice_number)
     {
         return $this->downloadPdf($invoice_number);
+    }
+
+    /**
+     * Public endpoint to stream invoice PDF using a verified signed URL.
+     * Rejects tampered/expired requests with a clean 403.
+     * Rejects plain ID lookups (requires exact invoice_number matching).
+     */
+    public function streamSignedPdf(Request $request, $invoice_number)
+    {
+        if (!$request->hasValidSignature()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This invoice link is invalid, tampered, or has expired.'
+            ], 403);
+        }
+
+        $invoice = Invoice::where('invoice_number', $invoice_number)->first();
+        if (!$invoice) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invoice record not found.'
+            ], 404);
+        }
+
+        \App\Services\InvoicePdfService::ensurePdf($invoice);
+        $cleanNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->invoice_number);
+        $filePath = storage_path('app/public/invoices/' . $cleanNo . '.pdf');
+
+        if (!file_exists($filePath)) {
+            \App\Services\InvoicePdfService::saveToFile($invoice);
+        }
+
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Invoice_' . $cleanNo . '.pdf"',
+        ]);
     }
 
     /**

@@ -429,8 +429,12 @@ export const PTSessionsManager = () => {
       }
 
       // Trainer
-      if (trainerFilter !== 'ALL') {
-        const matchesTrnId = String(pt.trainerId || '') === String(trainerFilter);
+      if (trainerFilter && trainerFilter !== 'ALL' && trainerFilter !== 'all' && String(trainerFilter).trim() !== '') {
+        const cleanTrainerFilter = String(trainerFilter).replace(/\D/g, '');
+        const cleanPtTrainerId = String(pt.trainerId || '').replace(/\D/g, '');
+        const matchesTrnId =
+          (cleanPtTrainerId && cleanTrainerFilter && cleanPtTrainerId === cleanTrainerFilter) ||
+          (String(pt.trainerId || '') === String(trainerFilter));
         const matchesTrnName = (pt.trainerName || '').toLowerCase() === String(trainerFilter).toLowerCase();
         if (!matchesTrnId && !matchesTrnName) return false;
       }

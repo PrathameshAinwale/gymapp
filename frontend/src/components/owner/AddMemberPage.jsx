@@ -1638,6 +1638,22 @@ export const AddMemberPage = ({
       const finalExpiryDate = furthestPkgEnd || membershipEndDate || fallbackExpiry || todayStr;
       const finalJoinDate = earliestPkgStart || formData.joinDate || finalStartDate;
 
+      // Compulsory Trainer Validation for Personal Training Packages (matches CreateInvoicePage)
+      const isPtRowCheck = (r) => (normalizePackageType(r.packageType) === 'Personal Training') && r.packageId;
+      const hasPtPackageSelected = validPackages.some(isPtRowCheck);
+      if (hasPtPackageSelected && !selectedTrainerId && !formData.trainerId) {
+        addToast('Please select a trainer for the Personal Training package. Trainer selection is compulsory.', 'error');
+        setIsCreatingMember(false);
+        return;
+      }
+
+      // Mandatory Fee Calculation & Settlement (matches CreateInvoicePage)
+      if (totalCalculatedAmount <= 0) {
+        addToast('Fee Calculation & Payment Settlement is mandatory. Total bill amount must be greater than ₹0.', 'error');
+        setIsCreatingMember(false);
+        return;
+      }
+
       if (totalEnteredPaid > totalCalculatedAmount) {
         addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
         setIsCreatingMember(false);
@@ -1656,6 +1672,12 @@ export const AddMemberPage = ({
           setIsCreatingMember(false);
           return;
         }
+      }
+
+      if (effectivePaidAmount > 0 && !finalPaymentMethod) {
+        addToast('Please enter payment in Cash, UPI, or Account Transfer under Payment Settlement.', 'error');
+        setIsCreatingMember(false);
+        return;
       }
 
       const additions = [];
