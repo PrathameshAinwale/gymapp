@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bell,
   CheckCheck,
@@ -10,42 +10,69 @@ import {
   X,
   Sparkles,
   Loader2,
-  Check,
-  ChevronDown,
-  Wrench,
+  Check
 } from 'lucide-react';
+import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
-import { useNotifications } from '../../services/notifications/useNotifications';
-import { registerActiveOverlay } from './Modal';
 
-export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab = null }) => {
+export const NotificationBell = ({ onNavigateToMembersWithFilter }) => {
   const { currentRole } = useAuth();
   const { gymInfo } = useGymData();
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'due' | 'expiring'
+  const [isLoading, setIsLoading] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [notificationData, setNotificationData] = useState({
+    unread_count: 0,
+    summary: {
+      payment_due_count: 0,
+      payment_due_unread: 0,
+      payment_due_line: 'No payments due',
+      plan_expiring_count: 0,
+      plan_expiring_unread: 0,
+      plan_expiring_line: 'No plans expiring soon',
+    },
+    payment_due: { total: 0, unread: 0, items: [] },
+    plan_expiring: { total: 0, unread: 0, items: [] },
+  });
 
   const dropdownRef = useRef(null);
-  const scrollContainerRef = useRef(null);
 
-  // Single source of truth from shared event-driven notification store
-  const {
-    unreadCount,
-    summary,
-    paymentDue,
-    planExpiring,
-    items,
-    isLoading,
-    isRefreshing,
-    isLoadingMore,
-    hasMore,
-    markAsRead,
-    markAllRead,
-    fetchMore,
-    refresh,
-  } = useNotifications();
+  // Fetch notifications from backend
+  const fetchNotifications = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const res = await api.notifications.getSummary();
+      if (res && res.success !== false) {
+        setNotificationData(res);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch notifications:', err);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  }, []);
+
+  // Poll on mount, window focus, and every 5 minutes
+  useEffect(() => {
+    fetchNotifications(true);
+
+    const interval = setInterval(() => {
+      fetchNotifications(false);
+    }, 300000); // 5 minutes
+
+    const handleFocus = () => {
+      fetchNotifications(false);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchNotifications]);
 
   // Click outside listener to dismiss dropdown
   useEffect(() => {
@@ -62,38 +89,68 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
     };
   }, [isOpen]);
 
-  // Register with active overlay stack so mobile hardware back button dismisses dropdown first
-  useEffect(() => {
-    if (!isOpen) return;
-    return registerActiveOverlay('notification-bell-dropdown', () => setIsOpen(false));
-  }, [isOpen]);
-
-  // When opening dropdown, perform silent background refresh only if needed
+  // When opening dropdown, refresh notifications
   const handleToggleDropdown = () => {
     if (!isOpen) {
-      refresh({ silent: true });
+      fetchNotifications(false);
     }
     setIsOpen((prev) => !prev);
   };
 
-  // Mark single item read (optimistic + debounced)
+  // Mark single item read
   const handleMarkItemRead = async (e, item) => {
     e.stopPropagation();
     try {
-      await markAsRead(item);
+      // Optimistic update
+      setNotificationData((prev) => {
+        const updateItems = (list) =>
+          list.map((it) => (it.reference_id === item.reference_id ? { ...it, is_read: true } : it));
+
+        const updatedDue = updateItems(prev.payment_due?.items || []);
+        const updatedExp = updateItems(prev.plan_expiring?.items || []);
+        const unreadDue = updatedDue.filter((i) => !i.is_read).length;
+        const unreadExp = updatedExp.filter((i) => !i.is_read).length;
+
+        return {
+          ...prev,
+          unread_count: unreadDue + unreadExp,
+          payment_due: { ...prev.payment_due, unread: unreadDue, items: updatedDue },
+          plan_expiring: { ...prev.plan_expiring, unread: unreadExp, items: updatedExp },
+        };
+      });
+
+      await api.notifications.markRead(item.type, item.reference_id);
     } catch (err) {
       console.error('Failed to mark notification read:', err);
+      fetchNotifications(false);
     }
   };
 
-  // Mark all active notifications read (optimistic)
+  // Mark all active notifications read
   const handleMarkAllRead = async () => {
-    if (isMarkingAll || unreadCount === 0) return;
+    if (isMarkingAll || notificationData.unread_count === 0) return;
     setIsMarkingAll(true);
     try {
-      await markAllRead();
+      // Optimistic update
+      setNotificationData((prev) => ({
+        ...prev,
+        unread_count: 0,
+        payment_due: {
+          ...prev.payment_due,
+          unread: 0,
+          items: (prev.payment_due?.items || []).map((i) => ({ ...i, is_read: true })),
+        },
+        plan_expiring: {
+          ...prev.plan_expiring,
+          unread: 0,
+          items: (prev.plan_expiring?.items || []).map((i) => ({ ...i, is_read: true })),
+        },
+      }));
+
+      await api.notifications.markAllRead();
     } catch (err) {
       console.error('Failed to mark all read:', err);
+      fetchNotifications(false);
     } finally {
       setIsMarkingAll(false);
     }
@@ -103,19 +160,11 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
   const handleNavigateWithFilter = (filterType, item = null) => {
     setIsOpen(false);
     if (item && !item.is_read) {
-      markAsRead(item);
+      api.notifications.markRead(item.type, item.reference_id).catch(() => { });
     }
 
     if (onNavigateToMembersWithFilter) {
       onNavigateToMembersWithFilter(filterType, item);
-    }
-  };
-
-  // Handle scroll for infinite loading older notifications
-  const handleScroll = (e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-    if (scrollHeight - scrollTop - clientHeight < 40 && hasMore && !isLoadingMore) {
-      fetchMore();
     }
   };
 
@@ -124,18 +173,16 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
     return null;
   }
 
-  const dueItems = paymentDue?.items || [];
-  const expiringItems = planExpiring?.items || [];
-  const maintenanceItems = (items || []).filter(
-    (i) => i.type === 'maintenance' || i.type === 'equipment_maintenance'
-  );
+  const unreadCount = notificationData.unread_count || 0;
+  const dueItems = notificationData.payment_due?.items || [];
+  const expiringItems = notificationData.plan_expiring?.items || [];
 
   const displayedItems =
     activeTab === 'due'
       ? dueItems
       : activeTab === 'expiring'
         ? expiringItems
-        : (items && items.length > 0 ? items : [...dueItems, ...expiringItems, ...maintenanceItems]);
+        : [...dueItems, ...expiringItems];
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -145,13 +192,12 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
         onClick={handleToggleDropdown}
         title="Notifications & Action Alerts"
         aria-label="View Notifications"
-        className={`relative w-10 h-10 min-w-[30px] min-h-[30px] rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
-          isOpen
+        className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 ${isOpen
             ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-300 shadow-sm'
-            : 'bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/90 shadow-2xs'
-        }`}
+            : 'bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs'
+          }`}
       >
-        <Bell className={`w-[19px] h-[19px] ${unreadCount > 0 ? 'text-slate-900' : 'text-slate-500'}`} />
+        <Bell className={`w-[18px] h-[18px] ${unreadCount > 0 ? 'text-slate-900' : 'text-slate-500'}`} />
 
         {/* Red Unread Count Badge */}
         {unreadCount > 0 && (
@@ -173,7 +219,7 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
       {/* Dropdown Container */}
       {isOpen && (
         <div
-          className="fixed inset-x-2.5 sm:inset-auto sm:right-0 top-[60px] sm:top-full sm:mt-2 w-auto sm:w-[420px] max-h-[82dvh] sm:max-h-[560px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-2.5 min-[380px]:inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2.5 w-auto sm:w-[390px] md:w-[420px] max-h-[82dvh] sm:max-h-[540px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95"
           style={{ transformOrigin: 'top right' }}
         >
           {/* Header */}
@@ -221,22 +267,20 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'all'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'all'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
                   : 'text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
             >
-              All ({dueItems.length + expiringItems.length + maintenanceItems.length})
+              All ({dueItems.length + expiringItems.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('due')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                activeTab === 'due'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${activeTab === 'due'
                   ? 'bg-rose-50 text-rose-800 shadow-2xs border border-rose-200'
                   : 'text-slate-500 hover:text-rose-700'
-              }`}
+                }`}
             >
               <CreditCard className="w-3 h-3 text-rose-600" />
               <span>Payments Due ({dueItems.length})</span>
@@ -244,11 +288,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
             <button
               type="button"
               onClick={() => setActiveTab('expiring')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                activeTab === 'expiring'
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${activeTab === 'expiring'
                   ? 'bg-amber-50 text-amber-800 shadow-2xs border border-amber-200'
                   : 'text-slate-500 hover:text-amber-700'
-              }`}
+                }`}
             >
               <Calendar className="w-3 h-3 text-amber-600" />
               <span>Expiring Soon ({expiringItems.length})</span>
@@ -256,12 +299,8 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
           </div>
 
           {/* Notification Items List */}
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2 space-y-1.5"
-          >
-            {isLoading && displayedItems.length === 0 ? (
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2 space-y-1.5">
+            {isLoading ? (
               <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
                 <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
                 <span className="text-xs">Loading alerts...</span>
@@ -283,7 +322,7 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
                   <div className="p-2 rounded-xl bg-rose-50/60 border border-rose-100 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
                       <CreditCard className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                      <span>{summary?.payment_due_line || `${dueItems.length} members due`}</span>
+                      <span>{notificationData.summary?.payment_due_line || `${dueItems.length} members due`}</span>
                     </div>
                     <button
                       type="button"
@@ -302,11 +341,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
                     <div
                       key={item.id}
                       onClick={() => handleNavigateWithFilter('payment_due', item)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${
-                        item.is_read
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${item.is_read
                           ? 'bg-white border-slate-200/80 hover:bg-slate-50/80 text-slate-600'
                           : 'bg-rose-50/30 border-rose-200/90 hover:bg-rose-50/60 text-slate-900 shadow-2xs'
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-1.5">
@@ -360,7 +398,7 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
                   <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between gap-2 mt-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
                       <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>{summary?.plan_expiring_line || `${expiringItems.length} plans expiring`}</span>
+                      <span>{notificationData.summary?.plan_expiring_line || `${expiringItems.length} plans expiring`}</span>
                     </div>
                     <button
                       type="button"
@@ -379,11 +417,10 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
                     <div
                       key={item.id}
                       onClick={() => handleNavigateWithFilter('plan_expiring', item)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${
-                        item.is_read
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${item.is_read
                           ? 'bg-white border-slate-200/80 hover:bg-slate-50/80 text-slate-600'
                           : 'bg-amber-50/30 border-amber-200/90 hover:bg-amber-50/60 text-slate-900 shadow-2xs'
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-1.5">
@@ -425,113 +462,6 @@ export const NotificationBell = ({ onNavigateToMembersWithFilter, onNavigateTab 
                       </div>
                     </div>
                   ))}
-
-                {/* Section Header: Equipment & Assets Maintenance */}
-                {activeTab === 'all' && maintenanceItems.length > 0 && (
-                  <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between gap-2 mt-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
-                      <Wrench className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>{maintenanceItems.length} machine{maintenanceItems.length === 1 ? '' : 's'} in maintenance</span>
-                    </div>
-                    {onNavigateTab && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsOpen(false);
-                          onNavigateTab('equipment');
-                        }}
-                        className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-0.5 cursor-pointer hover:underline"
-                      >
-                        <span>View assets</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Maintenance Items */}
-                {activeTab === 'all' &&
-                  maintenanceItems.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => {
-                        if (!item.is_read) markAsRead(item);
-                        if (onNavigateTab) {
-                          setIsOpen(false);
-                          onNavigateTab('equipment');
-                        }
-                      }}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 hover:shadow-xs ${
-                        item.is_read
-                          ? 'bg-white border-slate-200/80 hover:bg-slate-50/80 text-slate-600'
-                          : 'bg-amber-50/30 border-amber-200/90 hover:bg-amber-50/60 text-slate-900 shadow-2xs'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          {!item.is_read && (
-                            <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" title="Unread" />
-                          )}
-                          <span className="font-bold text-xs text-slate-900 truncate">
-                            {item.title || 'Equipment Maintenance'}
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[9px] uppercase border border-amber-200 shrink-0">
-                            Maintenance
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
-                          <span className="text-slate-600 font-medium">
-                            {item.message}
-                          </span>
-                          {item.data?.location && (
-                            <>
-                              <span>•</span>
-                              <span className="text-slate-400">{item.data.location}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                        {!item.is_read && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleMarkItemRead(e, item)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                            title="Mark as read"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                      </div>
-                    </div>
-                  ))}
-
-                {/* Infinite Scroll / Load More Spinner */}
-                {hasMore && (
-                  <div className="py-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => fetchMore()}
-                      disabled={isLoadingMore}
-                      className="px-3 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                    >
-                      {isLoadingMore ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                          <span>Loading older alerts...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="w-3 h-3" />
-                          <span>Load older alerts</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </div>
