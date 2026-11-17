@@ -1289,16 +1289,16 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
     const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
 
     let message = isPending
-      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`
-      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`;
+      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nThank you for working out with ${gymName}!`
+      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nThank you for working out with ${gymName}!`;
 
-    // Fetch temporary signed URL (30-day validity) and append as extra line if available
+    // Fetch temporary signed URL (30-day validity) and append as direct PDF link
     try {
       const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
       if (invLookupId) {
         const linkRes = await api.invoices.getSignedUrl(invLookupId);
         if (linkRes?.success && linkRes?.signed_url) {
-          message += `\n\n🔗 *Download PDF Online:* ${linkRes.signed_url}`;
+          message += `\n\n🔗 *View / Download Invoice PDF:* ${linkRes.signed_url}`;
         }
       }
     } catch (linkErr) {
@@ -1306,16 +1306,33 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
       console.warn('Failed to retrieve signed invoice URL, sending standard WhatsApp message:', linkErr);
     }
 
-    downloadPdfBlob(blob, fileName);
-
-    const successCallback = onToast
-      ? () => onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success')
-      : null;
+    // Check if device/browser supports native file sharing (attaches PDF directly into WhatsApp)
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `${gymName} - ${isPending ? 'Invoice' : 'Receipt'} #${invoiceId}`,
+            text: message,
+          });
+          if (onToast) onToast(`Invoice shared via WhatsApp for ${memberName}!`, 'success');
+          return true;
+        }
+      } catch (shareErr) {
+        if (shareErr?.name === 'AbortError') {
+          return true;
+        }
+        console.warn('Native Web Share failed, falling back to direct WhatsApp link:', shareErr);
+      }
+    }
 
     return openWhatsApp({
       phone: cleanPhone,
+      text: message,
       message,
-      onSuccess: successCallback
+      recipientName: memberName,
+      onToast
     });
   } catch (error) {
     console.error('Failed to share invoice PDF:', error);

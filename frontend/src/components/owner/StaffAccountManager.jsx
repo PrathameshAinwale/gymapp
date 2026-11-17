@@ -75,10 +75,10 @@ const isMaskedPassword = (val) => {
 // Helper to retrieve saved/default password for staff
 const getStaffPassword = (stf) => {
   if (!stf) return '';
-  if (stf.plain_password && !isMaskedPassword(stf.plain_password) && stf.plain_password !== 'password123') {
+  if (stf.plain_password && !isMaskedPassword(stf.plain_password)) {
     return stf.plain_password;
   }
-  if (stf.password && !isMaskedPassword(stf.password) && stf.password !== 'password123') {
+  if (stf.password && !isMaskedPassword(stf.password)) {
     return stf.password;
   }
   try {
@@ -90,7 +90,7 @@ const getStaffPassword = (stf) => {
       (cleanPhone && saved[cleanPhone]) ||
       (stf.userId && saved[String(stf.userId)]) ||
       (stf.id && saved[String(stf.id)]);
-    if (fromSaved && !isMaskedPassword(fromSaved) && fromSaved !== 'password123') return fromSaved;
+    if (fromSaved && !isMaskedPassword(fromSaved)) return fromSaved;
   } catch (e) {}
 
   return '';
@@ -2067,45 +2067,54 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                   Current Password
                 </label>
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className={`font-mono text-xs truncate mr-2 select-all ${
-                    showSharePassword && !getStaffPassword(sharingStaff)
-                      ? 'text-amber-600 font-medium italic'
-                      : 'font-bold text-slate-900'
-                  }`}>
-                    {showSharePassword
-                      ? (getStaffPassword(sharingStaff) || 'Password not available. Reset password')
-                      : '••••••••••••'}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowSharePassword(!showSharePassword)}
-                      className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
-                      title={showSharePassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showSharePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const pass = getStaffPassword(sharingStaff);
-                        copyToClipboard(pass || 'Password not available. Reset password', 'share-password');
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
-                      title="Copy password"
-                    >
-                      {copiedId === 'share-password' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
+                {(() => {
+                  const shareStaffPassword = getStaffPassword(sharingStaff)
+                    || (!isMaskedPassword(sharingStaff?.plain_password) ? sharingStaff.plain_password : '')
+                    || (!isMaskedPassword(sharingStaff?.password) ? sharingStaff.password : '');
+                  return (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className={`font-mono text-xs truncate mr-2 select-all ${
+                        showSharePassword && !shareStaffPassword
+                          ? 'text-amber-600 font-medium italic'
+                          : 'font-bold text-slate-900'
+                      }`}>
+                        {showSharePassword
+                          ? (shareStaffPassword || 'Password not available. Reset password')
+                          : '••••••••••••'}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowSharePassword(!showSharePassword)}
+                          className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                          title={showSharePassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showSharePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            copyToClipboard(shareStaffPassword || 'Password not available. Reset password', 'share-password');
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                          title="Copy password"
+                        >
+                          {copiedId === 'share-password' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => {
-                const pass = getStaffPassword(sharingStaff) || 'Password not available. Reset password';
+                const pass = getStaffPassword(sharingStaff)
+                  || (!isMaskedPassword(sharingStaff?.plain_password) ? sharingStaff.plain_password : '')
+                  || (!isMaskedPassword(sharingStaff?.password) ? sharingStaff.password : '')
+                  || 'Password not available. Reset password';
                 copyToClipboard(
                   `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email || 'N/A'}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
                   'share-all'
