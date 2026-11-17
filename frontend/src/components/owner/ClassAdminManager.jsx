@@ -74,6 +74,8 @@ export const ClassAdminManager = () => {
   const [classEnrollments, setClassEnrollments] = useState([]);
   const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [enrollFee, setEnrollFee] = useState('0');
+  const [enrollPaymentMethod, setEnrollPaymentMethod] = useState('UPI');
   const [isEnrollingMember, setIsEnrollingMember] = useState(false);
   const [enrollmentToRemove, setEnrollmentToRemove] = useState(null);
 
@@ -279,6 +281,8 @@ export const ClassAdminManager = () => {
   const handleOpenEnrollModal = async (cls) => {
     setEnrollingClass(cls);
     setSelectedMemberId('');
+    setEnrollFee('0');
+    setEnrollPaymentMethod('UPI');
     setIsLoadingEnrollments(true);
     try {
       const res = await api.classes.getEnrollments(cls.id);
@@ -312,7 +316,13 @@ export const ClassAdminManager = () => {
 
     setIsEnrollingMember(true);
     try {
-      const res = await api.classes.enrollMember(enrollingClass.id, { user_id: selectedMemberId });
+      const feeNum = Number(enrollFee) || 0;
+      const res = await api.classes.enrollMember(enrollingClass.id, {
+        user_id: selectedMemberId,
+        amount: feeNum,
+        fee: feeNum,
+        payment_method: enrollPaymentMethod || 'UPI',
+      });
       const memberObj = members.find((m) => String(m.userId || m.id).replace(/\D/g, '') === cleanId);
       const newEnrollment = res?.data || {
         id: Date.now(),
@@ -321,12 +331,16 @@ export const ClassAdminManager = () => {
         name: memberObj?.name || 'Member',
         phone: memberObj?.phone || '',
         enrolledDate: new Date().toISOString().split('T')[0],
-        status: 'Active'
+        status: 'Active',
+        invoiceNumber: res?.invoice?.invoiceNumber,
+        invoiceUrl: res?.invoice?.invoiceUrl,
       };
       setClassEnrollments((prev) => [newEnrollment, ...prev]);
       fetchClasses?.();
       setSelectedMemberId('');
-      addToast(`Member enrolled successfully!`, 'success');
+      setEnrollFee('0');
+      const invNum = res?.invoice?.invoiceNumber || res?.data?.invoiceNumber;
+      addToast(`Member enrolled successfully!${invNum ? ` Official invoice #${invNum} generated.` : ''}`, 'success');
     } catch (err) {
       addToast(err?.message || 'Failed to enroll member in class', 'error');
     } finally {
@@ -1130,13 +1144,13 @@ export const ClassAdminManager = () => {
           </div>
 
           {/* Enroll New Member Form */}
-          <form onSubmit={handleEnrollMemberSubmit} className="space-y-2 pt-1 border-t border-slate-100">
-            <label className="block font-bold text-slate-700">Select Member to Enroll</label>
-            <div className="flex gap-2">
+          <form onSubmit={handleEnrollMemberSubmit} className="space-y-2.5 pt-1 border-t border-slate-100">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Select Member to Enroll *</label>
               <select
                 value={selectedMemberId}
                 onChange={(e) => setSelectedMemberId(e.target.value)}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 disabled={classEnrollments.length >= (enrollingClass?.capacity || 25)}
               >
                 <option value="">-- Choose Member from Active Roster --</option>
@@ -1151,14 +1165,43 @@ export const ClassAdminManager = () => {
                     </option>
                   ))}
               </select>
-              <button
-                type="submit"
-                disabled={!selectedMemberId || isEnrollingMember || classEnrollments.length >= (enrollingClass?.capacity || 25)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-bold rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed shrink-0"
-              >
-                {isEnrollingMember ? 'Enrolling...' : 'Enroll'}
-              </button>
             </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Enrollment Fee (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={enrollFee}
+                  onChange={(e) => setEnrollFee(e.target.value)}
+                  placeholder="0 for complimentary"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Payment Mode</label>
+                <select
+                  value={enrollPaymentMethod}
+                  onChange={(e) => setEnrollPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="UPI">UPI / QR</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Credit/Debit Card</option>
+                  <option value="Net Banking">Net Banking</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!selectedMemberId || isEnrollingMember || classEnrollments.length >= (enrollingClass?.capacity || 25)}
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-bold rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+            >
+              {isEnrollingMember ? 'Issuing Invoice & Enrolling...' : 'Enroll & Generate Official Invoice'}
+            </button>
             {classEnrollments.length >= (enrollingClass?.capacity || 25) && (
               <p className="text-[11px] text-amber-600 font-medium">Class capacity reached. No further enrollments allowed.</p>
             )}
@@ -1182,7 +1225,14 @@ export const ClassAdminManager = () => {
                 {classEnrollments.map((enr) => (
                   <div key={enr.id || enr.userId} className="p-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
                     <div>
-                      <div className="font-bold text-slate-800">{enr.name || 'Member'}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800">{enr.name || 'Member'}</span>
+                        {enr.invoiceNumber && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
+                            {enr.invoiceNumber}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-slate-400">
                         {enr.phone ? `${enr.phone} • ` : ''}Enrolled: {enr.enrolledDate || 'Recent'}
                       </div>

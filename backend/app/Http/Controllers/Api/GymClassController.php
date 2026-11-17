@@ -6,8 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\GymClass;
 use App\Models\ClassBooking;
 use App\Models\ClassEnrollment;
+use App\Models\Invoice;
+use App\Models\RevenueBilling;
 use App\Models\User;
+use App\Services\InvoicePdfService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class GymClassController extends Controller
@@ -348,7 +353,7 @@ class GymClassController extends Controller
         }
         $cls = $cls->firstOrFail();
 
-        $enrollments = ClassEnrollment::with('user')
+        $enrollments = ClassEnrollment::with(['user', 'invoice'])
             ->where('gym_class_id', $cls->id)
             ->where('status', 'Active')
             ->orderBy('id', 'desc')
@@ -364,6 +369,8 @@ class GymClassController extends Controller
                     'enrolledDate' => $enr->enrolled_date ? $enr->enrolled_date->toDateString() : null,
                     'status' => $enr->status,
                     'invoiceId' => $enr->invoice_id,
+                    'invoiceNumber' => $enr->invoice?->invoice_number,
+                    'invoiceUrl' => $enr->invoice?->invoice_url,
                 ];
             });
 
@@ -376,7 +383,7 @@ class GymClassController extends Controller
     }
 
     /**
-     * Enroll a member into a class roster.
+     * Enroll a member into a class roster and generate an official invoice.
      */
     public function enrollMember(Request $request, $id)
     {
@@ -409,63 +416,158 @@ class GymClassController extends Controller
             ], 422);
         }
 
-        // Prevent duplicate enrollment
+        // Prevent duplicate active enrollment
         $existing = ClassEnrollment::where('gym_class_id', $cls->id)
             ->where('user_id', $userId)
             ->first();
 
-        if ($existing) {
-            if ($existing->status === 'Active') {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Member '{$memberUser->name}' is already enrolled in this class."
-                ], 422);
-            }
-            $existing->update(['status' => 'Active', 'enrolled_date' => now()->toDateString()]);
-            $cls->increment('booked_count');
+        if ($existing && $existing->status === 'Active') {
             return response()->json([
-                'success' => true,
-                'message' => "Member '{$memberUser->name}' re-enrolled in class successfully.",
-                'data' => [
-                    'id' => $existing->id,
-                    'userId' => $existing->user_id,
-                    'memberId' => 'mem-' . $existing->user_id,
-                    'name' => $memberUser->name,
-                    'phone' => $memberUser->phone,
-                    'email' => $memberUser->email,
-                    'enrolledDate' => now()->toDateString(),
-                    'status' => 'Active',
-                    'invoiceId' => $existing->invoice_id,
-                ],
-                'enrolledCount' => $activeEnrollmentsCount + 1,
-            ]);
+                'success' => false,
+                'message' => "Member '{$memberUser->name}' is already enrolled in this class."
+            ], 422);
         }
 
-        $enrollment = ClassEnrollment::create([
-            'gym_id' => $cls->gym_id,
-            'gym_class_id' => $cls->id,
-            'user_id' => $userId,
-            'enrolled_date' => now()->toDateString(),
-            'status' => 'Active',
-        ]);
+        $amount = max(0, (float)($request->input('amount', $request->input('fee', 0))));
+        $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
+        $today = now()->toDateString();
 
-        $cls->increment('booked_count');
+        $authCreator = $request->user() ?: auth('sanctum')->user();
+        $creatorId = $authCreator?->id;
+        $creatorName = $authCreator?->name ?? 'Staff / Admin';
+
+        // Inside DB transaction: Create official invoice, revenue billing inflow, and enrollment record
+        $result = DB::transaction(function () use (
+            $cls, $memberUser, $amount, $paymentMethod, $today, $creatorId, $creatorName, $existing
+        ) {
+            // Generate unique sequential invoice number
+            do {
+                $invoiceNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
+            } while (Invoice::where('invoice_number', $invoiceNo)->exists());
+
+            $itemTitle = "Class Batch: {$cls->name}";
+            $items = [
+                [
+                    'package_type' => 'Group Fitness',
+                    'packageType' => 'Group Fitness',
+                    'name' => $itemTitle,
+                    'price' => $amount,
+                    'discount' => 0,
+                    'net_amount' => $amount,
+                    'start_date' => $today,
+                    'end_date' => $today,
+                    'trainer_id' => $cls->trainer_id,
+                    'class_id' => $cls->id,
+                ]
+            ];
+
+            $invData = [
+                'gym_id' => $cls->gym_id,
+                'invoice_number' => $invoiceNo,
+                'user_id' => $memberUser->id,
+                'plan_id' => null,
+                'package_type' => 'Group Fitness',
+                'amount' => $amount,
+                'date' => $today,
+                'start_date' => $today,
+                'due_date' => null,
+                'payment_method' => $paymentMethod,
+                'status' => 'Paid',
+                'invoice_url' => '#',
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
+            ];
+            if (Schema::hasColumn('invoices', 'items')) {
+                $invData['items'] = $items;
+            }
+            if (Schema::hasColumn('invoices', 'total_amount')) {
+                $invData['total_amount'] = $amount;
+            }
+            if (Schema::hasColumn('invoices', 'pending_amount')) {
+                $invData['pending_amount'] = 0;
+            }
+
+            $invoice = Invoice::create($invData);
+
+            // Create matching RevenueBilling inflow record for dashboard & revenue totals
+            RevenueBilling::create([
+                'gym_id' => $cls->gym_id,
+                'type' => 'inflow',
+                'reference_no' => $invoiceNo,
+                'user_id' => $memberUser->id,
+                'member_name' => $memberUser->name,
+                'plan_id' => null,
+                'plan_name' => $itemTitle,
+                'title' => "Class Enrollment - {$cls->name} ({$memberUser->name})",
+                'category' => 'Group Class Fee',
+                'vendor' => null,
+                'amount' => $amount,
+                'date' => $today,
+                'payment_method' => $paymentMethod,
+                'status' => 'Paid',
+                'notes' => "Official invoice generated for {$cls->name} batch enrollment.",
+                'created_by' => $creatorId,
+                'created_by_name' => $creatorName,
+            ]);
+
+            // Ensure PDF is generated and invoice_url is saved
+            try {
+                InvoicePdfService::ensurePdf($invoice);
+            } catch (\Throwable $e) {
+                \Log::warning('Invoice PDF generation warning during class enrollment: ' . $e->getMessage());
+            }
+
+            if ($existing) {
+                $existing->update([
+                    'invoice_id' => $invoice->id,
+                    'status' => 'Active',
+                    'enrolled_date' => $today,
+                ]);
+                $enrollment = $existing;
+            } else {
+                $enrollment = ClassEnrollment::create([
+                    'gym_id' => $cls->gym_id,
+                    'gym_class_id' => $cls->id,
+                    'user_id' => $memberUser->id,
+                    'invoice_id' => $invoice->id,
+                    'enrolled_date' => $today,
+                    'status' => 'Active',
+                ]);
+            }
+
+            $cls->increment('booked_count');
+
+            return [
+                'enrollment' => $enrollment,
+                'invoice' => $invoice,
+            ];
+        });
+
+        $activeCount = ClassEnrollment::where('gym_class_id', $cls->id)->where('status', 'Active')->count();
 
         return response()->json([
             'success' => true,
-            'message' => "Member '{$memberUser->name}' enrolled in class successfully.",
+            'message' => "Member '{$memberUser->name}' enrolled in class successfully. Official invoice {$result['invoice']->invoice_number} created.",
             'data' => [
-                'id' => $enrollment->id,
-                'userId' => $enrollment->user_id,
-                'memberId' => 'mem-' . $enrollment->user_id,
+                'id' => $result['enrollment']->id,
+                'userId' => $result['enrollment']->user_id,
+                'memberId' => 'mem-' . $result['enrollment']->user_id,
                 'name' => $memberUser->name,
                 'phone' => $memberUser->phone,
                 'email' => $memberUser->email,
-                'enrolledDate' => $enrollment->enrolled_date->toDateString(),
-                'status' => $enrollment->status,
-                'invoiceId' => null,
+                'enrolledDate' => $result['enrollment']->enrolled_date ? $result['enrollment']->enrolled_date->toDateString() : $today,
+                'status' => $result['enrollment']->status,
+                'invoiceId' => $result['invoice']->id,
+                'invoiceNumber' => $result['invoice']->invoice_number,
+                'invoiceUrl' => $result['invoice']->invoice_url,
             ],
-            'enrolledCount' => $activeEnrollmentsCount + 1,
+            'invoice' => [
+                'id' => $result['invoice']->id,
+                'invoiceNumber' => $result['invoice']->invoice_number,
+                'amount' => (float)$result['invoice']->amount,
+                'invoiceUrl' => $result['invoice']->invoice_url,
+            ],
+            'enrolledCount' => $activeCount,
         ], 201);
     }
 
