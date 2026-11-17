@@ -1208,6 +1208,10 @@ export const api = {
       return handleResponse(res);
     },
     getDownloadUrl: (id) => `${API_BASE_URL}/invoices/${id}/download-pdf`,
+    getSignedUrl: async (id) => {
+      const res = await apiFetch(`${API_BASE_URL}/invoices/${id}/signed-url`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
   },
 
   // Expenses Endpoints

@@ -172,6 +172,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
     // Public Invoice View & PDF Download
     Route::get('/public/invoices/{invoice_number}/download', [InvoiceController::class, 'publicDownloadPdf']);
     Route::get('/public/invoices/{invoice_number}/view', [InvoiceController::class, 'publicView']);
+    Route::get('/invoices/signed/{invoice_number}', [InvoiceController::class, 'streamSignedPdf'])->name('api.v1.invoices.signed_pdf');
 
     Route::prefix('platform')->group(function () {
         Route::get('/pages', [SuperadminController::class, 'indexPages']);
@@ -253,6 +254,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
         Route::post('/invoices/{id}/upload-pdf', [InvoiceController::class, 'uploadPdf']);
         Route::get('/invoices/{id}/download-pdf', [InvoiceController::class, 'downloadPdf']);
+        Route::get('/invoices/{id}/signed-url', [InvoiceController::class, 'getSignedPdfUrl']);
 
         // Operating Expenses & Cash Flow
         Route::apiResource('expenses', ExpenseController::class);

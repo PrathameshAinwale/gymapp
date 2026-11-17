@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import api from '../services/api.js';
 import { formatWhatsAppPhone, openWhatsApp } from './whatsapp.js';
 import {
   PDF_PAGE_WIDTH,
@@ -1287,9 +1288,23 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
     const displayDate = formatInvoiceDate(invoice.issueDate || invoice.date || invoice.createdAt || new Date());
     const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
 
-    const message = isPending
+    let message = isPending
       ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`
       : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`;
+
+    // Fetch temporary signed URL (30-day validity) and append as extra line if available
+    try {
+      const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
+      if (invLookupId) {
+        const linkRes = await api.invoices.getSignedUrl(invLookupId);
+        if (linkRes?.success && linkRes?.signed_url) {
+          message += `\n\n🔗 *Download PDF Online:* ${linkRes.signed_url}`;
+        }
+      }
+    } catch (linkErr) {
+      // If signed URL generation fails, gracefully send message without the link
+      console.warn('Failed to retrieve signed invoice URL, sending standard WhatsApp message:', linkErr);
+    }
 
     downloadPdfBlob(blob, fileName);
 
