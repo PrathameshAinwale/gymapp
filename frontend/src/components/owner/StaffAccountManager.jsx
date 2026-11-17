@@ -64,32 +64,34 @@ import { EmptyState } from '../common/EmptyState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { ShiftFormModal } from './ShiftFormModal';
 
+// Helper to detect if a password string is masked bullets / placeholder
+const isMaskedPassword = (val) => {
+  if (!val) return true;
+  const str = String(val).trim();
+  const stripped = str.replace(/[\u2022\u2219\u25cf\u25cb\u22c5\.\*â€¢]/g, '').trim();
+  return stripped.length === 0 || str === '••••••••' || str === '••••••••••••';
+};
+
 // Helper to retrieve saved/default password for staff
 const getStaffPassword = (stf) => {
   if (!stf) return '';
-  if (stf.plain_password && stf.plain_password !== '••••••••' && stf.plain_password !== 'password123') {
+  if (stf.plain_password && !isMaskedPassword(stf.plain_password) && stf.plain_password !== 'password123') {
     return stf.plain_password;
   }
-  if (stf.password && stf.password !== '••••••••' && stf.password !== 'password123') {
+  if (stf.password && !isMaskedPassword(stf.password) && stf.password !== 'password123') {
     return stf.password;
   }
   try {
     const saved = JSON.parse(localStorage.getItem('pulsefit_staff_passwords') || '{}');
     const fromSaved =
       (stf.email && saved[stf.email.toLowerCase()]) ||
+      (stf.phone && saved[stf.phone]) ||
       (stf.userId && saved[String(stf.userId)]) ||
       (stf.id && saved[String(stf.id)]);
-    if (fromSaved && fromSaved !== 'password123') return fromSaved;
+    if (fromSaved && !isMaskedPassword(fromSaved) && fromSaved !== 'password123') return fromSaved;
   } catch (e) {}
 
-  const emailLower = stf.email?.toLowerCase();
-  if (emailLower === 'sohan@gmail.com') return 'sohan123';
-  if (emailLower === 'coach1@gmail.com') return 'trainer123';
-  if (emailLower === 'ajay@gmail.com') return '123456';
-  if (stf.role === 'manager') return 'manager123';
-  if (stf.role === 'accounts') return 'accounts123';
-  if (stf.role === 'trainer') return 'trainer123';
-  return 'sohan123';
+  return '';
 };
 
 const saveStaffPassword = (identifier, pass) => {
@@ -217,6 +219,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
+  const [showCreatedPassword, setShowCreatedPassword] = useState(true);
 
   // Quick Add Shift target: 'add' | 'edit' | null
   const [quickAddShiftTarget, setQuickAddShiftTarget] = useState(null);
@@ -1935,7 +1938,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[11px]">
               <div>
                 <span className="text-slate-400 font-bold block">Mobile / Login ID:</span>
-                <span className="font-mono font-bold text-slate-900">{createdCredentials.phone || createdCredentials.email}</span>
+                <span className="font-mono font-bold text-slate-900">{createdCredentials.phone || createdCredentials.email || 'N/A'}</span>
               </div>
               {createdCredentials.email && createdCredentials.email !== createdCredentials.phone && (
                 <div>
@@ -1945,7 +1948,19 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               )}
               <div>
                 <span className="text-slate-400 font-bold block">Password:</span>
-                <span className="font-mono font-bold text-slate-900">{createdCredentials.password}</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-slate-900">
+                    {showCreatedPassword ? createdCredentials.password : '••••••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatedPassword(!showCreatedPassword)}
+                    className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                    title={showCreatedPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showCreatedPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2001,11 +2016,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 </label>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="font-mono font-bold text-slate-900 text-xs truncate mr-2 select-all">
-                    {sharingStaff.phone || sharingStaff.email}
+                    {sharingStaff.phone || sharingStaff.email || 'N/A'}
                   </span>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(sharingStaff.phone || sharingStaff.email, 'share-phone')}
+                    onClick={() => copyToClipboard(sharingStaff.phone || sharingStaff.email || 'N/A', 'share-phone')}
                     className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer shrink-0"
                     title="Copy Login ID"
                   >
@@ -2040,8 +2055,14 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   Current Password
                 </label>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="font-mono font-bold text-slate-900 text-xs truncate mr-2 select-all">
-                    {showSharePassword ? (sharingStaff.plain_password || sharingStaff.password || getStaffPassword(sharingStaff)) : '••••••••••••'}
+                  <span className={`font-mono text-xs truncate mr-2 select-all ${
+                    showSharePassword && !getStaffPassword(sharingStaff)
+                      ? 'text-amber-600 font-medium italic'
+                      : 'font-bold text-slate-900'
+                  }`}>
+                    {showSharePassword
+                      ? (getStaffPassword(sharingStaff) || 'Password not available. Reset password')
+                      : '••••••••••••'}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -2054,7 +2075,10 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(sharingStaff.plain_password || sharingStaff.password || getStaffPassword(sharingStaff), 'share-password')}
+                      onClick={() => {
+                        const pass = getStaffPassword(sharingStaff);
+                        copyToClipboard(pass || 'Password not available. Reset password', 'share-password');
+                      }}
                       className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
                       title="Copy password"
                     >
@@ -2068,9 +2092,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <button
               type="button"
               onClick={() => {
-                const pass = sharingStaff.plain_password || sharingStaff.password || getStaffPassword(sharingStaff);
+                const pass = getStaffPassword(sharingStaff) || 'Password not available. Reset password';
                 copyToClipboard(
-                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
+                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email || 'N/A'}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
                   'share-all'
                 );
               }}

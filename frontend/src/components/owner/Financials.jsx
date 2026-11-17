@@ -265,12 +265,29 @@ export const Financials = () => {
   // Expense Filters & Modal
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('ALL');
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+
+  const maxExpenseDate = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const targetYear = year + Math.floor((month + 2) / 12);
+    const targetMonth = (month + 2) % 12;
+    const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const targetDay = Math.min(now.getDate(), lastDay);
+    return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+  }, []);
+
+  const getTodayLocalDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   const [expenseForm, setExpenseForm] = useState({
     title: '',
     category: 'Electricity & Utilities',
     vendor: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayLocalDate(),
     paymentMode: 'UPI',
     receiptRef: '',
     notes: ''
@@ -507,6 +524,11 @@ export const Financials = () => {
     }
     if (!expenseForm.title || !expenseForm.amount) return;
 
+    if (expenseForm.date && expenseForm.date > maxExpenseDate) {
+      setExpenseError('Expense date cannot be more than 2 months in the future.');
+      return;
+    }
+
     setIsSubmittingExpense(true);
     setExpenseError('');
     try {
@@ -521,7 +543,7 @@ export const Financials = () => {
         category: 'Electricity & Utilities',
         vendor: '',
         amount: '',
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayLocalDate(),
         paymentMode: 'UPI',
         receiptRef: '',
         notes: ''
@@ -1532,6 +1554,7 @@ export const Financials = () => {
               <input
                 type="date"
                 required
+                max={maxExpenseDate}
                 value={expenseForm.date}
                 onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-rose-500"

@@ -71,11 +71,13 @@ class ExpenseController extends Controller
      */
     public function store(Request $request)
     {
+        $maxAllowedDate = now()->addMonthsNoOverflow(2)->format('Y-m-d');
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0',
-            'date' => 'required|date',
+            'date' => 'required|date|before_or_equal:' . $maxAllowedDate,
             'vendor' => 'nullable|string|max:255',
             'payment_mode' => 'nullable|string',
             'paymentMode' => 'nullable|string',
@@ -86,6 +88,7 @@ class ExpenseController extends Controller
         ], [
             'amount.min' => 'Expense amount cannot be negative.',
             'amount.numeric' => 'Expense amount must be a valid number.',
+            'date.before_or_equal' => 'Expense date cannot be more than 2 months in the future.',
         ]);
 
         if ($validator->fails()) {
@@ -144,12 +147,14 @@ class ExpenseController extends Controller
         $numericId = (int)str_replace(['exp-', 'EXP-'], '', $id);
         $expense = Expense::findOrFail($numericId);
 
+        $maxAllowedDate = now()->addMonthsNoOverflow(2)->format('Y-m-d');
+
         $validator = Validator::make($request->all(), [
             'title' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
             'vendor' => 'nullable|string|max:255',
             'amount' => 'nullable|numeric|min:0',
-            'date' => 'nullable|date',
+            'date' => 'nullable|date|before_or_equal:' . $maxAllowedDate,
             'paymentMode' => 'nullable|string',
             'payment_mode' => 'nullable|string',
             'refNo' => 'nullable|string|max:100',
@@ -158,6 +163,7 @@ class ExpenseController extends Controller
         ], [
             'amount.min' => 'Expense amount cannot be negative.',
             'amount.numeric' => 'Expense amount must be a valid number.',
+            'date.before_or_equal' => 'Expense date cannot be more than 2 months in the future.',
         ]);
 
         if ($validator->fails()) {

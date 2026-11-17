@@ -59,6 +59,7 @@ import {
   RotateCw,
   CalendarDays,
   User,
+  UserCheck,
   Phone,
   Mail,
   Receipt
@@ -167,7 +168,7 @@ export const OwnerDashboard = ({
     addToast
   } = useGymData();
 
-  const { currentUser, currentRole, canAccessFinancials } = useAuth();
+  const { currentUser, currentRole, canAccessFinancials, accounts = [] } = useAuth();
   const gymName = gymInfo?.name || gymInfo?.gym_name || currentUser?.gymName || 'our gym';
 
   // Mobile Analytics Charts Auto-Scroll State
@@ -239,6 +240,69 @@ export const OwnerDashboard = ({
       .filter((enq) => matchesEnquiryUniversal(enq, memberSearchQuery))
       .slice(0, 6);
   }, [enquiries, memberSearchQuery]);
+
+  // Consolidated Gym Staff List for search
+  const staffList = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    const currentGymId = Number(currentUser?.gymId || currentUser?.gym_id || 0);
+
+    (accounts || []).forEach((acc) => {
+      if (acc.role === 'member') return;
+      const accGymId = Number(acc.gymId || acc.gym_id || 0);
+      if (currentGymId > 0 && accGymId > 0 && accGymId !== currentGymId) return;
+
+      const key = String(acc.userId || acc.id || acc.email || acc.name);
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({
+          id: acc.id,
+          userId: acc.userId || acc.id,
+          name: acc.name,
+          role: acc.role || 'staff',
+          roleLabel: acc.roleLabel || (acc.role ? (acc.role.charAt(0).toUpperCase() + acc.role.slice(1)) : 'Staff'),
+          email: acc.email,
+          phone: acc.phone,
+          avatar: acc.avatar,
+        });
+      }
+    });
+
+    (trainers || []).forEach((t) => {
+      const key = String(t.userId || t.id || t.email || t.name);
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({
+          id: t.id,
+          userId: t.userId || t.id,
+          name: t.name,
+          role: 'trainer',
+          roleLabel: t.specialty || 'Personal Trainer',
+          email: t.email,
+          phone: t.phone,
+          avatar: t.avatar,
+        });
+      }
+    });
+
+    return list;
+  }, [accounts, trainers, currentUser?.gymId, currentUser?.gym_id]);
+
+  // Matching Staff members for universal search
+  const searchStaffResults = useMemo(() => {
+    if (!memberSearchQuery || !memberSearchQuery.trim()) return [];
+    const q = memberSearchQuery.toLowerCase().trim();
+    return (staffList || [])
+      .filter((s) => {
+        if (!s.name) return false;
+        const nameMatch = s.name.toLowerCase().includes(q);
+        const emailMatch = s.email ? s.email.toLowerCase().includes(q) : false;
+        const phoneMatch = s.phone ? String(s.phone).includes(q.replace(/\D/g, '')) : false;
+        const roleMatch = s.roleLabel ? s.roleLabel.toLowerCase().includes(q) : false;
+        return nameMatch || emailMatch || (phoneMatch && q.replace(/\D/g, '').length >= 3) || roleMatch;
+      })
+      .slice(0, 10);
+  }, [staffList, memberSearchQuery]);
 
   // Segment tab state for Priority Action Hub (reduces page clutter)
   const [activeActionTab, setActiveActionTab] = useState('leads'); // 'leads' | 'renewals'
@@ -680,8 +744,8 @@ export const OwnerDashboard = ({
       <div className="bg-white border border-slate-200 p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-              Gym Overview
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate uppercase">
+              GYM OVERVIEW
             </h1>
             <p className="text-[11px] text-slate-500 hidden sm:block">
               Real-time overview of your memberships, live attendance, revenue, and daily operations.
@@ -782,61 +846,61 @@ export const OwnerDashboard = ({
         </div>
       </div>
 
-      {/* UNIVERSAL DASHBOARD SEARCH BAR (48px touch height, 16px font on mobile, concise placeholder) */}
+      {/* UNIVERSAL DASHBOARD SEARCH BAR (Full width) */}
       <div className="relative w-full" ref={searchContainerRef}>
-        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 sm:py-1.5 min-h-[48px] sm:min-h-0 shadow-2xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 flex items-center">
-          <div className="flex items-center gap-2.5 w-full">
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <Search className="w-4 h-4" />
-            </div>
+        <div className="bg-white border border-slate-200/90 rounded-xl px-3 h-9 sm:h-9.5 shadow-2xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 flex items-center gap-2">
+          <Search className="w-4 h-4 text-emerald-600 shrink-0" />
 
-            <div className="flex-1 relative flex items-center min-w-0">
-              <input
-                type="text"
-                value={memberSearchQuery}
-                onFocus={() => setIsSearchFocused(true)}
-                onChange={(e) => {
-                  setMemberSearchQuery(e.target.value);
-                  setIsSearchFocused(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
+          <div className="flex-1 relative flex items-center min-w-0">
+            <input
+              type="text"
+              value={memberSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onChange={(e) => {
+                setMemberSearchQuery(e.target.value);
+                setIsSearchFocused(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setIsSearchFocused(false);
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const target = searchResults[0];
+                  if (target) {
                     setIsSearchFocused(false);
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const target = searchResults[0];
-                    if (target) {
-                      setIsSearchFocused(false);
-                      setMemberSearchQuery('');
-                      if (onOpenMemberProfile) {
-                        onOpenMemberProfile(target.id);
-                      } else {
-                        setSelectedProfileMember(target);
-                        setActiveTab?.('member-profile');
-                      }
-                    } else if (searchEnquiryResults.length > 0) {
-                      setIsSearchFocused(false);
-                      setActiveTab?.('enquiries');
-                    }
-                  }
-                }}
-                placeholder="Search members, invoices..."
-                className="w-full bg-transparent text-base sm:text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-6"
-              />
-              {memberSearchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
                     setMemberSearchQuery('');
-                  }}
-                  className="w-9 h-9 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                  title="Clear search"
-                  aria-label="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+                    if (onOpenMemberProfile) {
+                      onOpenMemberProfile(target.id);
+                    } else {
+                      setSelectedProfileMember(target);
+                      setActiveTab?.('member-profile');
+                    }
+                  } else if (searchStaffResults.length > 0) {
+                    setIsSearchFocused(false);
+                    setMemberSearchQuery('');
+                    setActiveTab?.('staff-accounts');
+                  } else if (searchEnquiryResults.length > 0) {
+                    setIsSearchFocused(false);
+                    setActiveTab?.('enquiries');
+                  }
+                }
+              }}
+              placeholder="Search members, staff, invoices..."
+              className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-2"
+            />
+            {memberSearchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMemberSearchQuery('');
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -845,7 +909,7 @@ export const OwnerDashboard = ({
           <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[480px] flex flex-col">
             <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
               <span className="font-bold text-slate-700 text-[11px]">
-                Found {searchResults.length + searchEnquiryResults.length} result{searchResults.length + searchEnquiryResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
+                Found {searchResults.length + searchStaffResults.length + searchEnquiryResults.length} result{searchResults.length + searchStaffResults.length + searchEnquiryResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
               </span>
               <button
                 type="button"
@@ -872,7 +936,7 @@ export const OwnerDashboard = ({
             </div>
 
             <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
-              {searchResults.length === 0 && searchEnquiryResults.length === 0 ? (
+              {searchResults.length === 0 && searchStaffResults.length === 0 && searchEnquiryResults.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 space-y-2">
                   <p className="font-bold text-xs text-slate-700">No matching records found</p>
                   <p className="text-[11px] text-slate-400 max-w-md mx-auto">
@@ -920,6 +984,9 @@ export const OwnerDashboard = ({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 truncate">
                                 {m.name}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                Member
                               </span>
                               <span
                                 className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${mStatus === 'Active'
@@ -980,6 +1047,76 @@ export const OwnerDashboard = ({
                       </div>
                     );
                   })}
+
+                  {/* Matching Staff & Coaches Section */}
+                  {searchStaffResults.length > 0 && (
+                    <div className="p-2.5 bg-indigo-50/40 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                          Matching Staff & Coaches ({searchStaffResults.length})
+                        </span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setIsSearchFocused(false);
+                            setActiveTab?.('staff-accounts');
+                          }}
+                          className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                        >
+                          Open Staff Hub
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {searchStaffResults.map((stf) => (
+                          <div
+                            key={stf.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setIsSearchFocused(false);
+                              setMemberSearchQuery('');
+                              setActiveTab?.('staff-accounts');
+                            }}
+                            className="p-2 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all cursor-pointer flex items-center justify-between gap-2 group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {stf.avatar ? (
+                                <img
+                                  src={stf.avatar}
+                                  alt={stf.name}
+                                  className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center justify-center border border-indigo-200 shrink-0">
+                                  {stf.name?.charAt(0) || 'S'}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 truncate">
+                                    {stf.name}
+                                  </span>
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    Staff • {stf.roleLabel}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                  {stf.phone && <span>{stf.phone}</span>}
+                                  {stf.email && <span className="text-slate-400 truncate max-w-[150px]">{stf.email}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-bold text-indigo-600 shrink-0 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                              <span>Manage</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Matching Enquiries / Leads Section */}
                   {searchEnquiryResults.length > 0 && (
@@ -1047,35 +1184,34 @@ export const OwnerDashboard = ({
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider truncate">
-              <span className="sm:hidden">Metrics</span>
-              <span className="hidden sm:inline">Operational Metrics</span>
+              OPERATIONAL METRICS
             </span>
             <span className="hidden sm:inline-flex text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
               {activeStatCards.length} Cards Active
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setIsCustomizeCardsOpen(true)}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              className="h-7 px-2 sm:px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-[10px] sm:text-[11px] font-bold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
               title="Customise Cards"
               aria-label="Customise Cards"
             >
-              <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
-              <span className="hidden sm:inline">Customise Cards</span>
+              <SlidersHorizontal className="w-3 h-3 text-emerald-600" />
+              <span className="inline">Customise</span>
             </button>
 
             {customCardIds.join(',') !== defaultCardIds.join(',') && (
               <button
                 type="button"
                 onClick={handleResetCardsToDefault}
-                title="Reset cards to default 4 layout"
+                title="Reset cards to default layout"
                 aria-label="Reset cards to default layout"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] sm:w-auto sm:h-auto sm:p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
+                className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3 h-3" />
               </button>
             )}
           </div>
@@ -1225,494 +1361,6 @@ export const OwnerDashboard = ({
         </div>
       </div>
 
-      {/* 3. VISUAL ANALYTICS ROW: REVENUE TREND + ACTIVE VS ALL USER PIE CHART */}
-      <div className="space-y-2">
-        {/* Mobile Slide Switcher Tabs (Hidden on Desktop) */}
-        {canAccessFinancials && (
-          <div className="flex lg:hidden items-center justify-between gap-2 px-0.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span>Key Analytics</span>
-            </div>
-            <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80">
-              <button
-                type="button"
-                onClick={() => scrollToChartSlide(0)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  activeChartSlide === 0
-                    ? 'bg-white text-emerald-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Revenue Trend
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToChartSlide(1)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  activeChartSlide === 1
-                    ? 'bg-white text-emerald-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Active Users
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div
-          ref={chartsScrollRef}
-          onScroll={handleChartsScroll}
-          onTouchStart={() => setIsChartHovered(true)}
-          onTouchEnd={() => setTimeout(() => setIsChartHovered(false), 3000)}
-          onMouseEnter={() => setIsChartHovered(true)}
-          onMouseLeave={() => setIsChartHovered(false)}
-          className="flex lg:grid lg:grid-cols-12 gap-3 sm:gap-6 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scroll-smooth no-scrollbar"
-        >
-
-        {/* Revenue Growth Trend Area Chart (Left 7 Cols or Full if no revenue) */}
-        {canAccessFinancials && (
-          <div className="w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none lg:col-span-7 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900">Revenue Growth Trend</h2>
-                  <p className="text-xs text-slate-500">
-                    <span className="sm:hidden">Monthly collections</span>
-                    <span className="hidden sm:inline">Monthly membership & trainer fee collections (Mar – Aug 2026)</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                    Total: ₹{Number(totalRevenue).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              </div>
-
-              <div className="h-52 sm:h-64 w-full mt-3 sm:mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 11 }} />
-                    <YAxis
-                      stroke="#94a3b8"
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        borderColor: '#e2e8f0',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        color: '#0f172a',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
-                      }}
-                      formatter={(val) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Revenue']}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#059669"
-                      strokeWidth={2}
-                      dot={{ fill: '#059669', r: 3, strokeWidth: 2, stroke: '#ffffff' }}
-                      activeDot={{ r: 5, fill: '#059669' }}
-                      fillOpacity={1}
-                      fill="url(#revenueGrad)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Month-on-Month Growth: <strong className="text-emerald-600">{momGrowthPct}%</strong></span>
-              <button
-                type="button"
-                onClick={() => setActiveTab('financials')}
-                className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
-              >
-                <span>Financial Ledger</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ACTIVE VS ALL USER PIE / DONUT CHART (Right 5 Cols or 12 Cols for manager) */}
-        <div className={`w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none ${canAccessFinancials ? 'lg:col-span-5' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between`}>
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <PieChartIcon className="w-4 h-4 text-emerald-600" />
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                    Active vs All Users
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Live membership status distribution & retention
-                </p>
-              </div>
-
-              <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
-                {activeRetentionPct}% Active
-              </span>
-            </div>
-
-            {/* Donut Chart with center label & legend */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center mt-3 sm:mt-4">
-              {/* Donut Chart Visual */}
-              <div className="sm:col-span-6 h-48 relative flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    {totalMembersCount > 0 && (
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          borderColor: '#e2e8f0',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          color: '#0f172a',
-                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
-                        }}
-                        formatter={(val, name) => [
-                          `${val} members (${((val / (totalMembersCount || 1)) * 100).toFixed(1)}%)`,
-                          name
-                        ]}
-                      />
-                    )}
-                    <Pie
-                      data={chartPieData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={72}
-                      paddingAngle={4}
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                    >
-                      {chartPieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-
-                {/* Donut Center Statistic */}
-                <div className="absolute flex flex-col items-center justify-center pointer-events-none text-center">
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
-                    {activeMembersCount}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-0.5">
-                    Active / {totalMembersCount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Status Breakdown Legend with Clickable Filtering */}
-              <div className="sm:col-span-6 space-y-2">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  Membership Breakdown
-                </div>
-                {membershipBreakdown.map((item) => {
-                  const pct = totalMembersCount > 0 ? ((item.value / totalMembersCount) * 100).toFixed(0) : 0;
-                  return (
-                    <div
-                      key={item.name}
-                      onClick={() => {
-                        const low = (item.name || '').toLowerCase();
-                        let st = 'ALL';
-                        if (low.includes('active')) st = 'Active';
-                        else if (low.includes('expiring')) st = 'Expiring Soon';
-                        else if (low.includes('expired')) st = 'Expired';
-                        else if (low.includes('frozen')) st = 'Frozen';
-                        setActiveTab('members', { memberFilter: { status: st, timestamp: Date.now() } });
-                      }}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-xs cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        <span className="font-semibold text-slate-700 truncate group-hover:text-slate-900">
-                          {item.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-right shrink-0">
-                        <span className="font-bold text-slate-900">{item.value}</span>
-                        <span className="text-[10px] text-slate-400">({pct}%)</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs mt-3">
-            <span className="text-slate-500">
-              Total Lifetime: <strong>{totalMembersCount} athletes</strong>
-            </span>
-            <button
-              type="button"
-              onClick={() => setActiveTab('members')}
-              className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
-            >
-              <span>View Member Directory</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        </div>
-
-        {/* Mobile Pagination Indicator Dots */}
-        {canAccessFinancials && (
-          <div className="flex lg:hidden items-center justify-center gap-1.5 pt-0.5">
-            <button
-              type="button"
-              onClick={() => scrollToChartSlide(0)}
-              aria-label="Revenue chart"
-              className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                activeChartSlide === 0 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => scrollToChartSlide(1)}
-              aria-label="Active users chart"
-              className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                activeChartSlide === 1 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
-              }`}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 4. STREAMLINED OPERATIONS DIRECTORY — IMPORTANT DETAILS ONLY (UNCLUTTERED) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-emerald-600" />
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-              Operations Directory
-            </h2>
-            <span className="text-[10px] text-slate-400 hidden sm:inline">• Click any page to navigate</span>
-          </div>
-        </div>
-
-        {/* Compact, clean 1-click launcher grid showing essential counts only */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5">
-
-          {/* Module 1: Classes */}
-          <div
-            onClick={() => setActiveTab('classes')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-                <Calendar className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate">
-                  Classes & Batches
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {classes.length} Schedules Active
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 2: PT Sessions */}
-          <div
-            onClick={() => setActiveTab('pt-sessions')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
-                <Dumbbell className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-purple-700 truncate">
-                  PT Sessions
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {ptSessions.length} Active Packages
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 3: Invoices (Restricted for manager) */}
-          {canAccessFinancials && (
-            <div
-              onClick={() => setActiveTab('invoices')}
-              className="group p-2.5 sm:p-3 bg-white hover:bg-emerald-50/40 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-                  <FileText className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
-                    Invoices & Billing
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    {invoices.length} Invoices Issued
-                  </div>
-                </div>
-              </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
-          )}
-
-          {/* Module 4: Equipment */}
-          <div
-            onClick={() => setActiveTab('equipment')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-orange-50/40 border border-slate-200 hover:border-orange-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
-                <Wrench className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-orange-700 truncate">
-                  Equipment Health
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {equipment.filter(e => e.status === 'Operational').length}/{equipment.length} Operational
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 5: Pro Shop */}
-          <div
-            onClick={() => setActiveTab('products')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-pink-50/40 border border-slate-200 hover:border-pink-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-pink-50 text-pink-600 border border-pink-200 flex items-center justify-center shrink-0">
-                <ShoppingBag className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-pink-700 truncate">
-                  Pro Shop Store
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {lowStockProducts.length > 0 ? `${lowStockProducts.length} low stock` : `${products.length} Products`}
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-pink-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 6: Plans */}
-          <div
-            onClick={() => setActiveTab('plans')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-emerald-50/40 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-                <Award className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
-                  Membership Plans
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {plans.length} Tier Options
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 7: Advance Pay (Restricted for manager) */}
-          {canAccessFinancials && (
-            <div
-              onClick={() => setActiveTab('advance-pay')}
-              className="group p-2.5 sm:p-3 bg-white hover:bg-amber-50/40 border border-slate-200 hover:border-amber-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-                  <Coins className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-amber-700 truncate">
-                    Coach Advance Pay
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    {advanceRequests.filter(r => r.status === 'Pending').length} Awaiting Approval
-                  </div>
-                </div>
-              </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
-          )}
-
-          {/* Module 8: Freeze */}
-          <div
-            onClick={() => setActiveTab('membership-freeze')}
-            className="group p-2.5 sm:p-3 bg-white hover:bg-sky-50/40 border border-slate-200 hover:border-sky-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
-                <PauseCircle className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-800 group-hover:text-sky-700 truncate">
-                  Freeze & Extensions
-                </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {membershipFreezes.length} Active Holds
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-          {/* Module 9: Reports (Restricted for manager) */}
-          {canAccessFinancials && (
-            <div
-              onClick={() => setActiveTab('reports')}
-              className="group p-2.5 sm:p-3 bg-white hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
-                  <BarChart3 className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 truncate">
-                    Facility Reports
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    Analytics & Export
-                  </div>
-                </div>
-              </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
-          )}
-
-        </div>
-      </div>
-
       {/* Pending Salary Advance Notice Banner for Superadmin */}
       {canAccessFinancials && pendingAdvances.length > 0 && (
         <div
@@ -1739,7 +1387,7 @@ export const OwnerDashboard = ({
         </div>
       )}
 
-      {/* 5. MAIN WORKSPACE: PRIORITY ACTION HUB & LIVE STATUS STREAM */}
+      {/* 3. MAIN WORKSPACE: TODAY'S PRIORITY ACTIONS & LIVE STATUS STREAM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6">
 
         {/* Left 8 Cols: Clean Segmented Priority Action Hub */}
@@ -1748,8 +1396,7 @@ export const OwnerDashboard = ({
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">Today's Priority Actions</h3>
-                <p className="text-xs text-slate-500">Items that require owner review or immediate callback</p>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">TODAY'S PRIORITY ACTIONS</h3>
               </div>
 
               {/* Segmented Tab Switcher */}
@@ -1899,7 +1546,7 @@ export const OwnerDashboard = ({
                     onClick={() => setActiveTab('enquiries')}
                     className="text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                   >
-                    Open Full Enquiries CRM ({enquiries.length}) →
+                    Open All Enquiries({enquiries.length}) →
                   </button>
                 </div>
               </div>
@@ -2117,7 +1764,7 @@ export const OwnerDashboard = ({
                       <CalendarDays className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900">Staff Leave Requests</h3>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">STAFF LEAVE REQUESTS</h3>
                       <p className="text-[11px] text-slate-500">
                         {pendingLeaves.length} {pendingLeaves.length === 1 ? 'staff member has applied for leave' : 'staff members have applied for leave'}
                       </p>
@@ -2182,7 +1829,7 @@ export const OwnerDashboard = ({
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Live Gym Floor</h3>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">LIVE GYM FLOOR</h3>
                 <p className="text-xs text-slate-500">Real-time athlete presence</p>
               </div>
               <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${liveOccupancyCount > 0
@@ -2233,9 +1880,9 @@ export const OwnerDashboard = ({
           {/* Recent Check-ins Feed */}
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wide">
                 <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Recent Member Check-Ins</span>
+                <span>RECENT MEMBER CHECK-INS</span>
               </div>
               <span className="text-[10px] text-slate-400">Live Attendance</span>
             </div>
@@ -2277,6 +1924,498 @@ export const OwnerDashboard = ({
         </div>
       </div>
 
+      {/* 4. STREAMLINED OPERATIONS DIRECTORY — IMPORTANT DETAILS ONLY (UNCLUTTERED) */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">
+              OPERATIONS DIRECTORY
+            </h2>
+            <span className="text-[10px] text-slate-400 hidden sm:inline">• Click any page to navigate</span>
+          </div>
+        </div>
+
+        {/* Compact, clean 1-click launcher grid showing essential counts only */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5">
+
+          {/* Module 1: Classes */}
+          <div
+            onClick={() => setActiveTab('classes')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+                <Calendar className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate">
+                  Classes & Batches
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {classes.length} Schedules Active
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 2: PT Sessions */}
+          <div
+            onClick={() => setActiveTab('pt-sessions')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+                <Dumbbell className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-purple-700 truncate">
+                  PT Sessions
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {ptSessions.length} Active Packages
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 3: Invoices (Restricted for manager) */}
+          {canAccessFinancials && (
+            <div
+              onClick={() => setActiveTab('invoices')}
+              className="group p-2.5 sm:p-3 bg-white hover:bg-emerald-50/40 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                  <FileText className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
+                    Invoices & Billing
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {invoices.length} Invoices Issued
+                  </div>
+                </div>
+              </div>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </div>
+          )}
+
+          {/* Module 4: Equipment */}
+          <div
+            onClick={() => setActiveTab('equipment')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-orange-50/40 border border-slate-200 hover:border-orange-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
+                <Wrench className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-orange-700 truncate">
+                  Equipment Health
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {equipment.filter(e => e.status === 'Operational').length}/{equipment.length} Operational
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 5: Pro Shop */}
+          <div
+            onClick={() => setActiveTab('products')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-pink-50/40 border border-slate-200 hover:border-pink-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-pink-50 text-pink-600 border border-pink-200 flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-pink-700 truncate">
+                  Pro Shop Store
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {lowStockProducts.length > 0 ? `${lowStockProducts.length} low stock` : `${products.length} Products`}
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-pink-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 6: Plans */}
+          <div
+            onClick={() => setActiveTab('plans')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-emerald-50/40 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                <Award className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
+                  Membership Plans
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {plans.length} Tier Options
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 7: Advance Pay (Restricted for manager) */}
+          {canAccessFinancials && (
+            <div
+              onClick={() => setActiveTab('advance-pay')}
+              className="group p-2.5 sm:p-3 bg-white hover:bg-amber-50/40 border border-slate-200 hover:border-amber-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                  <Coins className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-amber-700 truncate">
+                    Coach Advance Pay
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {advanceRequests.filter(r => r.status === 'Pending').length} Awaiting Approval
+                  </div>
+                </div>
+              </div>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </div>
+          )}
+
+          {/* Module 8: Freeze */}
+          <div
+            onClick={() => setActiveTab('membership-freeze')}
+            className="group p-2.5 sm:p-3 bg-white hover:bg-sky-50/40 border border-slate-200 hover:border-sky-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
+                <PauseCircle className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 group-hover:text-sky-700 truncate">
+                  Freeze & Extensions
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {membershipFreezes.length} Active Holds
+                </div>
+              </div>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+          {/* Module 9: Reports (Restricted for manager) */}
+          {canAccessFinancials && (
+            <div
+              onClick={() => setActiveTab('reports')}
+              className="group p-2.5 sm:p-3 bg-white hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 truncate">
+                    Facility Reports
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    Analytics & Export
+                  </div>
+                </div>
+              </div>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* 5. VISUAL ANALYTICS ROW: KEY ANALYTICS (REVENUE TREND + ACTIVE VS ALL USER PIE CHART) */}
+      <div className="space-y-2">
+        {/* Mobile Slide Switcher Tabs (Hidden on Desktop) */}
+        {canAccessFinancials && (
+          <div className="flex lg:hidden items-center justify-between gap-2 px-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wide">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>KEY ANALYTICS</span>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => scrollToChartSlide(0)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  activeChartSlide === 0
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Revenue Trend
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToChartSlide(1)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  activeChartSlide === 1
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Active Users
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div
+          ref={chartsScrollRef}
+          onScroll={handleChartsScroll}
+          onTouchStart={() => setIsChartHovered(true)}
+          onTouchEnd={() => setTimeout(() => setIsChartHovered(false), 3000)}
+          onMouseEnter={() => setIsChartHovered(true)}
+          onMouseLeave={() => setIsChartHovered(false)}
+          className="flex lg:grid lg:grid-cols-12 gap-3 sm:gap-6 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scroll-smooth no-scrollbar"
+        >
+
+        {/* Revenue Growth Trend Area Chart (Left 7 Cols or Full if no revenue) */}
+        {canAccessFinancials && (
+          <div className="w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none lg:col-span-7 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">REVENUE GROWTH TREND</h2>
+                  <p className="text-xs text-slate-500">
+                    <span className="sm:hidden">Monthly collections</span>
+                    <span className="hidden sm:inline">Monthly membership & trainer fee collections (Mar – Aug 2026)</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                    Total: ₹{Number(totalRevenue).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-52 sm:h-64 w-full mt-3 sm:mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 11 }} />
+                    <YAxis
+                      stroke="#94a3b8"
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        borderColor: '#e2e8f0',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
+                      }}
+                      formatter={(val) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Revenue']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#059669"
+                      strokeWidth={2}
+                      dot={{ fill: '#059669', r: 3, strokeWidth: 2, stroke: '#ffffff' }}
+                      activeDot={{ r: 5, fill: '#059669' }}
+                      fillOpacity={1}
+                      fill="url(#revenueGrad)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Month-on-Month Growth: <strong className="text-emerald-600">{momGrowthPct}%</strong></span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('financials')}
+                className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+              >
+                <span>Financial Ledger</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ACTIVE VS ALL USER PIE / DONUT CHART (Right 5 Cols or 12 Cols for manager) */}
+        <div className={`w-full min-w-full lg:min-w-0 lg:w-auto shrink-0 lg:shrink snap-center lg:snap-align-none ${canAccessFinancials ? 'lg:col-span-5' : 'lg:col-span-12'} bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm flex flex-col justify-between`}>
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <PieChartIcon className="w-4 h-4 text-emerald-600" />
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">
+                    ACTIVE VS ALL USERS
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Live membership status distribution & retention
+                </p>
+              </div>
+
+              <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
+                {activeRetentionPct}% Active
+              </span>
+            </div>
+
+            {/* Donut Chart with center label & legend */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center mt-3 sm:mt-4">
+              {/* Donut Chart Visual */}
+              <div className="sm:col-span-6 h-48 relative flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    {totalMembersCount > 0 && (
+                      <Tooltip
+                        position={{ y: 0 }}
+                        wrapperStyle={{ zIndex: 40, pointerEvents: 'none' }}
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          borderColor: '#e2e8f0',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          padding: '4px 8px',
+                          color: '#0f172a',
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.08)'
+                        }}
+                        itemStyle={{ padding: 0 }}
+                        formatter={(val, name) => [
+                          `${val} members (${((val / (totalMembersCount || 1)) * 100).toFixed(1)}%)`,
+                          name
+                        ]}
+                      />
+                    )}
+                    <Pie
+                      data={chartPieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={48}
+                      outerRadius={72}
+                      paddingAngle={4}
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                    >
+                      {chartPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+
+                {/* Donut Center Statistic */}
+                <div className="absolute flex flex-col items-center justify-center pointer-events-none text-center">
+                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                    {activeMembersCount}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-0.5">
+                    Active / {totalMembersCount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Breakdown Legend with Clickable Filtering */}
+              <div className="sm:col-span-6 space-y-2">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Membership Breakdown
+                </div>
+                {membershipBreakdown.map((item) => {
+                  const pct = totalMembersCount > 0 ? ((item.value / totalMembersCount) * 100).toFixed(0) : 0;
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => {
+                        const low = (item.name || '').toLowerCase();
+                        let st = 'ALL';
+                        if (low.includes('active')) st = 'Active';
+                        else if (low.includes('expiring')) st = 'Expiring Soon';
+                        else if (low.includes('expired')) st = 'Expired';
+                        else if (low.includes('frozen')) st = 'Frozen';
+                        setActiveTab('members', { memberFilter: { status: st, timestamp: Date.now() } });
+                      }}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between text-xs cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="font-semibold text-slate-700 truncate group-hover:text-slate-900">
+                          {item.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-right shrink-0">
+                        <span className="font-bold text-slate-900">{item.value}</span>
+                        <span className="text-[10px] text-slate-400">({pct}%)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs mt-3">
+            <span className="text-slate-500">
+              Total Lifetime: <strong>{totalMembersCount} athletes</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveTab('members')}
+              className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+            >
+              <span>View Member Directory</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        </div>
+
+        {/* Mobile Pagination Indicator Dots */}
+        {canAccessFinancials && (
+          <div className="flex lg:hidden items-center justify-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => scrollToChartSlide(0)}
+              aria-label="Revenue chart"
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                activeChartSlide === 0 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => scrollToChartSlide(1)}
+              aria-label="Active users chart"
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                activeChartSlide === 1 ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300'
+              }`}
+            />
+          </div>
+        )}
+      </div>
+
       {/* 6. RECENT INVOICES & BILL CREATION AUDIT LOG */}
       {canAccessFinancials && (
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
@@ -2286,8 +2425,8 @@ export const OwnerDashboard = ({
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
                   <FileText className="w-4 h-4" />
                 </div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  Recent Invoices & Staff Creation Audit
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">
+                  RECENT INVOICES & STAFF CREATION AUDIT
                 </h3>
               </div>
             </div>
@@ -2389,13 +2528,13 @@ export const OwnerDashboard = ({
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="pb-2.5 font-semibold">Invoice ID</th>
-                      <th className="pb-2.5 font-semibold">Member</th>
-                      <th className="pb-2.5 font-semibold">Plan / Service</th>
-                      <th className="pb-2.5 font-semibold">Amount</th>
-                      <th className="pb-2.5 font-semibold">Status</th>
-                      <th className="pb-2.5 font-semibold">Billed / Created By</th>
-                      <th className="pb-2.5 font-semibold text-right">Date</th>
+                      <th className="pb-2.5 font-semibold">INVOICE ID</th>
+                      <th className="pb-2.5 font-semibold">MEMBER</th>
+                      <th className="pb-2.5 font-semibold">PLAN / SERVICE</th>
+                      <th className="pb-2.5 font-semibold">AMOUNT</th>
+                      <th className="pb-2.5 font-semibold">STATUS</th>
+                      <th className="pb-2.5 font-semibold">BILLED / CREATED BY</th>
+                      <th className="pb-2.5 font-semibold text-right">DATE</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -2460,7 +2599,7 @@ export const OwnerDashboard = ({
           setIsAddEnquiryOpen(false);
           setEnquirySubmitError(null);
         }}
-        title="Add New Gym Enquiry / Lead"
+        title="ADD NEW GYM ENQUIRY / LEAD"
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleAddEnquirySubmit} className="space-y-3">
@@ -2587,9 +2726,9 @@ export const OwnerDashboard = ({
               onChange={(e) => setEnquiryFormData({ ...enquiryFormData, status: e.target.value })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              <option value="Hot">🔥 Hot (Ready to join immediately / trial session)</option>
-              <option value="Warm">⚡ Warm (Interested / evaluating options)</option>
-              <option value="Cold">❄️ Cold (General inquiry / comparing prices)</option>
+              <option value="Hot">Hot (Ready to join immediately / trial session)</option>
+              <option value="Warm">Warm (Interested / evaluating options)</option>
+              <option value="Cold">Cold (General inquiry / comparing prices)</option>
             </select>
           </div>
 
