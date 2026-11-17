@@ -62,12 +62,12 @@ export const openWhatsApp = ({ phone, text = '', message = '', onToast = null, o
   const messageText = text || message || '';
   const notify = onToast || onSuccess;
   const clean = formatWhatsAppPhone(phone);
-  if (!clean && phone) {
-    if (notify) notify(`Invalid phone number: ${phone}`, 'error');
+  if (!clean) {
+    if (notify) notify(phone ? `Invalid phone number: ${phone}` : 'No phone number provided for WhatsApp.', 'error');
     return false;
   }
 
-  const url = getWhatsAppUrl(phone, messageText);
+  const url = getWhatsAppUrl(clean, messageText);
 
   try {
     const a = document.createElement('a');

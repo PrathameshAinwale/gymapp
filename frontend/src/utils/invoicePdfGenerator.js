@@ -1268,8 +1268,22 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
 
     const memberName = member?.name || invoice.memberName || invoice.member_name || 'Member';
     const invoiceId = (invoice.id || invoice.invoiceNumber || invoice.invoice_number || 'INV-001').toString().toUpperCase();
-    const rawPhone = member?.phone || invoice.phone || invoice.memberPhone || invoice.member_phone || '';
+    const rawPhone =
+      member?.phone ||
+      member?.mobile ||
+      member?.contactNumber ||
+      member?.contact_number ||
+      invoice?.phone ||
+      invoice?.memberPhone ||
+      invoice?.member_phone ||
+      invoice?.mobile ||
+      '';
     const cleanPhone = formatWhatsAppPhone(rawPhone);
+
+    if (!cleanPhone) {
+      if (onToast) onToast(`No registered mobile number found for ${memberName} to send WhatsApp invoice.`, 'error');
+      return false;
+    }
 
     const planName = invoice.planName || invoice.plan_name || member?.planName || member?.plan_name || 'Gym Membership';
     const amountVal = Number(invoice.amount ?? invoice.paidAmount ?? invoice.paid_amount ?? invoice.totalAmount ?? 0);
@@ -1298,33 +1312,12 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
       if (invLookupId) {
         const linkRes = await api.invoices.getSignedUrl(invLookupId);
         if (linkRes?.success && linkRes?.signed_url) {
-          message += `\n\n🔗 *View / Download Invoice PDF:* ${linkRes.signed_url}`;
+          message += `\n\n📄 *View / Download Invoice PDF:*\n${linkRes.signed_url}`;
         }
       }
     } catch (linkErr) {
       // If signed URL generation fails, gracefully send message without the link
       console.warn('Failed to retrieve signed invoice URL, sending standard WhatsApp message:', linkErr);
-    }
-
-    // Check if device/browser supports native file sharing (attaches PDF directly into WhatsApp)
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof File !== 'undefined') {
-      try {
-        const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title: `${gymName} - ${isPending ? 'Invoice' : 'Receipt'} #${invoiceId}`,
-            text: message,
-          });
-          if (onToast) onToast(`Invoice shared via WhatsApp for ${memberName}!`, 'success');
-          return true;
-        }
-      } catch (shareErr) {
-        if (shareErr?.name === 'AbortError') {
-          return true;
-        }
-        console.warn('Native Web Share failed, falling back to direct WhatsApp link:', shareErr);
-      }
     }
 
     return openWhatsApp({
