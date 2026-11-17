@@ -1268,8 +1268,22 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
 
     const memberName = member?.name || invoice.memberName || invoice.member_name || 'Member';
     const invoiceId = (invoice.id || invoice.invoiceNumber || invoice.invoice_number || 'INV-001').toString().toUpperCase();
-    const rawPhone = member?.phone || invoice.phone || invoice.memberPhone || invoice.member_phone || '';
+    const rawPhone =
+      member?.phone ||
+      member?.mobile ||
+      member?.contactNumber ||
+      member?.contact_number ||
+      invoice?.phone ||
+      invoice?.memberPhone ||
+      invoice?.member_phone ||
+      invoice?.mobile ||
+      '';
     const cleanPhone = formatWhatsAppPhone(rawPhone);
+
+    if (!cleanPhone) {
+      if (onToast) onToast(`No registered mobile number found for ${memberName} to send WhatsApp invoice.`, 'error');
+      return false;
+    }
 
     const planName = invoice.planName || invoice.plan_name || member?.planName || member?.plan_name || 'Gym Membership';
     const amountVal = Number(invoice.amount ?? invoice.paidAmount ?? invoice.paid_amount ?? invoice.totalAmount ?? 0);
@@ -1289,33 +1303,71 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
     const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
 
     let message = isPending
-      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nYour official Invoice PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`
-      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nYour official Receipt PDF (${fileName}) has been downloaded to your device.\n\nThank you for working out with ${gymName}!`;
+      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nThank you for working out with ${gymName}!`
+      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nThank you for working out with ${gymName}!`;
 
-    // Fetch temporary signed URL (30-day validity) and append as extra line if available
+    // Fetch temporary signed URL (30-day validity) and append as direct PDF link
     try {
       const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
       if (invLookupId) {
         const linkRes = await api.invoices.getSignedUrl(invLookupId);
-        if (linkRes?.success && linkRes?.signed_url) {
-          message += `\n\n🔗 *Download PDF Online:* ${linkRes.signed_url}`;
+        const signedPdfUrl = linkRes?.signed_url || linkRes?.signedUrl || linkRes?.data?.signed_url || linkRes?.data?.signedUrl;
+        if (signedPdfUrl) {
+          message += `\n\n📄 *View / Download Invoice PDF:*\n${signedPdfUrl}`;
         }
       }
     } catch (linkErr) {
-      // If signed URL generation fails, gracefully send message without the link
-      console.warn('Failed to retrieve signed invoice URL, sending standard WhatsApp message:', linkErr);
+      console.warn('Failed to retrieve signed invoice URL, generating direct download link:', linkErr);
     }
 
-    downloadPdfBlob(blob, fileName);
+    // Fallback: If signed URL could not be retrieved, attach direct download URL so PDF link is never missing
+    if (!message.includes('http')) {
+      const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
+      if (invLookupId) {
+        const directUrl = api.invoices.getDownloadUrl(invLookupId);
+        message += `\n\n📄 *View / Download Invoice PDF:*\n${directUrl}`;
+      }
+    }
 
-    const successCallback = onToast
-      ? () => onToast(`Receipt PDF downloaded (${fileName}) and WhatsApp opened for ${memberName}!`, 'success')
-      : null;
+    // Auto-copy the pre-written receipt message to clipboard so user can paste it in 1 tap
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(message);
+      } catch (clipErr) {
+        console.warn('Could not copy receipt message to clipboard:', clipErr);
+      }
+    }
 
+    // Option 1: Attach the actual PDF document file via Native Share
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `${gymName} - ${isPending ? 'Invoice' : 'Receipt'} #${invoiceId}`,
+            text: message,
+          });
+          if (onToast) {
+            onToast(`Receipt PDF document attached (${fileName})! Message copied to clipboard.`, 'success');
+          }
+          return true;
+        }
+      } catch (shareErr) {
+        if (shareErr?.name === 'AbortError') {
+          return true;
+        }
+        console.warn('Native PDF file share cancelled or failed, falling back to direct WhatsApp link:', shareErr);
+      }
+    }
+
+    // Fallback for desktop / unsupported share targets: open WhatsApp directly
     return openWhatsApp({
       phone: cleanPhone,
+      text: message,
       message,
-      onSuccess: successCallback
+      recipientName: memberName,
+      onToast
     });
   } catch (error) {
     console.error('Failed to share invoice PDF:', error);

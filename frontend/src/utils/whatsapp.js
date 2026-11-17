@@ -58,14 +58,16 @@ export const getWhatsAppUrl = (phone, text = '') => {
  * @param {string} [options.recipientName] - Optional recipient display name
  * @returns {boolean} Success state
  */
-export const openWhatsApp = ({ phone, text = '', onToast = null, recipientName = '' }) => {
+export const openWhatsApp = ({ phone, text = '', message = '', onToast = null, onSuccess = null, recipientName = '' }) => {
+  const messageText = text || message || '';
+  const notify = onToast || onSuccess;
   const clean = formatWhatsAppPhone(phone);
-  if (!clean && phone) {
-    if (onToast) onToast(`Invalid phone number: ${phone}`, 'error');
+  if (!clean) {
+    if (notify) notify(phone ? `Invalid phone number: ${phone}` : 'No phone number provided for WhatsApp.', 'error');
     return false;
   }
 
-  const url = getWhatsAppUrl(phone, text);
+  const url = getWhatsAppUrl(clean, messageText);
 
   try {
     const a = document.createElement('a');
@@ -81,8 +83,8 @@ export const openWhatsApp = ({ phone, text = '', onToast = null, recipientName =
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  if (onToast) {
-    onToast(`WhatsApp opened${recipientName ? ` for ${recipientName}` : ''}!`, 'success');
+  if (notify) {
+    notify(`WhatsApp opened${recipientName ? ` for ${recipientName}` : ''}!`, 'success');
   }
   return true;
 };

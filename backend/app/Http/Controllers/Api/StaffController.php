@@ -25,7 +25,7 @@ class StaffController extends Controller
             'id', 'name', 'email', 'role', 'phone', 'avatar', 'gym_id',
             'must_change_password', 'created_at',
             'dob', 'joining_date', 'aadhaar_card', 'aadhaar_image', 'pan_card', 'pan_image', 'salary', 'shifts',
-            'biometric_user_id', 'synced_to_device'
+            'biometric_user_id', 'synced_to_device', 'plain_password'
         ];
         // Filter only columns that actually exist in the table to be 100% safe
         $selectCols = array_filter($selectCols, fn($c) => Schema::hasColumn('users', $c));
@@ -50,11 +50,12 @@ class StaffController extends Controller
         $staff = $query->orderBy('name')
             ->get($selectCols);
 
-        // Staff records with masked passwords
+        // Staff records with credentials for gym management
         $data = $staff->map(function ($u) use ($hasGymRolesTable) {
             $arr = $u->toArray();
-            $arr['plain_password'] = '••••••••';
-            $arr['password'] = '••••••••';
+            $plainPass = (!empty($u->plain_password) && $u->plain_password !== '••••••••') ? $u->plain_password : null;
+            $arr['plain_password'] = $plainPass ?: '••••••••';
+            $arr['password'] = $plainPass ?: '••••••••';
             $arr['biometric_user_id'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['biometricUserId'] = $u->biometric_user_id ?: (string)$u->id;
             $arr['synced_to_device'] = (bool)$u->synced_to_device;
@@ -207,6 +208,10 @@ class StaffController extends Controller
             'must_change_password' => false,
             'biometric_user_id'    => $request->input('biometric_user_id', $request->input('biometricUserId')),
         ];
+
+        if (Schema::hasColumn('users', 'plain_password')) {
+            $userData['plain_password'] = $validated['password'];
+        }
 
         // System-wide unique Aadhaar & PAN validation across all roles (member, staff, trainer, etc.)
         if (!empty($validated['aadhaar_card'])) {
@@ -470,13 +475,19 @@ class StaffController extends Controller
         // Update password if provided
         if (!empty($validated['password'])) {
             $user->password = Hash::make($validated['password']);
+            if (Schema::hasColumn('users', 'plain_password')) {
+                $user->plain_password = $validated['password'];
+            }
         }
 
         $user->save();
 
         $responseData = $user->toArray();
-        $responseData['plain_password'] = '••••••••';
-        $responseData['password'] = '••••••••';
+        $plainPass = (!empty($user->plain_password) && $user->plain_password !== '••••••••')
+            ? $user->plain_password
+            : (!empty($validated['password']) ? $validated['password'] : null);
+        $responseData['plain_password'] = $plainPass ?: '••••••••';
+        $responseData['password'] = $plainPass ?: '••••••••';
         $responseData['biometric_user_id'] = $user->biometric_user_id ?: (string)$user->id;
         $responseData['biometricUserId'] = $user->biometric_user_id ?: (string)$user->id;
         $responseData['synced_to_device'] = (bool)$user->synced_to_device;

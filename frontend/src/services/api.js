@@ -103,9 +103,6 @@ const getDefaultHosts = () => {
 const CANDIDATE_API_HOSTS = getDefaultHosts();
 
 let activeBaseUrl = (function () {
-  if (import.meta.env.PROD) {
-    return FALLBACK_PRODUCTION_API_URL;
-  }
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname;
     const isLive = currentHost && !isLocalHost(currentHost);
@@ -114,7 +111,7 @@ let activeBaseUrl = (function () {
     if (!isLive || import.meta.env.DEV) {
       localStorage.removeItem('archfit_api_url');
       localStorage.removeItem('pulsefit_api_url');
-      return import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : 'http://127.0.0.1:8000/api/v1');
+      return import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
     }
 
     const inCapacitor = isRunningInCapacitor();
@@ -149,9 +146,9 @@ export const setActiveApiUrl = (url) => {
   }
 };
 
-const API_BASE_URL = import.meta.env.PROD
-  ? FALLBACK_PRODUCTION_API_URL
-  : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1');
+const API_BASE_URL = (typeof window !== 'undefined' && isLocalHost(window.location.hostname))
+  ? (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1')
+  : (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'));
 
 // Helper to determine if an error is an intentional abort (component unmount, route navigation, superseded request)
 export const isIntentionalAbort = (err) => {
