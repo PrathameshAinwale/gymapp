@@ -846,8 +846,8 @@ export const OwnerDashboard = ({
         </div>
       </div>
 
-      {/* UNIVERSAL DASHBOARD SEARCH BAR (Sleek, compact height & constrained max-width) */}
-      <div className="relative w-full max-w-md sm:max-w-lg" ref={searchContainerRef}>
+      {/* UNIVERSAL DASHBOARD SEARCH BAR (Full width) */}
+      <div className="relative w-full" ref={searchContainerRef}>
         <div className="bg-white border border-slate-200/90 rounded-xl px-3 h-9 sm:h-9.5 shadow-2xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 flex items-center gap-2">
           <Search className="w-4 h-4 text-emerald-600 shrink-0" />
 
