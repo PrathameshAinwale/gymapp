@@ -1311,13 +1311,22 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
       const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
       if (invLookupId) {
         const linkRes = await api.invoices.getSignedUrl(invLookupId);
-        if (linkRes?.success && linkRes?.signed_url) {
-          message += `\n\n📄 *View / Download Invoice PDF:*\n${linkRes.signed_url}`;
+        const signedPdfUrl = linkRes?.signed_url || linkRes?.signedUrl || linkRes?.data?.signed_url || linkRes?.data?.signedUrl;
+        if (signedPdfUrl) {
+          message += `\n\n📄 *View / Download Invoice PDF:*\n${signedPdfUrl}`;
         }
       }
     } catch (linkErr) {
-      // If signed URL generation fails, gracefully send message without the link
-      console.warn('Failed to retrieve signed invoice URL, sending standard WhatsApp message:', linkErr);
+      console.warn('Failed to retrieve signed invoice URL, generating direct download link:', linkErr);
+    }
+
+    // Fallback: If signed URL could not be retrieved, attach direct download URL so PDF link is never missing
+    if (!message.includes('http')) {
+      const invLookupId = invoice.numericId || invoice.id || invoice.invoiceNumber || invoice.invoice_number;
+      if (invLookupId) {
+        const directUrl = api.invoices.getDownloadUrl(invLookupId);
+        message += `\n\n📄 *View / Download Invoice PDF:*\n${directUrl}`;
+      }
     }
 
     return openWhatsApp({
