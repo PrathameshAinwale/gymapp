@@ -1329,6 +1329,39 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
       }
     }
 
+    // Auto-copy the pre-written receipt message to clipboard so user can paste it in 1 tap
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(message);
+      } catch (clipErr) {
+        console.warn('Could not copy receipt message to clipboard:', clipErr);
+      }
+    }
+
+    // Option 1: Attach the actual PDF document file via Native Share
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `${gymName} - ${isPending ? 'Invoice' : 'Receipt'} #${invoiceId}`,
+            text: message,
+          });
+          if (onToast) {
+            onToast(`Receipt PDF document attached (${fileName})! Message copied to clipboard.`, 'success');
+          }
+          return true;
+        }
+      } catch (shareErr) {
+        if (shareErr?.name === 'AbortError') {
+          return true;
+        }
+        console.warn('Native PDF file share cancelled or failed, falling back to direct WhatsApp link:', shareErr);
+      }
+    }
+
+    // Fallback for desktop / unsupported share targets: open WhatsApp directly
     return openWhatsApp({
       phone: cleanPhone,
       text: message,
