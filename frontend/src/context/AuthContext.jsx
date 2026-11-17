@@ -666,7 +666,9 @@ export const AuthProvider = ({ children }) => {
       rating: rating || backendUser?.rating || 5.0,
       gymName: currentUser?.gymName || 'PULSE FIT Athletic Club',
       gymId: Number(activeGymId),
-      gym_id: Number(activeGymId)
+      gym_id: Number(activeGymId),
+      password: password || 'staff123',
+      plain_password: password || 'staff123'
     };
 
     const cleanNewPhone = phone ? String(phone).replace(/\D/g, '').slice(-10) : '';

@@ -83,9 +83,11 @@ const getStaffPassword = (stf) => {
   }
   try {
     const saved = JSON.parse(localStorage.getItem('pulsefit_staff_passwords') || '{}');
+    const cleanPhone = stf.phone ? String(stf.phone).replace(/\D/g, '').slice(-10) : '';
     const fromSaved =
       (stf.email && saved[stf.email.toLowerCase()]) ||
       (stf.phone && saved[stf.phone]) ||
+      (cleanPhone && saved[cleanPhone]) ||
       (stf.userId && saved[String(stf.userId)]) ||
       (stf.id && saved[String(stf.id)]);
     if (fromSaved && !isMaskedPassword(fromSaved) && fromSaved !== 'password123') return fromSaved;
@@ -95,10 +97,15 @@ const getStaffPassword = (stf) => {
 };
 
 const saveStaffPassword = (identifier, pass) => {
-  if (!identifier || !pass) return;
+  if (!identifier || !pass || isMaskedPassword(pass)) return;
   try {
     const saved = JSON.parse(localStorage.getItem('pulsefit_staff_passwords') || '{}');
-    saved[String(identifier).toLowerCase()] = pass;
+    const key = String(identifier).toLowerCase();
+    saved[key] = pass;
+    const cleanPhone = String(identifier).replace(/\D/g, '').slice(-10);
+    if (cleanPhone && cleanPhone.length === 10) {
+      saved[cleanPhone] = pass;
+    }
     localStorage.setItem('pulsefit_staff_passwords', JSON.stringify(saved));
   } catch (e) {}
 };
@@ -170,10 +177,15 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         try {
           const saved = JSON.parse(localStorage.getItem('pulsefit_staff_passwords') || '{}');
           res.data.forEach((s) => {
-            const actualPass = s.plain_password || (s.password && s.password !== '••••••••' ? s.password : null);
-            if (actualPass) {
+            const actualPass = (!isMaskedPassword(s.plain_password) ? s.plain_password : null)
+              || (!isMaskedPassword(s.password) ? s.password : null);
+            if (actualPass && actualPass !== 'password123') {
               if (s.email) saved[s.email.toLowerCase()] = actualPass;
-              if (s.phone) saved[s.phone] = actualPass;
+              if (s.phone) {
+                saved[s.phone] = actualPass;
+                const cleanP = String(s.phone).replace(/\D/g, '').slice(-10);
+                if (cleanP) saved[cleanP] = actualPass;
+              }
               if (s.id) saved[String(s.id)] = actualPass;
             }
           });
@@ -437,11 +449,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         existing = existing || {};
 
         const pass =
-          (stf.plain_password && stf.plain_password !== '••••••••' && stf.plain_password !== 'password123')
+          (!isMaskedPassword(stf.plain_password) && stf.plain_password !== 'password123')
             ? stf.plain_password
-            : ((stf.password && stf.password !== '••••••••' && stf.password !== 'password123')
+            : ((!isMaskedPassword(stf.password) && stf.password !== 'password123')
                 ? stf.password
-                : getStaffPassword(stf));
+                : (getStaffPassword(stf) || existing.password || existing.plain_password || ''));
 
         const isTrainer = stf.role === 'trainer' || existing.role === 'trainer';
         const assigned = stf.assigned_members || stf.assignedMembers || existing.assigned_members || existing.assignedMembers || (isTrainer ? members.filter((m) => {
@@ -608,6 +620,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       if (formData.phone) saveStaffPassword(formData.phone, formData.password);
       if (formData.email) saveStaffPassword(formData.email, formData.password);
       if (newAcc.userId) saveStaffPassword(newAcc.userId, formData.password);
+      if (newAcc.id) saveStaffPassword(newAcc.id, formData.password);
 
       setIsCreateModalOpen(false);
       setCreatedCredentials({
