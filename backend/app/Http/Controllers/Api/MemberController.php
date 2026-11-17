@@ -722,10 +722,81 @@ class MemberController extends Controller
             ? (float)$paidAmountInput
             : (float)($request->input('amount', $totalBill));
 
+        // Compulsory Trainer Validation for Personal Training Packages (matches InvoiceController)
+        $hasPtPackage = false;
+        $ptTrainerId = $trainerId ?: ($request->trainer_id ?? $request->trainerId ?? null);
+        if (is_array($packagesList) && count($packagesList) > 0) {
+            foreach ($packagesList as $pkg) {
+                $checkType = \App\Services\PlanChainingService::normalizePackageType($pkg['package_type'] ?? $pkg['packageType'] ?? 'Gym-Cardio');
+                if ($checkType === 'Personal Training') {
+                    $hasPtPackage = true;
+                    if (!empty($pkg['trainer_id'] ?? $pkg['trainerId'] ?? null)) {
+                        $ptTrainerId = $pkg['trainer_id'] ?? $pkg['trainerId'];
+                    }
+                }
+            }
+        } elseif ($plan) {
+            $normType = \App\Services\PlanChainingService::normalizePackageType($plan->package_type ?? 'Gym-Cardio');
+            if ($normType === 'Personal Training') {
+                $hasPtPackage = true;
+            }
+        }
+        if ($hasPtPackage && empty($ptTrainerId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Trainer selection is compulsory for Personal Training packages.',
+                'errors' => [
+                    'trainer_id' => ['Please select a trainer for the Personal Training package.'],
+                    'trainerId' => ['Please select a trainer for the Personal Training package.']
+                ]
+            ], 422);
+        }
+
+        // Fee Calculation & Payment Settlement mandatory check when packages are provided
+        $hasPackagesProvided = is_array($packagesList) && count($packagesList) > 0;
+        if ($hasPackagesProvided) {
+            $computedBillTotal = $totalBill;
+            if ($computedBillTotal <= 0) {
+                $computedBillTotal = (float)collect($packagesList)->sum(fn($p) => (float)($p['price'] ?? 0));
+            }
+            if ($computedBillTotal <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fee Calculation & Payment Settlement is mandatory. Total bill amount must be greater than ₹0.',
+                    'errors' => [
+                        'total_amount' => ['Total bill amount must be greater than ₹0.'],
+                        'totalAmount' => ['Total bill amount must be greater than ₹0.']
+                    ]
+                ], 422);
+            }
+        }
+
+        if ($totalBill > 0 && $receivedAmount > $totalBill) {
+            return response()->json([
+                'success' => false,
+                'message' => "Total payment entered (₹" . number_format($receivedAmount) . ") cannot exceed total payable price (₹" . number_format($totalBill) . ").",
+                'errors' => [
+                    'amount' => ['Total payment entered cannot exceed total payable price.'],
+                    'paid_amount' => ['Total payment entered cannot exceed total payable price.'],
+                ]
+            ], 422);
+        }
+
         $rawDueDate = $request->input('due_date', $request->input('dueDate', $request->input('balance_due_date', $request->input('balanceDueDate'))));
         $parsedDueDate = ($duesAmount > 0 && $rawDueDate) ? \Illuminate\Support\Carbon::parse($rawDueDate)->toDateString() : null;
 
         if ($duesAmount > 0) {
+            if (empty($rawDueDate)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please select the date when the remaining balance due will be paid.',
+                    'errors' => [
+                        'due_date' => ['Promise date for balance due is required.'],
+                        'dueDate' => ['Promise date for balance due is required.'],
+                        'balance_due_date' => ['Promise date for balance due is required.'],
+                    ]
+                ], 422);
+            }
             $promiseError = self::validatePromiseDate($parsedDueDate, $joinDate, $expiryDate, true);
             if ($promiseError) {
                 return response()->json([
