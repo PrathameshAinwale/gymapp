@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
+use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -89,6 +91,7 @@ class EquipmentController extends Controller
     {
         $numericId = str_replace('eq-', '', $id);
         $eq = Equipment::findOrFail($numericId);
+        $previousStatus = $eq->status;
 
         if ($request->has('name')) $eq->name = $request->name;
         if ($request->has('brand')) $eq->brand = $request->brand;
@@ -103,6 +106,37 @@ class EquipmentController extends Controller
         }
         if ($request->has('condition')) $eq->condition = $request->condition;
         $eq->save();
+
+        // Create notification only when status changes TO 'Maintenance Needed'
+        if ($eq->status === 'Maintenance Needed' && $previousStatus !== 'Maintenance Needed') {
+            $gymId = (int) ($eq->gym_id ?: $this->resolveGymId($request));
+            if ($gymId > 0) {
+                $staffUsers = User::where('gym_id', $gymId)
+                    ->whereIn('role', ['owner', 'superadmin', 'manager', 'accounts', 'trainer'])
+                    ->get();
+
+                if ($staffUsers->isNotEmpty()) {
+                    $notificationService = app(NotificationService::class);
+                    foreach ($staffUsers as $staffUser) {
+                        $notificationService->notify(
+                            $gymId,
+                            $staffUser->id,
+                            'maintenance',
+                            'Equipment Maintenance Needed',
+                            "Machine \"{$eq->name}\" was flagged for maintenance inspection.",
+                            [
+                                'equipment_id' => $eq->id,
+                                'equipment_name' => $eq->name,
+                                'location' => $eq->location ?? 'Main Workout Floor',
+                                'status' => $eq->status,
+                            ],
+                            'high',
+                            'equipment_maintenance_' . $eq->id . '_' . $staffUser->id
+                        );
+                    }
+                }
+            }
+        }
 
         return response()->json([
             'success' => true,
