@@ -2550,6 +2550,31 @@ export const GymDataProvider = ({ children }) => {
     }
   };
 
+  const updateClass = async (id, classData) => {
+    try {
+      const res = await api.classes.update(id, classData);
+      setClasses((prev) => {
+        const updated = prev.map((c) => {
+          if (c.id === id || c.numericId === id || String(c.id).replace(/\D/g, '') === String(id).replace(/\D/g, '')) {
+            return {
+              ...c,
+              ...classData,
+              ...(res?.data || {})
+            };
+          }
+          return c;
+        });
+        localStorage.setItem('pulsefit_classes', JSON.stringify(updated));
+        return updated;
+      });
+      addToast(`Class "${classData.title || classData.name || 'Batch'}" updated successfully!`, 'success');
+      return res?.data;
+    } catch (err) {
+      addToast(err?.message || 'Failed to update class', 'error');
+      throw err;
+    }
+  };
+
   // WORKOUT & DIET ACTIONS
   const toggleExerciseDone = (dayIndex, exerciseId) => {
     setWorkoutPlan((prev) => {
@@ -4222,6 +4247,7 @@ export const GymDataProvider = ({ children }) => {
     updatePlan,
     deletePlan,
     addClass,
+    updateClass,
     deleteClass,
     addEquipment,
     updateEquipment,
@@ -4377,7 +4403,7 @@ export const GymDataProvider = ({ children }) => {
     toasts, addToast, removeToast,
     addMember, updateMember, deleteMember, renewMemberPlan, recordPayment,
     addTrainer, updateTrainer, addPlan, updatePlan, deletePlan,
-    addClass, deleteClass, addEquipment, updateEquipment, deleteEquipment,
+    addClass, updateClass, deleteClass, addEquipment, updateEquipment, deleteEquipment,
     checkInMemberByQR, punchOutMember, toggleBookClass, toggleExerciseDone, toggleMealDone,
     incrementWater, decrementWater, logNewBodyMetrics,
     fetchAllFromBackend, fetchMembers, fetchTrainers, fetchPlans, fetchClasses, fetchAttendance,

@@ -230,6 +230,9 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
         Route::delete('/classes/{id}', [GymClassController::class, 'destroy']);
         Route::post('/classes/{id}/book', [GymClassController::class, 'book']);
         Route::post('/classes/{id}/cancel', [GymClassController::class, 'cancel']);
+        Route::get('/classes/{id}/enrollments', [GymClassController::class, 'getEnrollments']);
+        Route::post('/classes/{id}/enroll', [GymClassController::class, 'enrollMember']);
+        Route::delete('/classes/{id}/enroll/{userId}', [GymClassController::class, 'unenrollMember']);
 
         // Attendance & QR Scanner
         Route::get('/attendance', [AttendanceController::class, 'index']);

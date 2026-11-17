@@ -47,4 +47,9 @@ class GymClass extends Model
     {
         return $this->hasMany(ClassBooking::class, 'gym_class_id');
     }
+
+    public function enrollments()
+    {
+        return $this->hasMany(ClassEnrollment::class, 'gym_class_id');
+    }
 }

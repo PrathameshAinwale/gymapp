@@ -976,6 +976,25 @@ export const api = {
       });
       return handleResponse(res);
     },
+    getEnrollments: async (classId) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/enrollments`, { headers: getHeaders() });
+      return handleResponse(res);
+    },
+    enrollMember: async (classId, data) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/enroll`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(res);
+    },
+    unenrollMember: async (classId, userId) => {
+      const res = await apiFetch(`${API_BASE_URL}/classes/${classId}/enroll/${userId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Attendance Endpoints
