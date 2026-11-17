@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -72,8 +72,56 @@ const CreateInvoicePage = lazy(() => import('./components/owner/CreateInvoicePag
 function MainApp() {
   const { isAuthenticated, currentRole, canAccessFinancials, currentUser } = useAuth();
   const { isOwnerTabLoading, gymInfo } = useGymData();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(null);
+
+  // Restore active tab from URL query param, history state, or session storage
+  const getInitialTab = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      if (urlTab) return urlTab;
+
+      if (window.history.state && window.history.state.tab) {
+        return window.history.state.tab;
+      }
+
+      const stored = sessionStorage.getItem('pulsefit_active_tab');
+      if (stored) return stored;
+    } catch (e) {}
+
+    return 'dashboard';
+  };
+
+  const getInitialMemberId = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('memberId') || sessionStorage.getItem('pulsefit_selected_member_id') || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const buildTabUrl = (tab, memberId = null) => {
+    try {
+      const url = new URL(window.location.href);
+      if (!tab || tab === 'dashboard') {
+        url.searchParams.delete('tab');
+        url.searchParams.delete('memberId');
+      } else {
+        url.searchParams.set('tab', tab);
+        if (tab === 'member-profile' && memberId) {
+          url.searchParams.set('memberId', String(memberId));
+        } else {
+          url.searchParams.delete('memberId');
+        }
+      }
+      return url.pathname + (url.search ? url.search : '');
+    } catch (e) {
+      return window.location.pathname;
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [selectedMemberProfileId, setSelectedMemberProfileId] = useState(getInitialMemberId);
   const [createInvoiceInitialMember, setCreateInvoiceInitialMember] = useState(null);
   const [editingInvoiceData, setEditingInvoiceData] = useState(null);
   const [addMemberInitialData, setAddMemberInitialData] = useState(null);
@@ -104,18 +152,26 @@ function MainApp() {
     }
   }, [activeTab, currentTier, gymInfo?.features, currentRole]);
 
-  // Initialize and synchronize history state
+  // Synchronize history state and sessionStorage whenever activeTab or selected member changes
   useEffect(() => {
-    if (isAuthenticated) {
-      if (!window.history.state || window.history.state.tab !== activeTab) {
+    if (isAuthenticated && activeTab) {
+      try {
+        sessionStorage.setItem('pulsefit_active_tab', activeTab);
+        if (selectedMemberProfileId) {
+          sessionStorage.setItem('pulsefit_selected_member_id', String(selectedMemberProfileId));
+        } else {
+          sessionStorage.removeItem('pulsefit_selected_member_id');
+        }
+
+        const targetUrl = buildTabUrl(activeTab, selectedMemberProfileId);
         window.history.replaceState(
-          { tab: activeTab, role: currentRole, app: 'gym' },
+          { tab: activeTab, role: currentRole, app: 'gym', memberId: selectedMemberProfileId },
           '',
-          window.location.pathname
+          targetUrl
         );
-      }
+      } catch (e) {}
     }
-  }, [isAuthenticated, currentRole]);
+  }, [isAuthenticated, activeTab, currentRole, selectedMemberProfileId]);
 
   // Navigate to new tab and push history entry so Back goes back one screen at a time
   const handleNavigateTab = (newTab, options = null) => {
@@ -132,11 +188,14 @@ function MainApp() {
         if (resolved !== 'create-invoice') {
           setEditingInvoiceData(null);
         }
+        if (resolved !== 'member-profile') {
+          setSelectedMemberProfileId(null);
+        }
         if (resolved !== prev) {
           window.history.pushState(
             { tab: resolved, role: currentRole, app: 'gym' },
             '',
-            window.location.pathname
+            buildTabUrl(resolved)
           );
         }
         return resolved;
@@ -145,11 +204,14 @@ function MainApp() {
       if (newTab !== 'create-invoice') {
         setEditingInvoiceData(null);
       }
+      if (newTab !== 'member-profile') {
+        setSelectedMemberProfileId(null);
+      }
       if (newTab !== activeTab) {
         window.history.pushState(
           { tab: newTab, role: currentRole, app: 'gym' },
           '',
-          window.location.pathname
+          buildTabUrl(newTab)
         );
         setActiveTab(newTab);
       }
@@ -169,8 +231,15 @@ function MainApp() {
       // 2. Tab history step back
       if (event.state && event.state.tab) {
         setActiveTab(event.state.tab);
+        if (event.state.memberId) {
+          setSelectedMemberProfileId(event.state.memberId);
+        }
       } else {
-        setActiveTab('dashboard');
+        const params = new URLSearchParams(window.location.search);
+        const tabFromUrl = params.get('tab');
+        setActiveTab(tabFromUrl || 'dashboard');
+        const memberIdFromUrl = params.get('memberId');
+        if (memberIdFromUrl) setSelectedMemberProfileId(memberIdFromUrl);
       }
     };
 
@@ -216,10 +285,18 @@ function MainApp() {
     };
   }, [activeTab, isMobileMenuOpen]);
 
-  // Reset to dashboard when role switches
+  // Reset to dashboard ONLY when role actually switches (not on initial mount or page refresh)
+  const prevRoleRef = useRef(currentRole);
   useEffect(() => {
-    setActiveTab('dashboard');
-    setIsMobileMenuOpen(false);
+    if (prevRoleRef.current !== currentRole) {
+      prevRoleRef.current = currentRole;
+      setActiveTab('dashboard');
+      try {
+        sessionStorage.removeItem('pulsefit_active_tab');
+        sessionStorage.removeItem('pulsefit_selected_member_id');
+      } catch (e) {}
+      setIsMobileMenuOpen(false);
+    }
   }, [currentRole]);
 
   // If not signed in, show the Login Page
