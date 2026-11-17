@@ -2287,14 +2287,18 @@ export const OwnerDashboard = ({
                   <PieChart>
                     {totalMembersCount > 0 && (
                       <Tooltip
+                        position={{ y: 0 }}
+                        wrapperStyle={{ zIndex: 40, pointerEvents: 'none' }}
                         contentStyle={{
                           backgroundColor: '#ffffff',
                           borderColor: '#e2e8f0',
-                          borderRadius: '12px',
-                          fontSize: '12px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          padding: '4px 8px',
                           color: '#0f172a',
-                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)'
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.08)'
                         }}
+                        itemStyle={{ padding: 0 }}
                         formatter={(val, name) => [
                           `${val} members (${((val / (totalMembersCount || 1)) * 100).toFixed(1)}%)`,
                           name
