@@ -1,8 +1,11 @@
 // API Service Client for Laravel REST API Backend
 
 const FALLBACK_PRODUCTION_API_URL = 'https://archfit.archenterprises.co.in/api/v1';
-const LIVE_PRODUCTION_API_URL = import.meta.env.PROD
-  ? (import.meta.env.VITE_API_BASE_URL || FALLBACK_PRODUCTION_API_URL)
+const metaEnv = (typeof import.meta !== 'undefined' && import.meta?.env)
+  ? import.meta.env
+  : { DEV: true, PROD: false, VITE_API_BASE_URL: 'http://127.0.0.1:8000/api/v1' };
+const LIVE_PRODUCTION_API_URL = metaEnv.PROD
+  ? (metaEnv.VITE_API_BASE_URL || FALLBACK_PRODUCTION_API_URL)
   : null;
 
 const isRunningInCapacitor = () => {
@@ -15,7 +18,7 @@ const isRunningInCapacitor = () => {
   );
 };
 
-const isLocalHost = import.meta.env.DEV
+const isLocalHost = Boolean(metaEnv.DEV)
   ? (hostname) => {
       if (!hostname) return true;
       return (
@@ -35,17 +38,17 @@ const getOriginApiUrl = () => {
 };
 
 const getDefaultHosts = () => {
-  const envApiUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+  const envApiUrl = metaEnv.VITE_API_BASE_URL?.trim();
   const originApiUrl = getOriginApiUrl();
   const inCapacitor = isRunningInCapacitor();
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
-  if (import.meta.env.PROD) {
+  if (metaEnv.PROD) {
     return Array.from(new Set([originApiUrl, LIVE_PRODUCTION_API_URL, FALLBACK_PRODUCTION_API_URL].filter(Boolean)));
   }
 
   // Local development mode: strictly candidate local endpoints only
-  if (import.meta.env.DEV) {
+  if (metaEnv.DEV) {
     const hosts = [];
     if (envApiUrl) {
       try {
@@ -108,10 +111,10 @@ let activeBaseUrl = (function () {
     const isLive = currentHost && !isLocalHost(currentHost);
 
     // If on localhost / LAN development or in DEV mode: strictly lock to local Laravel backend
-    if (!isLive || import.meta.env.DEV) {
+    if (!isLive || metaEnv.DEV) {
       localStorage.removeItem('archfit_api_url');
       localStorage.removeItem('pulsefit_api_url');
-      return import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+      return metaEnv.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
     }
 
     const inCapacitor = isRunningInCapacitor();
@@ -134,7 +137,7 @@ let activeBaseUrl = (function () {
       return LIVE_PRODUCTION_API_URL || FALLBACK_PRODUCTION_API_URL;
     }
   }
-  return import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : 'http://127.0.0.1:8000/api/v1');
+  return metaEnv.VITE_API_BASE_URL || (metaEnv.PROD ? FALLBACK_PRODUCTION_API_URL : 'http://127.0.0.1:8000/api/v1');
 })();
 
 export const getActiveApiUrl = () => activeBaseUrl;
@@ -147,8 +150,8 @@ export const setActiveApiUrl = (url) => {
 };
 
 const API_BASE_URL = (typeof window !== 'undefined' && isLocalHost(window.location.hostname))
-  ? (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1')
-  : (import.meta.env.PROD ? FALLBACK_PRODUCTION_API_URL : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'));
+  ? (metaEnv.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1')
+  : (metaEnv.PROD ? FALLBACK_PRODUCTION_API_URL : (metaEnv.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'));
 
 // Helper to determine if an error is an intentional abort (component unmount, route navigation, superseded request)
 export const isIntentionalAbort = (err) => {
@@ -311,7 +314,7 @@ const CACHE_TTL_MS = 6000; // 6s cache for duplicate GET queries
 // Universal smart fetch wrapper that auto-fails over if the endpoint host is unreachable
 const apiFetch = async (urlOrPath, options = {}) => {
   let relativePath = urlOrPath;
-  const allKnownHosts = import.meta.env.PROD
+  const allKnownHosts = metaEnv.PROD
     ? [activeBaseUrl, LIVE_PRODUCTION_API_URL, FALLBACK_PRODUCTION_API_URL, getOriginApiUrl(), ...CANDIDATE_API_HOSTS].filter(Boolean)
     : [activeBaseUrl, 'http://127.0.0.1:8000/api/v1', 'http://localhost:8000/api/v1', getOriginApiUrl(), ...CANDIDATE_API_HOSTS].filter(Boolean);
 
@@ -362,7 +365,7 @@ const apiFetch = async (urlOrPath, options = {}) => {
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
     let rawHosts = [];
-    if (import.meta.env.PROD) {
+    if (metaEnv.PROD) {
       if (inCapacitor) {
         rawHosts = [
           activeBaseUrl,
@@ -397,7 +400,7 @@ const apiFetch = async (urlOrPath, options = {}) => {
     const hostsToTry = Array.from(new Set(rawHosts));
 
     // SAFETY GUARD: In development mode, strictly forbid calling remote/production hosts
-    if (import.meta.env.DEV) {
+    if (metaEnv.DEV) {
       for (const host of hostsToTry) {
         try {
           const parsed = new URL(host, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
@@ -458,7 +461,7 @@ const apiFetch = async (urlOrPath, options = {}) => {
 
     if (lastError && (lastError.name === 'TypeError' || lastError.message?.includes('Failed to fetch') || lastError.message?.includes('NetworkError'))) {
       const friendlyNetErr = new Error(
-        import.meta.env.PROD
+        metaEnv.PROD
           ? 'Unable to connect to the backend server. Please check your internet connection.'
           : 'Unable to connect to the backend server. Please verify the local server is running on port 8000.'
       );

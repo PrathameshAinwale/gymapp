@@ -2370,9 +2370,8 @@ export const CreateInvoicePage = ({
                   {isPt && (
                     <div className="pt-2 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                          <span>Assign PT Coach / Trainer</span>
-                          <span className="text-rose-500 font-extrabold">* (Compulsory)</span>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Assign PT Coach / Trainer *
                         </label>
                         <select
                           required
@@ -2443,7 +2442,7 @@ export const CreateInvoicePage = ({
                   <CreditCard className="w-4 h-4" />
                 </div>
                 <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  3. Fee Calculation & Payment Settlement
+                  3. Fee Calculation & Payment Settlement *
                 </h2>
               </div>
               <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
@@ -2726,16 +2725,24 @@ export const CreateInvoicePage = ({
                 </span>
               </div>
             </div>
+          ) : totalCalculatedAmount <= 0 ? (
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Fee Calculation & Payment Settlement is required. Please configure at least one package with a price greater than ₹0.
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-bold text-[10px] uppercase border border-amber-300 shrink-0 ml-2">
+                Action Required *
+              </span>
+            </div>
           ) : (
             <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  {totalCalculatedAmount > 0 ? (
-                    <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
-                  ) : (
-                    <>Payment settled. <strong>No balance remaining.</strong></>
-                  )}
+                  Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong>
                 </span>
               </div>
               <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">

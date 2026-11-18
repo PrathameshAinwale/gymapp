@@ -248,8 +248,8 @@ export const isValidAadhaar = (aadhaar) => {
 };
 
 /**
- * Validates human and staff names containing alphabetic & Unicode letters, digits, spaces, hyphens, dots, and apostrophes.
- * Must have at least 2 alphanumeric characters and <= 100 chars.
+ * Validates human and staff names containing alphabetic & Unicode letters, spaces, hyphens, dots, and apostrophes.
+ * Rejects numbers and special-character-only values. Must have at least 2 letters and <= 100 chars.
  * @param {string} name 
  * @returns {boolean}
  */
@@ -257,23 +257,23 @@ export const isValidName = (name) => {
   if (!name || typeof name !== 'string') return false;
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 100) return false;
-  // Disallow special characters other than letters, numbers, spaces, dots, hyphens, and apostrophes
-  const validCharsRegex = /^[\p{L}\p{N}\s'.-]+$/u;
+  // Disallow numbers and special characters other than letters, spaces, dots, hyphens, and apostrophes
+  const validCharsRegex = /^[\p{L}\s'.-]+$/u;
   if (!validCharsRegex.test(trimmed)) return false;
-  // Must contain at least 2 alphanumeric characters
-  const charCount = (trimmed.match(/[\p{L}\p{N}]/gu) || []).length;
+  // Must contain at least 2 letters
+  const charCount = (trimmed.match(/\p{L}/gu) || []).length;
   return charCount >= 2;
 };
 
 /**
- * Sanitizes name input by stripping unsupported symbols while retaining letters, numbers, spaces, dots, hyphens, and apostrophes
+ * Sanitizes name input by stripping unsupported symbols and digits while retaining letters, spaces, dots, hyphens, and apostrophes
  * @param {string} val 
  * @returns {string}
  */
 export const sanitizeName = (val) => {
   if (val === null || val === undefined) return '';
   return String(val)
-    .replace(/[^\p{L}\p{N}\s'.-]/gu, '')
+    .replace(/[^\p{L}\s'.-]/gu, '')
     .slice(0, 100);
 };
 

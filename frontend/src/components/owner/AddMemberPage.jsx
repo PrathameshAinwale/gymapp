@@ -2800,7 +2800,7 @@ export const AddMemberPage = ({
                 <Dumbbell className="w-4 h-4" />
               </div>
               <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                {isEditMode ? '3. Active Membership Subscription' : '3. Membership Packages & Add-on Services'}
+                {isEditMode ? '3. Active Membership Subscription' : '3. Membership Packages & Add-on Services *'}
               </h2>
             </div>
           </div>
@@ -3304,7 +3304,7 @@ export const AddMemberPage = ({
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                    5. Fee Calculation & Payment Settlement
+                    5. Fee Calculation & Payment Settlement *
                   </h2>
                 </div>
                 <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
@@ -3564,16 +3564,24 @@ export const AddMemberPage = ({
                   </span>
                 </div>
               </div>
+            ) : totalCalculatedAmount <= 0 ? (
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Fee Calculation & Payment Settlement is required. Please select at least one membership package above with a plan fee greater than ₹0.
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-bold text-[10px] uppercase border border-amber-300 shrink-0 ml-2">
+                  Required *
+                </span>
+              </div>
             ) : (
               <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    {totalCalculatedAmount > 0 ? (
-                      <>Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong></>
-                    ) : (
-                      <>Payment settled. <strong>No balance remaining.</strong></>
-                    )}
+                    Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong>
                   </span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">
@@ -3824,7 +3832,12 @@ export const AddMemberPage = ({
                 ? !formData.name?.trim()
                 : isUpgradeMode
                   ? totalCalculatedAmount <= 0
-                  : (!consentAgreed || (!otpVerified && !signedInPerson)))
+                  : (!consentAgreed || (!otpVerified && !signedInPerson) || totalCalculatedAmount <= 0))
+            }
+            title={
+              !isEditMode && totalCalculatedAmount <= 0
+                ? 'Fee Calculation & Payment Settlement is compulsory. Total bill amount must be greater than ₹0.'
+                : ''
             }
             className={`w-full sm:w-auto min-h-[48px] sm:min-h-0 px-6 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isEditMode
                 ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'

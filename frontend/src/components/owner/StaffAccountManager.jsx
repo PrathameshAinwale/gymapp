@@ -110,6 +110,37 @@ const saveStaffPassword = (identifier, pass) => {
   } catch (e) {}
 };
 
+// Helper to get standardized, consistent role display name across directory, modal, and copy clipboard
+const getStaffRoleDisplayName = (stf, rolesList = []) => {
+  if (!stf) return 'Staff';
+  const roleSlug = (stf.role || '').toLowerCase();
+  const matchedRole = (rolesList || []).find((r) => (r.slug || r.id) === roleSlug);
+  if (matchedRole?.name) return matchedRole.name;
+
+  if (stf.role_label && stf.role_label !== 'Senior Finance Officer' && stf.role_label !== 'Operations Manager') {
+    return stf.role_label;
+  }
+  if (stf.roleLabel && stf.roleLabel !== 'Senior Finance Officer' && stf.roleLabel !== 'Operations Manager') {
+    return stf.roleLabel;
+  }
+  if (roleSlug === 'accounts') return 'Accounts';
+  if (roleSlug === 'manager') return 'Manager';
+  if (roleSlug === 'trainer') return 'Trainer';
+  if (roleSlug === 'owner' || roleSlug === 'superadmin') return 'Owner';
+
+  return stf.role ? (stf.role.charAt(0).toUpperCase() + stf.role.slice(1)) : 'Staff';
+};
+
+// Helper for consistent role badge color styling
+const getStaffRoleBadgeClass = (stf) => {
+  const roleSlug = (stf?.role || '').toLowerCase();
+  if (roleSlug === 'accounts') return 'bg-amber-50 text-amber-800 border-amber-300';
+  if (roleSlug === 'manager') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+  if (roleSlug === 'trainer') return 'bg-purple-50 text-purple-700 border-purple-200';
+  if (roleSlug === 'owner' || roleSlug === 'superadmin') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+};
+
 // Component for rendering staff avatar with SVG person icon fallback
 const StaffAvatar = ({ src, name, size = 'sm' }) => {
   const [imgError, setImgError] = useState(false);
@@ -407,8 +438,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       .forEach((a) => {
         const pass = getStaffPassword(a);
         const accKey = getCanonicalKey(a);
+        const roleLabel = getStaffRoleDisplayName(a, availableRoles);
         map.set(accKey, {
           ...a,
+          role_label: roleLabel,
+          roleLabel: roleLabel,
           password: pass,
           plain_password: pass
         });
@@ -463,6 +497,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
           return mTrn === sId || mTrn === `trn-${sUsr}` || mTrn === sUsr;
         }) : []);
 
+        const roleLabel = getStaffRoleDisplayName(stf, availableRoles);
         map.set(staffKey, {
           ...existing,
           id: existing.id || `usr-${stf.role}-${stf.id}`,
@@ -470,6 +505,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
           name: stf.name,
           email: stf.email,
           role: stf.role,
+          role_label: roleLabel,
+          roleLabel: roleLabel,
           phone: stf.phone || existing.phone,
           avatar: stf.avatar || existing.avatar || null,
           dob: stf.dob || existing.dob || '',
@@ -629,7 +666,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
         phone: newAcc.phone || formData.phone || '',
         password: formData.password,
         role: newAcc.role,
-        roleLabel: newAcc.roleLabel
+        roleLabel: getStaffRoleDisplayName(newAcc, availableRoles)
       });
 
       setFormData({
@@ -1943,8 +1980,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="font-bold text-emerald-900 text-sm">{createdCredentials.name}</h4>
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-800 border border-emerald-200 capitalize">
-                {createdCredentials.roleLabel || createdCredentials.role}
+              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStaffRoleBadgeClass(createdCredentials)}`}>
+                {getStaffRoleDisplayName(createdCredentials, availableRoles)}
               </span>
             </div>
 
@@ -1984,8 +2021,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <button
               type="button"
               onClick={() => {
+                const roleName = getStaffRoleDisplayName(createdCredentials, availableRoles);
                 copyToClipboard(
-                  `ArchFit Staff Login Credentials:\nName: ${createdCredentials.name}\nRole: ${createdCredentials.roleLabel || createdCredentials.role}\nMobile / Login ID: ${createdCredentials.phone || createdCredentials.email}${createdCredentials.email ? `\nEmail: ${createdCredentials.email}` : ''}\nPassword: ${createdCredentials.password}`,
+                  `ArchFit Staff Login Credentials:\nName: ${createdCredentials.name}\nRole: ${roleName}\nMobile / Login ID: ${createdCredentials.phone || createdCredentials.email}${createdCredentials.email ? `\nEmail: ${createdCredentials.email}` : ''}\nPassword: ${createdCredentials.password}`,
                   'created'
                 );
               }}
@@ -2012,8 +2050,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <div className="min-w-0 flex-1">
                 <h4 className="font-bold text-slate-900 text-sm truncate">{sharingStaff.name}</h4>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
-                    {sharingStaff.roleLabel || sharingStaff.role}
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStaffRoleBadgeClass(sharingStaff)}`}>
+                    {getStaffRoleDisplayName(sharingStaff, availableRoles)}
                   </span>
                   {sharingStaff.phone && (
                     <span className="text-[10px] text-slate-400">{sharingStaff.phone}</span>
@@ -2115,8 +2153,9 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   || (!isMaskedPassword(sharingStaff?.plain_password) ? sharingStaff.plain_password : '')
                   || (!isMaskedPassword(sharingStaff?.password) ? sharingStaff.password : '')
                   || 'Password not available. Reset password';
+                const roleName = getStaffRoleDisplayName(sharingStaff, availableRoles);
                 copyToClipboard(
-                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${sharingStaff.roleLabel || sharingStaff.role}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email || 'N/A'}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
+                  `ArchFit Staff Login Credentials\nName: ${sharingStaff.name}\nRole: ${roleName}\nMobile / Login ID: ${sharingStaff.phone || sharingStaff.email || 'N/A'}${sharingStaff.email ? `\nEmail: ${sharingStaff.email}` : ''}\nPassword: ${pass}`,
                   'share-all'
                 );
               }}

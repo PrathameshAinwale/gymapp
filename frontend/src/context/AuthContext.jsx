@@ -43,7 +43,7 @@ export const defaultAccounts = [
     gym_id: 1,
     name: "Sunita Deshmukh",
     role: "accounts",
-    roleLabel: "Senior Finance Officer",
+    roleLabel: "Accounts",
     email: "accounts@archfit.in",
     username: "accounts",
     password: "accounts123",
@@ -253,15 +253,16 @@ export const AuthProvider = ({ children }) => {
               name: u.name,
               role: role,
               roleLabel:
-                role === 'manager'
-                  ? 'Operations Manager'
+                u.role_label ||
+                (role === 'manager'
+                  ? 'Manager'
                   : role === 'accounts'
-                  ? 'Senior Finance Officer'
+                  ? 'Accounts'
                   : role === 'trainer'
-                  ? 'Personal Trainer'
+                  ? 'Trainer'
                   : role === 'superadmin' || role === 'owner'
-                  ? 'Superadmin & General Director'
-                  : 'Gym Staff',
+                  ? 'Owner'
+                  : 'Staff Member'),
               email: u.email,
               username: u.email?.split('@')[0] || u.name,
               password: u.plain_password || u.password || 'sohan123',
@@ -344,13 +345,13 @@ export const AuthProvider = ({ children }) => {
         const roleLabel =
           res.user.role_label ||
           (userRole === 'superadmin' || userRole === 'owner'
-            ? 'Superadmin & General Director'
+            ? 'Owner'
             : userRole === 'manager'
-            ? 'Operations Manager'
+            ? 'Manager'
             : userRole === 'accounts'
-            ? 'Senior Finance Officer'
+            ? 'Accounts'
             : userRole === 'trainer'
-            ? 'Personal Trainer'
+            ? 'Trainer'
             : 'Gym Member');
 
         const badge =
@@ -643,13 +644,14 @@ export const AuthProvider = ({ children }) => {
       mustChangePassword: false,
       role: roleNormalized,
       roleLabel:
-        roleNormalized === 'manager'
-          ? 'Operations Manager'
+        backendUser.role_label ||
+        (roleNormalized === 'manager'
+          ? 'Manager'
           : roleNormalized === 'accounts'
-          ? 'Senior Finance Officer'
+          ? 'Accounts'
           : roleNormalized === 'trainer'
-          ? 'Personal Trainer & Coach'
-          : 'Staff Member',
+          ? 'Trainer'
+          : 'Staff Member'),
       avatar: backendUser.avatar || null,
       badge: roleNormalized === 'manager' ? 'Manager Access' : roleNormalized === 'accounts' ? 'Accounts Access' : 'Trainer Access',
       phone: phone || '',
