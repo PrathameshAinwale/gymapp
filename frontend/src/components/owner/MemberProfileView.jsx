@@ -35,7 +35,7 @@ import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { PayDueModal } from './PayDueModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
-import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getWhatsAppUrl, getGymName } from '../../utils/whatsapp';
 import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { normalizePackageType } from '../common/MembershipPlanModal';
 import { compareInvoicesDesc } from '../../utils/searchUtils';
@@ -357,18 +357,18 @@ export const MemberProfileView = ({
                   className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-white shadow-sm shrink-0"
                 />
               ) : (
-                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-2xl shadow-sm border border-emerald-400 shrink-0">
+                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-2xl shadow-sm border border-emerald-400 shrink-0">
                   {member.name?.charAt(0) || 'M'}
                 </div>
               )}
 
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                     {member.name}
                   </h3>
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${
+                    className={`px-2.5 py-0.5 rounded-full text-2xs font-bold border inline-flex items-center gap-1 ${
                       effectiveStatus === 'Active'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : effectiveStatus === 'Expiring Soon'
@@ -386,7 +386,7 @@ export const MemberProfileView = ({
                 </div>
 
                 <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap font-medium">
-                  <span className="font-mono text-slate-500 font-bold">
+                  <span className="font-mono text-slate-500 font-medium">
                     ID: {member.id || member.memberId || 'MEM-001'}
                   </span>
                   <span>•</span>
@@ -402,16 +402,24 @@ export const MemberProfileView = ({
             {/* Quick Contact Icons */}
             <div className="flex items-center gap-2 shrink-0">
               {member.phone && (
-                <a
-                  href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from ${gymInfo?.name || 'our Gym'}!`)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 sm:px-3 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
-                  title="Chat on WhatsApp"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">WhatsApp</span>
-                </a>
+                (() => {
+                  const activeGym = getGymName(gymInfo?.name);
+                  const msg = activeGym
+                    ? `Hi ${member.name}, greetings from ${activeGym}!`
+                    : `Hi ${member.name}, reach out anytime for assistance!`;
+                  return (
+                    <a
+                      href={getWhatsAppUrl(member.phone, msg)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 sm:px-3 sm:py-2 min-h-[36px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                      title="Chat on WhatsApp"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span className="hidden sm:inline">WhatsApp</span>
+                    </a>
+                  );
+                })()
               )}
 
               {member.phone && (
@@ -448,7 +456,7 @@ export const MemberProfileView = ({
           {/* 2. MEMBERSHIP & VALIDITY CARD */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-emerald-600" />
                 <span>Membership Details & Validity</span>
               </span>
@@ -459,25 +467,25 @@ export const MemberProfileView = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Plan Name</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Plan Name</span>
                 <strong className="text-slate-900 font-bold text-xs truncate block">{member.planName || 'Plan'}</strong>
-                <span className="text-[10px] text-slate-500 mt-0.5 block">{member.durationMonths ? `${member.durationMonths} Months` : 'Active Pass'}</span>
+                <span className="text-2xs text-slate-500 mt-0.5 block">{member.durationMonths ? `${member.durationMonths} Months` : 'Active Pass'}</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Joining Date</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Joining Date</span>
                 <strong className="text-slate-900 font-bold text-xs block">
                   {formatDate(member.joinDate || member.join_date || member.joiningDate || member.joining_date || member.createdAt)}
                 </strong>
-                <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Enrolled Member</span>
+                <span className="text-2xs text-emerald-700 font-semibold mt-0.5 block">Enrolled Member</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Valid Until</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Valid Until</span>
                 <strong className={`font-bold text-xs block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : effectiveStatus === 'Unassigned' || !member.expiryDate ? 'text-slate-500' : 'text-slate-900'}`}>
                   {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'Expired' : (!member.expiryDate || effectiveStatus === 'Unassigned') ? 'No Active Plan' : formatDate(member.expiryDate || member.expiry_date)}
                 </strong>
-                <span className={`text-[10px] font-semibold mt-0.5 block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : effectiveStatus === 'Unassigned' || !member.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
+                <span className={`text-2xs font-semibold mt-0.5 block ${effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired' ? 'text-rose-600' : effectiveStatus === 'Expiring Soon' ? 'text-amber-600' : effectiveStatus === 'Unassigned' || !member.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
                   {effectiveStatus === 'Expired' || String(member.status || '').toLowerCase() === 'expired'
                     ? 'Expired'
                     : effectiveStatus === 'Expiring Soon'
@@ -489,11 +497,11 @@ export const MemberProfileView = ({
               </div>
 
               <div className={`p-3 rounded-xl border ${duesAmount > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-slate-50 border-slate-200/70'}`}>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Outstanding Balance</span>
-                <strong className={`font-mono font-black text-sm block ${duesAmount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Outstanding Balance</span>
+                <strong className={`font-mono font-bold text-sm block ${duesAmount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
                   ₹{Number(duesAmount).toLocaleString('en-IN')}
                 </strong>
-                <span className="text-[10px] text-slate-500 mt-0.5 block">
+                <span className="text-2xs text-slate-500 mt-0.5 block">
                   {duesAmount > 0 ? (member.dueDate ? `Due: ${member.dueDate}` : 'Pending Due') : 'All Dues Cleared'}
                 </span>
               </div>
@@ -502,7 +510,7 @@ export const MemberProfileView = ({
             {/* Active Service Packages Breakdown (Grouped by Package Type with Start & End Dates) */}
             <div className="pt-3 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                <span className="text-2xs font-bold text-slate-700 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Active Subscriptions ({activePackagesByType.length})</span>
                 </span>
@@ -515,13 +523,13 @@ export const MemberProfileView = ({
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="font-bold text-slate-900 truncate">{pkg.packageType}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">Active</span>
+                          <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">Active</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
+                        <span className="text-2xs text-slate-500 block truncate">{pkg.planName}</span>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-[9px] text-emerald-700 font-bold block uppercase">Duration</span>
-                        <span className="font-bold font-mono text-emerald-950 text-[10px]">
+                        <span className="text-2xs text-emerald-700 font-semibold block uppercase">Duration</span>
+                        <span className="font-bold font-mono text-emerald-950 text-2xs">
                           {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
                         </span>
                       </div>
@@ -537,7 +545,7 @@ export const MemberProfileView = ({
               {/* Upcoming / Chained Packages */}
               {plansBreakdown.upcoming.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-bold text-sky-700 uppercase tracking-wider block">
+                  <span className="text-2xs font-semibold text-sky-700 uppercase tracking-wider block">
                     Upcoming (Chained) Subscriptions
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -545,11 +553,11 @@ export const MemberProfileView = ({
                       <div key={idx} className="p-2.5 rounded-xl bg-sky-50/50 border border-sky-200 flex items-center justify-between text-xs">
                         <div className="min-w-0 pr-2">
                           <span className="font-bold text-slate-900 block truncate">{pkg.packageType}</span>
-                          <span className="text-[10px] text-slate-500 block truncate">{pkg.planName}</span>
+                          <span className="text-2xs text-slate-500 block truncate">{pkg.planName}</span>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-[9px] text-sky-600 font-bold block uppercase">Upcoming</span>
-                          <span className="font-mono text-[10px] font-bold text-sky-950">
+                          <span className="text-2xs text-sky-600 font-semibold block uppercase">Upcoming</span>
+                          <span className="font-mono text-2xs font-bold text-sky-950">
                             {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
                           </span>
                         </div>
@@ -562,7 +570,7 @@ export const MemberProfileView = ({
               {/* Expired Packages */}
               {plansBreakdown.expired.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">
                     Past / Expired Plans
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -572,7 +580,7 @@ export const MemberProfileView = ({
                           <span className="font-medium text-slate-700 block truncate">{pkg.packageType}: {pkg.planName}</span>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="font-mono text-slate-400 text-[10px]">
+                          <span className="font-mono text-slate-400 text-2xs">
                             {formatDate(pkg.startDate)} – {formatDate(pkg.endDate)}
                           </span>
                         </div>
@@ -595,7 +603,7 @@ export const MemberProfileView = ({
                   <h4 className="font-bold text-xs sm:text-sm text-slate-900">
                     Invoices & Receipts History ({memberInvoices.length})
                   </h4>
-                  <p className="text-[10px] text-slate-500">Official billing records for this member</p>
+                  <p className="text-2xs text-slate-500">Official billing records for this member</p>
                 </div>
               </div>
 
@@ -618,7 +626,7 @@ export const MemberProfileView = ({
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider sticky top-0">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-2xs uppercase font-semibold text-slate-500 tracking-wider sticky top-0">
                       <tr>
                         <th className="py-2.5 px-3">Invoice #</th>
                         <th className="py-2.5 px-3">Date</th>
@@ -636,21 +644,21 @@ export const MemberProfileView = ({
                           onClick={() => handleOpenInvoicePreview(inv)}
                           className="hover:bg-emerald-50/60 transition-colors cursor-pointer group"
                         >
-                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-700 group-hover:text-emerald-800">
+                          <td className="py-2.5 px-3 font-mono font-medium text-emerald-700 group-hover:text-emerald-800">
                             {inv.id}
                           </td>
                           <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{formatDate(inv.date || inv.created_at)}</td>
                           <td className="py-2.5 px-3 font-semibold text-slate-800">{inv.planName || inv.plan_name || 'Membership Pass'}</td>
                           <td className="py-2.5 px-3">
-                            <span className="inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-700">
+                            <span className="inline-block px-2 py-0.5 text-2xs font-semibold rounded bg-slate-100 text-slate-700">
                               {inv.paymentMethod || inv.payment_method || 'UPI'}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                          <td className="py-2.5 px-3 text-right font-mono font-medium text-emerald-700">
                             ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                           </td>
                           <td className="py-2.5 px-3 text-center">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <CheckCircle2 className="w-3 h-3" /> {inv.status || 'Paid'}
                             </span>
                           </td>
@@ -672,7 +680,7 @@ export const MemberProfileView = ({
                                     setEditingInvoice(payload);
                                   }
                                 }}
-                                className="px-2 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1"
+                                className="px-2 py-1 text-2xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer transition-colors shadow-2xs inline-flex items-center gap-1"
                                 title="Edit invoice details and amount"
                               >
                                 <Edit2 className="w-3 h-3 text-indigo-600" />
@@ -684,7 +692,7 @@ export const MemberProfileView = ({
                                   e.stopPropagation();
                                   handleOpenInvoicePreview(inv);
                                 }}
-                                className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                                className="px-2.5 py-1 text-2xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
                               >
                                 Receipt
                               </button>
@@ -700,31 +708,31 @@ export const MemberProfileView = ({
               <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs">
                 <Receipt className="w-8 h-8 mx-auto text-slate-400 mb-1" />
                 <p className="font-semibold text-slate-700">No invoices recorded yet</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Billing receipts issued for this member will automatically show here.</p>
+                <p className="text-2xs text-slate-400 mt-0.5">Billing receipts issued for this member will automatically show here.</p>
               </div>
             )}
           </div>
 
           {/* 4. CONTACT & EMERGENCY INFORMATION */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 pb-2 border-b border-slate-100">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 pb-2 border-b border-slate-100">
               <Mail className="w-4 h-4 text-emerald-600" />
               <span>Contact & Emergency Information</span>
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Phone Number</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Phone Number</span>
                 <strong className="text-slate-900 font-semibold text-xs block">{member.phone || 'Not provided'}</strong>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Email Address</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Email Address</span>
                 <strong className="text-slate-900 font-semibold text-xs break-all block">{member.email || 'Not provided'}</strong>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Emergency Contact</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Emergency Contact</span>
                 <strong className="text-slate-900 font-semibold text-xs block">{member.emergencyContact || 'None reported'}</strong>
               </div>
             </div>
@@ -732,35 +740,35 @@ export const MemberProfileView = ({
 
           {/* 5. PHYSICAL PROFILE & HEALTH */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 pb-2 border-b border-slate-100">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 pb-2 border-b border-slate-100">
               <Scale className="w-4 h-4 text-emerald-600" />
               <span>Physical Profile & Health Notes</span>
             </span>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-center">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Weight</span>
-                <div className="text-base font-black text-slate-900 mt-0.5">{member.weight ? `${member.weight} kg` : '--'}</div>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block">Current Weight</span>
+                <div className="text-base font-bold text-slate-900 mt-0.5">{member.weight ? `${member.weight} kg` : '--'}</div>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Target Weight</span>
-                <div className="text-base font-black text-emerald-600 mt-0.5">{member.targetWeight ? `${member.targetWeight} kg` : '--'}</div>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block">Target Weight</span>
+                <div className="text-base font-bold text-emerald-600 mt-0.5">{member.targetWeight ? `${member.targetWeight} kg` : '--'}</div>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Height</span>
-                <div className="text-base font-black text-slate-900 mt-0.5">{member.height ? `${member.height} cm` : '--'}</div>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block">Height</span>
+                <div className="text-base font-bold text-slate-900 mt-0.5">{member.height ? `${member.height} cm` : '--'}</div>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">BMI Score</span>
-                <div className="text-base font-black text-slate-900 mt-0.5">{bmi || '--'}</div>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block">BMI Score</span>
+                <div className="text-base font-bold text-slate-900 mt-0.5">{bmi || '--'}</div>
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">
                 Fitness Objective
               </span>
               <p className="text-slate-900 font-semibold flex items-center gap-1.5">
@@ -770,7 +778,7 @@ export const MemberProfileView = ({
 
               {member.medicalNotes && member.medicalNotes !== 'None' && (
                 <div className="pt-2 border-t border-slate-200 mt-2">
-                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                  <span className="text-2xs font-semibold text-amber-700 uppercase tracking-wider block">
                     Medical Notes & Considerations
                   </span>
                   <p className="text-amber-900 mt-0.5">{member.medicalNotes}</p>
@@ -841,7 +849,7 @@ export const MemberProfileView = ({
                   <div className="text-xs font-bold text-slate-800 truncate">
                     Tax Invoice & Receipt
                   </div>
-                  <div className="text-[11px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     Official gym payment voucher & tax summary
                   </div>
                 </div>
@@ -885,7 +893,7 @@ export const MemberProfileView = ({
                     <h3 className="font-bold text-lg text-slate-900">{gymInfo?.name || 'Fitness Club'}</h3>
                     {gymInfo?.address && <p className="text-xs text-slate-500">{gymInfo.address}</p>}
                     {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
-                      <p className="text-[11px] text-slate-400 font-mono">GSTIN: {gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</p>
+                      <p className="text-2xs text-slate-400 font-mono">GSTIN: {gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -898,21 +906,21 @@ export const MemberProfileView = ({
 
                 <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Billed To</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block">Billed To</span>
                     <strong className="text-slate-900 font-bold text-sm">{member.name}</strong>
                     <div className="text-slate-600">{member.phone}</div>
                     <div className="text-slate-600">{member.email}</div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Method</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block">Payment Method</span>
                     <strong className="text-slate-800 font-semibold">{selectedInvoice.paymentMethod || 'UPI'}</strong>
-                    <div className="text-[10px] text-emerald-700 font-bold mt-1">Status: Paid (Settled)</div>
+                    <div className="text-2xs text-emerald-700 font-bold mt-1">Status: Paid (Settled)</div>
                   </div>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-2xs uppercase font-semibold text-slate-500">
                       <tr>
                         <th className="p-3">Description</th>
                         <th className="p-3 text-right">Amount</th>
@@ -923,7 +931,7 @@ export const MemberProfileView = ({
                         <td className="p-3 font-semibold text-slate-800">
                           {selectedInvoice.planName || 'Gym Membership Subscription'}
                         </td>
-                        <td className="p-3 text-right font-mono font-bold text-slate-900">
+                        <td className="p-3 text-right font-mono font-medium text-slate-900">
                           ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                         </td>
                       </tr>

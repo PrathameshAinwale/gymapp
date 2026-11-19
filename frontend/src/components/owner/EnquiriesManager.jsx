@@ -11,7 +11,9 @@ import {
   sanitizePhone,
   preventNonPhoneKey
 } from '../../utils/validation';
-import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getWhatsAppUrl, getGymName } from '../../utils/whatsapp';
+import { SearchInput } from '../common/SearchInput';
+import { withTitleCase } from '../../utils/textUtils';
 import {
   PhoneCall,
   Search,
@@ -600,30 +602,33 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Leads & Enquiries</h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">Leads & Enquiries</h1>
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Capture, track, and convert prospective walk-ins, calls, and online inquiries into active gym members.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {enquiries?.length || 0} Total leads
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">New Enquiry</span>
-            <span className="inline sm:hidden">Add Lead</span>
+            <span className="sm:hidden">Add Lead</span>
           </button>
         </div>
       </div>
@@ -631,34 +636,23 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search leads by name, phone, email, source, plan, or notes..."
-              className="w-full pl-9 pr-8 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold cursor-pointer"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search leads by name, phone, email, source, plan, or notes..."
+            mobilePlaceholder="Search leads..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="p-2 bg-slate-50 text-2xs font-semibold text-slate-500 uppercase tracking-wider">
                   Matching Leads ({searchSuggestions.length})
                 </div>
                 {searchSuggestions.map((ld) => (
@@ -671,23 +665,23 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                     className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-2xs flex items-center justify-center border border-emerald-200">
                         {(ld.name || 'L').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
                           {ld.name}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-2xs text-slate-400">
                           {ld.phone || ld.email || ld.source}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-2xs font-semibold">
                         {ld.interestedPlan || ld.goal || 'General Lead'}
                       </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-md border ${
                         normalizeStatus(ld) === 'Hot' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                         normalizeStatus(ld) === 'Warm' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                         normalizeStatus(ld) === 'Converted' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -700,23 +694,23 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 ))}
               </div>
             )}
-          </div>
+          </SearchInput>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated Filter Button */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 shrink-0 ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
               }`}
             >
-              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <Filter className={`w-3.5 h-3.5 shrink-0 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -727,7 +721,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {selectedMonth && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
                 <Calendar className="w-3 h-3 text-emerald-600" />
@@ -780,7 +774,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -794,7 +788,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
           Showing <strong className="text-emerald-700">{filteredEnquiries.length}</strong> of {totalCount} Enquiries
         </span>
         {searchTerm && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-2xs text-slate-400">
             Filtered by "{searchTerm}"
           </span>
         )}
@@ -836,15 +830,15 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-900 text-xs truncate">{enq.name}</div>
-                    <div className="text-[10px] text-slate-400 font-mono truncate">{enq.phone}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 text-xs truncate" title={enq.name}>{enq.name}</div>
+                    <div className="text-2xs text-slate-400 font-mono whitespace-nowrap shrink-0">{enq.phone}</div>
                   </div>
                   <div className="relative inline-flex items-center shrink-0">
                     <select
                       value={currentStatus}
                       onChange={(e) => handleStatusChange(enq.id, e.target.value)}
-                      className={`appearance-none pl-5 pr-4 py-0.5 rounded-md text-[10px] font-bold border cursor-pointer focus:outline-none transition-all ${
+                      className={`appearance-none pl-5 pr-4 py-0.5 rounded-md text-2xs font-bold border cursor-pointer focus:outline-none transition-all ${
                         currentStatus === 'Hot'
                           ? 'bg-rose-50 text-rose-700 border-rose-200'
                           : currentStatus === 'Warm'
@@ -879,38 +873,46 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[10px]">
-                  <div>
+                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-2xs">
+                  <div className="min-w-0">
                     <span className="text-slate-400 font-medium block">Interested In</span>
-                    <span className="font-bold text-slate-800 truncate block">{enq.interestedPlan || 'General / Not Decided'}</span>
+                    <span className="font-bold text-slate-800 truncate block" title={enq.interestedPlan || 'General / Not Decided'}>{enq.interestedPlan || 'General / Not Decided'}</span>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-400 font-medium block">Goal</span>
-                    <span className="font-semibold text-slate-700 truncate block">{enq.goal}</span>
+                    <span className="font-semibold text-slate-700 truncate block" title={enq.goal}>{enq.goal}</span>
                   </div>
                 </div>
 
                 {enq.notes && (
                   <div
                     onClick={() => handleOpenCommentModal(enq)}
-                    className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-600 cursor-pointer"
+                    className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-2xs text-slate-600 cursor-pointer"
                   >
-                    <span className="italic line-clamp-1">"{noteInfo.text}"</span>
+                    <span className="italic app-clamp-2" title={noteInfo.text}>"{noteInfo.text}"</span>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
                   <div className="flex items-center gap-1.5">
                     {enq.phone && (
-                      <a
-                        href={getWhatsAppUrl(enq.phone, `Hi ${enq.name}, greetings from Pulse Fitness! Following up on your enquiry.`)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1.5 min-h-[36px] rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Chat</span>
-                      </a>
+                      (() => {
+                        const activeGym = getGymName(gymInfo?.name);
+                        const chatMsg = activeGym
+                          ? `Hi ${enq.name}, greetings from ${activeGym}! Following up on your enquiry.`
+                          : `Hi ${enq.name}, following up on your enquiry.`;
+                        return (
+                          <a
+                            href={getWhatsAppUrl(enq.phone, chatMsg)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1.5 min-h-[36px] rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1 active:scale-95 transition-all"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Chat</span>
+                          </a>
+                        );
+                      })()
                     )}
                     <button
                       type="button"
@@ -987,7 +989,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-4">Prospect Details</th>
                   <th className="py-3.5 px-4">Interested Plan & Goal</th>
                   <th className="py-3.5 px-4">Status & Source</th>
@@ -1006,29 +1008,37 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                   return (
                     <tr key={enq.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Prospect Name & Phone */}
-                      <td className="py-3.5 px-4 space-y-1">
-                        <div className="font-bold text-slate-900 text-sm leading-snug">{enq.name}</div>
-                        <div className="flex items-center gap-1.5 font-medium text-slate-900 text-[11px] flex-wrap">
+                      <td className="py-3.5 px-4 space-y-1 max-w-[200px]">
+                        <div className="font-bold text-slate-900 text-sm leading-snug truncate" title={enq.name}>{enq.name}</div>
+                        <div className="flex items-center gap-1.5 font-medium text-slate-900 text-2xs flex-wrap">
                           <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>{enq.phone}</span>
+                          <span className="whitespace-nowrap shrink-0">{enq.phone}</span>
                           {enq.phone && (
-                            <a
-                              href={getWhatsAppUrl(enq.phone, `Hi ${enq.name}, greetings from Pulse Fitness! We are following up on your enquiry for the ${enq.interestedPlan} plan. Would you like to book a complimentary trial session this week?`)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold transition-colors"
-                              title="1-Click WhatsApp Follow-up"
-                            >
-                              <MessageCircle className="w-3 h-3 text-emerald-600" />
-                            </a>
+                            (() => {
+                              const activeGym = getGymName(gymInfo?.name);
+                              const tableMsg = activeGym
+                                ? `Hi ${enq.name}, greetings from ${activeGym}! We are following up on your enquiry for the ${enq.interestedPlan || 'membership'} plan. Would you like to book a complimentary trial session this week?`
+                                : `Hi ${enq.name}, following up on your enquiry for the ${enq.interestedPlan || 'membership'} plan. Would you like to book a complimentary trial session this week?`;
+                              return (
+                                <a
+                                  href={getWhatsAppUrl(enq.phone, tableMsg)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-2xs font-semibold transition-colors shrink-0"
+                                  title="1-Click WhatsApp Follow-up"
+                                >
+                                  <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                </a>
+                              );
+                            })()
                           )}
                         </div>
                       </td>
 
                       {/* Interested Plan & Goal */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{enq.interestedPlan || 'General / Not Decided'}</div>
-                        <div className="text-[11px] text-slate-500">{enq.goal}</div>
+                      <td className="py-3.5 px-4 max-w-[180px]">
+                        <div className="font-semibold text-slate-900 truncate" title={enq.interestedPlan || 'General / Not Decided'}>{enq.interestedPlan || 'General / Not Decided'}</div>
+                        <div className="text-2xs text-slate-500 truncate" title={enq.goal}>{enq.goal}</div>
                       </td>
 
                       {/* Unified Status & Source (Only: Hot, Warm, Cold, Converted, Not Interested) */}
@@ -1037,7 +1047,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                           <select
                             value={currentStatus}
                             onChange={(e) => handleStatusChange(enq.id, e.target.value)}
-                            className={`appearance-none pl-5 pr-4 py-0.5 rounded-md text-[10px] font-bold border cursor-pointer focus:outline-none transition-colors ${
+                            className={`appearance-none pl-5 pr-4 py-0.5 rounded-md text-2xs font-bold border cursor-pointer focus:outline-none transition-colors ${
                               currentStatus === 'Hot'
                                 ? 'bg-rose-50 text-rose-700 border-rose-200'
                                 : currentStatus === 'Warm'
@@ -1071,7 +1081,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                           </div>
                           <ChevronDown className="w-2.5 h-2.5 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-70" />
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-1">Source: {enq.source || 'Walk-in'}</div>
+                        <div className="text-2xs text-slate-400 mt-1">Source: {enq.source || 'Walk-in'}</div>
                       </td>
 
                       {/* Logged By Staff */}
@@ -1090,12 +1100,12 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                         {enq.notes ? (
                           <div
                             onClick={() => handleOpenCommentModal(enq)}
-                            className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 text-slate-700 text-[11px] leading-relaxed cursor-pointer transition-all group"
+                            className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 text-slate-700 text-2xs leading-relaxed cursor-pointer transition-all group"
                             title="Click to view or edit comment"
                           >
                             <div className="flex items-start gap-1.5 flex-wrap">
                               {noteInfo.date && (
-                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-100/90 text-emerald-800 border border-emerald-300 font-bold text-[10px] not-italic">
+                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-100/90 text-emerald-800 border border-emerald-300 font-bold text-2xs not-italic">
                                   {noteInfo.date}
                                 </span>
                               )}
@@ -1103,7 +1113,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                                 "{noteInfo.text}"
                               </p>
                             </div>
-                            <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 mt-1">
+                            <div className="flex items-center gap-1 text-2xs font-bold text-emerald-600 mt-1">
                               <MessageSquare className="w-2.5 h-2.5" />
                               <span>Edit Comment</span>
                             </div>
@@ -1112,7 +1122,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                           <button
                             type="button"
                             onClick={() => handleOpenCommentModal(enq)}
-                            className="px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50 text-[11px] font-medium text-slate-400 hover:text-emerald-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50 text-2xs font-medium text-slate-400 hover:text-emerald-700 flex items-center gap-1.5 transition-colors cursor-pointer"
                           >
                             <MessageSquarePlus className="w-3.5 h-3.5" />
                             <span>+ Add Comment</span>
@@ -1127,7 +1137,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                             <button
                               type="button"
                               onClick={() => handleOpenAddMemberModal(enq)}
-                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-emerald-600/20 active:scale-95"
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-emerald-600/20 active:scale-95"
                               title="Add Member - Register & Enroll this Lead"
                             >
                               <UserPlus className="w-3.5 h-3.5" />
@@ -1137,7 +1147,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(enq)}
-                            className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                            className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 text-2xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                             title="Edit All Lead Fields"
                           >
                             <Edit2 className="w-3 h-3 text-slate-500" />
@@ -1171,19 +1181,19 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
         <form onSubmit={handleAddSubmit} className="space-y-2.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prospect Full Name *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Prospect Full Name *</label>
               <input
                 type="text"
                 required
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={withTitleCase((e) => setFormData({ ...formData, name: e.target.value }))}
                 placeholder="e.g. Vikram Malhotra"
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Phone Number *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Phone Number *</label>
               <input
                 type="tel"
                 required
@@ -1200,7 +1210,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Email Address</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Email Address</label>
               <input
                 type="email"
                 value={formData.email}
@@ -1211,7 +1221,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Lead Source</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Lead Source</label>
               <select
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
@@ -1228,7 +1238,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Interested Plan</label>
               <select
                 value={selectedCreateInterestedPlan}
                 onChange={(e) => setFormData({ ...formData, interestedPlan: e.target.value })}
@@ -1258,7 +1268,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Fitness Goal</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Fitness Goal</label>
               <select
                 value={formData.goal || ''}
                 onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
@@ -1276,7 +1286,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Lead Status</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">Lead Status</label>
             <select
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
@@ -1291,7 +1301,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Logged By Staff Member <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
@@ -1299,7 +1309,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 type="text"
                 required
                 value={formData.staffName}
-                onChange={(e) => setFormData({ ...formData, staffName: e.target.value })}
+                onChange={withTitleCase((e) => setFormData({ ...formData, staffName: e.target.value }))}
                 placeholder="e.g. Pooja Sharma, Coach Alex, Owner"
                 list="staff-name-datalist"
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -1315,19 +1325,19 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
           <div>
             <div className="flex items-center justify-between mb-0.5">
-              <label className="block text-[10px] font-bold text-slate-700">Notes & Discussion Summary</label>
-              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              <label className="block text-2xs font-bold text-slate-700">Notes & Discussion Summary</label>
+              <span className="text-2xs font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                 Date Stamped: {getTodayFormatted()}
               </span>
             </div>
             <textarea
               rows={2}
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={withTitleCase((e) => setFormData({ ...formData, notes: e.target.value }))}
               placeholder="Add details about their requirement, preferred gym timings, questions asked..."
               className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
             />
-            <p className="text-[9px] text-slate-400 mt-0.5">
+            <p className="text-2xs text-slate-400 mt-0.5">
               Today's date ({getTodayFormatted()}) will automatically be saved in front of this note.
             </p>
           </div>
@@ -1343,7 +1353,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             <button
               type="submit"
               disabled={isSubmittingAdd}
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               {isSubmittingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSubmittingAdd ? 'Saving...' : 'Save Enquiry'}</span>
@@ -1365,28 +1375,28 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
         <form onSubmit={handleSaveComment} className="space-y-2.5">
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-0.5">
             <div className="font-bold text-slate-800">Prospect: {selectedEnquiryForComment?.name}</div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-2xs text-slate-500">
               Plan: {selectedEnquiryForComment?.interestedPlan} | Logged by: {selectedEnquiryForComment?.staffName || 'Staff'}
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-0.5">
-              <label className="block text-[10px] font-bold text-slate-700">
+              <label className="block text-2xs font-bold text-slate-700">
                 Staff Comment / Discussion Notes
               </label>
-              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              <span className="text-2xs font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                 Note Date: {getTodayFormatted()}
               </span>
             </div>
             <textarea
               rows={3}
               value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
+              onChange={withTitleCase((e) => setCommentText(e.target.value))}
               placeholder="Enter discussion notes, specific requirements, trial feedback, or follow-up summary..."
               className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
             />
-            <p className="text-[9px] text-slate-400 mt-0.5">
+            <p className="text-2xs text-slate-400 mt-0.5">
               Today's date ({getTodayFormatted()}) will automatically be placed in front of this note.
             </p>
           </div>
@@ -1405,7 +1415,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             <button
               type="submit"
               disabled={isSubmittingComment}
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               {isSubmittingComment && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSubmittingComment ? 'Saving...' : 'Save Comment'}</span>
@@ -1426,24 +1436,24 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
       >
         <form onSubmit={handleConfirmScrap} className="space-y-2.5">
           <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-0.5">
-            <div className="font-bold flex items-center gap-1 text-amber-900 text-[11px]">
+            <div className="font-bold flex items-center gap-1 text-amber-900 text-2xs">
               <Archive className="w-3.5 h-3.5 text-amber-600" />
               <span>Lead Retention Policy</span>
             </div>
-            <p className="text-[10px] leading-relaxed text-amber-700">
+            <p className="text-2xs leading-relaxed text-amber-700">
               This lead will be marked as <strong>Not Interested</strong> and archived for compliance audits.
             </p>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-0.5">
             <div className="font-bold text-slate-900">{leadToScrap?.name}</div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-2xs text-slate-500">
               {leadToScrap?.phone} | Plan: {leadToScrap?.interestedPlan}
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Select Reason *
             </label>
             <select
@@ -1474,7 +1484,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             <button
               type="submit"
               disabled={isSubmittingScrap}
-              className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               {isSubmittingScrap && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSubmittingScrap ? 'Updating...' : 'Mark as Not Interested'}</span>
@@ -1497,19 +1507,19 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
           <form onSubmit={handleSaveEdit} className="space-y-2.5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prospect Full Name *</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Prospect Full Name *</label>
                 <input
                   type="text"
                   required
                   value={editingEnquiry.name}
-                  onChange={(e) => setEditingEnquiry({ ...editingEnquiry, name: e.target.value })}
+                  onChange={withTitleCase((e) => setEditingEnquiry({ ...editingEnquiry, name: e.target.value }))}
                   placeholder="e.g. Vikram Malhotra"
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Phone Number *</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Phone Number *</label>
                 <input
                   type="tel"
                   required
@@ -1526,7 +1536,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Email Address</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Email Address</label>
                 <input
                   type="email"
                   value={editingEnquiry.email}
@@ -1537,7 +1547,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Lead Source</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Lead Source</label>
                 <select
                   value={editingEnquiry.source}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, source: e.target.value })}
@@ -1554,7 +1564,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Interested Plan</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Interested Plan</label>
                 <select
                   value={selectedEditInterestedPlan}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, interestedPlan: e.target.value })}
@@ -1584,7 +1594,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Fitness Goal</label>
+                <label className="block text-2xs font-bold text-slate-700 mb-0.5">Fitness Goal</label>
                 <select
                   value={editingEnquiry.goal || ''}
                   onChange={(e) => setEditingEnquiry({ ...editingEnquiry, goal: e.target.value })}
@@ -1602,7 +1612,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Lead Status</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">Lead Status</label>
               <select
                 value={editingEnquiry.status}
                 onChange={(e) => setEditingEnquiry({ ...editingEnquiry, status: e.target.value })}
@@ -1617,7 +1627,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">
                 Logged By Staff Member <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -1625,7 +1635,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                   type="text"
                   required
                   value={editingEnquiry.staffName || ''}
-                  onChange={(e) => setEditingEnquiry({ ...editingEnquiry, staffName: e.target.value })}
+                  onChange={withTitleCase((e) => setEditingEnquiry({ ...editingEnquiry, staffName: e.target.value }))}
                   placeholder="e.g. Pooja Sharma, Coach Alex, Owner"
                   list="edit-staff-name-datalist"
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
@@ -1641,19 +1651,19 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
 
             <div>
               <div className="flex items-center justify-between mb-0.5">
-                <label className="block text-[10px] font-bold text-slate-700">Discussion Notes / Staff Comment</label>
-                <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                <label className="block text-2xs font-bold text-slate-700">Discussion Notes / Staff Comment</label>
+                <span className="text-2xs font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                   Note Date: {getTodayFormatted()}
                 </span>
               </div>
               <textarea
                 rows={2}
                 value={editingEnquiry.notes || ''}
-                onChange={(e) => setEditingEnquiry({ ...editingEnquiry, notes: e.target.value })}
+                onChange={withTitleCase((e) => setEditingEnquiry({ ...editingEnquiry, notes: e.target.value }))}
                 placeholder="Add requirement details, notes, preferences, or reasons..."
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 resize-none"
               />
-              <p className="text-[9px] text-slate-400 mt-0.5">
+              <p className="text-2xs text-slate-400 mt-0.5">
                 Today's date ({getTodayFormatted()}) will automatically be saved in front of this note.
               </p>
             </div>
@@ -1672,7 +1682,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
               <button
                 type="submit"
                 disabled={isSubmittingEdit}
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
                 {isSubmittingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>{isSubmittingEdit ? 'Saving...' : 'Save Changes'}</span>
@@ -1721,7 +1731,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Month Selection</span>
-                  <span className="text-[11px] font-normal text-slate-400">Select specific month</span>
+                  <span className="text-2xs font-normal text-slate-400">Select specific month</span>
                 </label>
                 <input
                   type="month"
@@ -1752,7 +1762,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
                         selectedMonth === mPreset.value
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1771,7 +1781,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">From Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">From Date</span>
                     <input
                       type="date"
                       value={startDate}
@@ -1780,7 +1790,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">To Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">To Date</span>
                     <input
                       type="date"
                       value={endDate}
@@ -1809,7 +1819,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                       key={st.id}
                       type="button"
                       onClick={() => setStatusFilter(st.id)}
-                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
+                      className={`text-2xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
                         statusFilter === st.id
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1826,7 +1836,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                   <span>Lead Source</span>
                   {sourceFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setSourceFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                    <button type="button" onClick={() => setSourceFilter('ALL')} className="text-2xs text-emerald-600 font-bold hover:underline">
                       Reset
                     </button>
                   )}
@@ -1852,7 +1862,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                   <span>Target Membership Plan</span>
                   {planFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-2xs text-emerald-600 font-bold hover:underline">
                       Reset
                     </button>
                   )}
@@ -1877,7 +1887,7 @@ export const EnquiriesManager = ({ onConvertLeadToMember, initialFilterPreset })
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer"
               >
                 Reset All Filters
               </button>

@@ -22,6 +22,7 @@ import {
   User
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 
 const UserAvatar = ({ src, alt, className = "w-11 h-11 rounded-xl", iconClassName = "w-5 h-5 text-teal-600" }) => {
   const [hasError, setHasError] = useState(false);
@@ -126,14 +127,14 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
   return (
     <div className="space-y-6 animate-fadeIn pb-16 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-3 sm:p-6 rounded-2xl shadow-xs">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200">
               <Dumbbell className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal">
                 1-on-1 Personal Training (PT) Sessions
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -160,16 +161,14 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search member name or package title..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 shadow-xs"
-          />
-        </div>
+        <SearchInput
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onClear={() => setSearchTerm('')}
+          placeholder="Search member name or package title..."
+          mobilePlaceholder="Search sessions..."
+          containerClassName="flex-1 max-w-md"
+        />
 
         <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-xs self-start sm:self-auto">
           <button
@@ -243,21 +242,21 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                 <div className="space-y-3">
                   {/* Top Member Card */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <UserAvatar
                         src={pt.memberAvatar || memberObj?.avatar}
                         alt={pt.memberName}
-                        className="w-11 h-11 rounded-xl"
+                        className="w-11 h-11 rounded-xl shrink-0"
                         iconClassName="w-5 h-5 text-teal-600"
                       />
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-slate-900 text-sm truncate">{pt.memberName}</h3>
-                        <p className="text-[11px] text-slate-500 truncate">{pt.packageTitle}</p>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-slate-900 text-sm truncate" title={pt.memberName}>{pt.memberName}</h3>
+                        <p className="text-2xs text-slate-500 truncate" title={pt.packageTitle}>{pt.packageTitle}</p>
                       </div>
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                      className={`px-2 py-0.5 rounded-full text-2xs font-bold uppercase tracking-wider shrink-0 whitespace-nowrap ${
                         isFinished
                           ? 'bg-slate-100 text-slate-600 border border-slate-200'
                           : 'bg-teal-50 text-teal-700 border border-teal-200'
@@ -268,16 +267,18 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                   </div>
 
                   {/* Goal & Details Pill */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-1.5 text-2xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 min-w-0">
                     <Target className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                    <span className="truncate">{memberObj?.goal || 'General Fitness & Muscle Building'}</span>
+                    <span className="truncate min-w-0" title={memberObj?.goal || 'General Fitness & Muscle Building'}>
+                      {memberObj?.goal || 'General Fitness & Muscle Building'}
+                    </span>
                   </div>
 
                   {/* Progress Bar & Quota */}
                   <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-medium">Session Quota</span>
-                      <span className="font-mono font-bold text-slate-900">
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="text-slate-500 font-medium truncate">Session Quota</span>
+                      <span className="font-mono font-bold text-slate-900 shrink-0 whitespace-nowrap">
                         {completed} / {total} Delivered ({pct}%)
                       </span>
                     </div>
@@ -289,10 +290,10 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                      <span>{remaining} sessions remaining</span>
+                    <div className="flex items-center justify-between text-2xs text-slate-400 pt-0.5 gap-2">
+                      <span className="shrink-0 whitespace-nowrap">{remaining} sessions remaining</span>
                       {pt.otp && !isFinished && (
-                        <span className="text-[10px] font-mono text-teal-700 font-semibold bg-teal-50 px-1.5 py-0.5 rounded">
+                        <span className="text-2xs font-mono text-teal-700 font-semibold bg-teal-50 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
                           Active Pass: {pt.otp}
                         </span>
                       )}
@@ -347,15 +348,15 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
         {selectedPtForOtp && (
           <form onSubmit={handleVerifyOtpSubmit} className="space-y-4 text-xs">
             {/* Package Summary Box */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <div>
-                <div className="font-bold text-slate-900 text-xs">{selectedPtForOtp.memberName}</div>
-                <div className="text-[11px] text-slate-500">{selectedPtForOtp.packageTitle}</div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-slate-900 text-xs truncate" title={selectedPtForOtp.memberName}>{selectedPtForOtp.memberName}</div>
+                <div className="text-2xs text-slate-500 truncate" title={selectedPtForOtp.packageTitle}>{selectedPtForOtp.packageTitle}</div>
               </div>
-              <div className="text-right font-mono text-xs">
+              <div className="text-right font-mono text-xs shrink-0 whitespace-nowrap">
                 <span className="font-bold text-teal-700">{selectedPtForOtp.completedSessions + 1}</span>
                 <span className="text-slate-400">/{selectedPtForOtp.totalSessions}</span>
-                <div className="text-[10px] text-slate-500">Session #{selectedPtForOtp.completedSessions + 1}</div>
+                <div className="text-2xs text-slate-500 whitespace-nowrap">Session #{selectedPtForOtp.completedSessions + 1}</div>
               </div>
             </div>
 
@@ -398,7 +399,7 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                 <label className="block font-bold text-slate-800">
                   Client Verification OTP (Final Step)
                 </label>
-                <span className="text-[10px] font-mono text-slate-400">
+                <span className="text-2xs font-mono text-slate-400">
                   Passcode: <strong className="text-teal-700">{selectedPtForOtp.otp}</strong>
                 </span>
               </div>
@@ -409,7 +410,7 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                 placeholder="Enter 4-digit client OTP"
                 value={inputOtp}
                 onChange={(e) => setInputOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-full text-center tracking-widest text-lg font-mono font-black py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
+                className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
               />
             </div>
 
@@ -424,7 +425,7 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Verify & Record Session</span>
@@ -444,13 +445,13 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
         {viewHistoryPkg && (
           <div className="space-y-4 text-xs">
             {/* Header info */}
-            <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-teal-800 uppercase font-bold block">Package Title</span>
-                <span className="font-bold text-teal-950 text-sm">{viewHistoryPkg.packageTitle}</span>
+            <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <span className="text-2xs text-teal-800 uppercase font-semibold block">Package Title</span>
+                <span className="font-bold text-teal-950 text-sm truncate block" title={viewHistoryPkg.packageTitle}>{viewHistoryPkg.packageTitle}</span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-teal-800 uppercase font-bold block">Delivered Quota</span>
+                <span className="text-2xs text-teal-800 uppercase font-semibold block">Delivered Quota</span>
                 <span className="font-mono font-bold text-teal-950">
                   {viewHistoryPkg.completedSessions} / {viewHistoryPkg.totalSessions} Completed
                 </span>
@@ -463,7 +464,7 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                 <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   <Dumbbell className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                   <p className="font-medium text-slate-600">No sessions logged yet</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-2xs text-slate-400 mt-0.5">
                     When you conduct and verify sessions with {viewHistoryPkg.memberName}, timestamped logs will appear here.
                   </p>
                 </div>
@@ -472,12 +473,12 @@ export const TrainerSessionsView = ({ setActiveTab }) => {
                   <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-900 text-xs">Session #{log.sessionNo}</span>
-                      <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      <span className="text-2xs font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
                         {log.date}
                       </span>
                     </div>
                     <p className="text-xs text-slate-700 leading-relaxed font-medium">"{log.trainerNotes}"</p>
-                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-semibold pt-0.5">
+                    <div className="flex items-center gap-1.5 text-2xs text-emerald-700 font-semibold pt-0.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       <span>Authenticated via Member Pass Verification</span>
                     </div>

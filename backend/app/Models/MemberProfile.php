@@ -11,6 +11,9 @@ class MemberProfile extends Model
 
     protected $fillable = [
         'user_id',
+        'member_number',
+        'legacy_id',
+        'converted_from_enquiry_number',
         'plan_id',
         'trainer_id',
         'executive',

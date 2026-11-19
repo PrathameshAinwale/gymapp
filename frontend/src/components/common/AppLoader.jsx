@@ -309,7 +309,7 @@ export const PageLoader = ({
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Try Again</span>
@@ -338,10 +338,10 @@ export const PageLoader = ({
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                   {displayTitle}
                 </h2>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
                   <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
                   <span>Fetching Live Data...</span>
                 </span>
@@ -353,7 +353,7 @@ export const PageLoader = ({
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] font-semibold text-slate-500 shadow-2xs">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-2xs font-semibold text-slate-500 shadow-2xs">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
               <span>Synchronizing records...</span>
             </div>

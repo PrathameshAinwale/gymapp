@@ -29,8 +29,20 @@ class InvoiceController extends Controller
         $memberIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
         if ($memberIdInput) {
             $numericMemberId = (int)preg_replace('/[^0-9]/', '', (string)$memberIdInput);
-            if ($numericMemberId > 0) {
+            if ($numericMemberId > 0 && !preg_match('/^MEM\d{2}/i', (string)$memberIdInput)) {
                 $query->where('user_id', $numericMemberId);
+            } else {
+                $matchedUserId = User::where('gym_id', $gymId)
+                    ->where(function ($q) use ($memberIdInput, $numericMemberId) {
+                        $q->where('member_number', $memberIdInput)
+                          ->orWhere('legacy_id', $memberIdInput);
+                        if ($numericMemberId > 0) {
+                            $q->orWhere('id', $numericMemberId);
+                        }
+                    })->value('id');
+                if ($matchedUserId) {
+                    $query->where('user_id', $matchedUserId);
+                }
             }
         }
 
@@ -317,8 +329,25 @@ class InvoiceController extends Controller
             $duesAmount = max(0, $totalAmount - $paidAmount);
         }
         $status = $duesAmount > 0 ? 'Pending' : 'Paid';
-        $invoiceNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
-        $invoiceTitle = implode(' + ', array_column($items, 'name')) ?: ($plan?->name ?? 'Membership Package');
+
+        if ($totalAmount > 0 && $paidAmount <= 0 && empty($dueDate)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fee Calculation & Payment Settlement is compulsory. Please enter payment in Cash, UPI, or Account Transfer, or provide a promised due date for balance due.',
+                'errors' => [
+                    'amount' => ['Payment settlement is compulsory. Please enter payment or select due date.'],
+                    'due_date' => ['Promise date for balance due is required when payment is pending.']
+                ]
+            ], 422);
+        }
+        $creatorName = \App\Services\TextSanitizerService::toTitleCase($creatorName);
+        foreach ($items as &$it) {
+            if (isset($it['name'])) {
+                $it['name'] = \App\Services\TextSanitizerService::toTitleCase($it['name']);
+            }
+        }
+        unset($it);
+        $invoiceTitle = \App\Services\TextSanitizerService::toTitleCase(implode(' + ', array_column($items, 'name')) ?: ($plan?->name ?? 'Membership Package'));
 
         if ($duesAmount > 0 && !empty($dueDate)) {
             $promiseError = MemberController::validatePromiseDate($dueDate, $startDate, $endDate, false);
@@ -337,7 +366,7 @@ class InvoiceController extends Controller
         }
 
         $invoice = DB::transaction(function () use (
-            $gymId, $invoiceNo, $user, $planId, $packageType, $items, $paidAmount, $totalAmount,
+            $gymId, $user, $planId, $packageType, $items, $paidAmount, $totalAmount,
             $duesAmount, $date, $startDate, $endDate, $dueDate, $method, $status,
             $creatorId, $creatorName, $invoiceTitle, $plan, $hasPtPackage, $ptTrainerId
         ) {
@@ -349,7 +378,10 @@ class InvoiceController extends Controller
                 \App\Services\PlanChainingService::validateStartDate($user->id, $packageType, $startDate, $gymId);
             }
 
-            // 3. Create ONE Invoice with all line items
+            // 3. Atomically generate next sequential invoice number inside transaction
+            $invoiceNo = \App\Services\SequentialIdService::generateInvoiceNumber($gymId, $date);
+
+            // 4. Create ONE Invoice with all line items
             $invData = [
                 'gym_id' => $gymId,
                 'invoice_number' => $invoiceNo,
@@ -475,7 +507,10 @@ class InvoiceController extends Controller
             'gymId' => $inv->gym_id,
             'invoiceNumber' => $inv->invoice_number,
             'invoice_number' => $inv->invoice_number,
-            'memberId' => 'mem-' . $inv->user_id,
+            'legacyId' => $inv->legacy_id,
+            'legacy_id' => $inv->legacy_id,
+            'memberId' => $inv->user?->member_number ?: ('mem-' . $inv->user_id),
+            'memberNumber' => $inv->user?->member_number ?: ('mem-' . $inv->user_id),
             'userId' => $inv->user_id,
             'memberName' => $inv->user?->name ?? 'Unknown',
             'memberPhone' => $inv->user?->phone,
@@ -514,7 +549,9 @@ class InvoiceController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $invoice = Invoice::where('invoice_number', $id)->first();
+        $invoice = Invoice::where('invoice_number', $id)
+            ->orWhere('legacy_id', $id)
+            ->first();
         if (!$invoice && is_numeric($id)) {
             $invoice = Invoice::find($id);
         }
@@ -658,7 +695,16 @@ class InvoiceController extends Controller
         }
 
         if ($request->has('packages') || $request->has('items')) {
-            $invoiceUpdate['items'] = $request->packages ?? $request->items;
+            $rawItems = $request->packages ?? $request->items;
+            if (is_array($rawItems)) {
+                foreach ($rawItems as &$it) {
+                    if (isset($it['name'])) {
+                        $it['name'] = \App\Services\TextSanitizerService::toTitleCase($it['name']);
+                    }
+                }
+                unset($it);
+            }
+            $invoiceUpdate['items'] = $rawItems;
         }
 
         if ($request->filled('package_type') || $request->filled('packageType')) {
@@ -666,11 +712,11 @@ class InvoiceController extends Controller
         }
 
         if ($request->filled('created_by_name') || $request->filled('createdByName')) {
-            $invoiceUpdate['created_by_name'] = $request->created_by_name ?? $request->createdByName;
+            $invoiceUpdate['created_by_name'] = \App\Services\TextSanitizerService::toTitleCase($request->created_by_name ?? $request->createdByName);
         }
 
-        $planName = $request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee');
-        $memberName = $request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member');
+        $planName = \App\Services\TextSanitizerService::toTitleCase($request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee'));
+        $memberName = \App\Services\TextSanitizerService::toTitleCase($request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member'));
 
         DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount, $planName, $memberName) {
             $invoice->update($invoiceUpdate);
@@ -823,6 +869,8 @@ class InvoiceController extends Controller
         $invoice = Invoice::where('id', $cleanId)
             ->orWhere('invoice_number', $id)
             ->orWhere('invoice_number', $cleanId)
+            ->orWhere('legacy_id', $id)
+            ->orWhere('legacy_id', $cleanId)
             ->first();
 
         if (!$invoice) {
@@ -856,6 +904,8 @@ class InvoiceController extends Controller
         $invoice = Invoice::where('id', $cleanId)
             ->orWhere('invoice_number', $id)
             ->orWhere('invoice_number', $cleanId)
+            ->orWhere('legacy_id', $id)
+            ->orWhere('legacy_id', $cleanId)
             ->first();
 
         if (!$invoice) {
@@ -892,7 +942,9 @@ class InvoiceController extends Controller
             ->where(function ($q) use ($id, $cleanId) {
                 $q->where('id', $cleanId)
                   ->orWhere('invoice_number', $id)
-                  ->orWhere('invoice_number', $cleanId);
+                  ->orWhere('invoice_number', $cleanId)
+                  ->orWhere('legacy_id', $id)
+                  ->orWhere('legacy_id', $cleanId);
             })
             ->first();
 
@@ -966,6 +1018,8 @@ class InvoiceController extends Controller
         $invoice = Invoice::with(['gym', 'user.memberProfile', 'plan'])
             ->where('invoice_number', $invoice_number)
             ->orWhere('invoice_number', $cleanNo)
+            ->orWhere('legacy_id', $invoice_number)
+            ->orWhere('legacy_id', $cleanNo)
             ->orWhere('id', $cleanNo)
             ->first();
 

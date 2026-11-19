@@ -132,16 +132,16 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-5xl mx-auto px-2 sm:px-0">
       {/* 1. Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white border border-slate-200 p-3 sm:p-5 rounded-2xl shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
             <Coins className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-xl font-black font-heading text-slate-900 tracking-tight">
+            <h1 className="app-page-title font-bold font-heading text-slate-900 tracking-normal">
               Request Advance Salary
             </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+            <p className="text-2xs sm:text-xs text-slate-500 mt-0.5">
               Submit salary advances, select flexible payroll deduction terms, and track approval sign-offs.
             </p>
           </div>
@@ -160,49 +160,49 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
       {/* 2. KPI Summary Cards (Small & Two in One Row) */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
         <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block truncate">
             Total Advances Applied
           </span>
-          <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+          <div className="text-base sm:text-xl font-bold text-slate-900 mt-1 truncate">
             ₹{totalRequested.toLocaleString('en-IN')}
           </div>
-          <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
+          <span className="text-2xs text-slate-500 mt-0.5 block truncate">
             {myRequests.length} total applications submitted
           </span>
         </div>
 
         <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block truncate">
             Total Disbursed (Paid Out)
           </span>
-          <div className="text-base sm:text-xl font-black text-emerald-600 mt-1 truncate">
+          <div className="text-base sm:text-xl font-bold text-emerald-600 mt-1 truncate">
             ₹{totalDisbursed.toLocaleString('en-IN')}
           </div>
-          <span className="text-[10px] text-emerald-700 font-medium mt-0.5 block truncate">
+          <span className="text-2xs text-emerald-700 font-medium mt-0.5 block truncate">
             Processed via bank / cash
           </span>
         </div>
 
         <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block truncate">
             Awaiting Review
           </span>
-          <div className="text-base sm:text-xl font-black text-amber-600 mt-1 truncate">
+          <div className="text-base sm:text-xl font-bold text-amber-600 mt-1 truncate">
             {pendingCount}
           </div>
-          <span className="text-[10px] text-amber-700 font-medium mt-0.5 block truncate">
+          <span className="text-2xs text-amber-700 font-medium mt-0.5 block truncate">
             Pending Superadmin sign-off
           </span>
         </div>
 
         <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block truncate">
             Approved / Disbursed
           </span>
-          <div className="text-base sm:text-xl font-black text-blue-600 mt-1 truncate">
+          <div className="text-base sm:text-xl font-bold text-blue-600 mt-1 truncate">
             {approvedCount}
           </div>
-          <span className="text-[10px] text-blue-700 font-medium mt-0.5 block truncate">
+          <span className="text-2xs text-blue-700 font-medium mt-0.5 block truncate">
             Approved by accounts
           </span>
         </div>
@@ -211,7 +211,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
       {/* 3. Club Policy Info Strip */}
       <div className="p-3.5 sm:p-4 bg-amber-50/60 border border-amber-200/80 rounded-xl sm:rounded-2xl flex items-start gap-2.5 sm:gap-3 text-xs">
         <HelpCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-        <div className="text-amber-900 leading-relaxed text-[11px] sm:text-xs">
+        <div className="text-amber-900 leading-relaxed text-2xs sm:text-xs">
           <span className="font-bold">Staff Advance Salary Policy: </span>
           Advances are reviewed by Superadmin & Accounts. Approved advances are deducted from your upcoming payroll cycles according to your selected repayment terms (100% next cycle, or split over 2-3 months).
         </div>
@@ -269,7 +269,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
                         )}
                         <span className="truncate">{opt.label}</span>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
                         isSelected ? 'bg-amber-200/70 text-amber-900' : 'bg-slate-100 text-slate-500'
                       }`}>
                         {opt.count}
@@ -286,7 +286,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
         <div className="overflow-x-auto rounded-b-2xl">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/80 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
+              <tr className="bg-slate-50/80 text-slate-400 font-medium uppercase tracking-wider text-2xs border-b border-slate-100">
                 <th className="py-3 px-4">Request Date</th>
                 <th className="py-3 px-4">Amount</th>
                 <th className="py-3 px-4">Reason / Purpose</th>
@@ -301,7 +301,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <Coins className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">No advance salary requests found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-2xs text-slate-400 mt-0.5">
                       Need emergency funds? Click "Apply for Advance Pay" above.
                     </p>
                   </td>
@@ -321,7 +321,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
                         {typeof dateDisplay === 'string' ? dateDisplay.slice(0, 10) : dateDisplay}
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono font-black text-sm text-slate-900 whitespace-nowrap">
+                      <td className="py-3.5 px-4 font-mono font-medium text-sm text-slate-900 whitespace-nowrap">
                         ₹{Number(req.amount).toLocaleString('en-IN')}
                       </td>
 
@@ -337,32 +337,32 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {isPending && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             <span>Pending Review</span>
                           </span>
                         )}
                         {isApproved && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Approved</span>
                           </span>
                         )}
                         {isDisbursed && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Disbursed (Paid)</span>
                           </span>
                         )}
                         {isRejected && (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center gap-1">
                             <XCircle className="w-3 h-3" />
                             <span>Rejected</span>
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-500 text-[11px] whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-slate-500 text-2xs whitespace-nowrap">
                         {isDisbursed && (
                           <span className="text-emerald-700 font-medium">
                             Disbursed {req.disbursedDate ? `on ${req.disbursedDate}` : ''}
@@ -399,7 +399,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
             <span className="font-bold text-amber-900 text-xs">Club Staff Advance Policy</span>
-            <p className="text-[11px] text-amber-800">
+            <p className="text-2xs text-amber-800">
               Approved salary advances are deducted from future payroll cycles. Requests are reviewed and approved directly by Superadmin & Accounts.
             </p>
           </div>
@@ -427,7 +427,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
                   key={val}
                   type="button"
                   onClick={() => setAdvanceForm({ ...advanceForm, amount: val })}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-2xs font-bold border transition-colors cursor-pointer ${
                     Number(advanceForm.amount) === val
                       ? 'bg-amber-600 text-white border-amber-600'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -482,7 +482,7 @@ export const TrainerAdvancePayView = ({ setActiveTab }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold shadow-md shadow-amber-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Request'}
             </button>

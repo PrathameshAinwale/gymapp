@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 
 export const AdvancePayManager = () => {
@@ -101,27 +102,30 @@ export const AdvancePayManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Coins className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                Staff Advance Salary & Disbursals
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
+                Staff Advance Salary
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Review staff salary advance requests, grant approvals, and disburse payments directly into expense cash outflows.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {pendingCount} pending • {advanceRequests.length} total
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <span className="h-8.5 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
             <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>{pendingCount} Pending</span>
+            <span>{pendingCount} <span className="hidden sm:inline">Pending</span></span>
           </span>
         </div>
       </div>
@@ -129,27 +133,27 @@ export const AdvancePayManager = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Advances Requested</span>
-          <div className="text-2xl font-black text-slate-900 mt-1">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Total Advances Requested</span>
+          <div className="text-2xl font-bold text-slate-900 mt-1">
             ₹{totalRequested.toLocaleString('en-IN')}
           </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">{advanceRequests.length} total applications</span>
+          <span className="text-2xs text-slate-500 mt-0.5 block">{advanceRequests.length} total applications</span>
         </div>
 
         <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Disbursed (Paid Out)</span>
-          <div className="text-2xl font-black text-emerald-600 mt-1">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Total Disbursed (Paid Out)</span>
+          <div className="text-2xl font-bold text-emerald-600 mt-1">
             ₹{totalDisbursed.toLocaleString('en-IN')}
           </div>
-          <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Recorded in cash outflow</span>
+          <span className="text-2xs text-emerald-700 font-medium mt-0.5 block">Recorded in cash outflow</span>
         </div>
 
         <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pending Actions</span>
-          <div className="text-2xl font-black text-amber-600 mt-1">
+          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Pending Actions</span>
+          <div className="text-2xl font-bold text-amber-600 mt-1">
             {pendingCount}
           </div>
-          <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Awaiting sign-off</span>
+          <span className="text-2xs text-amber-700 font-medium mt-0.5 block">Awaiting sign-off</span>
         </div>
       </div>
 
@@ -157,73 +161,40 @@ export const AdvancePayManager = () => {
       <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setIsSearchDropdownOpen(true);
-                }}
-                onFocus={() => setIsSearchDropdownOpen(true)}
-                placeholder="Search by staff name, reason, repayment month..."
-                className="w-full pl-9 pr-9 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors truncate"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Suggestions Dropdown */}
-            {isSearchDropdownOpen && searchSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Suggested Staff Advances
-                </div>
-                {searchSuggestions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm(item.staffName);
-                      setIsSearchDropdownOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs hover:bg-amber-50/60 flex items-center justify-between transition-colors cursor-pointer"
-                  >
-                    <div>
-                      <span className="font-semibold text-slate-800">{item.staffName}</span>
-                      <span className="text-[10px] text-slate-400 ml-1.5">({item.role})</span>
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-700">₹{Number(item.amount).toLocaleString('en-IN')}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setIsSearchDropdownOpen(false);
+            }}
+            placeholder="Search by staff name, reason, repayment month..."
+            mobilePlaceholder="Search advances..."
+            containerClassName="flex-1 min-w-0"
+          >
+            
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
                 activeFiltersCount > 0
-                  ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-sm shadow-amber-600/30'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
+              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-amber-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
+                <span className="px-1.5 py-0.2 bg-white text-amber-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -233,7 +204,7 @@ export const AdvancePayManager = () => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {filterStatus !== 'ALL' && (
@@ -270,7 +241,7 @@ export const AdvancePayManager = () => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredRequests.length} records
             </span>
           </div>
@@ -298,7 +269,7 @@ export const AdvancePayManager = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Staff Member</th>
                   <th className="py-3 px-4">Amount Requested</th>
                   <th className="py-3 px-4">Reason / Purpose</th>
@@ -317,68 +288,68 @@ export const AdvancePayManager = () => {
 
                   return (
                     <tr key={req.id} className="hover:bg-slate-50/70">
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                          <Award className="w-4 h-4 text-emerald-600" />
-                          <span>{req.staffName}</span>
+                      <td className="py-3.5 px-4 min-w-0 max-w-[180px]">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5 min-w-0">
+                          <Award className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate" title={req.staffName}>{req.staffName}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{req.role}</div>
+                        <div className="text-2xs text-slate-400 mt-0.5 truncate" title={req.role}>{req.role}</div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono font-black text-sm text-slate-900">
+                      <td className="py-3.5 px-4 font-mono font-medium text-sm text-slate-900 whitespace-nowrap shrink-0">
                         ₹{Number(req.amount).toLocaleString('en-IN')}
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={req.reason}>
-                        {req.reason}
+                      <td className="py-3.5 px-4 text-slate-600 max-w-xs">
+                        <span className="truncate block" title={req.reason}>{req.reason}</span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-700 font-medium">
+                      <td className="py-3.5 px-4 text-slate-700 font-medium whitespace-nowrap shrink-0">
                         {req.repaymentMonth}
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono text-slate-500">
+                      <td className="py-3.5 px-4 font-mono text-slate-500 whitespace-nowrap shrink-0">
                         {req.requestDate}
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                         {isPending && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                             Pending Review
                           </span>
                         )}
                         {isApproved && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
                             Approved
                           </span>
                         )}
                         {isDisbursed && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                             Disbursed & Paid
                           </span>
                         )}
                         {isRejected && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
                             Rejected
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap shrink-0">
                         <div className="flex items-center justify-end gap-1.5">
                           {isPending && (
                             <>
                               <button
                                 type="button"
                                 onClick={() => updateAdvancePayStatus(req.id, 'Approved', approverLabel)}
-                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] cursor-pointer active:scale-95 shadow-2xs"
+                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-2xs cursor-pointer active:scale-95 shadow-2xs"
                               >
                                 Approve
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateAdvancePayStatus(req.id, 'Rejected', approverLabel)}
-                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 cursor-pointer active:scale-95"
+                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-2xs border border-rose-200 cursor-pointer active:scale-95"
                               >
                                 Reject
                               </button>
@@ -389,7 +360,7 @@ export const AdvancePayManager = () => {
                             <button
                               type="button"
                               onClick={() => updateAdvancePayStatus(req.id, 'Disbursed', approverLabel)}
-                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer active:scale-95 shadow-sm flex items-center gap-1"
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-2xs cursor-pointer active:scale-95 shadow-sm flex items-center gap-1"
                             >
                               <Coins className="w-3 h-3" />
                               <span>Disburse Payment</span>
@@ -397,7 +368,7 @@ export const AdvancePayManager = () => {
                           )}
 
                           {isDisbursed && (
-                            <span className="text-[11px] text-slate-400 font-mono">
+                            <span className="text-2xs text-slate-400 font-mono">
                               Paid {req.disbursedDate}
                             </span>
                           )}
@@ -424,7 +395,7 @@ export const AdvancePayManager = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">Advance Pay Filters</h3>
-                  <p className="text-[11px] text-slate-400">Filter requests by approval and disbursement status</p>
+                  <p className="text-2xs text-slate-400">Filter requests by approval and disbursement status</p>
                 </div>
               </div>
               <button

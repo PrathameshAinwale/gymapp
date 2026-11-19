@@ -28,7 +28,7 @@ export const DietTracker = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-base sm:text-xl font-bold font-heading text-slate-900 flex items-center gap-2">
+        <h1 className="app-page-title font-bold font-heading text-slate-900 flex items-center gap-2">
           <Utensils className="w-5 h-5 text-emerald-600" />
           Weekly Diet & Nutrition Plan
         </h1>
@@ -68,31 +68,31 @@ export const DietTracker = () => {
                 onClick={() => toggleDay(day.day)}
                 className="w-full flex items-center justify-between p-3 sm:p-4 text-left hover:bg-slate-50 transition-colors cursor-pointer active:bg-slate-50"
               >
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-black border ${isToday
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-2xs sm:text-xs font-bold border shrink-0 ${isToday
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                     : 'bg-slate-100 text-slate-700 border-slate-200'
                     }`}>
                     {day.day.substring(0, 3).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      {day.day}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 min-w-0">
+                      <span className="shrink-0">{day.day}</span>
                       {isToday && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                        <span className="px-1.5 py-0.5 rounded text-2xs font-bold bg-emerald-100 text-emerald-800 shrink-0 whitespace-nowrap">
                           TODAY
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-500">{totalCal} kcal • {totalProtein}g protein</div>
+                    <div className="text-2xs text-slate-500 truncate">{totalCal} kcal • {totalProtein}g protein</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400">{day.meals.length} meals</span>
+                <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                  <span className="text-2xs font-bold text-slate-400">{day.meals.length} meals</span>
                   {isExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                    <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                   )}
                 </div>
               </button>
@@ -105,28 +105,28 @@ export const DietTracker = () => {
                       key={meal.id}
                       className="p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl bg-white border border-slate-200 space-y-1.5 sm:space-y-2 shadow-2xs"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs font-bold text-slate-900">{meal.name}</div>
-                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5 text-slate-400" /> {meal.time}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-bold text-slate-900 truncate min-w-0 flex-1" title={meal.name}>{meal.name}</div>
+                        <span className="text-2xs font-bold text-slate-500 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                          <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" /> {meal.time}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                      <p className="text-2xs text-slate-600 leading-relaxed app-clamp-2" title={meal.items}>
                         {meal.items}
                       </p>
 
                       <div className="flex flex-wrap gap-1.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800">
-                          <Flame className="w-2.5 h-2.5 inline mr-0.5 text-amber-500" />{meal.calories} kcal
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-800 whitespace-nowrap shrink-0">
+                          <Flame className="w-2.5 h-2.5 inline mr-0.5 text-amber-500 shrink-0" />{meal.calories} kcal
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shrink-0">
                           P: {meal.protein}g
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap shrink-0">
                           C: {meal.carbs}g
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-teal-50 text-teal-700 border border-teal-200 whitespace-nowrap shrink-0">
                           F: {meal.fats}g
                         </span>
                       </div>
@@ -145,7 +145,7 @@ export const DietTracker = () => {
         <Droplets className="w-6 h-6 text-cyan-600 shrink-0" />
         <div>
           <div className="text-xs font-bold text-cyan-900">Stay Hydrated!</div>
-          <div className="text-[11px] text-cyan-700">Target: {dietPlan?.waterGlassesTarget || 10} glasses of water daily</div>
+          <div className="text-2xs text-cyan-700">Target: {dietPlan?.waterGlassesTarget || 10} glasses of water daily</div>
         </div>
       </div>
     </div>

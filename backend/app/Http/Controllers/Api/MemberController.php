@@ -172,8 +172,13 @@ class MemberController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('member_number', 'like', "%{$search}%")
+                  ->orWhere('legacy_id', 'like', "%{$search}%")
                   ->orWhereHas('memberProfile', function ($sub) use ($search) {
-                      $sub->where('qr_pass_code', 'like', "%{$search}%");
+                      $sub->where('qr_pass_code', 'like', "%{$search}%")
+                          ->orWhere('member_number', 'like', "%{$search}%")
+                          ->orWhere('legacy_id', 'like', "%{$search}%")
+                          ->orWhere('converted_from_enquiry_number', 'like', "%{$search}%");
                   });
             });
         }
@@ -238,7 +243,10 @@ class MemberController extends Controller
             }
 
             return [
-                'id' => 'mem-' . $user->id,
+                'id' => $user->member_number ?: ('mem-' . $user->id),
+                'memberNumber' => $user->member_number ?: ('mem-' . $user->id),
+                'memberId' => $user->member_number ?: ('mem-' . $user->id),
+                'legacyId' => $user->legacy_id,
                 'userId' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
@@ -271,7 +279,9 @@ class MemberController extends Controller
                 'qrPassCode' => $profile?->qr_pass_code ?? ('PF-M-' . $user->id),
                 'duesAmount' => $profile?->dues_amount ?? 0,
                 'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
+                'convertedFromEnquiryNumber' => $profile?->converted_from_enquiry_number,
                 'lastCheckIn' => $profile?->last_check_in ? $profile->last_check_in->diffForHumans() : 'Never',
+                'convertedFromEnquiryNumber' => $profile?->converted_from_enquiry_number,
                 'activePlans' => $breakdown['activePlans'] ?? [],
                 'upcomingPlans' => $breakdown['upcomingPlans'] ?? [],
                 'expiredPlans' => $breakdown['expiredPlans'] ?? [],
@@ -287,10 +297,19 @@ class MemberController extends Controller
 
     public function show($id)
     {
-        $numericId = str_replace('mem-', '', $id);
+        $cleanId = preg_replace('/^mem-/i', '', (string)$id);
         $user = User::where('role', 'member')
+            ->where(function ($q) use ($id, $cleanId) {
+                if (is_numeric($cleanId)) {
+                    $q->where('id', (int)$cleanId);
+                }
+                $q->orWhere('member_number', $id)
+                  ->orWhere('member_number', $cleanId)
+                  ->orWhere('legacy_id', $id)
+                  ->orWhere('legacy_id', $cleanId);
+            })
             ->with(['memberProfile.plan', 'memberProfile.trainer', 'workoutPlans', 'dietPlans', 'bodyMetrics', 'attendances', 'invoices'])
-            ->findOrFail($numericId);
+            ->firstOrFail();
 
         $profile = $user->memberProfile;
         $plansBreakdown = \App\Services\PlanChainingService::getMemberPlansBreakdown($user);
@@ -314,7 +333,10 @@ class MemberController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'id' => 'mem-' . $user->id,
+                'id' => $user->member_number ?: ('mem-' . $user->id),
+                'memberNumber' => $user->member_number ?: ('mem-' . $user->id),
+                'memberId' => $user->member_number ?: ('mem-' . $user->id),
+                'legacyId' => $user->legacy_id,
                 'userId' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
@@ -347,6 +369,7 @@ class MemberController extends Controller
                 'qrPassCode' => $profile?->qr_pass_code,
                 'duesAmount' => $profile?->dues_amount ?? 0,
                 'dueDate' => $profile?->due_date ? $profile->due_date->format('Y-m-d') : null,
+                'convertedFromEnquiryNumber' => $profile?->converted_from_enquiry_number,
                 'workoutPlan' => $user->workoutPlans->sortByDesc('created_at')->first(),
                 'dietPlan' => $user->dietPlans->sortByDesc('created_at')->first(),
                 'bodyMetrics' => $user->bodyMetrics->sortByDesc('created_at')->values(),
@@ -769,6 +792,17 @@ class MemberController extends Controller
                     ]
                 ], 422);
             }
+
+            if ($computedBillTotal > 0 && $receivedAmount <= 0 && $duesAmount <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fee Calculation & Payment Settlement is compulsory. Please enter payment in Cash, UPI, or Account Transfer.',
+                    'errors' => [
+                        'amount' => ['Payment settlement is compulsory. Please enter payment or set balance due.'],
+                        'paid_amount' => ['Payment settlement is compulsory. Please enter payment or set balance due.']
+                    ]
+                ], 422);
+            }
         }
 
         if ($totalBill > 0 && $receivedAmount > $totalBill) {
@@ -812,7 +846,7 @@ class MemberController extends Controller
         }
 
         $rawTrainingType = $request->input('training_type', $request->input('trainingType', 'self'));
-        $rawExecutive = $request->input('executive', $request->input('staff_name', $request->input('staffName')));
+        $rawExecutive = \App\Services\TextSanitizerService::toTitleCase($request->input('executive', $request->input('staff_name', $request->input('staffName'))));
         $rawKycDocType = $request->input('kyc_doc_type', $request->input('kycDocType', 'Aadhaar Card'));
         $rawKycDocNumber = $request->input('kyc_doc_number', $request->input('kycDocNumber'));
         $rawKycStatus = $request->input('kyc_status', $request->input('kycStatus', 'Verified'));
@@ -827,7 +861,12 @@ class MemberController extends Controller
             $creatorName = $authCreator?->name ?: (User::where('gym_id', $gymId)->where('role', 'owner')->value('name') ?: 'Staff');
         }
         $cleanCreatorName = preg_replace('/\s*\((Owner|Manager|Superadmin|Staff|Admin).*?\)/i', '', $creatorName);
-        $creatorName = trim($cleanCreatorName) ?: ($authCreator?->name ?: 'Staff');
+        $creatorName = \App\Services\TextSanitizerService::toTitleCase(trim($cleanCreatorName) ?: ($authCreator?->name ?: 'Staff'));
+
+        $memberName = \App\Services\TextSanitizerService::toTitleCase($request->name);
+        $sanitizedGoal = \App\Services\TextSanitizerService::toTitleCase($request->goal ?? $request->fitness_goal ?? null);
+        $sanitizedMedicalNotes = \App\Services\TextSanitizerService::toTitleCase($request->medical_notes ?? $request->medicalNotes ?? null);
+        $sanitizedEmergencyContact = \App\Services\TextSanitizerService::toTitleCase($request->emergency_contact ?? $request->emergencyContact ?? null);
 
         $emailVal = !empty($request->email) ? trim(strtolower($request->email)) : null;
 
@@ -837,7 +876,7 @@ class MemberController extends Controller
             $rawKycDocNumber, $rawKycDocType, $planId, $trainerId, $rawExecutive,
             $rawTrainingType, $computedStatus, $joinDate, $expiryDate, $duesAmount,
             $parsedDueDate, $receivedAmount, $totalBill, $rawKycStatus, $creatorId,
-            $creatorName, $packagesList
+            $creatorName, $packagesList, $memberName, $sanitizedGoal, $sanitizedMedicalNotes, $sanitizedEmergencyContact
         ) {
             $user = null;
             if ($numTargetId && $numTargetId > 0) {
@@ -845,7 +884,7 @@ class MemberController extends Controller
             }
 
             if ($user) {
-                $user->name = $request->name;
+                $user->name = $memberName;
                 $user->phone = $request->phone ?? $user->phone;
                 if ($request->has('email')) {
                     $user->email = $emailVal;
@@ -858,10 +897,14 @@ class MemberController extends Controller
                 if ($request->filled('avatar')) {
                     $user->avatar = $request->avatar;
                 }
+                if (empty($user->member_number)) {
+                    $user->member_number = \App\Services\SequentialIdService::generateMemberNumber($gymId, $joinDate);
+                }
                 $user->save();
             } else {
+                $memberNo = \App\Services\SequentialIdService::generateMemberNumber($gymId, $joinDate);
                 $user = User::create([
-                    'name' => $request->name,
+                    'name' => $memberName,
                     'email' => $emailVal,
                     'password' => Hash::make($plainPassword),
                     'initial_password' => Hash::make($plainPassword),
@@ -870,6 +913,7 @@ class MemberController extends Controller
                     'phone' => $request->phone,
                     'gym_id' => $gymId,
                     'avatar' => $request->avatar ?? null,
+                    'member_number' => $memberNo,
                 ]);
             }
 
@@ -902,6 +946,7 @@ class MemberController extends Controller
             $user->save();
 
             $profile->fill([
+                'member_number' => $user->member_number,
                 'biometric_user_id' => $biometricId,
                 'synced_to_device' => 0,
                 'plan_id' => $planId,
@@ -918,9 +963,9 @@ class MemberController extends Controller
                 'weight' => $request->weight ?? $profile->weight ?? null,
                 'target_weight' => $request->target_weight ?? $request->targetWeight ?? $profile->target_weight ?? null,
                 'height' => $request->height ?? $profile->height ?? null,
-                'goal' => $request->goal ?? $profile->goal ?? null,
-                'medical_notes' => $request->medical_notes ?? $request->medicalNotes ?? $profile->medical_notes ?? null,
-                'emergency_contact' => $request->emergency_contact ?? $request->emergencyContact ?? $profile->emergency_contact ?? null,
+                'goal' => $sanitizedGoal ?? ($profile->goal ?? null),
+                'medical_notes' => $sanitizedMedicalNotes ?? ($profile->medical_notes ?? null),
+                'emergency_contact' => $sanitizedEmergencyContact ?? ($profile->emergency_contact ?? null),
                 'kyc_doc_type' => $rawKycDocType,
                 'kyc_doc_number' => $rawKycDocNumber,
                 'kyc_status' => $rawKycStatus,
@@ -1010,7 +1055,7 @@ class MemberController extends Controller
                     ];
                 }
 
-                $invoiceNo = 'INV-' . strtoupper(substr(uniqid(), -6));
+                $invoiceNo = \App\Services\SequentialIdService::generateInvoiceNumber($gymId, $joinDate);
                 $primaryInvoiceNo = $invoiceNo;
                 $overallStartDate = $earliestStart ?: $joinDate;
                 $overallEndDate = $furthestEnd ?: $expiryDate;
@@ -1151,11 +1196,28 @@ class MemberController extends Controller
                 }
             }
 
-            // If an enquiry ID is linked, delete it so it is removed from the enquiries page and database
+            // If an enquiry ID is linked, link enquiry_number on member_profile and mark enquiry as converted
             $enquiryId = $request->input('enquiry_id', $request->input('enquiryId'));
             if ($enquiryId) {
-                $cleanEnqId = (int)str_replace('enq-', '', $enquiryId);
-                Enquiry::where('id', $cleanEnqId)->delete();
+                $cleanEnqId = preg_replace('/^enq-/i', '', (string)$enquiryId);
+                $enquiry = Enquiry::where(function ($q) use ($enquiryId, $cleanEnqId) {
+                    if (is_numeric($cleanEnqId)) {
+                        $q->where('id', (int)$cleanEnqId);
+                    }
+                    $q->orWhere('enquiry_number', $enquiryId)
+                      ->orWhere('enquiry_number', $cleanEnqId);
+                })->first();
+
+                if ($enquiry) {
+                    $enqNo = $enquiry->enquiry_number ?: ('ENQ' . \App\Services\SequentialIdService::getFinancialYearCode($enquiry->created_at) . str_pad((string)$enquiry->id, 4, '0', STR_PAD_LEFT));
+                    $profile->converted_from_enquiry_number = $enqNo;
+                    $profile->save();
+
+                    $enquiry->update([
+                        'status' => 'Converted',
+                        'converted_member_id' => $user->id,
+                    ]);
+                }
             }
 
             return [$user, $profile, $qrCode, $primaryInvoiceNo, $primaryInvoice, $invoiceTitle ?? null];
@@ -1180,11 +1242,15 @@ class MemberController extends Controller
             'invoice' => $formattedInvoice,
             'invoiceNumber' => $primaryInvoiceNo,
             'data' => [
-                'id' => 'mem-' . $user->id,
+                'id' => $user->member_number ?: ('mem-' . $user->id),
+                'memberNumber' => $user->member_number ?: ('mem-' . $user->id),
+                'memberId' => $user->member_number ?: ('mem-' . $user->id),
+                'legacyId' => $user->legacy_id,
                 'userId' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
+                'convertedFromEnquiryNumber' => $profile->converted_from_enquiry_number,
                 'biometricUserId' => $profile->biometric_user_id,
                 'planId' => $plan ? 'plan-' . $plan->id : null,
                 'planName' => $resolvedPlanTitle ?: ($plan?->name ?? 'Unassigned'),
@@ -1231,8 +1297,18 @@ class MemberController extends Controller
 
     public function update(Request $request, $id)
     {
-        $numericId = str_replace('mem-', '', $id);
-        $user = User::where('role', 'member')->findOrFail($numericId);
+        $cleanId = preg_replace('/^mem-/i', '', (string)$id);
+        $user = User::where('role', 'member')
+            ->where(function ($q) use ($id, $cleanId) {
+                if (is_numeric($cleanId)) {
+                    $q->where('id', (int)$cleanId);
+                }
+                $q->orWhere('member_number', $id)
+                  ->orWhere('member_number', $cleanId)
+                  ->orWhere('legacy_id', $id)
+                  ->orWhere('legacy_id', $cleanId);
+            })
+            ->firstOrFail();
         $profile = MemberProfile::firstOrCreate(['user_id' => $user->id]);
 
         $validator = Validator::make($request->all(), [
@@ -1321,7 +1397,7 @@ class MemberController extends Controller
             ], 422);
         }
 
-        if ($request->has('name')) $user->name = $request->name;
+        if ($request->has('name')) $user->name = \App\Services\TextSanitizerService::toTitleCase($request->name);
         if ($request->has('email')) $user->email = !empty($request->email) ? trim($request->email) : null;
         if ($request->has('phone')) {
             $rawPhone = trim($request->phone ?? '');
@@ -1435,19 +1511,19 @@ class MemberController extends Controller
                 $profile->target_weight = (float)($request->target_weight ?? $request->targetWeight);
             }
             if ($request->has('height')) $profile->height = (float)$request->height;
-            if ($request->has('goal')) $profile->goal = $request->goal;
+            if ($request->has('goal')) $profile->goal = \App\Services\TextSanitizerService::toTitleCase($request->goal);
             if ($request->has('medical_notes') || $request->has('medicalNotes')) {
-                $profile->medical_notes = $request->medical_notes ?? $request->medicalNotes;
+                $profile->medical_notes = \App\Services\TextSanitizerService::toTitleCase($request->medical_notes ?? $request->medicalNotes);
             }
             if ($request->has('emergency_contact') || $request->has('emergencyContact')) {
-                $profile->emergency_contact = $request->emergency_contact ?? $request->emergencyContact;
+                $profile->emergency_contact = \App\Services\TextSanitizerService::toTitleCase($request->emergency_contact ?? $request->emergencyContact);
             }
             if ($request->has('gender')) $profile->gender = $request->gender;
             if ($request->has('training_type') || $request->has('trainingType')) {
                 $profile->training_type = $request->training_type ?? $request->trainingType;
             }
             if ($request->has('executive') || $request->has('staff_name') || $request->has('staffName')) {
-                $profile->executive = $request->executive ?? $request->staff_name ?? $request->staffName;
+                $profile->executive = \App\Services\TextSanitizerService::toTitleCase($request->executive ?? $request->staff_name ?? $request->staffName);
             }
             if ($request->has('kyc_doc_type') || $request->has('kycDocType')) {
                 $profile->kyc_doc_type = $request->kyc_doc_type ?? $request->kycDocType;
@@ -1574,8 +1650,18 @@ class MemberController extends Controller
 
     public function destroy($id)
     {
-        $numericId = str_replace('mem-', '', $id);
-        $user = User::where('role', 'member')->findOrFail($numericId);
+        $cleanId = preg_replace('/^mem-/i', '', (string)$id);
+        $user = User::where('role', 'member')
+            ->where(function ($q) use ($id, $cleanId) {
+                if (is_numeric($cleanId)) {
+                    $q->where('id', (int)$cleanId);
+                }
+                $q->orWhere('member_number', $id)
+                  ->orWhere('member_number', $cleanId)
+                  ->orWhere('legacy_id', $id)
+                  ->orWhere('legacy_id', $cleanId);
+            })
+            ->firstOrFail();
         $profile = MemberProfile::where('user_id', $user->id)->first();
 
         $bioId = (string)($profile?->biometric_user_id ?: $user->biometric_user_id ?: $user->id);

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { SearchInput } from '../common/SearchInput';
 import { preventNonNumericKey, sanitizeDecimal } from '../../utils/validation';
 
 export const PayrollManager = () => {
@@ -274,36 +275,39 @@ export const PayrollManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner with 1-Year Month Toggle */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Staff Payroll & Salaries</h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">Staff Payroll & Salaries</h1>
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Manage staff payroll, base compensation, PT incentive bonuses, deductions, and salary disbursement receipts.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {selectedMonth} Cycle
+              </div>
             </div>
           </div>
         </div>
 
         {/* 1-Year Historical Month Selector & Refresh */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-xs">
-            <div className="flex items-center gap-1.5 px-1.5 text-slate-600 text-xs font-bold">
-              <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-0.5 sm:p-1 shadow-xs">
+            <div className="flex items-center gap-1 px-1 text-slate-600 text-xs font-bold">
+              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="hidden sm:inline">Cycle:</span>
             </div>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-base sm:text-xs min-h-[38px] sm:min-h-0 font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
+              className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs sm:text-xs h-7.5 sm:h-8 font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs max-w-[125px] sm:max-w-none truncate"
             >
               {last12Months.map((m) => (
                 <option key={m.val} value={m.label}>
-                  {m.label} {m.isCurrent ? '(Current Cycle)' : '(Past Cycle)'}
+                  {m.label} {m.isCurrent ? '(Current)' : ''}
                 </option>
               ))}
             </select>
@@ -323,7 +327,7 @@ export const PayrollManager = () => {
           <button
             type="button"
             onClick={() => setSelectedMonth(last12Months[0]?.label)}
-            className="min-h-[36px] sm:min-h-0 px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
+            className="min-h-[36px] sm:min-h-0 px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-2xs hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
           >
             Current Month
           </button>
@@ -333,20 +337,20 @@ export const PayrollManager = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
         <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Pending Approvals</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5">₹{pendingPayroll.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium block truncate">Ready for disbursement</span>
+          <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Pending Approvals</span>
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5">₹{pendingPayroll.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-amber-700 font-medium block truncate">Ready for disbursement</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Monthly Payroll</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5">₹{totalPayroll.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">Current cycle</span>
+          <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Monthly Payroll</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5">₹{totalPayroll.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-slate-500 block truncate">Current cycle</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Disbursed</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5">₹{paidPayroll.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">Transferred to accounts</span>
+          <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Disbursed</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5">₹{paidPayroll.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-emerald-700 font-medium block truncate">Transferred to accounts</span>
         </div>
       </div>
 
@@ -354,36 +358,26 @@ export const PayrollManager = () => {
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search staff member, role, or designation..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setIsSearchDropdownOpen(false);
-                }}
-                className="p-1 min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-600 absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setIsSearchDropdownOpen(false);
+            }}
+            placeholder="Search staff member, role, or designation..."
+            mobilePlaceholder="Search staff..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Suggestions */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                   Suggestions
                 </div>
                 {searchSuggestions.map((item, idx) => (
@@ -398,32 +392,32 @@ export const PayrollManager = () => {
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-800">{item.trainerName || item.employeeName || item.name}</span>
-                      <span className="text-[10px] text-slate-400">({item.role})</span>
+                      <span className="text-2xs text-slate-400">({item.role})</span>
                     </div>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="text-2xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                       ₹{Number(item.netPay).toLocaleString('en-IN')}
                     </span>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`min-h-[44px] sm:min-h-0 px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold border shadow-2xs active:scale-95 transition-all cursor-pointer ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
+              <Filter className="w-3.5 h-3.5 shrink-0" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                   {activeFiltersCount}
                 </span>
               )}
@@ -433,7 +427,7 @@ export const PayrollManager = () => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {selectedMonth !== last12Months[0]?.label && (
@@ -496,7 +490,7 @@ export const PayrollManager = () => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredPayroll.length} of {monthlyRecords.length} records
             </span>
           </div>
@@ -530,16 +524,16 @@ export const PayrollManager = () => {
                 className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5 truncate">
                       <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span className="truncate">{pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}</span>
+                      <span className="truncate" title={pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}>{pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5 truncate">{pay.role} • Cycle: {pay.period || pay.month || 'Current Cycle'}</div>
+                    <div className="text-2xs text-slate-500 mt-0.5 truncate" title={`${pay.role} • Cycle: ${pay.period || pay.month || 'Current Cycle'}`}>{pay.role} • Cycle: {pay.period || pay.month || 'Current Cycle'}</div>
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold shrink-0 whitespace-nowrap ${
                       isPaid
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -550,31 +544,31 @@ export const PayrollManager = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                <div className="grid grid-cols-4 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
                   <div>
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Base</span>
-                    <span className="font-semibold text-slate-800">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Base</span>
+                    <span className="font-semibold text-slate-800 whitespace-nowrap">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">PT Comm</span>
-                    <span className="font-semibold text-emerald-700">₹{Number(pay.commissions || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">PT Comm</span>
+                    <span className="font-semibold text-emerald-700 whitespace-nowrap">₹{Number(pay.commissions || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Deduct</span>
-                    <span className={`font-semibold ${Number(pay.deductions) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Deduct</span>
+                    <span className={`font-semibold whitespace-nowrap ${Number(pay.deductions) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                       {Number(pay.deductions) > 0 ? `-₹${Number(pay.deductions).toLocaleString('en-IN')}` : '₹0'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Net Pay</span>
-                    <span className="font-black text-slate-900 text-[11px]">₹{Number(pay.netPay).toLocaleString('en-IN')}</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Net Pay</span>
+                    <span className="font-bold text-slate-900 text-2xs whitespace-nowrap">₹{Number(pay.netPay).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
                 {(pay.notes || pay.remarks) && (
-                  <div className="text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-start gap-1">
+                  <div className="text-2xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-start gap-1 min-w-0">
                     <span className="font-semibold text-slate-600 shrink-0">Note:</span>
-                    <span className="truncate">{pay.notes || pay.remarks}</span>
+                    <span className="app-clamp-2" title={pay.notes || pay.remarks}>{pay.notes || pay.remarks}</span>
                   </div>
                 )}
 
@@ -654,7 +648,7 @@ export const PayrollManager = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-5">Staff Member</th>
                   <th className="py-3.5 px-5">Role / Designation</th>
                   <th className="py-3.5 px-5">Base Pay</th>
@@ -672,27 +666,27 @@ export const PayrollManager = () => {
 
                 return (
                   <tr key={pay.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-5">
-                      <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <td className="py-3.5 px-5 max-w-[200px]">
+                      <div className="font-bold text-slate-900 text-sm flex items-center gap-2 min-w-0">
                         <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>{pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}</span>
+                        <span className="truncate" title={pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}>{pay.trainerName || pay.employeeName || pay.name || 'Staff Member'}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">Cycle: {pay.period || pay.month || 'Current Cycle'}</div>
+                      <div className="text-2xs text-slate-400 mt-0.5 truncate">Cycle: {pay.period || pay.month || 'Current Cycle'}</div>
                     </td>
 
-                    <td className="py-3.5 px-5 font-medium text-slate-800">
-                      {pay.role}
+                    <td className="py-3.5 px-5 font-medium text-slate-800 max-w-[120px]">
+                      <span className="truncate block" title={pay.role}>{pay.role}</span>
                     </td>
 
-                    <td className="py-3.5 px-5 font-semibold text-slate-900">
+                    <td className="py-3.5 px-5 font-semibold text-slate-900 whitespace-nowrap shrink-0">
                       ₹{Number(pay.baseSalary).toLocaleString('en-IN')}
                     </td>
 
-                    <td className="py-3.5 px-5 text-emerald-700 font-semibold">
+                    <td className="py-3.5 px-5 text-emerald-700 font-semibold whitespace-nowrap shrink-0">
                       {Number(pay.commissions) > 0 ? `+₹${Number(pay.commissions).toLocaleString('en-IN')}` : '₹0'}
                     </td>
 
-                    <td className="py-3.5 px-5 font-semibold">
+                    <td className="py-3.5 px-5 font-semibold whitespace-nowrap shrink-0">
                       {Number(pay.bonus) > 0 ? (
                         <span className="text-emerald-700">+₹{Number(pay.bonus).toLocaleString('en-IN')}</span>
                       ) : (
@@ -700,12 +694,12 @@ export const PayrollManager = () => {
                       )}
                     </td>
 
-                    <td className="py-3.5 px-5 font-semibold">
+                    <td className="py-3.5 px-5 font-semibold whitespace-nowrap shrink-0">
                       {Number(pay.deductions) > 0 ? (
                         <div>
                           <span className="text-rose-600">-₹{Number(pay.deductions).toLocaleString('en-IN')}</span>
                           {(pay.notes || pay.remarks) && (
-                            <span className="block text-[10px] text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
+                            <span className="block text-2xs text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
                               {pay.notes || pay.remarks}
                             </span>
                           )}
@@ -714,7 +708,7 @@ export const PayrollManager = () => {
                         <div>
                           <span className="text-slate-400 font-normal">₹0</span>
                           {(pay.notes || pay.remarks) && (
-                            <span className="block text-[10px] text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
+                            <span className="block text-2xs text-slate-500 font-normal truncate max-w-[140px]" title={pay.notes || pay.remarks}>
                               {pay.notes || pay.remarks}
                             </span>
                           )}
@@ -722,13 +716,13 @@ export const PayrollManager = () => {
                       )}
                     </td>
 
-                    <td className="py-3.5 px-5 font-black text-slate-900 text-sm">
+                    <td className="py-3.5 px-5 font-medium text-slate-900 text-sm whitespace-nowrap shrink-0">
                       ₹{Number(pay.netPay).toLocaleString('en-IN')}
                     </td>
 
-                    <td className="py-3.5 px-5">
+                    <td className="py-3.5 px-5 whitespace-nowrap shrink-0">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold ${
                           isPaid
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -751,7 +745,7 @@ export const PayrollManager = () => {
                               remarks: pay.notes || pay.remarks || ''
                             });
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-2xs font-bold flex items-center gap-1 cursor-pointer active:scale-95"
                           title="Edit Incentives & Deductions"
                         >
                           <IndianRupee className="w-3 h-3 text-emerald-600" />
@@ -761,7 +755,7 @@ export const PayrollManager = () => {
                         <button
                           type="button"
                           onClick={() => setViewingPayslip(pay)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-2xs font-bold flex items-center gap-1 cursor-pointer active:scale-95"
                           title="Generate formatted salary slip"
                         >
                           <Printer className="w-3.5 h-3.5 text-emerald-600" />
@@ -780,13 +774,13 @@ export const PayrollManager = () => {
                                 setPayingId(null);
                               }
                             }}
-                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1.5"
+                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-2xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1.5"
                           >
                             {payingId === pay.id && <Loader2 className="w-3 h-3 animate-spin" />}
                             <span>{payingId === pay.id ? 'Processing...' : 'Pay Salary'}</span>
                           </button>
                         ) : (
-                          <span className="text-[11px] text-slate-400 font-medium">Disbursed</span>
+                          <span className="text-2xs text-slate-400 font-medium">Disbursed</span>
                         )}
                       </div>
                     </td>
@@ -844,7 +838,7 @@ export const PayrollManager = () => {
               <div className="flex justify-between font-medium text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <span>PT Commissions:</span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
+                  <span className="text-2xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
                     From Trainer Commissions
                   </span>
                 </span>
@@ -857,7 +851,7 @@ export const PayrollManager = () => {
                 <label className="block font-bold text-slate-700">
                   Incentive / Bonus (₹)
                 </label>
-                <span className="text-[10px] text-slate-400 font-medium">Empty until filled</span>
+                <span className="text-2xs text-slate-400 font-medium">Empty until filled</span>
               </div>
               <input
                 type="text"
@@ -868,7 +862,7 @@ export const PayrollManager = () => {
                 onChange={(e) => setAdjustForm({ ...adjustForm, bonus: sanitizeDecimal(e.target.value) })}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-2xs text-slate-500 mt-0.5">
                 Manual performance reward or monthly incentive for this cycle.
               </p>
             </div>
@@ -878,7 +872,7 @@ export const PayrollManager = () => {
                 <label className="block font-bold text-slate-700">
                   Salary Deductions (₹)
                 </label>
-                <span className="text-[10px] text-emerald-600 font-semibold">Persistent per staff</span>
+                <span className="text-2xs text-emerald-600 font-semibold">Persistent per staff</span>
               </div>
               <input
                 type="text"
@@ -893,7 +887,7 @@ export const PayrollManager = () => {
               {/* Advance taken balance indicator in small text */}
               {activeAdvanceBalance > 0 ? (
                 <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[11px] text-amber-900 font-medium">
+                  <div className="flex items-center gap-1.5 text-2xs text-amber-900 font-medium">
                     <Coins className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span>
                       Advance Taken Balance: <strong className="font-bold text-amber-800">₹{activeAdvanceBalance.toLocaleString('en-IN')}</strong>
@@ -908,20 +902,20 @@ export const PayrollManager = () => {
                         remarks: prev.remarks || `Advance salary deduction (₹${activeAdvanceBalance.toLocaleString('en-IN')})`
                       }));
                     }}
-                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline hover:no-underline cursor-pointer shrink-0"
+                    className="text-2xs font-bold text-amber-700 hover:text-amber-900 underline hover:no-underline cursor-pointer shrink-0"
                     title="Quickly fill deduction with remaining advance amount"
                   >
                     Deduct Advance
                   </button>
                 </div>
               ) : (
-                <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
+                <div className="mt-1 flex items-center gap-1 text-2xs text-slate-400">
                   <Coins className="w-3 h-3 text-slate-300 shrink-0" />
                   <span>No active advance salary balance</span>
                 </div>
               )}
 
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-2xs text-slate-500 mt-1">
                 TDS, advance repayments, or penalties. Deductions made here will automatically be recovered from the staff's active advance balance.
               </p>
             </div>
@@ -931,7 +925,7 @@ export const PayrollManager = () => {
                 <label className="block font-bold text-slate-700">
                   Remark / Notes
                 </label>
-                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+                <span className="text-2xs text-slate-400 font-medium">Optional</span>
               </div>
               <textarea
                 rows={2}
@@ -940,14 +934,14 @@ export const PayrollManager = () => {
                 onChange={(e) => setAdjustForm({ ...adjustForm, remarks: e.target.value })}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 resize-none"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-2xs text-slate-500 mt-0.5">
                 Note will be saved with this adjustment and recorded on the staff's payslip and advance record.
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex justify-between items-center">
               <span className="font-bold text-emerald-900">Revised Net Payable:</span>
-              <span className="font-mono font-black text-sm text-emerald-700">
+              <span className="font-mono font-bold text-sm text-emerald-700">
                 ₹{Math.max(0, (
                   Number(adjustingRecord.baseSalary || 0) +
                   Number(adjustingRecord.commissions || 0) +
@@ -967,7 +961,7 @@ export const PayrollManager = () => {
               </button>
               <button
                 type="submit"
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm cursor-pointer"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm cursor-pointer"
               >
                 Save Adjustments
               </button>
@@ -994,44 +988,44 @@ export const PayrollManager = () => {
               <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
                       AF
                     </div>
                     <div>
-                      <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight uppercase">
+                      <h3 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight uppercase">
                         {currentUser?.gymName || 'PULSE FIT ATHLETIC CLUB'}
                       </h3>
-                      <p className="text-[10px] text-slate-500">Official Staff Salary Payment Voucher / Pay Slip</p>
+                      <p className="text-2xs text-slate-500">Official Staff Salary Payment Voucher / Pay Slip</p>
                     </div>
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Slip No:</span>
-                  <span className="font-mono font-black text-xs text-slate-800">
+                  <span className="text-2xs text-slate-400 font-medium block uppercase">Slip No:</span>
+                  <span className="font-mono font-bold text-xs text-slate-800">
                     SLIP-{viewingPayslip.id || '2026-PAY'}
                   </span>
-                  <span className="text-[10px] text-slate-500 block">
+                  <span className="text-2xs text-slate-500 block">
                     Issued: {viewingPayslip.payDate || new Date().toISOString().split('T')[0]}
                   </span>
                 </div>
               </div>
 
               {/* Employee & Pay Details Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px]">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-2xs">
                 <div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase block">Employee Name</span>
+                  <span className="text-2xs text-slate-400 font-medium uppercase block">Employee Name</span>
                   <span className="font-bold text-slate-900 text-xs">{viewingPayslip.trainerName || viewingPayslip.employeeName || viewingPayslip.name}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase block">Designation</span>
+                  <span className="text-2xs text-slate-400 font-medium uppercase block">Designation</span>
                   <span className="font-semibold text-slate-800">{viewingPayslip.role || 'Fitness Coach'}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase block">Pay Cycle</span>
+                  <span className="text-2xs text-slate-400 font-medium uppercase block">Pay Cycle</span>
                   <span className="font-bold text-emerald-800">{viewingPayslip.period || viewingPayslip.month || selectedMonth}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase block">Payment Status</span>
+                  <span className="text-2xs text-slate-400 font-medium uppercase block">Payment Status</span>
                   <span className={`font-bold inline-flex items-center gap-1 ${viewingPayslip.status === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
                     <CheckCircle2 className="w-3 h-3" />
                     <span>{viewingPayslip.status}</span>
@@ -1043,10 +1037,10 @@ export const PayrollManager = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Earnings Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200">
+                  <div className="bg-slate-100 px-3 py-1.5 font-semibold text-slate-800 text-2xs uppercase tracking-wider border-b border-slate-200">
                     Earnings (Credits)
                   </div>
-                  <div className="p-3 space-y-2 text-[11px]">
+                  <div className="p-3 space-y-2 text-2xs">
                     <div className="flex justify-between">
                       <span className="text-slate-600">Basic Monthly Pay:</span>
                       <span className="font-mono font-bold text-slate-900">₹{Number(viewingPayslip.baseSalary || 0).toLocaleString('en-IN')}</span>
@@ -1070,10 +1064,10 @@ export const PayrollManager = () => {
 
                 {/* Deductions Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200">
+                  <div className="bg-slate-100 px-3 py-1.5 font-semibold text-slate-800 text-2xs uppercase tracking-wider border-b border-slate-200">
                     Deductions (Debits)
                   </div>
-                  <div className="p-3 space-y-2 text-[11px]">
+                  <div className="p-3 space-y-2 text-2xs">
                     <div className="flex justify-between">
                       <span className="text-slate-600">TDS / Professional Tax:</span>
                       <span className="font-mono text-slate-500">₹0</span>
@@ -1101,15 +1095,15 @@ export const PayrollManager = () => {
               {/* Net Take-Home Pay Highlight */}
               <div className="p-4 rounded-xl bg-emerald-50 border-2 border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-emerald-800 font-bold block">
+                  <span className="text-2xs uppercase tracking-wider text-emerald-800 font-semibold block">
                     Net Take-Home Salary Disbursed
                   </span>
-                  <span className="text-[11px] text-emerald-700 font-medium">
+                  <span className="text-2xs text-emerald-700 font-medium">
                     Payment Method: {viewingPayslip.paymentMethod || 'Bank Direct Transfer'}
                   </span>
                 </div>
                 <div className="text-left sm:text-right">
-                  <span className="text-xl sm:text-2xl font-black text-emerald-800 font-mono">
+                  <span className="text-xl sm:text-2xl font-bold text-emerald-800 font-mono">
                     ₹{Number(viewingPayslip.netPay).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -1119,22 +1113,22 @@ export const PayrollManager = () => {
               <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-200 text-center">
                 <div className="space-y-1">
                   <div className="h-10 border-b border-dashed border-slate-400"></div>
-                  <span className="text-[10px] font-bold text-slate-600 uppercase block">Employee Signature</span>
-                  <span className="text-[9px] text-slate-400">{viewingPayslip.trainerName || viewingPayslip.employeeName}</span>
+                  <span className="text-2xs font-semibold text-slate-600 uppercase block">Employee Signature</span>
+                  <span className="text-2xs text-slate-400">{viewingPayslip.trainerName || viewingPayslip.employeeName}</span>
                 </div>
                 <div className="space-y-1">
                   <div className="h-10 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
                     <span className="font-serif italic font-bold text-xs text-slate-700">Vikramaditya (Owner)</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-600 uppercase block">Authorized Signatory</span>
-                  <span className="text-[9px] text-slate-400">{currentUser?.gymName || 'Club Management'}</span>
+                  <span className="text-2xs font-semibold text-slate-600 uppercase block">Authorized Signatory</span>
+                  <span className="text-2xs text-slate-400">{currentUser?.gymName || 'Club Management'}</span>
                 </div>
               </div>
             </div>
 
             {/* Modal Action Controls */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-100">
-              <div className="text-[11px] text-slate-500">
+              <div className="text-2xs text-slate-500">
                 Official computer-generated salary slip
               </div>
 

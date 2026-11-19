@@ -205,7 +205,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             </div>
 
             <div className="min-w-0 space-y-1">
-              <h1 className="text-xl sm:text-2xl font-black font-heading tracking-tight text-slate-900 truncate">
+              <h1 className="app-page-title font-bold font-heading tracking-normal text-slate-900 truncate">
                 {currentUser?.name || 'Coach'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 truncate">
@@ -263,7 +263,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
           className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-300 transition-all shadow-xs hover:shadow-md cursor-pointer group space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Roster</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Roster</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="w-4 h-4" />
             </div>
@@ -272,8 +272,8 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             <span className="text-lg sm:text-xl font-bold text-slate-900 block leading-tight">
               {assignedClients.length}
             </span>
-            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5 mt-0.5">
-              <span>Supervised athletes</span>
+            <span className="text-2xs text-emerald-600 font-semibold flex items-center gap-0.5 mt-0.5">
+              <span>Supervised members</span>
               <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
           </div>
@@ -285,7 +285,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
           className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 hover:border-teal-300 transition-all shadow-xs hover:shadow-md cursor-pointer group space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Delivered</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Delivered</span>
             <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 border border-teal-200 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Dumbbell className="w-4 h-4" />
             </div>
@@ -294,7 +294,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             <span className="text-lg sm:text-xl font-bold text-slate-900 block leading-tight">
               {totalCompletedSessions}
             </span>
-            <span className="text-[10px] text-teal-600 font-semibold flex items-center gap-0.5 mt-0.5">
+            <span className="text-2xs text-teal-600 font-semibold flex items-center gap-0.5 mt-0.5">
               <span>{totalAllocatedSessions > 0 ? `${Math.round((totalCompletedSessions / totalAllocatedSessions) * 100)}% quota` : 'Verified sessions'}</span>
               <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
@@ -307,7 +307,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
           className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 hover:border-amber-300 transition-all shadow-xs hover:shadow-md cursor-pointer group space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Remaining</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Remaining</span>
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Clock className="w-4 h-4" />
             </div>
@@ -316,7 +316,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             <span className="text-lg sm:text-xl font-bold text-slate-900 block leading-tight">
               {totalRemainingSessions}
             </span>
-            <span className="text-[10px] text-amber-600 font-semibold flex items-center gap-0.5 mt-0.5">
+            <span className="text-2xs text-amber-600 font-semibold flex items-center gap-0.5 mt-0.5">
               <span>{myPtSessions.length} active packages</span>
               <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
@@ -329,7 +329,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
           className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 transition-all shadow-xs hover:shadow-md cursor-pointer group space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commissions</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Commissions</span>
             <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center group-hover:scale-105 transition-transform">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -338,7 +338,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             <span className="text-lg sm:text-xl font-bold text-slate-900 block leading-tight">
               ₹{totalCommissionsEarned.toLocaleString('en-IN')}
             </span>
-            <span className="text-[10px] text-purple-600 font-semibold flex items-center gap-0.5 mt-0.5">
+            <span className="text-2xs text-purple-600 font-semibold flex items-center gap-0.5 mt-0.5">
               <span>{myCommissions.length} recorded deals</span>
               <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
@@ -378,7 +378,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   <Dumbbell className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                   <p className="font-medium text-slate-700 text-xs">No PT packages assigned to your roster yet</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">When superadmin assigns PT packages to you, they will appear here for session logging.</p>
+                  <p className="text-2xs text-slate-400 mt-0.5">When superadmin assigns PT packages to you, they will appear here for session logging.</p>
                 </div>
               ) : (
                 myPtSessions.slice(0, 3).map((pt) => {
@@ -396,14 +396,14 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                       <div className="min-w-0 space-y-1.5 flex-1">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-slate-900 text-xs truncate">{pt.memberName}</h4>
-                          <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-teal-100/70 text-teal-800">
+                          <span className="px-2 py-0.2 rounded text-2xs font-bold bg-teal-100/70 text-teal-800">
                             {pt.packageTitle}
                           </span>
                         </div>
 
                         {/* Progress bar */}
                         <div className="space-y-1 max-w-md">
-                          <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center justify-between text-2xs">
                             <span className="text-slate-500 font-medium">Session Progress</span>
                             <span className="font-mono font-bold text-slate-800">
                               {completed} / {total} Delivered ({pct}%)
@@ -450,7 +450,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-slate-900">My Client Roster</h2>
-                  <p className="text-xs text-slate-500">Athletes and gym members assigned under your training program</p>
+                  <p className="text-xs text-slate-500"> gym members assigned under your training program</p>
                 </div>
               </div>
 
@@ -483,7 +483,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                       <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
                         {client.name}
                       </h4>
-                      <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
+                      <p className="text-2xs text-slate-500 truncate flex items-center gap-1">
                         <Target className="w-3 h-3 text-emerald-600 shrink-0" />
                         <span>{client.goal || 'Strength Gain'}</span>
                       </p>
@@ -492,7 +492,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
 
                   <div className="text-right shrink-0">
                     <span className="text-xs font-bold text-slate-900 block">{client.weight || 75} kg</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    <span className="text-2xs text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                       {client.attendanceStreak || 12}d streak
                     </span>
                   </div>
@@ -516,7 +516,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-900">Workout Builder</h3>
-                  <p className="text-[11px] text-slate-500">Configure sets, reps & splits for clients</p>
+                  <p className="text-2xs text-slate-500">Configure sets, reps & splits for clients</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all shrink-0" />
@@ -532,7 +532,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-900">Diet & Macro Builder</h3>
-                  <p className="text-[11px] text-slate-500">Customize daily meals & Indian macro charts</p>
+                  <p className="text-2xs text-slate-500">Customize daily meals & Indian macro charts</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-teal-600 group-hover:translate-x-1 transition-all shrink-0" />
@@ -585,8 +585,8 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                         ))}
                       </div>
                     </div>
-                    <p className="text-[11px] text-slate-600 italic">"{rev.comment}"</p>
-                    <span className="text-[9px] text-slate-400 block font-mono">{rev.date}</span>
+                    <p className="text-2xs text-slate-600 italic">"{rev.comment}"</p>
+                    <span className="text-2xs text-slate-400 block font-mono">{rev.date}</span>
                   </div>
                 ))
               )}
@@ -607,12 +607,12 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
               <div>
                 <div className="font-bold text-slate-900 text-xs">{selectedPtForOtp.memberName}</div>
-                <div className="text-[11px] text-slate-500">{selectedPtForOtp.packageTitle}</div>
+                <div className="text-2xs text-slate-500">{selectedPtForOtp.packageTitle}</div>
               </div>
               <div className="text-right font-mono text-xs">
                 <span className="font-bold text-teal-700">{selectedPtForOtp.completedSessions + 1}</span>
                 <span className="text-slate-400">/{selectedPtForOtp.totalSessions}</span>
-                <div className="text-[10px] text-slate-500">Session #{selectedPtForOtp.completedSessions + 1}</div>
+                <div className="text-2xs text-slate-500">Session #{selectedPtForOtp.completedSessions + 1}</div>
               </div>
             </div>
 
@@ -653,7 +653,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 <label className="block font-bold text-slate-800">
                   Client Verification OTP (Final Step)
                 </label>
-                <span className="text-[10px] font-mono text-slate-400">
+                <span className="text-2xs font-mono text-slate-400">
                   Passcode: <strong className="text-teal-700">{selectedPtForOtp.otp}</strong>
                 </span>
               </div>
@@ -664,7 +664,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
                 placeholder="Enter 4-digit OTP"
                 value={inputOtp}
                 onChange={(e) => setInputOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-full text-center tracking-widest text-lg font-mono font-black py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
+                className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-teal-500 shadow-xs"
               />
             </div>
 
@@ -678,7 +678,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Verify & Record Session</span>
@@ -698,7 +698,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
         <form onSubmit={handleAdvanceSubmit} className="space-y-3.5 text-xs">
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
             <span className="font-bold text-amber-900 text-xs">Staff Advance Pay Policy</span>
-            <p className="text-[11px] text-amber-800">
+            <p className="text-2xs text-amber-800">
               Requests are reviewed by Superadmin & Accounts. Approved advances are deducted from your upcoming payroll cycles.
             </p>
           </div>
@@ -753,7 +753,7 @@ export const TrainerDashboard = ({ setActiveTab, initialOpenAdvance = false }) =
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
             >
               Submit Request
             </button>

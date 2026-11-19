@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->id();
-            $table->string('invoice_number')->unique();
+            $table->string('invoice_number')->index();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('plan_id')->nullable()->constrained('plans')->nullOnDelete();
             $table->decimal('amount', 10, 2);

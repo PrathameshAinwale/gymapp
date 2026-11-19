@@ -311,7 +311,7 @@ export const WorkoutBuilder = () => {
         </div>
 
         {/* Client Name & Profile Header Card */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-3.5">
+        <div className="p-3 sm:p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-3.5">
           <div className="flex items-center gap-3.5">
             <UserAvatar
               src={member?.avatar}
@@ -320,12 +320,12 @@ export const WorkoutBuilder = () => {
               iconClassName="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600"
             />
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-emerald-600 block">
                 Athlete Workout Plan
               </span>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 truncate">
                 {selectedPlanForView.memberName}
-              </h1>
+              </h2>
               <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
                 {selectedPlanForView.title}
               </p>
@@ -335,15 +335,15 @@ export const WorkoutBuilder = () => {
           {/* Vitals Strip */}
           <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Weight</span>
+              <span className="text-2xs text-slate-400 uppercase font-medium block">Weight</span>
               <span className="font-bold text-slate-800 mt-0.5 block">{member?.weight || '--'} kg</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Height</span>
+              <span className="text-2xs text-slate-400 uppercase font-medium block">Height</span>
               <span className="font-bold text-slate-800 mt-0.5 block">{member?.height || '--'} cm</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Goal</span>
+              <span className="text-2xs text-slate-400 uppercase font-medium block">Goal</span>
               <span className="font-bold text-emerald-600 mt-0.5 block truncate">
                 {member?.goal || 'Strength & Conditioning'}
               </span>
@@ -368,7 +368,7 @@ export const WorkoutBuilder = () => {
                 }`}
               >
                 <span className="text-xs font-bold block">{d.day.substring(0, 3)}</span>
-                <span className={`text-[9px] block mt-0.5 ${isActive ? 'text-white/90 font-bold' : 'text-slate-400'}`}>
+                <span className={`text-2xs block mt-0.5 ${isActive ? 'text-white/90 font-bold' : 'text-slate-400'}`}>
                   {exCount} ex
                 </span>
               </button>
@@ -380,14 +380,14 @@ export const WorkoutBuilder = () => {
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-3.5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <div className="text-[10px] uppercase font-bold text-emerald-600">
+              <div className="text-2xs uppercase font-semibold text-emerald-600">
                 {activeViewDay.day} Routine
               </div>
               <h2 className="font-bold text-sm text-slate-900 mt-0.5">
                 {activeViewDay.title || `${activeViewDay.day} Exercises`}
               </h2>
             </div>
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               {exercises.length} Exercises
             </span>
           </div>
@@ -421,14 +421,14 @@ export const WorkoutBuilder = () => {
                       </h3>
                     </div>
 
-                    <span className="text-[10px] text-slate-500 flex items-center gap-1 shrink-0">
+                    <span className="text-2xs text-slate-500 flex items-center gap-1 shrink-0">
                       <Clock className="w-3 h-3 text-slate-400" />
                       {ex.rest || ex.restSec || 60}s rest
                     </span>
                   </div>
 
                   {/* Metrics Badges */}
-                  <div className="flex items-center gap-2 text-[11px]">
+                  <div className="flex items-center gap-2 text-2xs">
                     <span className="px-2.5 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-medium">
                       {ex.sets} sets
                     </span>
@@ -461,7 +461,7 @@ export const WorkoutBuilder = () => {
             <Dumbbell className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+            <h1 className="app-page-title font-bold text-slate-800 tracking-normal">
               Workout Plans
             </h1>
             <p className="text-xs text-slate-500">
@@ -473,7 +473,7 @@ export const WorkoutBuilder = () => {
         <button
           type="button"
           onClick={handleOpenCreateModal}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 shrink-0 cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 shrink-0 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Create Workout</span>
@@ -494,7 +494,7 @@ export const WorkoutBuilder = () => {
             <button
               type="button"
               onClick={handleOpenCreateModal}
-              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create First Workout</span>
@@ -531,7 +531,7 @@ export const WorkoutBuilder = () => {
                         <h3 className="font-bold text-sm sm:text-base text-slate-800 truncate group-hover:text-emerald-700 transition-colors">
                           {plan.memberName}
                         </h3>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                           {member?.planName || 'Active Client'}
                         </span>
                       </div>
@@ -568,15 +568,15 @@ export const WorkoutBuilder = () => {
                 {/* Vitals & Goal */}
                 <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Weight</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Weight</span>
                     <span className="font-bold text-slate-800 mt-0.5 block">{member?.weight || '--'} kg</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Height</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Height</span>
                     <span className="font-bold text-slate-800 mt-0.5 block">{member?.height || '--'} cm</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Goal</span>
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Goal</span>
                     <span className="font-bold text-emerald-600 mt-0.5 block truncate">
                       {member?.goal || 'General Fitness'}
                     </span>
@@ -585,7 +585,7 @@ export const WorkoutBuilder = () => {
 
                 {/* Footer */}
                 <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-100">
-                  <span className="text-[11px] font-semibold text-slate-500">
+                  <span className="text-2xs font-semibold text-slate-500">
                     {totalExercises} Exercises • 6 Days (Mon–Sat)
                   </span>
                   <span className="text-xs font-bold text-emerald-600 group-hover:translate-x-1 transition-transform flex items-center gap-1">
@@ -609,13 +609,13 @@ export const WorkoutBuilder = () => {
         <form onSubmit={handleSubmitPlan} className="space-y-4 text-xs">
           {/* STEP 1: CLIENT SELECTION & VITALS */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wide">
+            <div className="flex items-center gap-2 text-slate-800 font-semibold text-xs uppercase tracking-wide">
               <User className="w-3.5 h-3.5 text-emerald-600" />
               <span>1. Client Information & Fitness Target</span>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Select Client *
               </label>
               <select
@@ -635,7 +635,7 @@ export const WorkoutBuilder = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Body Weight (kg)
                 </label>
                 <input
@@ -651,7 +651,7 @@ export const WorkoutBuilder = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Height (cm)
                 </label>
                 <input
@@ -666,7 +666,7 @@ export const WorkoutBuilder = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Fitness Goal *
                 </label>
                 <input
@@ -681,7 +681,7 @@ export const WorkoutBuilder = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Workout Plan Title *
               </label>
               <input
@@ -697,12 +697,12 @@ export const WorkoutBuilder = () => {
 
           {/* STEP 2: MONDAY TO SATURDAY WORKOUT SPLIT */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between text-slate-800 font-bold text-xs uppercase tracking-wide">
+            <div className="flex items-center justify-between text-slate-800 font-semibold text-xs uppercase tracking-wide">
               <span className="flex items-center gap-2">
                 <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                 <span>2. Monday to Saturday Exercise Routine</span>
               </span>
-              <span className="text-[11px] text-emerald-600 normal-case font-semibold">
+              <span className="text-2xs text-emerald-600 normal-case font-semibold">
                 {formData.days[modalDayIdx]?.day} selected
               </span>
             </div>
@@ -723,8 +723,8 @@ export const WorkoutBuilder = () => {
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <span className="text-[11px] block">{d.day.substring(0, 3)}</span>
-                    <span className={`text-[9px] block ${isCurrent ? 'text-white/90 font-bold' : 'text-slate-400'}`}>
+                    <span className="text-2xs block">{d.day.substring(0, 3)}</span>
+                    <span className={`text-2xs block ${isCurrent ? 'text-white/90 font-bold' : 'text-slate-400'}`}>
                       {count} ex
                     </span>
                   </button>
@@ -733,7 +733,7 @@ export const WorkoutBuilder = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 {formData.days[modalDayIdx]?.day} Target Focus / Muscle Group
               </label>
               <input
@@ -747,7 +747,7 @@ export const WorkoutBuilder = () => {
 
             {/* Exercises Already Added */}
             <div className="space-y-2 pt-1">
-              <div className="text-[11px] font-bold text-slate-700">
+              <div className="text-2xs font-bold text-slate-700">
                 Exercises in {formData.days[modalDayIdx]?.day} ({(formData.days[modalDayIdx]?.exercises || []).length})
               </div>
 
@@ -762,14 +762,14 @@ export const WorkoutBuilder = () => {
                     className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 shadow-2xs"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-5 h-5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                      <span className="w-5 h-5 rounded bg-emerald-50 text-emerald-700 font-bold text-2xs flex items-center justify-center shrink-0">
                         {exIdx + 1}
                       </span>
                       <div className="min-w-0">
                         <span className="font-bold text-slate-800 text-xs block truncate">
                           {ex.name || ex.exerciseName}
                         </span>
-                        <span className="text-[10px] text-slate-500 block">
+                        <span className="text-2xs text-slate-500 block">
                           {ex.sets} sets × {ex.reps} • {ex.weight} • {ex.rest || ex.restSec}s rest
                         </span>
                       </div>
@@ -790,12 +790,12 @@ export const WorkoutBuilder = () => {
 
             {/* Quick Add Exercise Sub-form */}
             <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-2.5 mt-2">
-              <span className="text-[11px] font-bold text-emerald-800 block">
+              <span className="text-2xs font-bold text-emerald-800 block">
                 + Add Exercise to {formData.days[modalDayIdx]?.day}
               </span>
 
               <div>
-                <label className="block text-[10px] text-slate-600 mb-0.5">Exercise Name *</label>
+                <label className="block text-2xs text-slate-600 mb-0.5">Exercise Name *</label>
                 <select
                   value={newExForm.exerciseName}
                   onChange={(e) => setNewExForm({ ...newExForm, exerciseName: e.target.value })}
@@ -811,7 +811,7 @@ export const WorkoutBuilder = () => {
 
               <div className="grid grid-cols-4 gap-2">
                 <div>
-                  <label className="block text-[10px] text-slate-600 mb-0.5">Sets</label>
+                  <label className="block text-2xs text-slate-600 mb-0.5">Sets</label>
                   <input
                     type="number"
                     min="1"
@@ -824,7 +824,7 @@ export const WorkoutBuilder = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-600 mb-0.5">Reps</label>
+                  <label className="block text-2xs text-slate-600 mb-0.5">Reps</label>
                   <input
                     type="text"
                     value={newExForm.reps}
@@ -834,7 +834,7 @@ export const WorkoutBuilder = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-600 mb-0.5">Target Wt</label>
+                  <label className="block text-2xs text-slate-600 mb-0.5">Target Wt</label>
                   <input
                     type="text"
                     value={newExForm.weight}
@@ -844,7 +844,7 @@ export const WorkoutBuilder = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-600 mb-0.5">Rest (s)</label>
+                  <label className="block text-2xs text-slate-600 mb-0.5">Rest (s)</label>
                   <input
                     type="number"
                     step="15"
@@ -859,7 +859,7 @@ export const WorkoutBuilder = () => {
               <button
                 type="button"
                 onClick={handleAddExercise}
-                className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
+                className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Exercise to {formData.days[modalDayIdx]?.day}</span>
@@ -878,7 +878,7 @@ export const WorkoutBuilder = () => {
             <button
               type="submit"
               disabled={isSubmittingPlan}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer inline-flex items-center gap-2"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm shadow-emerald-600/20 transition-all active:scale-98 cursor-pointer inline-flex items-center gap-2"
             >
               {isSubmittingPlan && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingPlan ? 'Saving & Assigning...' : 'Save & Assign Workout Plan'}</span>

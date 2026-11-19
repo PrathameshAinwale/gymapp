@@ -438,16 +438,16 @@ export const ShiftFormModal = ({
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3.5">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-emerald-600" />
                 <span>Shift Timing Slots</span>
               </h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-2xs text-slate-500 mt-0.5">
                 Add multiple timing options/slots to this shift (e.g. for split shifts or flexible schedules).
               </p>
             </div>
 
-            <div className="px-2.5 py-1 rounded-lg bg-emerald-100/70 text-emerald-800 text-xs font-black border border-emerald-200">
+            <div className="px-2.5 py-1 rounded-lg bg-emerald-100/70 text-emerald-800 text-xs font-bold border border-emerald-200">
               Total: {formatDurationDisplay(totalFormMinutes)}
             </div>
           </div>
@@ -458,7 +458,7 @@ export const ShiftFormModal = ({
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <div className="font-bold text-rose-900">Timing Conflict Detected</div>
-                <div className="text-[11px] text-rose-700 font-medium mt-0.5">
+                <div className="text-2xs text-rose-700 font-medium mt-0.5">
                   {timingValidation.firstError}
                 </div>
               </div>
@@ -497,14 +497,14 @@ export const ShiftFormModal = ({
                       />
 
                       {isConflicting && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3 text-rose-500" />
                           <span>Overlaps with another slot</span>
                         </span>
                       )}
 
                       {isZeroDuration && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3 text-rose-500" />
                           <span>Same start & end time</span>
                         </span>
@@ -512,7 +512,7 @@ export const ShiftFormModal = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className={`text-[11px] font-bold ${hasSlotError ? 'text-rose-600' : 'text-slate-500'}`}>
+                      <span className={`text-2xs font-bold ${hasSlotError ? 'text-rose-600' : 'text-slate-500'}`}>
                         {formatDurationDisplay(sMinutes)}
                       </span>
                       {formData.timings.length > 1 && (
@@ -530,7 +530,7 @@ export const ShiftFormModal = ({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      <label className="block text-2xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
                         Start Time
                       </label>
                       <input
@@ -544,13 +544,13 @@ export const ShiftFormModal = ({
                             : 'border-slate-300 text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500'
                         }`}
                       />
-                      <span className={`text-[10px] font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
+                      <span className={`text-2xs font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
                         Preview: {slot.start_time}
                       </span>
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      <label className="block text-2xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
                         End Time
                       </label>
                       <input
@@ -564,7 +564,7 @@ export const ShiftFormModal = ({
                             : 'border-slate-300 text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-500'
                         }`}
                       />
-                      <span className={`text-[10px] font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
+                      <span className={`text-2xs font-medium mt-0.5 block ${hasSlotError ? 'text-rose-500' : 'text-slate-400'}`}>
                         Preview: {slot.end_time}
                       </span>
                     </div>
@@ -578,7 +578,7 @@ export const ShiftFormModal = ({
           <button
             type="button"
             onClick={handleAddTimingSlot}
-            className="w-full py-2.5 min-h-[44px] sm:min-h-0 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 text-emerald-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            className="w-full py-2.5 min-h-[44px] sm:min-h-0 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 text-emerald-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Add Another Timing Slot Option</span>
@@ -590,7 +590,7 @@ export const ShiftFormModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -598,7 +598,7 @@ export const ShiftFormModal = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            className="px-5 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <span>Saving...</span>

@@ -920,19 +920,22 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Staff & Employee Directory
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Create and maintain staff entries with identity verification, working shifts, salaries, and secure login access.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {staffList.length} Total staff members
+              </div>
             </div>
           </div>
         </div>
@@ -943,21 +946,21 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <button
                 type="button"
                 onClick={() => onNavigateTab('settings')}
-                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Configure custom roles & page access permissions in Settings"
               >
-                <ShieldCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">Roles & Permissions</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="hidden sm:inline">Roles</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateTab('shifts')}
-                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
                 title="Shift Rosters"
               >
-                <Clock className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Shift Rosters {shifts?.length ? `(${shifts.length})` : ''}</span>
+                <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="hidden sm:inline">Shifts {shifts?.length ? `(${shifts.length})` : ''}</span>
               </button>
             </>
           )}
@@ -971,10 +974,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               }
               setIsCreateModalOpen(true);
             }}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
           >
-            <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-            <span>Add Staff</span>
+            <UserPlus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Add Staff</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -982,33 +986,33 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Staff Team</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{staffList.length} Staff</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Managers, accounts & coaches</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Total Staff Team</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{staffList.length} Staff</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">Managers, accounts & coaches</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Certified Coaches</span>
-          <div className="text-lg sm:text-2xl font-black text-purple-600 mt-0.5 sm:mt-1">
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Certified Coaches</span>
+          <div className="text-lg sm:text-2xl font-bold text-purple-600 mt-0.5 sm:mt-1">
             {staffList.filter((s) => s.role === 'trainer').length} Coaches
           </div>
-          <span className="text-[10px] sm:text-[11px] text-purple-700/80 font-medium hidden sm:block">1-on-1 PT & group coaches</span>
+          <span className="text-2xs sm:text-2xs text-purple-700/80 font-medium hidden sm:block">1-on-1 PT & group coaches</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Assigned PT Athletes</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Assigned PT Members</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">
             {members.filter((m) => m.trainerId || m.trainer_id).length} Members
           </div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700/80 font-medium hidden sm:block">Guided under coaches</span>
+          <span className="text-2xs sm:text-2xs text-emerald-700/80 font-medium hidden sm:block">Guided under coaches</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Monthly Base Payroll</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Monthly Base Payroll</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">
             ₹{staffList.reduce((acc, s) => acc + (Number(s.salary) || 0), 0).toLocaleString('en-IN')}
           </div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Staff retainers committed</span>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">Staff retainers committed</span>
         </div>
       </div>
 
@@ -1026,7 +1030,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <select
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                className="pl-8.5 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
+                className="pl-8.5 pr-8 h-9.5 sm:h-9 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer transition-all appearance-none shadow-2xs"
               >
                 <option value="all">All Roles ({staffList.length})</option>
                 {availableRoles.map((r) => (
@@ -1084,37 +1088,37 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 return (
                   <div key={stf.id} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <StaffAvatar src={stf.avatar} name={stf.name} size="sm" />
-                        <div className="min-w-0">
-                          <div className="font-bold text-slate-900 text-xs truncate">{stf.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono truncate">{stf.email}</div>
-                          {stf.phone && <div className="text-[10px] text-slate-500">{stf.phone}</div>}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 text-xs truncate" title={stf.name}>{stf.name}</div>
+                          <div className="text-2xs text-slate-400 font-mono truncate" title={stf.email}>{stf.email}</div>
+                          {stf.phone && <div className="text-2xs text-slate-500 whitespace-nowrap shrink-0">{stf.phone}</div>}
                         </div>
                       </div>
                       <div className="shrink-0">
                         {isSuper && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <ShieldCheck className="w-2.5 h-2.5" /> Owner
                           </span>
                         )}
                         {isMgr && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <Users className="w-2.5 h-2.5" /> Manager
                           </span>
                         )}
                         {isAcc && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
                             <ShieldCheck className="w-2.5 h-2.5 text-amber-600" /> Accounts
                           </span>
                         )}
                         {isTrainer && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                             <Award className="w-2.5 h-2.5 text-purple-600" /> Coach
                           </span>
                         )}
                         {!isSuper && !isMgr && !isAcc && !isTrainer && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <Users className="w-2.5 h-2.5" />
                             {stf.role_label || (availableRoles.find((r) => r.slug === stf.role)?.name) || stf.role}
                           </span>
@@ -1123,41 +1127,41 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     </div>
 
                     {/* Details Grid */}
-                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Salary</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Salary</span>
                         <span className="font-bold text-slate-900">{stf.salary ? `₹${Number(stf.salary).toLocaleString('en-IN')}` : '—'}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Shift</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Shift</span>
                         <span className="font-semibold text-slate-700 truncate block">{stf.shifts || 'Morning'}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Joining</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Joining</span>
                         <span className="font-medium text-slate-600">{stf.joining_date || stf.joiningDate || '—'}</span>
                       </div>
                     </div>
 
                     {/* KYC & Hardware PIN */}
-                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                    <div className="flex items-center justify-between gap-1 text-2xs">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {stf.aadhaar_card ? (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[9px]">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono text-2xs">
                             UID: ...{stf.aadhaar_card.slice(-4)}
                           </span>
                         ) : null}
                         {stf.pan_card ? (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px]">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-2xs">
                             PAN: {stf.pan_card.slice(0, 5)}...
                           </span>
                         ) : null}
                         {(stf.biometric_user_id || stf.biometricUserId) && (
-                          <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-mono text-[9px] flex items-center gap-0.5">
+                          <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-mono text-2xs flex items-center gap-0.5">
                             <Fingerprint className="w-2.5 h-2.5 text-purple-600" /> PIN: {stf.biometric_user_id || stf.biometricUserId}
                           </span>
                         )}
                       </div>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                         <CheckCircle2 className="w-2.5 h-2.5" /> Active
                       </span>
                     </div>
@@ -1216,7 +1220,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Staff Member</th>
                   <th className="py-3 px-4">Role & Specialty</th>
                   <th className="py-3 px-4">Joining Date</th>
@@ -1236,22 +1240,22 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                   return (
                     <tr key={stf.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2.5">
+                      <td className="py-3.5 px-4 max-w-[220px]">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <StaffAvatar src={stf.avatar} name={stf.name} size="sm" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 truncate">{stf.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono truncate">{stf.email}</div>
-                            {stf.phone && <div className="text-[10px] text-slate-500">{stf.phone}</div>}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 truncate" title={stf.name}>{stf.name}</div>
+                            <div className="text-2xs text-slate-400 font-mono truncate" title={stf.email}>{stf.email}</div>
+                            {stf.phone && <div className="text-2xs text-slate-500 whitespace-nowrap shrink-0">{stf.phone}</div>}
                             {(stf.biometric_user_id || stf.biometricUserId) && (
-                              <div className="text-[10px] text-emerald-700 font-mono flex items-center gap-1 mt-0.5" title="Enrolled Biometric Hardware PIN">
+                              <div className="text-2xs text-emerald-700 font-mono flex items-center gap-1 mt-0.5" title="Enrolled Biometric Hardware PIN">
                                 <Fingerprint className="w-3 h-3 text-emerald-600 shrink-0" />
                                 <span>PIN: {stf.biometric_user_id || stf.biometricUserId}</span>
                                 {stf.synced_to_device && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" title="Synced to eSSL Device" />}
                               </div>
                             )}
                             {isTrainer && stf.specialty && (
-                              <div className="text-[10px] text-purple-700 font-semibold truncate flex items-center gap-1 mt-0.5">
+                              <div className="text-2xs text-purple-700 font-semibold truncate flex items-center gap-1 mt-0.5">
                                 <Award className="w-3 h-3 text-purple-600 shrink-0" />
                                 <span className="truncate">{stf.specialty}</span>
                               </div>
@@ -1262,32 +1266,32 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                       <td className="py-3.5 px-4">
                         {isSuper && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <ShieldCheck className="w-3 h-3" /> Owner
                           </span>
                         )}
                         {isMgr && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <Users className="w-3 h-3" /> Manager
                           </span>
                         )}
                         {isAcc && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
                             <ShieldCheck className="w-3 h-3 text-amber-600" /> Accounts
                           </span>
                         )}
                         {isTrainer && (
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                               <Award className="w-3 h-3 text-purple-600" /> Fitness Coach
                             </span>
                             {stf.experience && (
-                              <div className="text-[10px] text-slate-500 font-medium">Exp: {stf.experience}</div>
+                              <div className="text-2xs text-slate-500 font-medium">Exp: {stf.experience}</div>
                             )}
                             {Array.isArray(stf.certifications) && stf.certifications.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-0.5">
                                 {stf.certifications.slice(0, 2).map((c, i) => (
-                                  <span key={i} className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                                  <span key={i} className="text-2xs px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
                                     {c}
                                   </span>
                                 ))}
@@ -1296,7 +1300,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                           </div>
                         )}
                         {!isSuper && !isMgr && !isAcc && !isTrainer && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <Users className="w-3 h-3 text-indigo-600" />
                             {stf.role_label || (availableRoles.find((r) => r.slug === stf.role)?.name) || stf.role}
                           </span>
@@ -1318,18 +1322,18 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                           <span className="text-slate-400">—</span>
                         )}
                         {stf.dob && (
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <div className="text-2xs text-slate-400 mt-0.5">
                             DOB: {stf.dob}
                           </div>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                      <td className="py-3.5 px-4 font-medium text-slate-900">
                         {stf.salary ? `₹${Number(stf.salary).toLocaleString('en-IN')}/mo` : <span className="text-slate-400 font-normal">—</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-600">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                        <span className="px-2 py-0.5 rounded text-2xs font-medium bg-slate-100 text-slate-700">
                           {stf.shifts || 'Morning Shift'}
                         </span>
                       </td>
@@ -1345,7 +1349,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                                   setPreviewDoc({ title: `Aadhaar Card - ${stf.name}`, imageUrl: stf.aadhaar_image, docNumber: stf.aadhaar_card });
                                 }
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-bold ${
                                 stf.aadhaar_image
                                   ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer'
                                   : 'bg-slate-50 text-slate-600 border border-slate-200'
@@ -1357,7 +1361,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                               {stf.aadhaar_image && <Image className="w-2.5 h-2.5 text-blue-500" />}
                             </button>
                           ) : (
-                            <span className="text-[10px] text-slate-400">No Aadhaar</span>
+                            <span className="text-2xs text-slate-400">No Aadhaar</span>
                           )}
 
                           {/* PAN badge / preview */}
@@ -1369,7 +1373,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                                   setPreviewDoc({ title: `PAN Card - ${stf.name}`, imageUrl: stf.pan_image, docNumber: stf.pan_card });
                                 }
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-bold ${
                                 stf.pan_image
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer'
                                   : 'bg-slate-50 text-slate-600 border border-slate-200'
@@ -1385,7 +1389,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3" /> Active
                         </span>
                       </td>
@@ -1396,8 +1400,8 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                             <button
                               type="button"
                               onClick={() => setSelectedCoachRoster(stf)}
-                              className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
-                              title="View Assigned Athletes Roster"
+                              className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-2xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                              title="View Assigned Members Roster"
                             >
                               <Users className="w-3.5 h-3.5 text-purple-600" />
                               <span>Roster ({(stf.assigned_members || []).length})</span>
@@ -1410,7 +1414,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                               setSharingStaff(stf);
                               setShowSharePassword(false);
                             }}
-                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-2xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
                             title="View Email and Password"
                           >
                             <Copy className="w-3.5 h-3.5 text-slate-500" />
@@ -1500,7 +1504,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 />
               </div>
               {formData.dob && !isValidStaffDob(formData.dob, 15) && (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Staff member date of birth cannot be less than 15 years (must be at least 15 years old).
                 </p>
               )}
@@ -1545,7 +1549,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block font-bold text-slate-700">Select Role *</label>
-              <span className="text-[10px] text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
+              <span className="text-2xs text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
             </div>
             {availableRoles.length === 0 ? (
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2">
@@ -1560,7 +1564,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                       setIsCreateModalOpen(false);
                       onNavigateTab('settings');
                     }}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg cursor-pointer"
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-2xs rounded-lg cursor-pointer"
                   >
                     Go to Settings
                   </button>
@@ -1594,11 +1598,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   if (!selectedRoleObj) return null;
                   const pageCount = Array.isArray(selectedRoleObj.assigned_pages) ? selectedRoleObj.assigned_pages.length : null;
                   return (
-                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
+                    <div className="mt-1.5 flex items-center gap-2 text-2xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
                       <span className="font-semibold text-slate-700">{selectedRoleObj.name}:</span>
                       <span className="truncate">{selectedRoleObj.description || 'Assigned staff access'}</span>
                       {pageCount !== null && (
-                        <span className="ml-auto font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                        <span className="ml-auto font-mono text-2xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
                           {pageCount} Pages Access
                         </span>
                       )}
@@ -1694,7 +1698,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                     Specialty / Training Focus *
                   </label>
                   <select
@@ -1713,7 +1717,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                     Coaching Experience Level
                   </label>
                   <select
@@ -1732,7 +1736,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                     Certifications (comma separated)
                   </label>
                   <input
@@ -1746,7 +1750,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                       Gender
                     </label>
                     <select
@@ -1761,7 +1765,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                       Blood Group
                     </label>
                     <select
@@ -1784,7 +1788,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                   Coach Bio & Transformation Philosophy
                 </label>
                 <textarea
@@ -1807,7 +1811,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Aadhaar Number (12 Digits)
                 </label>
                 <input
@@ -1823,14 +1827,14 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Upload Aadhaar Document Photo
                 </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileUpload(e, 'aadhaar_image')}
-                  className="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer"
+                  className="w-full text-2xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-2xs file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer"
                 />
               </div>
             </div>
@@ -1862,7 +1866,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   PAN Number (10 Alphanumeric)
                 </label>
                 <input
@@ -1876,14 +1880,14 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Upload PAN Document Photo
                 </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileUpload(e, 'pan_image')}
-                  className="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 cursor-pointer"
+                  className="w-full text-2xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-2xs file:font-bold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 cursor-pointer"
                 />
               </div>
             </div>
@@ -1913,7 +1917,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, password: 'staff' + Math.floor(1000 + Math.random() * 9000) })}
-                className="text-[10px] text-emerald-600 font-bold hover:underline cursor-pointer"
+                className="text-2xs text-emerald-600 font-bold hover:underline cursor-pointer"
               >
                 Generate Secure Pass
               </button>
@@ -1980,24 +1984,24 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="font-bold text-emerald-900 text-sm">{createdCredentials.name}</h4>
-              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStaffRoleBadgeClass(createdCredentials)}`}>
+              <span className={`inline-block px-2.5 py-0.5 rounded-full text-2xs font-bold border capitalize ${getStaffRoleBadgeClass(createdCredentials)}`}>
                 {getStaffRoleDisplayName(createdCredentials, availableRoles)}
               </span>
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[11px]">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-2xs">
               <div>
-                <span className="text-slate-400 font-bold block">Mobile / Login ID:</span>
+                <span className="text-slate-400 font-medium block">Mobile / Login ID:</span>
                 <span className="font-mono font-bold text-slate-900">{createdCredentials.phone || createdCredentials.email || 'N/A'}</span>
               </div>
               {createdCredentials.email && createdCredentials.email !== createdCredentials.phone && (
                 <div>
-                  <span className="text-slate-400 font-bold block">Email:</span>
+                  <span className="text-slate-400 font-medium block">Email:</span>
                   <span className="font-mono font-bold text-slate-900">{createdCredentials.email}</span>
                 </div>
               )}
               <div>
-                <span className="text-slate-400 font-bold block">Password:</span>
+                <span className="text-slate-400 font-medium block">Password:</span>
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-bold text-slate-900">
                     {showCreatedPassword ? createdCredentials.password : '••••••••••••'}
@@ -2014,7 +2018,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-500 text-center">
+            <p className="text-2xs text-slate-500 text-center">
               Please share these credentials with the employee. They can sign in immediately using their mobile number or email at the login screen.
             </p>
 
@@ -2050,11 +2054,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <div className="min-w-0 flex-1">
                 <h4 className="font-bold text-slate-900 text-sm truncate">{sharingStaff.name}</h4>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStaffRoleBadgeClass(sharingStaff)}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-2xs font-bold border capitalize ${getStaffRoleBadgeClass(sharingStaff)}`}>
                     {getStaffRoleDisplayName(sharingStaff, availableRoles)}
                   </span>
                   {sharingStaff.phone && (
-                    <span className="text-[10px] text-slate-400">{sharingStaff.phone}</span>
+                    <span className="text-2xs text-slate-400">{sharingStaff.phone}</span>
                   )}
                 </div>
               </div>
@@ -2062,7 +2066,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
             <div className="space-y-2.5">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                <label className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                   Mobile / Login ID
                 </label>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -2082,7 +2086,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
               {sharingStaff.email && sharingStaff.email !== sharingStaff.phone && (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  <label className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                     Email Address
                   </label>
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -2102,7 +2106,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               )}
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                <label className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                   Current Password
                 </label>
                 {(() => {
@@ -2261,7 +2265,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   />
                 </div>
                 {editFormData.dob && !isValidStaffDob(editFormData.dob, 15) && (
-                  <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                  <p className="text-2xs text-rose-500 mt-1 font-semibold">
                     Staff member date of birth cannot be less than 15 years (must be at least 15 years old).
                   </p>
                 )}
@@ -2306,7 +2310,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block font-bold text-slate-700">Role *</label>
-                <span className="text-[10px] text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
+                <span className="text-2xs text-slate-400 font-medium">Configured in Settings → Staff Roles</span>
               </div>
               {availableRoles.length === 0 ? (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2">
@@ -2321,7 +2325,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                         setEditingStaff(null);
                         onNavigateTab('settings');
                       }}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg cursor-pointer"
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-2xs rounded-lg cursor-pointer"
                     >
                       Go to Settings
                     </button>
@@ -2355,11 +2359,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     if (!selectedRoleObj) return null;
                     const pageCount = Array.isArray(selectedRoleObj.assigned_pages) ? selectedRoleObj.assigned_pages.length : null;
                     return (
-                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
+                      <div className="mt-1.5 flex items-center gap-2 text-2xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1">
                         <span className="font-semibold text-slate-700">{selectedRoleObj.name}:</span>
                         <span className="truncate">{selectedRoleObj.description || 'Assigned staff access'}</span>
                         {pageCount !== null && (
-                          <span className="ml-auto font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                          <span className="ml-auto font-mono text-2xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
                             {pageCount} Pages Access
                           </span>
                         )}
@@ -2454,7 +2458,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                       Specialty / Training Focus *
                     </label>
                     <select
@@ -2473,7 +2477,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                       Coaching Experience Level
                     </label>
                     <select
@@ -2492,7 +2496,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                       Certifications (comma separated)
                     </label>
                     <input
@@ -2506,7 +2510,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                      <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                         Gender
                       </label>
                       <select
@@ -2521,7 +2525,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                      <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                         Blood Group
                       </label>
                       <select
@@ -2544,7 +2548,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                     Coach Bio & Transformation Philosophy
                   </label>
                   <textarea
@@ -2579,7 +2583,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileUpload(e, 'aadhaar_image', true)}
-                  className="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-100 file:text-blue-800 cursor-pointer"
+                  className="w-full text-2xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-2xs file:font-bold file:bg-blue-100 file:text-blue-800 cursor-pointer"
                 />
               </div>
               {editFormData.aadhaar_image && (
@@ -2588,7 +2592,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   <button
                     type="button"
                     onClick={() => setEditFormData({ ...editFormData, aadhaar_image: '' })}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px]"
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-2xs"
                   >
                     ×
                   </button>
@@ -2615,7 +2619,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileUpload(e, 'pan_image', true)}
-                  className="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-100 file:text-emerald-800 cursor-pointer"
+                  className="w-full text-2xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-2xs file:font-bold file:bg-emerald-100 file:text-emerald-800 cursor-pointer"
                 />
               </div>
               {editFormData.pan_image && (
@@ -2624,7 +2628,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   <button
                     type="button"
                     onClick={() => setEditFormData({ ...editFormData, pan_image: '' })}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px]"
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-2xs"
                   >
                     ×
                   </button>
@@ -2636,7 +2640,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="font-bold text-slate-700">Update Password (Optional)</label>
-                <span className="text-[10px] text-slate-400">Leave blank to keep current</span>
+                <span className="text-2xs text-slate-400">Leave blank to keep current</span>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2669,7 +2673,7 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
               <button
                 type="submit"
                 disabled={isUpdating}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
@@ -2717,38 +2721,38 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-900 text-sm">{selectedCoachRoster.name}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
                       {selectedCoachRoster.specialty || 'Personal Trainer'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
+                  <div className="text-2xs text-slate-500 mt-0.5">
                     {selectedCoachRoster.email} {selectedCoachRoster.phone ? `• ${selectedCoachRoster.phone}` : ''}
                   </div>
-                  <div className="text-[10px] font-semibold text-purple-700 mt-0.5">
+                  <div className="text-2xs font-semibold text-purple-700 mt-0.5">
                     Experience: {selectedCoachRoster.experience || '3+ Years'} • Base Pay: ₹{Number(selectedCoachRoster.salary || 0).toLocaleString('en-IN')}/mo
                   </div>
                 </div>
               </div>
 
               <div className="bg-white/80 p-2.5 rounded-xl border border-purple-200 text-right shrink-0">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Assigned Athletes</span>
-                <span className="text-xl font-black text-purple-700">
+                <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">Assigned Members</span>
+                <span className="text-xl font-bold text-purple-700">
                   {(selectedCoachRoster.assigned_members || []).length} Active
                 </span>
               </div>
             </div>
 
             {selectedCoachRoster.bio && (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 italic text-slate-600 text-[11px]">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 italic text-slate-600 text-2xs">
                 "{selectedCoachRoster.bio}"
               </div>
             )}
 
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                Assigned 1-on-1 Athletes ({(selectedCoachRoster.assigned_members || []).length})
+              <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">
+                Assigned 1-on-1 Members ({(selectedCoachRoster.assigned_members || []).length})
               </h4>
-              <span className="text-[10px] text-slate-400">Assigned via Member Directory</span>
+              <span className="text-2xs text-slate-400">Assigned via Member Directory</span>
             </div>
 
             {(selectedCoachRoster.assigned_members || []).length === 0 ? (
@@ -2764,11 +2768,11 @@ export const StaffAccountManager = ({ onNavigateTab = null }) => {
                   >
                     <div>
                       <div className="font-bold text-slate-900 text-xs">{m.name}</div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-2xs text-slate-500">
                         Goal: {m.goal || 'General Fitness'} {m.phone ? `• ${m.phone}` : ''}
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                       {m.planName || 'PT Subscription'}
                     </span>
                   </div>

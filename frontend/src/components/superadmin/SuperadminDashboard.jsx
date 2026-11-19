@@ -42,7 +42,8 @@ import {
   Menu,
   RotateCcw,
   AlertTriangle,
-  UserPlus
+  UserPlus,
+  Crop
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { PlansManager } from './PlansManager';
@@ -53,6 +54,8 @@ import { GymWhatsAppModal } from './GymWhatsAppModal';
 import { AddAdminModal } from './AddAdminModal';
 import { PACKAGE_PLANS } from './packagePlans';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
+import { SearchInput } from '../common/SearchInput';
+import { ImageCropperModal } from '../common/ImageCropperModal';
 import {
   hasSqlInjection,
   sanitizePhone,
@@ -159,6 +162,11 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
   };
 
   const [newGymForm, setNewGymForm] = useState(initialNewGymState);
+  const [cropModal, setCropModal] = useState({
+    isOpen: false,
+    imageSrc: '',
+    target: 'newGym' // 'newGym' | 'editGym'
+  });
 
   const [editGymForm, setEditGymForm] = useState({
     id: null,
@@ -310,15 +318,20 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
       alert('Please select an image file (PNG, JPG, SVG, WebP)');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo file size must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo file size must be less than 5MB');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => {
-      setNewGymForm((prev) => ({ ...prev, logo: event.target.result }));
+      setCropModal({
+        isOpen: true,
+        imageSrc: event.target.result,
+        target: 'newGym'
+      });
     };
     reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
   };
 
   const handleEditGymLogoUpload = (e) => {
@@ -328,15 +341,29 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
       alert('Please select an image file (PNG, JPG, SVG, WebP)');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo file size must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo file size must be less than 5MB');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => {
-      setEditGymForm((prev) => ({ ...prev, logo: event.target.result }));
+      setCropModal({
+        isOpen: true,
+        imageSrc: event.target.result,
+        target: 'editGym'
+      });
     };
     reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleCropComplete = (croppedDataUrl) => {
+    if (cropModal.target === 'editGym') {
+      setEditGymForm((prev) => ({ ...prev, logo: croppedDataUrl }));
+    } else {
+      setNewGymForm((prev) => ({ ...prev, logo: croppedDataUrl }));
+    }
+    setCropModal({ isOpen: false, imageSrc: '', target: 'newGym' });
   };
 
   // Create Gym
@@ -630,8 +657,8 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
           <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 p-1 flex items-center justify-center text-indigo-600">
             <ShieldCheck className="w-full h-full" />
           </div>
-          <span className="text-sm font-black text-slate-900 font-heading tracking-tight">ARCHFIT</span>
-          <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-full uppercase">
+          <span className="text-sm font-bold text-slate-900 font-heading tracking-tight">ARCHFIT</span>
+          <span className="text-2xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-full uppercase">
             Admin
           </span>
         </div>
@@ -685,14 +712,14 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black tracking-tight text-slate-900 font-heading">
+                  <span className="text-sm font-bold tracking-tight text-slate-900 font-heading">
                     ARCHFIT
                   </span>
-                  <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded uppercase">
+                  <span className="text-2xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded uppercase">
                     Admin
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 truncate">Superadmin Console</p>
+                <p className="text-2xs text-slate-400 truncate">Superadmin Console</p>
               </div>
             </div>
 
@@ -705,7 +732,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
           </div>
           {/* Navigation Links List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            <div className="px-2 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="px-2 py-1 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
               Platform Modules
             </div>
             {superadminNavTabs.map((tab) => {
@@ -718,7 +745,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                     setActiveMainTab(tab.id);
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`w-full px-2.5 py-2 rounded-xl text-[12px] font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer text-left ${
+                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer text-left ${
                     active
                       ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
@@ -730,7 +757,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   </div>
                   {tab.count !== undefined && (
                     <span
-                      className={`px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold shrink-0 ${
+                      className={`px-1.5 py-0.2 rounded-md text-2xs font-mono font-bold shrink-0 ${
                         active
                           ? 'bg-indigo-100 text-indigo-800 border border-indigo-300/60'
                           : 'bg-slate-100 text-slate-600 border border-slate-200'
@@ -755,7 +782,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
         <header className="hidden lg:flex sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-6 py-3.5 items-center justify-between gap-4 shadow-2xs">
           <div className="flex items-center gap-2.5">
             <currentTabMeta.icon className="w-5 h-5 text-indigo-600" />
-            <h1 className="text-base font-bold text-slate-900">{currentTabMeta.label}</h1>
+            <h1 className="app-page-title font-bold text-slate-900">{currentTabMeta.label}</h1>
             {currentTabMeta.count !== undefined && (
               <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {currentTabMeta.count}
@@ -814,15 +841,15 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
               {/* Metric 1 */}
               <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-3.5 relative overflow-hidden group hover:border-slate-400 transition-all shadow-xs">
                 <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Facilities</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Total Facilities</span>
                   <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
                     <Building2 className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-950 font-heading tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-slate-950 font-heading tracking-tight">
                   {stats.totalGyms}
                 </div>
-                <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                <div className="text-2xs text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   <span>{stats.activeGyms} Active Facilities</span>
                 </div>
@@ -831,15 +858,15 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
               {/* Metric 2 */}
               <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-3.5 relative overflow-hidden group hover:border-slate-400 transition-all shadow-xs">
                 <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tenants & Owners</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Tenants & Owners</span>
                   <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
                     <Shield className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-950 font-heading tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-slate-950 font-heading tracking-tight">
                   {stats.totalOwners}
                 </div>
-                <div className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                <div className="text-2xs text-slate-600 font-semibold mt-0.5">
                   Provisioned Owners
                 </div>
               </div>
@@ -847,15 +874,15 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
               {/* Metric 3 */}
               <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-3.5 relative overflow-hidden group hover:border-slate-400 transition-all shadow-xs">
                 <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Athletes & Members</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Members</span>
                   <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
                     <Users className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-950 font-heading tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-slate-950 font-heading tracking-tight">
                   {stats.totalMembers}
                 </div>
-                <div className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                <div className="text-2xs text-slate-600 font-semibold mt-0.5">
                   Enrolled Across Facilities
                 </div>
               </div>
@@ -863,15 +890,15 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
               {/* Metric 4 */}
               <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-3.5 relative overflow-hidden group hover:border-emerald-400 transition-all shadow-xs">
                 <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Platform MRR</span>
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 font-black text-xs">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Platform MRR</span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold text-xs">
                     ₹
                   </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-black text-slate-950 font-heading tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-slate-950 font-heading tracking-tight">
                   ₹{totalMRR.toLocaleString('en-IN')}
                 </div>
-                <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                <div className="text-2xs text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
                   <TrendingUp className="w-3 h-3 text-emerald-600" />
                   <span>Real Monthly Inflow</span>
                 </div>
@@ -887,7 +914,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   <h2 className="text-sm sm:text-base font-bold text-slate-950 font-heading flex items-center gap-2">
                     <span>Provisioned Facility Centers</span>
                   </h2>
-                  <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-50 border border-indigo-200/80 text-indigo-700">
+                  <span className="px-2 py-0.5 rounded-md text-2xs font-mono font-bold bg-indigo-50 border border-indigo-200/80 text-indigo-700">
                     {filteredGyms.length} Centers
                   </span>
                 </div>
@@ -895,16 +922,14 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 {/* Search Bar & Status Dropdown */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
                   {/* Search Input */}
-                  <div className="relative w-full sm:w-72 md:w-80">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search by facility name, owner, email, city..."
-                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
-                    />
-                  </div>
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onClear={() => setSearchQuery('')}
+                    placeholder="Search by facility name, owner, email, city..."
+                    mobilePlaceholder="Search facilities..."
+                    containerClassName="w-full sm:w-72 md:w-80"
+                  />
 
                   {/* Status Dropdown */}
                   <div className="relative shrink-0">
@@ -942,11 +967,11 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                           {/* Facility Monogram & Main Info */}
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-black text-sm shrink-0 shadow-2xs overflow-hidden">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 shadow-2xs overflow-hidden">
                               {gym.logo ? (
                                 <img src={gym.logo} alt={gym.name} className="w-full h-full object-cover" />
                               ) : (
-                                <span className="text-sm tracking-tight font-heading font-black text-indigo-700">
+                                <span className="text-sm tracking-tight font-heading font-bold text-indigo-700">
                                   {gym.name ? gym.name.slice(0, 2).toUpperCase() : 'FC'}
                                 </span>
                               )}
@@ -958,7 +983,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                                   {gym.name}
                                 </h3>
 
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1.5 ${
+                                <span className={`text-2xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1.5 ${
                                   gym.status === 'Active'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -1018,7 +1043,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
                           {/* Box 1: Owner Details */}
                           <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50/70 border border-slate-200/70 space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                            <span className="text-2xs uppercase font-semibold tracking-wider text-slate-400 block">
                               Owner Contact
                             </span>
                             {gym.owner ? (
@@ -1036,18 +1061,18 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                                 {gym.owner.email && (
                                   <div className="flex items-center gap-1.5 text-slate-600 truncate">
                                     <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                    <span className="font-mono text-[11px] truncate">{gym.owner.email}</span>
+                                    <span className="font-mono text-2xs truncate">{gym.owner.email}</span>
                                   </div>
                                 )}
                               </>
                             ) : (
-                              <span className="text-amber-800 font-semibold text-[11px]">No Owner Account Linked</span>
+                              <span className="text-amber-800 font-semibold text-2xs">No Owner Account Linked</span>
                             )}
                           </div>
 
                           {/* Box 2: Facility Location & Contact */}
                           <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50/70 border border-slate-200/70 space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                            <span className="text-2xs uppercase font-semibold tracking-wider text-slate-400 block">
                               Facility Location
                             </span>
                             {(gym.address || gym.city) ? (
@@ -1061,25 +1086,25 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                             {gym.email && (!gym.owner || gym.owner.email !== gym.email) && (
                               <div className="flex items-center gap-1.5 text-slate-600 truncate pt-0.5">
                                 <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="font-mono text-[11px] truncate">{gym.email}</span>
+                                <span className="font-mono text-2xs truncate">{gym.email}</span>
                               </div>
                             )}
                           </div>
 
                           {/* Box 3: Subscription Plan & Rate */}
                           <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50/70 border border-slate-200/70 space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                            <span className="text-2xs uppercase font-semibold tracking-wider text-slate-400 block">
                               SaaS Subscription
                             </span>
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-slate-950 text-xs sm:text-sm">{tier || 'Standard Plan'}</span>
                               {gym.packageAmount > 0 && (
-                                <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-bold text-[11px]">
+                                <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-bold text-2xs">
                                   ₹{Number(gym.packageAmount).toLocaleString('en-IN')}{gym.billingCycle ? `/${gym.billingCycle}` : ''}
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-2xs text-slate-500">
                               Billing Cycle: <strong className="text-slate-700 font-medium capitalize">{gym.billingCycle || 'Monthly'}</strong>
                             </div>
                           </div>
@@ -1089,17 +1114,17 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
                           {/* Accounts & Members Metrics Badges */}
                           <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-[11px]">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-2xs">
                               <Users className="w-3 h-3 text-slate-600" />
                               <span>Total: <strong className="font-mono font-bold text-slate-950">{gym.accounts?.total ?? 0}</strong></span>
                             </span>
 
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-[11px]">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-2xs">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               <span>Members: <strong className="font-mono font-bold text-slate-950">{gym.accounts?.members ?? 0}</strong></span>
                             </span>
 
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-[11px]">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-medium text-2xs">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               <span>Trainers: <strong className="font-mono font-bold text-slate-950">{gym.accounts?.trainers ?? 0}</strong></span>
                             </span>
@@ -1164,70 +1189,70 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative overflow-hidden">
                 <div className="flex items-center justify-between mb-2 text-slate-500">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Monthly MRR</h4>
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 font-black text-xs">
+                  <h4 className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Total Monthly MRR</h4>
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 font-bold text-xs">
                     ₹
                   </div>
                 </div>
-                <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
                   ₹{totalMRR.toLocaleString('en-IN')}
                 </div>
-                <p className="text-[11px] text-amber-600 mt-1 font-semibold">Active SaaS recurring monthly billing rate</p>
+                <p className="text-2xs text-amber-600 mt-1 font-semibold">Active SaaS recurring monthly billing rate</p>
               </div>
 
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative overflow-hidden">
                 <div className="flex items-center justify-between mb-2 text-slate-500">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Projected Annual ARR</h4>
+                  <h4 className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Projected Annual ARR</h4>
                   <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
                     <TrendingUp className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
                   ₹{(totalMRR * 12).toLocaleString('en-IN')}
                 </div>
-                <p className="text-[11px] text-indigo-600 mt-1 font-semibold">Annualized run rate from active gyms</p>
+                <p className="text-2xs text-indigo-600 mt-1 font-semibold">Annualized run rate from active gyms</p>
               </div>
 
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative overflow-hidden">
                 <div className="flex items-center justify-between mb-2 text-slate-500">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total System Accounts</h4>
+                  <h4 className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Total System Accounts</h4>
                   <div className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
                     <Users className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
                   {stats.totalAccounts}
                 </div>
-                <p className="text-[11px] text-purple-600 mt-1 font-semibold">Total owners, trainers & members across all gyms</p>
+                <p className="text-2xs text-purple-600 mt-1 font-semibold">Total owners, trainers & members across all gyms</p>
               </div>
             </div>
 
             {/* Real Breakdown Overview */}
             <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
                 <Database className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Real Multi-Tenant Database Metrics</span>
               </h3>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-0.5">Active Gyms</span>
-                  <div className="text-lg font-black text-emerald-600 font-mono">{activeGymsCount}</div>
+                  <span className="text-2xs font-mono uppercase text-slate-500 block mb-0.5">Active Gyms</span>
+                  <div className="text-lg font-bold text-emerald-600 font-mono">{activeGymsCount}</div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-0.5">Suspended Gyms</span>
-                  <div className="text-lg font-black text-rose-600 font-mono">{suspendedGymsCount}</div>
+                  <span className="text-2xs font-mono uppercase text-slate-500 block mb-0.5">Suspended Gyms</span>
+                  <div className="text-lg font-bold text-rose-600 font-mono">{suspendedGymsCount}</div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-0.5">Enrolled Members</span>
-                  <div className="text-lg font-black text-cyan-600 font-mono">{stats.totalMembers}</div>
+                  <span className="text-2xs font-mono uppercase text-slate-500 block mb-0.5">Enrolled Members</span>
+                  <div className="text-lg font-bold text-cyan-600 font-mono">{stats.totalMembers}</div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-0.5">Coaches & Trainers</span>
-                  <div className="text-lg font-black text-indigo-600 font-mono">{stats.totalTrainers}</div>
+                  <span className="text-2xs font-mono uppercase text-slate-500 block mb-0.5">Coaches & Trainers</span>
+                  <div className="text-lg font-bold text-indigo-600 font-mono">{stats.totalTrainers}</div>
                 </div>
               </div>
             </div>
@@ -1282,7 +1307,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">
+                  <h3 className="font-bold text-slate-900 text-base">
                     Edit Facility & Owner: {editGymForm.name}
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -1302,7 +1327,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
             <form onSubmit={handleUpdateGym} className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
               {/* SECTION 1: FACILITY PROFILE & PLAN */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
                   <Building2 className="w-4 h-4" />
                   <span>1. Facility Profile & SaaS Subscription</span>
                 </div>
@@ -1337,7 +1362,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                       <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
                       <span>Facility Logo (Optional)</span>
                     </label>
-                    <span className="text-[10px] text-slate-500">Shown in Top Navbar & Member App</span>
+                    <span className="text-2xs text-slate-500">Shown in Top Navbar & Member App</span>
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -1362,19 +1387,30 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                         />
                         <label
                           htmlFor="edit-gym-logo-file"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-2xs font-bold cursor-pointer transition-colors shadow-xs"
                         >
                           <Upload className="w-3 h-3" />
                           <span>Upload Image</span>
                         </label>
                         {editGymForm.logo && (
-                          <button
-                            type="button"
-                            onClick={() => setEditGymForm({ ...editGymForm, logo: '' })}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold border border-rose-200 cursor-pointer"
-                          >
-                            Remove
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setCropModal({ isOpen: true, imageSrc: editGymForm.logo, target: 'editGym' })}
+                              className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-2xs font-bold border border-indigo-200 cursor-pointer flex items-center gap-1"
+                              title="Crop or adjust logo position"
+                            >
+                              <Crop className="w-3 h-3" />
+                              <span>Crop</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditGymForm({ ...editGymForm, logo: '' })}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-2xs font-bold border border-rose-200 cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </>
                         )}
                       </div>
                       <input
@@ -1445,7 +1481,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                       <span>SaaS Plan Tier (Optional)</span>
                       {editGymForm.package_tier && (
-                        <span className="text-[10px] text-indigo-600 font-normal">Active Tier</span>
+                        <span className="text-2xs text-indigo-600 font-normal">Active Tier</span>
                       )}
                     </label>
                     <select
@@ -1459,8 +1495,8 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                           ? `₹${Number(p.annual_price).toLocaleString('en-IN')}/yr`
                           : (p.annualPrice != null ? `₹${Number(p.annualPrice).toLocaleString('en-IN')}/yr` : (p.monthly_price != null ? `₹${Number(p.monthly_price).toLocaleString('en-IN')}/mo` : ''));
                         const memberText = p.max_members != null
-                          ? `${p.max_members} Athletes`
-                          : (p.quotas?.maxMembers != null ? `${p.quotas.maxMembers} Athletes` : 'Unlimited');
+                          ? `${p.max_members} Members`
+                          : (p.quotas?.maxMembers != null ? `${p.quotas.maxMembers} Members` : 'Unlimited');
                         return (
                           <option key={p.id || p.tier} value={p.tier || p.name}>
                             {p.name || `${p.tier} Plan`} {priceText ? `— ${priceText}` : ''} ({memberText})
@@ -1499,7 +1535,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                       <option value="Suspended">Suspended (Stop All Access)</option>
                     </select>
                     {editGymForm.status === 'Suspended' && (
-                      <p className="mt-1.5 text-[11px] text-rose-700 flex items-center gap-1.5 bg-rose-50 p-2 rounded-lg border border-rose-200">
+                      <p className="mt-1.5 text-2xs text-rose-700 flex items-center gap-1.5 bg-rose-50 p-2 rounded-lg border border-rose-200">
                         <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                         <span>Warning: Saving as Suspended will terminate all active sessions and block login for owner & all accounts.</span>
                       </p>
@@ -1510,7 +1546,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
 
               {/* SECTION 2: OWNER CREDENTIALS */}
               <div className="space-y-4 pt-3 border-t border-slate-100">
-                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
                   <User className="w-4 h-4" />
                   <span>2. Owner Login Credentials</span>
                 </div>
@@ -1561,7 +1597,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
 
               {/* SECTION 3: CAPACITY & LIMITS */}
               <div className="space-y-4 pt-3 border-t border-slate-100">
-                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
                   <Sliders className="w-4 h-4" />
                   <span>3. Capacity Quotas & Administrative Notes</span>
                 </div>
@@ -1569,9 +1605,9 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700">Max Athletes</label>
+                      <label className="block text-xs font-bold text-slate-700">Max Members</label>
                       {(!editGymForm.max_members || editGymForm.package_tier?.toLowerCase() === 'platinum') && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <span className="text-2xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                           Unlimited
                         </span>
                       )}
@@ -1589,7 +1625,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-xs font-bold text-slate-700">Max Coaches</label>
                       {(!editGymForm.max_trainers || editGymForm.package_tier?.toLowerCase() === 'platinum') && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <span className="text-2xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                           Unlimited
                         </span>
                       )}
@@ -1606,7 +1642,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-xs font-bold text-slate-700">Max Branches</label>
-                      <span className="text-[10px] text-slate-500 font-medium">
+                      <span className="text-2xs text-slate-500 font-medium">
                         {editGymForm.max_branches ? `${editGymForm.max_branches} Gyms` : '1 Gym'}
                       </span>
                     </div>
@@ -1643,7 +1679,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-black tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 cursor-pointer"
                 >
                   Save Facility Changes
                 </button>
@@ -1669,7 +1705,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">Onboard New Facility Center</h3>
+                  <h3 className="font-bold text-slate-900 text-base">Onboard New Facility Center</h3>
                   <p className="text-xs text-slate-500">Provision facility entity and owner credentials</p>
                 </div>
               </div>
@@ -1714,7 +1750,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                       <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
                       <span>Facility Logo (Optional)</span>
                     </label>
-                    <span className="text-[10px] text-slate-500">Shown in Top Navbar & Member App</span>
+                    <span className="text-2xs text-slate-500">Shown in Top Navbar & Member App</span>
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -1739,19 +1775,30 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                         />
                         <label
                           htmlFor="new-gym-logo-file"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-2xs font-bold cursor-pointer transition-colors shadow-xs"
                         >
                           <Upload className="w-3 h-3" />
                           <span>Upload Image</span>
                         </label>
                         {newGymForm.logo && (
-                          <button
-                            type="button"
-                            onClick={() => setNewGymForm({ ...newGymForm, logo: '' })}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold border border-rose-200 cursor-pointer"
-                          >
-                            Remove
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setCropModal({ isOpen: true, imageSrc: newGymForm.logo, target: 'newGym' })}
+                              className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-2xs font-bold border border-indigo-200 cursor-pointer flex items-center gap-1"
+                              title="Crop or adjust logo position"
+                            >
+                              <Crop className="w-3 h-3" />
+                              <span>Crop</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewGymForm({ ...newGymForm, logo: '' })}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-2xs font-bold border border-rose-200 cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </>
                         )}
                       </div>
                       <input
@@ -1794,7 +1841,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                       <span>SaaS Plan Tier (Optional)</span>
                       {newGymForm.package_tier && (
-                        <span className="text-[10px] text-indigo-600 font-normal">Pricing &amp; limits auto-filled</span>
+                        <span className="text-2xs text-indigo-600 font-normal">Pricing &amp; limits auto-filled</span>
                       )}
                     </label>
                     <select
@@ -1808,8 +1855,8 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                           ? `₹${Number(p.annual_price).toLocaleString('en-IN')}/yr`
                           : (p.annualPrice != null ? `₹${Number(p.annualPrice).toLocaleString('en-IN')}/yr` : (p.monthly_price != null ? `₹${Number(p.monthly_price).toLocaleString('en-IN')}/mo` : ''));
                         const memberText = p.max_members != null
-                          ? `${p.max_members} Athletes`
-                          : (p.quotas?.maxMembers != null ? `${p.quotas.maxMembers} Athletes` : 'Unlimited');
+                          ? `${p.max_members} Members`
+                          : (p.quotas?.maxMembers != null ? `${p.quotas.maxMembers} Members` : 'Unlimited');
                         return (
                           <option key={p.id || p.tier} value={p.tier || p.name}>
                             {p.name || `${p.tier} Plan`} {priceText ? `— ${priceText}` : ''} ({memberText})
@@ -1834,7 +1881,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 {/* Capacity Limits (Optional) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Max Athletes (Optional)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Max Members (Optional)</label>
                     <input
                       type="number"
                       min="1"
@@ -1859,7 +1906,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
 
                 {/* Owner Credentials */}
                 <div className="p-4.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5">
-                  <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide flex items-center gap-1.5">
+                  <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wide flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" />
                     <span>Owner Login Credentials</span>
                   </div>
@@ -1925,7 +1972,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-black tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 cursor-pointer"
                 >
                   Onboard Facility & Owner
                 </button>
@@ -1952,10 +1999,10 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 inline-block">
+                <span className="text-2xs font-mono font-semibold uppercase tracking-wider text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 inline-block">
                   Master Access Revocation
                 </span>
-                <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight mt-1 font-heading">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-1 font-heading">
                   Stop Access for {stopAccessModalGym.name}?
                 </h3>
               </div>
@@ -1977,18 +2024,18 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Affected Total Accounts:</span>
-                  <span className="font-black text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
+                  <span className="font-bold text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
                     {stopAccessModalGym.accounts?.total ?? 0} accounts
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-600 pl-2 border-l-2 border-slate-300 space-y-0.5">
+                <div className="text-2xs text-slate-600 pl-2 border-l-2 border-slate-300 space-y-0.5">
                   <div>• Owner: <strong className="text-slate-800">{stopAccessModalGym.accounts?.owners ?? (stopAccessModalGym.owner ? 1 : 0)}</strong></div>
                   <div>• Members: <strong className="text-slate-800">{stopAccessModalGym.accounts?.members ?? 0}</strong></div>
                   <div>• Trainers / Staff: <strong className="text-slate-800">{stopAccessModalGym.accounts?.trainers ?? 0}</strong></div>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] leading-relaxed">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-2xs leading-relaxed">
                 ⚠️ <strong>Immediate Suspension Effects:</strong>
                 <ul className="list-disc pl-4 mt-1 space-y-0.5 text-rose-700">
                   <li>All active sessions for this facility are revoked immediately.</li>
@@ -2011,7 +2058,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 type="button"
                 onClick={handleConfirmStopAccess}
                 disabled={isProcessingAccess}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-black tracking-wide shadow-md shadow-rose-600/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-semibold tracking-wide shadow-md shadow-rose-600/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
               >
                 {isProcessingAccess ? (
                   <>
@@ -2041,7 +2088,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                   <RotateCcw className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-base font-heading">
+                  <h3 className="font-bold text-slate-900 text-base font-heading">
                     Clear Gym Member & Operational Data
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -2074,17 +2121,17 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Members to be Deleted:</span>
-                  <span className="font-black text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
+                  <span className="font-bold text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
                     {clearDataModalGym.accounts?.members ?? 0} members
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Trainers & Staff to be Deleted:</span>
-                  <span className="font-black text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
+                  <span className="font-bold text-rose-700 font-mono bg-rose-100/70 px-2.5 py-0.5 rounded border border-rose-200">
                     {clearDataModalGym.accounts?.trainers ?? 0} accounts
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-600 pl-2 border-l-2 border-amber-300 space-y-0.5 mt-2">
+                <div className="text-2xs text-slate-600 pl-2 border-l-2 border-amber-300 space-y-0.5 mt-2">
                   <div>• Invoices, billing history & payments will be purged.</div>
                   <div>• Member profiles, attendance logs & body metrics will be deleted.</div>
                   <div>• Trainer profiles, reviews, payroll & commissions will be cleared.</div>
@@ -2092,7 +2139,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-2xs leading-relaxed flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <strong>Permanent Action:</strong> Once cleared, member and financial history cannot be recovered. The gym owner can immediately start registering new members on a clean slate.
@@ -2113,7 +2160,7 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
                 type="button"
                 onClick={handleConfirmClearData}
                 disabled={isClearingData}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-black tracking-wide shadow-md shadow-amber-600/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-semibold tracking-wide shadow-md shadow-amber-600/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
               >
                 {isClearingData ? (
                   <>
@@ -2167,6 +2214,15 @@ export const SuperadminDashboard = ({ superUser, setSuperUser, onLogout }) => {
           showToast(`Superadmin "${newAdmin.name}" created! They can now log in at /superadmin.`);
         }}
         showToast={showToast}
+      />
+
+      {/* Reusable Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropModal.isOpen}
+        imageSrc={cropModal.imageSrc}
+        onClose={() => setCropModal({ isOpen: false, imageSrc: '', target: 'newGym' })}
+        onCropComplete={handleCropComplete}
+        title={cropModal.target === 'editGym' ? 'Crop Facility Logo' : 'Crop New Gym Facility Logo'}
       />
     </div>
   );

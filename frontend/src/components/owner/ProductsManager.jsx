@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import {
   hasSqlInjection,
@@ -52,7 +53,7 @@ const ProductImage = ({ src, alt, category }) => {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
         <Package className="w-10 h-10 sm:w-12 sm:h-12 stroke-[1.5] text-slate-400 mb-1" />
-        <span className="text-[10px] font-medium text-slate-500 tracking-wide uppercase">{category || 'Product'}</span>
+        <span className="text-2xs font-medium text-slate-500 tracking-wide uppercase">{category || 'Product'}</span>
       </div>
     );
   }
@@ -564,16 +565,19 @@ export const ProductsManager = ({ initialFilterPreset }) => {
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Pro Shop & Inventory</h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">Pro Shop & Inventory</h1>
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Manage inventory and retail sales of gym supplements, protein, merchandise, lifting gear, and beverages.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {totalProducts} SKUs • {totalStockCount} in stock
               </p>
             </div>
           </div>
@@ -583,20 +587,22 @@ export const ProductsManager = ({ initialFilterPreset }) => {
           <button
             type="button"
             onClick={handleOpenNewSale}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-md shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Record Retail Sale"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sell Product</span>
-            <span className="inline sm:hidden">Sell</span>
+            <span className="sm:hidden">Sell</span>
           </button>
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Add Product"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
             <span className="hidden sm:inline">Add Product</span>
-            <span className="inline sm:hidden">Add Item</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -604,27 +610,27 @@ export const ProductsManager = ({ initialFilterPreset }) => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Active SKUs</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{totalProducts}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Catalog items</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Active SKUs</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{totalProducts}</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">Catalog items</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">In Stock</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{totalStockCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Units on hand</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">In Stock</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">{totalStockCount}</div>
+          <span className="text-2xs sm:text-2xs text-emerald-700 font-medium hidden sm:block">Units on hand</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Retail Value</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">₹{totalInventoryValue.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">At retail price</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Retail Value</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">₹{totalInventoryValue.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">At retail price</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Low Stock</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{lowStockCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Need reordering</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Low Stock</span>
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">{lowStockCount}</div>
+          <span className="text-2xs sm:text-2xs text-amber-700 font-medium hidden sm:block">Need reordering</span>
         </div>
       </div>
 
@@ -632,36 +638,26 @@ export const ProductsManager = ({ initialFilterPreset }) => {
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search products by name, SKU, or category..."
-              className="w-full pl-9 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setIsSearchDropdownOpen(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setIsSearchDropdownOpen(false);
+            }}
+            placeholder="Search products by name, SKU, or category..."
+            mobilePlaceholder="Search products..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Suggestions Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                   Product Suggestions
                 </div>
                 {searchSuggestions.map((item, idx) => (
@@ -676,16 +672,17 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-800">{item.name}</span>
-                      <span className="text-[10px] text-slate-400">({item.sku})</span>
+                      <span className="text-2xs text-slate-400">({item.sku})</span>
                     </div>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="text-2xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                       ₹{item.price}
                     </span>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
           <div className="flex items-center gap-2 shrink-0">
@@ -701,7 +698,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               <Filter className="w-3.5 h-3.5" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                   {activeFiltersCount}
                 </span>
               )}
@@ -711,7 +708,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {categoryFilter !== 'ALL' && (
@@ -774,7 +771,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredProducts.length} of {products.length} products
             </span>
           </div>
@@ -816,12 +813,12 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                   {/* Image & Badges */}
                   <div className="relative h-32 sm:h-40 w-full rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 mb-2.5 sm:mb-3 border border-slate-100">
                     <ProductImage src={p.image} alt={p.name} category={p.category} />
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-white/90 backdrop-blur-sm text-slate-800 border border-slate-200 shadow-sm">
+                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-2xs sm:text-2xs font-bold bg-white/90 backdrop-blur-sm text-slate-800 border border-slate-200 shadow-sm shrink-0 whitespace-nowrap">
                       {p.category}
                     </span>
 
                     <span
-                      className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold shadow-sm ${
+                      className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-2xs sm:text-2xs font-bold shadow-sm shrink-0 whitespace-nowrap ${
                         isOutOfStock
                           ? 'bg-rose-500 text-white'
                           : isLowStock
@@ -834,44 +831,44 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                   </div>
 
                   {/* Info */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-1">{p.name}</h3>
-                      <p className="text-[10px] sm:text-xs text-slate-400 font-mono mt-0.5">{p.sku}</p>
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug truncate" title={p.name}>{p.name}</h3>
+                      <p className="text-2xs sm:text-xs text-slate-400 font-mono mt-0.5 truncate" title={p.sku}>{p.sku}</p>
                     </div>
                   </div>
 
                   {p.description && (
-                    <p className="text-[11px] sm:text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
+                    <p className="text-2xs sm:text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed" title={p.description}>
                       {p.description}
                     </p>
                   )}
 
                   {/* Stock, Cost, Margin Bar */}
-                  <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[10px] sm:text-[11px] text-slate-500">
+                  <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-2xs sm:text-2xs text-slate-500">
                     <div>
-                      <span className="block text-[9px] text-slate-400 uppercase font-bold">Cost</span>
-                      <span className="font-semibold text-slate-700">₹{p.costPrice || 0}</span>
+                      <span className="block text-2xs text-slate-400 uppercase font-medium">Cost</span>
+                      <span className="font-semibold text-slate-700 whitespace-nowrap">₹{p.costPrice || 0}</span>
                     </div>
                     <div>
-                      <span className="block text-[9px] text-slate-400 uppercase font-bold">Margin</span>
-                      <span className="font-semibold text-emerald-600">+{profitMargin}%</span>
+                      <span className="block text-2xs text-slate-400 uppercase font-medium">Margin</span>
+                      <span className="font-semibold text-emerald-600 whitespace-nowrap">+{profitMargin}%</span>
                     </div>
                     <div>
-                      <span className="block text-[9px] text-slate-400 uppercase font-bold">Min Alert</span>
-                      <span className="font-semibold text-slate-700">{p.minStockAlert || 5}</span>
+                      <span className="block text-2xs text-slate-400 uppercase font-medium">Min Alert</span>
+                      <span className="font-semibold text-slate-700 whitespace-nowrap">{p.minStockAlert || 5}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Price & Actions */}
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Selling Price</span>
-                    <span className="text-base sm:text-lg font-black text-slate-900">₹{p.price}</span>
+                  <div className="min-w-0">
+                    <span className="text-2xs text-slate-400 uppercase font-medium block">Selling Price</span>
+                    <span className="text-base sm:text-lg font-bold text-slate-900 whitespace-nowrap shrink-0">₹{p.price}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-1.5">
+                  <div className="flex items-center gap-1.5 sm:gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleOpenSaleForProduct(p)}
@@ -918,7 +915,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Title *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Product Title *</label>
             <input
               type="text"
               required
@@ -931,7 +928,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Category *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Category *</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -946,7 +943,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">SKU / Code</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">SKU / Code</label>
               <input
                 type="text"
                 value={formData.sku}
@@ -958,7 +955,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Selling Price (₹) *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Selling Price (₹) *</label>
               <input
                 type="number"
                 required
@@ -972,7 +969,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Cost Price (₹)</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Cost Price (₹)</label>
               <input
                 type="number"
                 min="0"
@@ -987,7 +984,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Initial Stock Count *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Initial Stock Count *</label>
               <input
                 type="number"
                 required
@@ -1001,7 +998,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Low Stock Alert Quantity</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Low Stock Alert Quantity</label>
               <input
                 type="number"
                 min="1"
@@ -1016,7 +1013,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
           {/* Product Photo Upload Field */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Product Photo <span className="text-slate-400 font-normal">(Optional)</span>
             </label>
 
@@ -1039,12 +1036,12 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-bold text-slate-800 block truncate">Photo Selected</span>
-                  <span className="text-[10px] text-emerald-600 font-semibold block">Ready to upload</span>
+                  <span className="text-2xs text-emerald-600 font-semibold block">Ready to upload</span>
                   <div className="flex items-center gap-2 mt-1">
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+                      className="text-2xs font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
                     >
                       Change Photo
                     </button>
@@ -1052,7 +1049,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, image: '' })}
-                      className="text-[11px] font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                      className="text-2xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
                     >
                       Remove
                     </button>
@@ -1075,7 +1072,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                   <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700 block">
                     {isUploadingPhoto ? 'Compressing photo...' : 'Click to Upload Product Photo'}
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                  <span className="text-2xs text-slate-400 block mt-0.5">
                     PNG, JPG, WebP up to 5MB (auto-optimized)
                   </span>
                 </div>
@@ -1084,7 +1081,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Description</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Description</label>
             <textarea
               rows={2}
               value={formData.description}
@@ -1105,7 +1102,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             <button
               type="submit"
               disabled={isSubmittingAdd}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
             >
               {isSubmittingAdd && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingAdd ? 'Saving...' : 'Save Product'}</span>
@@ -1130,13 +1127,13 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             {/* Products Selection List (Dynamic Multi-Product) */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                <label className="text-2xs font-semibold text-slate-700 uppercase tracking-wider">
                   Products to Sell ({saleCartItems.length}) *
                 </label>
                 <button
                   type="button"
                   onClick={handleAddProductRow}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer border border-emerald-200/60"
+                  className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer border border-emerald-200/60"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Product</span>
@@ -1160,7 +1157,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                       <div className="flex items-start gap-2">
                         {/* Product Dropdown */}
                         <div className="flex-1 min-w-0">
-                          <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                          <label className="block text-2xs font-bold text-slate-500 mb-1">
                             Product #{idx + 1}
                           </label>
                           <div className="relative">
@@ -1187,11 +1184,11 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                         {/* Quantity */}
                         <div className="w-24 sm:w-28 shrink-0">
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[10px] font-bold text-slate-500">
+                            <label className="block text-2xs font-bold text-slate-500">
                               Qty
                             </label>
                             {selectedProduct && (
-                              <span className={`text-[9px] font-bold ${
+                              <span className={`text-2xs font-bold ${
                                 Number(selectedProduct.stock) <= Number(selectedProduct.minStockAlert || 5)
                                   ? 'text-amber-600'
                                   : 'text-slate-400'
@@ -1217,7 +1214,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                         {/* Line Total & Remove button */}
                         <div className="flex items-center gap-1.5 pt-5 shrink-0">
                           <div className="text-right min-w-[65px]">
-                            <div className="text-xs font-black text-slate-900">
+                            <div className="text-xs font-bold text-slate-900">
                               ₹{itemLineTotal.toLocaleString('en-IN')}
                             </div>
                           </div>
@@ -1242,7 +1239,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               <button
                 type="button"
                 onClick={handleAddProductRow}
-                className="w-full py-2 rounded-xl border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                className="w-full py-2 rounded-xl border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Add Product</span>
@@ -1252,7 +1249,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             {/* Customer / Member Selection Dropdown (Typeable & Searchable) */}
             <div ref={memberDropdownRef} className="relative">
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">
+                <label className="block text-2xs font-bold text-slate-700">
                   Customer / Member Name *
                 </label>
                 {selectedMember ? (
@@ -1264,12 +1261,12 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                       setMemberSearchQuery('');
                       setIsMemberDropdownOpen(true);
                     }}
-                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                    className="text-2xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
                   >
                     Switch to Walk-in
                   </button>
                 ) : (
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-2xs text-slate-400 font-medium">
                     Select registered member or walk-in
                   </span>
                 )}
@@ -1285,11 +1282,11 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-slate-900 truncate">{selectedMember.name}</span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                           {selectedMember.planName || selectedMember.membershipPlan || 'Member'}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                      <div className="text-2xs text-slate-500 truncate flex items-center gap-2 mt-0.5">
                         {selectedMember.id && <span className="font-mono text-slate-400">ID: {selectedMember.id}</span>}
                       </div>
                     </div>
@@ -1365,7 +1362,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                       </button>
 
                       {/* Header for registered members */}
-                      <div className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <div className="px-3 py-1 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                         Registered Gym Members ({filteredMembers.length})
                       </div>
 
@@ -1389,12 +1386,12 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                               </div>
                               <div className="min-w-0">
                                 <div className="text-xs font-bold text-slate-900 truncate">{m.name}</div>
-                                <div className="text-[10px] text-slate-500 truncate">
+                                <div className="text-2xs text-slate-500 truncate">
                                   {m.phone || 'No phone'} {m.planName ? `• ${m.planName}` : ''}
                                 </div>
                               </div>
                             </div>
-                            <span className="text-[9px] font-semibold text-emerald-700 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 shrink-0">
+                            <span className="text-2xs font-semibold text-emerald-700 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 shrink-0">
                               Member
                             </span>
                           </button>
@@ -1431,7 +1428,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             {/* Discount & Notes (Proper Billing Process) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Discount (₹) <span className="text-slate-400 font-normal">Optional</span>
                 </label>
                 <div className="relative">
@@ -1450,7 +1447,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Billing Notes <span className="text-slate-400 font-normal">Optional</span>
                 </label>
                 <input
@@ -1465,7 +1462,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
 
             {/* Payment Method Dropdown */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Method *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Payment Method *</label>
               <div className="relative">
                 <select
                   value={sellPaymentMethod}
@@ -1490,11 +1487,11 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                 <div>
                   <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 leading-none">
                     <span>Apply GST (18%)</span>
-                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded ${isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
                       {isGstIncluded ? 'Inclusive 18%' : 'Non-GST'}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">
+                  <div className="text-2xs text-slate-500 mt-0.5">
                     {isGstIncluded ? 'CGST 9% + SGST 9% itemized in invoice' : 'Standard non-tax store transaction'}
                   </div>
                 </div>
@@ -1554,11 +1551,11 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                         <span>Taxable Value (Base):</span>
                         <span className="font-medium text-slate-700">₹{taxableBase.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center justify-between text-2xs">
                         <span>CGST (9%):</span>
                         <span className="font-medium text-slate-700">₹{halfTax.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center justify-between text-2xs">
                         <span>SGST (9%):</span>
                         <span className="font-medium text-slate-700">₹{(totalTax - halfTax).toLocaleString('en-IN')}</span>
                       </div>
@@ -1566,7 +1563,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                   )}
                   <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                     <span className="font-bold text-slate-700">Total Net Collection:</span>
-                    <span className="text-xl font-black text-emerald-600">
+                    <span className="text-xl font-bold text-emerald-600">
                       ₹{totalPayable.toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -1590,7 +1587,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               <button
                 type="submit"
                 disabled={isSubmittingSell}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
               >
                 {isSubmittingSell && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>{isSubmittingSell ? 'Recording Sale...' : 'Confirm Sale & Generate Bill'}</span>
@@ -1616,13 +1613,13 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-emerald-950">Sale Completed & Bill Recorded</div>
-                <div className="text-[11px] text-emerald-700 font-mono">Invoice #{completedSaleData.invoiceNumber}</div>
+                <div className="text-2xs text-emerald-700 font-mono">Invoice #{completedSaleData.invoiceNumber}</div>
               </div>
             </div>
 
             {/* Receipt Summary Card */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
-              <div className="flex justify-between items-center text-slate-500 text-[11px]">
+              <div className="flex justify-between items-center text-slate-500 text-2xs">
                 <span>Date: <strong>{completedSaleData.date}</strong></span>
                 <span className="px-2 py-0.5 rounded-md font-bold bg-emerald-100 text-emerald-800">
                   {completedSaleData.paymentMethod} • PAID
@@ -1630,17 +1627,17 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               </div>
 
               <div className="pt-2 border-t border-slate-200">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Customer</span>
+                <span className="text-2xs text-slate-400 font-medium uppercase tracking-wider block">Customer</span>
                 <div className="font-bold text-slate-900 text-sm mt-0.5">{completedSaleData.buyerName}</div>
                 {completedSaleData.phone && (
-                  <div className="text-[11px] text-slate-500">📞 {completedSaleData.phone}</div>
+                  <div className="text-2xs text-slate-500">📞 {completedSaleData.phone}</div>
                 )}
               </div>
 
               <div className="pt-2 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Purchased Items</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${completedSaleData.isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                  <span className="text-2xs text-slate-400 font-medium uppercase tracking-wider block">Purchased Items</span>
+                  <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${completedSaleData.isGstIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
                     {completedSaleData.isGstIncluded ? 'GST 18% INCLUSIVE' : 'NON-GST BILL'}
                   </span>
                 </div>
@@ -1650,7 +1647,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                       <div key={idx} className="flex justify-between items-center text-slate-800">
                         <div className="min-w-0 pr-2">
                           <div className="font-semibold truncate">{item.name || item.productName}</div>
-                          <div className="text-[10px] text-slate-500">Qty: {item.quantity} × ₹{Number(item.unitPrice).toLocaleString('en-IN')}</div>
+                          <div className="text-2xs text-slate-500">Qty: {item.quantity} × ₹{Number(item.unitPrice).toLocaleString('en-IN')}</div>
                         </div>
                         <span className="font-bold shrink-0">₹{Number(item.lineTotal || item.price).toLocaleString('en-IN')}</span>
                       </div>
@@ -1670,14 +1667,14 @@ export const ProductsManager = ({ initialFilterPreset }) => {
                 )}
                 <div className="flex justify-between items-center text-slate-900 font-bold text-sm pt-2 mt-2 border-t border-dashed border-slate-200">
                   <span>Net Paid Amount:</span>
-                  <span className="text-emerald-600 text-base font-black">
+                  <span className="text-emerald-600 text-base font-bold">
                     ₹{Number(completedSaleData.amount).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
 
               {completedSaleData.createdByName && (
-                <div className="text-[10px] text-slate-400 pt-1">
+                <div className="text-2xs text-slate-400 pt-1">
                   Billed By: {completedSaleData.createdByName}
                 </div>
               )}
@@ -1755,7 +1752,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Add Units to Inventory *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Add Units to Inventory *</label>
               <input
                 type="number"
                 required
@@ -1779,7 +1776,7 @@ export const ProductsManager = ({ initialFilterPreset }) => {
               <button
                 type="submit"
                 disabled={isSubmittingRestock}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
               >
                 {isSubmittingRestock && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>{isSubmittingRestock ? 'Restocking...' : 'Add to Stock'}</span>

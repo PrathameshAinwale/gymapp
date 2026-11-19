@@ -372,7 +372,7 @@ export const PayDueModal = ({
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-sm leading-tight">{member.name}</h3>
-                <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                <div className="text-2xs text-slate-500 flex items-center gap-2 mt-0.5">
                   <span>{member.planName || 'Standard Member'}</span>
                   {member.phone && (
                     <>
@@ -388,17 +388,17 @@ export const PayDueModal = ({
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
+              <span className="text-2xs font-semibold text-rose-600 uppercase tracking-wider block">
                 Total Balance Due
               </span>
-              <span className="text-base font-black font-mono text-rose-600">
+              <span className="text-base font-bold font-mono text-rose-600">
                 ₹{totalDue.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
 
           {(member.dueDate || member.due_date) && (
-            <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center gap-1.5 text-[11px] text-amber-800">
+            <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center gap-1.5 text-2xs text-amber-800">
               <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span>
                 Previous Promised Due Date: <strong>{member.dueDate || member.due_date}</strong>
@@ -409,7 +409,7 @@ export const PayDueModal = ({
 
         {/* Payment Date */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+          <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
             <span>Payment Received Date *</span>
           </label>
@@ -424,7 +424,7 @@ export const PayDueModal = ({
 
         {/* 3 Payment Methods: Cash, UPI, Account Transfer */}
         <div className="space-y-2.5">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+          <label className="block text-2xs font-semibold text-slate-700 uppercase tracking-wider">
             Payment Breakdown & Methods *
           </label>
 
@@ -462,7 +462,7 @@ export const PayDueModal = ({
                     setAccountTransferAmount('');
                   }
                 }}
-                className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap"
+                className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap"
               >
                 Full
               </button>
@@ -503,7 +503,7 @@ export const PayDueModal = ({
                     setAccountTransferAmount('');
                   }
                 }}
-                className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap"
+                className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap"
               >
                 Full
               </button>
@@ -544,7 +544,7 @@ export const PayDueModal = ({
                     setUpiAmount('');
                   }
                 }}
-                className="px-2 py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap"
+                className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap"
               >
                 Full
               </button>
@@ -558,12 +558,12 @@ export const PayDueModal = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
               {/* Balance Due Display */}
               <div>
-                <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                <label className="block text-2xs font-bold text-amber-950 mb-1">
                   Remaining Balance Pending (₹)
                 </label>
                 <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                  <span className="text-[11px] font-semibold text-slate-600">Still Due:</span>
-                  <span className="text-sm font-black font-mono text-rose-600">
+                  <span className="text-2xs font-semibold text-slate-600">Still Due:</span>
+                  <span className="text-sm font-bold font-mono text-rose-600">
                     ₹{remainingDue.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -571,9 +571,9 @@ export const PayDueModal = ({
 
               {/* Next Due Date Picker */}
               <div>
-                <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                <label className="block text-2xs font-bold text-amber-950 mb-1 flex items-center justify-between">
                   <span>Next Promised Due Date *</span>
-                  <span className="text-[10px] font-normal text-amber-800">Promise date</span>
+                  <span className="text-2xs font-normal text-amber-800">Promise date</span>
                 </label>
                 <div className="relative">
                   <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -588,7 +588,7 @@ export const PayDueModal = ({
                   />
                 </div>
                 {memberExpiryDate && (
-                  <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                  <div className="flex items-center justify-between text-2xs text-amber-900 mt-1">
                     <span>Permitted: {formatDateDisplay(minDuePromiseDate)} to {formatDateDisplay(maxDuePromiseDate)}</span>
                     <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
                   </div>
@@ -597,7 +597,7 @@ export const PayDueModal = ({
             </div>
 
             {/* Summary */}
-            <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+            <div className="flex items-center justify-between text-2xs pt-2 border-t border-amber-200/80 font-medium">
               <span className="text-slate-600">
                 Total Due: <strong className="text-slate-900 font-mono">₹{totalDue.toLocaleString('en-IN')}</strong>
               </span>
@@ -615,7 +615,7 @@ export const PayDueModal = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>Full balance of <strong>₹{totalDue.toLocaleString('en-IN')}</strong> will be cleared! <strong>₹0</strong> dues remaining.</span>
             </div>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300 shrink-0">
+            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold text-2xs uppercase border border-emerald-300 shrink-0">
               Clear All Dues
             </span>
           </div>
@@ -628,7 +628,7 @@ export const PayDueModal = ({
               <User className="w-3.5 h-3.5 text-slate-500" />
               <span>Payment Collected & Invoice Created By</span>
             </span>
-            <span className="text-[10px] text-slate-400 font-normal">Audit Record</span>
+            <span className="text-2xs text-slate-400 font-normal">Audit Record</span>
           </label>
           <input
             type="text"
@@ -641,7 +641,7 @@ export const PayDueModal = ({
 
         {/* Optional Notes */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+          <label className="block text-2xs font-bold text-slate-700 mb-1">
             Payment Notes / Remarks (Optional)
           </label>
           <input
@@ -666,7 +666,7 @@ export const PayDueModal = ({
           <button
             type="submit"
             disabled={isSubmitting || paidNow <= 0}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isSubmitting ? (
               <span>Recording...</span>

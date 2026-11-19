@@ -33,11 +33,11 @@ export const MobileCard = ({
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {avatar && <div className="shrink-0">{avatar}</div>}
           <div className="min-w-0 flex-1">
-            <div className="font-bold text-slate-900 text-xs truncate">
+            <div className="font-bold text-slate-900 text-xs truncate" title={typeof title === 'string' ? title : undefined}>
               {title}
             </div>
             {subtitle && (
-              <div className="text-[10px] text-slate-500 font-mono truncate mt-0.5">
+              <div className="text-2xs text-slate-500 font-mono truncate mt-0.5" title={typeof subtitle === 'string' ? subtitle : undefined}>
                 {subtitle}
               </div>
             )}
@@ -49,15 +49,15 @@ export const MobileCard = ({
 
       {/* Key Fields Grid (2 columns on mobile) */}
       {fields.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[11px]">
+        <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
           {fields.map((f, i) => (
             <div key={i} className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">
+              <span className="text-2xs uppercase font-semibold text-slate-400 block truncate" title={f.label}>
                 {f.label}
               </span>
               <div className="font-semibold text-slate-800 truncate mt-0.5 flex items-center gap-1">
                 {f.icon && <span className="shrink-0">{f.icon}</span>}
-                <span className="truncate">{f.value ?? '--'}</span>
+                <span className="truncate" title={typeof f.value === 'string' || typeof f.value === 'number' ? String(f.value) : undefined}>{f.value ?? '--'}</span>
               </div>
             </div>
           ))}
@@ -78,7 +78,7 @@ export const MobileCard = ({
               e.stopPropagation();
               setIsExpanded(!isExpanded);
             }}
-            className="w-full pt-0.5 text-center text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+            className="w-full pt-0.5 text-center text-2xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1 cursor-pointer active:scale-95"
           >
             <span>{isExpanded ? 'Less details' : 'More details'}</span>
             {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}

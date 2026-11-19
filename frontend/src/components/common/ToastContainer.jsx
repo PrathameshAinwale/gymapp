@@ -40,7 +40,7 @@ export const ToastContainer = () => {
           >
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <Icon className="w-5 h-5 shrink-0" />
-              <p className="text-xs font-medium text-slate-100 break-words leading-relaxed">{toast.message}</p>
+              <p className="text-xs font-medium text-slate-100 app-clamp-2 leading-relaxed" title={toast.message}>{toast.message}</p>
             </div>
             <button
               onClick={() => removeToast(toast.id)}

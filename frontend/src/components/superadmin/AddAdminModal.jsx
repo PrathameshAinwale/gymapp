@@ -111,7 +111,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
               <UserPlus className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 text-base font-heading">
+              <h3 className="font-bold text-slate-900 text-base font-heading">
                 Create New Superadmin
               </h3>
               <p className="text-xs text-slate-500">
@@ -148,7 +148,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
         <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Admin Full Name */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">
               Full Name <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
@@ -168,7 +168,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
 
           {/* Admin Email */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">
               Login Email Address <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
@@ -188,8 +188,8 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
 
           {/* Phone (Optional) */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
-              Mobile Phone <span className="text-slate-400 text-[10px] font-normal">(Optional)</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">
+              Mobile Phone <span className="text-slate-400 text-2xs font-normal">(Optional)</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -209,7 +209,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             {/* Password */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">
                 Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -237,7 +237,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
 
             {/* Confirm Password */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">
                 Confirm Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -265,7 +265,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
 
           {/* Password Match Hint */}
           {confirmPassword && password && (
-            <div className="text-[11px] font-medium pt-0.5">
+            <div className="text-2xs font-medium pt-0.5">
               {confirmPassword === password ? (
                 <span className="text-emerald-600 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
@@ -291,7 +291,7 @@ export const AddAdminModal = ({ isOpen, onClose, onAdminCreated, showToast }) =>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold tracking-wide shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold tracking-wide shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
             >
               {isLoading ? (
                 <>

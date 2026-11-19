@@ -1270,6 +1270,10 @@ class SuperadminController extends Controller
     {
         $pages = PlatformPage::all()->keyBy('slug');
 
+        if (isset($pages['help-support'])) {
+            $this->normalizeHelpSupportMetadata($pages['help-support']);
+        }
+
         return response()->json([
             'success' => true,
             'pages' => $pages
@@ -1289,10 +1293,52 @@ class SuperadminController extends Controller
             ], 404);
         }
 
+        if ($slug === 'help-support') {
+            $this->normalizeHelpSupportMetadata($page);
+        }
+
         return response()->json([
             'success' => true,
             'page' => $page
         ]);
+    }
+
+    /**
+     * Normalize help & support metadata, upgrading any stale placeholders.
+     */
+    private function normalizeHelpSupportMetadata(PlatformPage $page): void
+    {
+        $meta = is_array($page->metadata) ? $page->metadata : (json_decode($page->metadata, true) ?: []);
+        $updated = false;
+
+        $legacyPlaceholders = [
+            'support_email' => ['support@archfit.com', ''],
+            'support_phone' => ['+91 98200 98200', '+91', '+91 ', ''],
+            'whatsapp_number' => ['+91 98200 98200', '919820098200', ''],
+            'operating_hours' => ['Monday - Saturday: 8:00 AM - 10:00 PM IST', '']
+        ];
+
+        $defaults = [
+            'support_email' => 'contact.arch360@gmail.com',
+            'support_phone' => '+91 7219111596',
+            'whatsapp_number' => '+91 7219111596',
+            'operating_hours' => 'Monday - Saturday: 9:30 AM - 5:30 PM IST'
+        ];
+
+        foreach ($defaults as $key => $defaultVal) {
+            $currentVal = $meta[$key] ?? '';
+            if (empty($currentVal) || in_array(trim($currentVal), $legacyPlaceholders[$key] ?? [])) {
+                $meta[$key] = $defaultVal;
+                $updated = true;
+            }
+        }
+
+        if ($updated) {
+            $page->metadata = $meta;
+            try {
+                $page->save();
+            } catch (\Throwable $e) {}
+        }
     }
 
     /**

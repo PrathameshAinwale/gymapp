@@ -27,7 +27,7 @@ export const WorkoutTracker = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-base sm:text-xl font-bold font-heading text-slate-900 flex items-center gap-2">
+        <h1 className="app-page-title font-bold font-heading text-slate-900 flex items-center gap-2">
           <Dumbbell className="w-5 h-5 text-emerald-600" />
           Weekly Workout Plan
         </h1>
@@ -39,12 +39,12 @@ export const WorkoutTracker = () => {
       {/* Program Info Card */}
       <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Active Program</div>
+          <div className="text-2xs uppercase font-semibold text-emerald-600 tracking-wider">Active Program</div>
           <div className="text-sm font-bold text-slate-900 font-heading mt-0.5">{workoutPlan?.title || 'No Workout Plan Assigned'}</div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-400">Training Days</div>
-          <div className="text-lg font-black text-emerald-600 font-heading">{days.length} Days</div>
+          <div className="text-lg font-bold text-emerald-600 font-heading">{days.length} Days</div>
         </div>
       </div>
 
@@ -77,9 +77,9 @@ export const WorkoutTracker = () => {
                 onClick={() => toggleDay(day.day)}
                 className="w-full flex items-center justify-between p-3 sm:p-4 text-left hover:bg-slate-50 transition-colors cursor-pointer active:bg-slate-50"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-black border ${
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center text-2xs sm:text-xs font-bold border shrink-0 ${
                       isToday
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                         : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -87,24 +87,24 @@ export const WorkoutTracker = () => {
                   >
                     {day.day.substring(0, 3).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      {day.day}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 min-w-0">
+                      <span className="shrink-0">{day.day}</span>
                       {isToday && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                        <span className="px-1.5 py-0.5 rounded text-2xs font-bold bg-emerald-100 text-emerald-800 shrink-0 whitespace-nowrap">
                           TODAY
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-500">{day.label}</div>
+                    <div className="text-2xs text-slate-500 truncate" title={day.label}>{day.label}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400">{day.exercises.length} exercises</span>
+                <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                  <span className="text-2xs font-bold text-slate-400">{day.exercises.length} exercises</span>
                   {isExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                    <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                   )}
                 </div>
               </button>
@@ -117,21 +117,23 @@ export const WorkoutTracker = () => {
                       key={ex.id}
                       className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs"
                     >
-                      <div className="text-xs font-bold text-slate-900">
+                      <div className="text-xs font-bold text-slate-900 truncate" title={`${idx + 1}. ${ex.name}`}>
                         {idx + 1}. {ex.name}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-700 whitespace-nowrap shrink-0">
                           {ex.sets} sets
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-700 whitespace-nowrap shrink-0">
                           {ex.reps} reps
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          {ex.weight}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 flex items-center gap-0.5">
-                          <Clock className="w-2.5 h-2.5" /> {ex.rest}s rest
+                        {ex.weight && (
+                          <span className="px-2 py-0.5 rounded text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 truncate max-w-[150px]" title={ex.weight}>
+                            {ex.weight}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-500 flex items-center gap-0.5 whitespace-nowrap shrink-0">
+                          <Clock className="w-2.5 h-2.5 shrink-0" /> {ex.rest}s rest
                         </span>
                       </div>
                     </div>
@@ -150,7 +152,7 @@ export const WorkoutTracker = () => {
           <Sparkles className="w-4 h-4" />
         </div>
         <div className="text-xs font-bold text-slate-800 mt-1">Sunday — Rest & Recovery</div>
-        <div className="text-[11px] text-slate-500">No workout scheduled. Focus on stretching, hydration, and sleep.</div>
+        <div className="text-2xs text-slate-500">No workout scheduled. Focus on stretching, hydration, and sleep.</div>
       </div>
     </div>
   );

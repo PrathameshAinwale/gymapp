@@ -4,10 +4,11 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "http",
+    "cleartext": true,
+    "url": "http://192.168.1.49:5173",
     "cleartext": true
   },
   "android": {
-    "backgroundColor": "#080d1a",
     "allowMixedContent": true
   }
 }

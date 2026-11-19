@@ -53,10 +53,10 @@ export const StatCard = ({ title, value, change, isPositive, icon: Icon, colorSc
     >
       <div className="flex items-start justify-between gap-2 sm:gap-3 relative z-10">
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block truncate leading-tight">
+          <span className="text-2xs font-semibold uppercase tracking-normal sm:tracking-wide text-slate-500 block truncate leading-tight" title={title}>
             {title}
           </span>
-          <div className="mt-1 sm:mt-1.5 text-lg sm:text-2xl font-black font-heading text-slate-900 tracking-tight truncate flex items-baseline gap-1">
+          <div className="mt-1 sm:mt-1.5 text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight whitespace-nowrap flex items-baseline gap-1">
             {value}
           </div>
         </div>
@@ -69,7 +69,7 @@ export const StatCard = ({ title, value, change, isPositive, icon: Icon, colorSc
         <div className="mt-2 sm:mt-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-1 sm:gap-1.5 text-xs pt-2 sm:pt-2.5 border-t border-slate-100 relative z-10">
           {change && (
             <span
-              className={`inline-flex items-center font-black px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg shrink-0 text-[10px] sm:text-[11px] ${
+              className={`inline-flex items-center font-bold px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg shrink-0 text-2xs sm:text-2xs ${
                 isPositive
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -83,7 +83,7 @@ export const StatCard = ({ title, value, change, isPositive, icon: Icon, colorSc
               <span>{change}</span>
             </span>
           )}
-          {subtext && <span className="text-slate-500 font-medium truncate text-[10px] sm:text-[11px]">{subtext}</span>}
+          {subtext && <span className="text-slate-500 font-medium truncate text-2xs sm:text-2xs min-w-0" title={subtext}>{subtext}</span>}
         </div>
       )}
     </div>

@@ -11,6 +11,8 @@ class Enquiry extends Model
 
     protected $fillable = [
         'gym_id',
+        'enquiry_number',
+        'legacy_id',
         'name',
         'phone',
         'email',

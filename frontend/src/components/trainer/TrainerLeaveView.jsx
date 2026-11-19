@@ -166,16 +166,16 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-16 max-w-5xl mx-auto px-2 sm:px-0">
       {/* 1. Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white border border-slate-200 p-3 sm:p-5 rounded-2xl shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
             <CalendarDays className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-xl font-black font-heading text-slate-900 tracking-tight">
+            <h1 className="app-page-title font-bold font-heading text-slate-900 tracking-normal">
               My Leave Tracker & Applications
             </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+            <p className="text-2xs sm:text-xs text-slate-500 mt-0.5">
               Check your remaining paid leave balance and submit leave applications to management.
             </p>
           </div>
@@ -193,20 +193,20 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
 
       {/* 2. My Remaining Leave Balances (Small & Two in One Row) */}
       <div>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
           My Leaves Balance (2026)
         </h2>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
           {/* Total Remaining */}
           <div className="p-3 sm:p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-indigo-800 rounded-xl sm:rounded-2xl shadow-xs">
-            <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider block truncate">
+            <span className="text-2xs font-semibold text-indigo-300 uppercase tracking-wider block truncate">
               Total Leaves Left
             </span>
-            <div className="text-base sm:text-xl font-black text-white mt-1 truncate">
+            <div className="text-base sm:text-xl font-bold text-white mt-1 truncate">
               {myBalanceRecord?.total_remaining ?? 27}{' '}
               <span className="text-xs font-medium text-slate-300">Days</span>
             </div>
-            <span className="text-[10px] text-slate-300 mt-0.5 block truncate">
+            <span className="text-2xs text-slate-300 mt-0.5 block truncate">
               Used: {myBalanceRecord?.total_used ?? 3} / Total: {myBalanceRecord?.total_allocated ?? 30}
             </span>
           </div>
@@ -220,15 +220,15 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
                   key={b.id || b.leave_type}
                   className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs"
                 >
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <div className="flex items-center justify-between text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                     <span className="truncate">{b.leave_type}</span>
                     <Icon className="w-3.5 h-3.5 text-indigo-500 shrink-0 ml-1" />
                   </div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                  <div className="text-base sm:text-xl font-bold text-slate-900 mt-1 truncate">
                     {b.remaining_days}{' '}
                     <span className="text-xs font-normal text-slate-400">Left</span>
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5 block truncate">
+                  <div className="text-2xs text-slate-500 mt-0.5 block truncate">
                     Quota: {b.allocated_days} • Used: {b.used_days}
                   </div>
                 </div>
@@ -237,34 +237,34 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
           ) : (
             <>
               <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <div className="flex items-center justify-between text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                   <span className="truncate">Privilege Leave</span>
                   <ShieldCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0 ml-1" />
                 </div>
-                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                <div className="text-base sm:text-xl font-bold text-slate-900 mt-1 truncate">
                   10 <span className="text-xs font-normal text-slate-400">Left</span>
                 </div>
-                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 12 • Used: 2</span>
+                <span className="text-2xs text-slate-500 mt-0.5 block truncate">Quota: 12 • Used: 2</span>
               </div>
               <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <div className="flex items-center justify-between text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                   <span className="truncate">Sick Leave</span>
                   <HeartPulse className="w-3.5 h-3.5 text-rose-500 shrink-0 ml-1" />
                 </div>
-                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                <div className="text-base sm:text-xl font-bold text-slate-900 mt-1 truncate">
                   9 <span className="text-xs font-normal text-slate-400">Left</span>
                 </div>
-                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 10 • Used: 1</span>
+                <span className="text-2xs text-slate-500 mt-0.5 block truncate">Quota: 10 • Used: 1</span>
               </div>
               <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <div className="flex items-center justify-between text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                   <span className="truncate">Casual Leave</span>
                   <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />
                 </div>
-                <div className="text-base sm:text-xl font-black text-slate-900 mt-1 truncate">
+                <div className="text-base sm:text-xl font-bold text-slate-900 mt-1 truncate">
                   8 <span className="text-xs font-normal text-slate-400">Left</span>
                 </div>
-                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">Quota: 8 • Used: 0</span>
+                <span className="text-2xs text-slate-500 mt-0.5 block truncate">Quota: 8 • Used: 0</span>
               </div>
             </>
           )}
@@ -324,7 +324,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
                         )}
                         <span className="truncate">{opt.label}</span>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
                         isSelected ? 'bg-indigo-200/70 text-indigo-900' : 'bg-slate-100 text-slate-500'
                       }`}>
                         {opt.count}
@@ -351,7 +351,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-sm text-slate-900">{req.leaveType}</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">
+                    <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-700">
                       {req.daysCount} {req.daysCount === 1 ? 'Day' : 'Days'}
                     </span>
                   </div>
@@ -362,7 +362,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
                     "{req.reason}"
                   </p>
                   {req.actionNotes && (
-                    <div className="text-[11px] text-slate-500 mt-1 bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <div className="text-2xs text-slate-500 mt-1 bg-slate-50 p-1.5 rounded border border-slate-100">
                       Management Note: {req.actionNotes}
                     </div>
                   )}
@@ -384,7 +384,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
                     <span>{req.status}</span>
                   </span>
                   {req.actionBy && (
-                    <span className="text-[10px] text-slate-400 block mt-1">
+                    <span className="text-2xs text-slate-400 block mt-1">
                       Action by {req.actionBy}
                     </span>
                   )}
@@ -403,7 +403,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
       >
         <form onSubmit={handleSubmitApplication} className="space-y-4 max-w-md">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Leave Type *
             </label>
             <select
@@ -419,7 +419,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Start Date *
               </label>
               <input
@@ -431,7 +431,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 End Date *
               </label>
               <input
@@ -445,7 +445,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Reason for Leave *
             </label>
             <textarea
@@ -469,7 +469,7 @@ export const TrainerLeaveView = ({ setActiveTab }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Application'}
             </button>

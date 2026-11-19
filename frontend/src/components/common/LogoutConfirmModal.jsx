@@ -40,7 +40,7 @@ export const LogoutConfirmModal = () => {
 
         {/* Title and Message */}
         <div className="space-y-1.5">
-          <h3 className="text-base sm:text-lg font-black text-slate-900 font-heading tracking-tight">
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 font-heading tracking-tight">
             {isLoggingOut ? 'Logging Out...' : 'Log Out Confirmation'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xs mx-auto">
@@ -56,7 +56,7 @@ export const LogoutConfirmModal = () => {
             type="button"
             onClick={cancelLogout}
             disabled={isLoggingOut}
-            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             Cancel
           </button>
@@ -64,7 +64,7 @@ export const LogoutConfirmModal = () => {
             type="button"
             onClick={confirmLogout}
             disabled={isLoggingOut}
-            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
+            className="w-full min-h-[42px] py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
           >
             {isLoggingOut ? (
               <>

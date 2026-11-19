@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import api from '../services/api.js';
-import { formatWhatsAppPhone, openWhatsApp } from './whatsapp.js';
+import { formatWhatsAppPhone, openWhatsApp, getGymName } from './whatsapp.js';
 import {
   PDF_PAGE_WIDTH,
   PDF_PAGE_HEIGHT,
@@ -1300,11 +1300,15 @@ export async function shareInvoicePdfToMobile(arg1, arg2, arg3) {
     const isPending = (invoice.status || '').toLowerCase() === 'pending' || (invoice.status || '').toLowerCase() === 'partial' || pendingAmount > 0;
 
     const displayDate = formatInvoiceDate(invoice.issueDate || invoice.date || invoice.createdAt || new Date());
-    const gymName = gymInfo?.name || invoice.gymName || 'Our Gym';
+    const gymName = getGymName(gymInfo?.name || invoice.gymName);
 
     let message = isPending
-      ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official gym membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nThank you for working out with ${gymName}!`
-      : `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official gym membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nThank you for working out with ${gymName}!`;
+      ? (gymName
+          ? `*${gymName.toUpperCase()} - INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nThank you for working out with ${gymName}!`
+          : `*INVOICE (PENDING)*\n\nDear *${memberName}*,\nHere is your official membership invoice:\n\n📄 *Invoice No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n⚠️ *Status:* Pending\n💰 *Amount Paid:* ₹${amount}\n🔴 *Pending Balance Due:* ₹${pendingAmount.toLocaleString('en-IN')}\n\nThank you for working out with us!`)
+      : (gymName
+          ? `*${gymName.toUpperCase()} - PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nThank you for working out with ${gymName}!`
+          : `*PAYMENT RECEIPT*\n\nDear *${memberName}*,\nHere is your official membership receipt:\n\n📄 *Receipt No:* #${invoiceId}\n📅 *Date:* ${displayDate}\n🏷️ *Plan:* ${planName}\n💳 *Payment Mode:* ${invoice.paymentMethod || 'UPI'}\n✅ *Status:* Paid & Verified\n💰 *Total Settled:* ₹${amount}\n\nThank you for working out with us!`);
 
     // Fetch temporary signed URL (30-day validity) and append as direct PDF link
     try {

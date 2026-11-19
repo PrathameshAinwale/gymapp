@@ -99,15 +99,15 @@ export const LoginPage = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-black text-slate-900 tracking-tight">ARCHFIT</span>
+                  <span className="text-base font-bold text-slate-900 tracking-tight">ARCHFIT</span>
                 </div>
-                <p className="text-[11px] text-slate-500 font-medium">Gym Management System</p>
+                <p className="text-2xs text-slate-500 font-medium">Gym Management System</p>
               </div>
             </div>
 
             {/* Welcome Heading */}
             <div className="space-y-1 mb-6">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal">
                 Welcome
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 font-normal">
@@ -179,7 +179,7 @@ export const LoginPage = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base sm:text-sm shadow-md shadow-emerald-600/20 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                className="w-full h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base sm:text-sm shadow-md shadow-emerald-600/20 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
                 {isLoading ? (
                   <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -202,7 +202,7 @@ export const LoginPage = () => {
 
           {/* Top Brand Tag */}
           <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+            <span className="text-2xs font-semibold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
             </span>
           </div>
 
@@ -224,12 +224,12 @@ export const LoginPage = () => {
 
               {/* Floating Chip 1 (Top Left) */}
               <div className="absolute -top-3 -left-6 sm:-left-10 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-400/30 shadow-lg backdrop-blur-md animate-bounce [animation-duration:3s]">
-                <span className="text-[10px] font-bold text-emerald-200">Member App</span>
+                <span className="text-2xs font-bold text-emerald-200">Member App</span>
               </div>
 
               {/* Floating Chip 2 (Bottom Right) */}
               <div className="absolute -bottom-3 -right-6 sm:-right-8 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-400/30 shadow-lg backdrop-blur-md animate-bounce [animation-duration:3.5s]">
-                <span className="text-[10px] font-bold text-emerald-200">Trainer App</span>
+                <span className="text-2xs font-bold text-emerald-200">Trainer App</span>
               </div>
 
               {/* Main Glowing Logo Card */}
@@ -245,7 +245,7 @@ export const LoginPage = () => {
             {/* Application Branding & Typography */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-center gap-2">
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                   ARCHFIT
                 </h2>
               </div>
@@ -256,15 +256,15 @@ export const LoginPage = () => {
 
             {/* High-Impact Capabilities Badges */}
             <div className="flex items-center justify-center gap-2 flex-wrap pt-4">
-              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-2xs font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
                 <Smartphone className="w-3 h-3 text-emerald-400" />
                 <span>Mobile App Support</span>
               </span>
-              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-2xs font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
                 <Receipt className="w-3 h-3 text-emerald-400" />
                 <span>WhatsApp Receipts</span>
               </span>
-              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-2xs font-semibold text-emerald-200 backdrop-blur-xs flex items-center gap-1">
                 <Users className="w-3 h-3 text-emerald-400" />
                 <span>Multi-Role Access</span>
               </span>
@@ -283,7 +283,7 @@ export const LoginPage = () => {
               🔑
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">Forgot Password?</h3>
+              <h3 className="text-base font-bold text-slate-900">Forgot Password?</h3>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 To reset your account password, please contact your gym manager or reception desk. They will verify your account and provide you with a new password instantly.
               </p>
@@ -307,7 +307,7 @@ export const LoginPage = () => {
               🏋️
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">Join ArchFit</h3>
+              <h3 className="text-base font-bold text-slate-900">Join ArchFit</h3>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 New member accounts are provisioned during registration at our gym front desk. Please visit reception to pick your membership package and get your login pass!
               </p>

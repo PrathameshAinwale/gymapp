@@ -90,7 +90,7 @@ export const Modal = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-200/80 bg-slate-50/95 sm:bg-slate-50/80 shrink-0 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-4">
-          <div className="flex items-center gap-2 min-w-0 pr-2">
+          <div className="flex items-center gap-2 min-w-0 pr-2 flex-1">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -102,7 +102,7 @@ export const Modal = ({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h3 className="font-heading text-sm sm:text-base font-bold text-slate-900 tracking-wide truncate">
+            <h3 className="font-heading text-sm sm:text-base font-bold text-slate-900 tracking-wide truncate" title={typeof title === 'string' ? title : undefined}>
               {title}
             </h3>
           </div>

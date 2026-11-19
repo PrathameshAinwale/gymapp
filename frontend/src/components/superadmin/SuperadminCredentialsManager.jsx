@@ -225,7 +225,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>Superadmin Administrators</span>
-                <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                <span className="text-2xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
                   {admins.length} {admins.length === 1 ? 'Admin' : 'Admins'}
                 </span>
               </h3>
@@ -284,14 +284,14 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
                           <h4 className="text-xs font-bold text-slate-900 truncate">
                             {adm.name}
                           </h4>
-                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded uppercase">
+                          <span className="text-2xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded uppercase">
                             Superadmin
                           </span>
                         </div>
                       </div>
 
                       {isCurrentUser ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                           Current Session
                         </span>
                       ) : (
@@ -311,7 +311,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
                       )}
                     </div>
 
-                    <div className="space-y-1 text-[11px] text-slate-600 font-mono mt-2 pt-2 border-t border-slate-200/60">
+                    <div className="space-y-1 text-2xs text-slate-600 font-mono mt-2 pt-2 border-t border-slate-200/60">
                       <div className="flex items-center gap-1.5 truncate">
                         <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                         <span className="truncate">{adm.email}</span>
@@ -325,7 +325,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-2xs text-slate-400">
                     <span>ID: #{adm.id}</span>
                     <span>{adm.created_at ? new Date(adm.created_at).toLocaleDateString() : 'Active'}</span>
                   </div>
@@ -375,7 +375,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               {/* Field 1: Current Password */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Enter Current Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -402,7 +402,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
 
               {/* Field 2: New Password */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Enter New Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -430,7 +430,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
 
               {/* Field 3: Confirm New Password */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Confirm New Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -455,10 +455,10 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
                   </button>
                 </div>
                 {confirmPassword && newPassword && confirmPassword !== newPassword && (
-                  <p className="text-[11px] text-rose-600 mt-1 font-medium">Passwords do not match</p>
+                  <p className="text-2xs text-rose-600 mt-1 font-medium">Passwords do not match</p>
                 )}
                 {confirmPassword && newPassword && confirmPassword === newPassword && (
-                  <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-medium">
+                  <p className="text-2xs text-emerald-600 mt-1 flex items-center gap-1 font-medium">
                     <CheckCircle2 className="w-3 h-3" /> Passwords match
                   </p>
                 )}
@@ -467,7 +467,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
               <button
                 type="submit"
                 disabled={pwdLoading}
-                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {pwdLoading ? (
                   <>
@@ -521,7 +521,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
             <form onSubmit={handleEmailSubmit} className="space-y-4">
               {/* Field 1: Current Password for Verification */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Enter Current Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -548,7 +548,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
 
               {/* Field 2: New Email */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Enter New Email Address <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -568,7 +568,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
 
               {/* Field 3: Confirm New Email */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Confirm New Email Address <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -585,10 +585,10 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
                   />
                 </div>
                 {confirmEmail && newEmail && confirmEmail.toLowerCase() !== newEmail.toLowerCase() && (
-                  <p className="text-[11px] text-rose-600 mt-1 font-medium">Email addresses do not match</p>
+                  <p className="text-2xs text-rose-600 mt-1 font-medium">Email addresses do not match</p>
                 )}
                 {confirmEmail && newEmail && confirmEmail.toLowerCase() === newEmail.toLowerCase() && (
-                  <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-medium">
+                  <p className="text-2xs text-emerald-600 mt-1 flex items-center gap-1 font-medium">
                     <CheckCircle2 className="w-3 h-3" /> Email addresses match
                   </p>
                 )}
@@ -597,7 +597,7 @@ export const SuperadminCredentialsManager = ({ superUser, onSuperUserUpdated, sh
               <button
                 type="submit"
                 disabled={emailLoading}
-                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {emailLoading ? (
                   <>

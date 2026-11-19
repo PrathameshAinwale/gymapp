@@ -24,6 +24,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
@@ -446,67 +447,59 @@ export const PTSessionsManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-teal-50 text-teal-600 border border-teal-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                Personal Training (PT) Sessions Tracker
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
+                PT Sessions Tracker
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Track individual PT session quotas, completion statuses, trainer assignments, and member OTP verifications.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {filteredSessions.length} {filteredSessions.length === 1 ? 'package' : 'packages'}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleOpenAllocateModal}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Allocate PT Package</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleOpenAllocateModal}
+          className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          title="Allocate PT Package"
+        >
+          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+          <span className="hidden sm:inline">Allocate PT Package</span>
+          <span className="sm:hidden">Allocate</span>
+        </button>
       </div>
 
       {/* Search & Filter Toolbar */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search member, coach, or PT package..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-teal-500 font-medium truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-[11px] font-bold cursor-pointer"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search member, coach, or PT package..."
+            mobilePlaceholder="Search PT sessions..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="p-2 bg-slate-50 text-2xs font-semibold text-slate-500 uppercase tracking-wider">
                   Matching PT Packages ({searchSuggestions.length})
                 </div>
                 {searchSuggestions.map((pt, idx) => (
@@ -519,23 +512,23 @@ export const PTSessionsManager = () => {
                     className="p-2.5 hover:bg-teal-50/70 transition-colors flex items-center justify-between cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 font-bold text-[10px] flex items-center justify-center border border-teal-200">
+                      <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 font-bold text-2xs flex items-center justify-center border border-teal-200">
                         {(pt.memberName || 'M').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="font-bold text-slate-900 text-xs group-hover:text-teal-700">
                           {pt.memberName}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-2xs text-slate-400">
                           Coach: {pt.trainerName || 'Assigned Coach'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-2xs font-semibold">
                         {pt.packageTitle || `${pt.totalSessions || 12} Sessions`}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200">
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200">
                         {pt.status || 'Active'}
                       </span>
                     </div>
@@ -543,14 +536,15 @@ export const PTSessionsManager = () => {
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated Filter Button */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
                 activeFiltersCount > 0
                   ? 'bg-teal-600 text-white border-teal-600 shadow-sm shadow-teal-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -559,7 +553,7 @@ export const PTSessionsManager = () => {
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-teal-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-teal-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-teal-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -570,7 +564,7 @@ export const PTSessionsManager = () => {
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {statusFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg text-xs font-medium">
                 Status: {statusFilter}
@@ -590,7 +584,7 @@ export const PTSessionsManager = () => {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -604,7 +598,7 @@ export const PTSessionsManager = () => {
           Showing <strong className="text-teal-700">{filteredSessions.length}</strong> of {uniqueSessions.length} PT Packages
         </span>
         {searchTerm && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-2xs text-slate-400">
             Filtered by "{searchTerm}"
           </span>
         )}
@@ -635,7 +629,7 @@ export const PTSessionsManager = () => {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                     <th className="py-3 px-4">Member Name</th>
                     <th className="py-3 px-4">Dedicated Coach</th>
                     <th className="py-3 px-4">PT Package Title</th>
@@ -651,34 +645,34 @@ export const PTSessionsManager = () => {
 
                     return (
                       <tr key={pt.id} className="hover:bg-slate-50/70">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {pt.memberName}
-                          <div className="text-[10px] text-slate-400 font-mono">{pt.memberEmail}</div>
+                        <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px]">
+                          <div className="truncate" title={pt.memberName}>{pt.memberName}</div>
+                          <div className="text-2xs text-slate-400 font-mono truncate" title={pt.memberEmail}>{pt.memberEmail}</div>
                         </td>
 
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5 text-teal-700 font-semibold">
-                            <Award className="w-3.5 h-3.5" />
-                            <span>{pt.trainerName}</span>
+                        <td className="py-3.5 px-4 max-w-[150px]">
+                          <div className="flex items-center gap-1.5 text-teal-700 font-semibold min-w-0">
+                            <Award className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate" title={pt.trainerName}>{pt.trainerName}</span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 font-medium text-slate-800">
-                          {pt.packageTitle}
+                        <td className="py-3.5 px-4 font-medium text-slate-800 max-w-[160px]">
+                          <div className="truncate" title={pt.packageTitle}>{pt.packageTitle}</div>
                           <div className="w-24 bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
                             <div className="bg-teal-500 h-full" style={{ width: `${pct}%` }} />
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-bold text-emerald-700">
+                        <td className="py-3.5 px-4 text-center font-medium text-emerald-700 whitespace-nowrap shrink-0">
                           {pt.completedSessions}
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-bold text-amber-700">
+                        <td className="py-3.5 px-4 text-center font-medium text-amber-700 whitespace-nowrap shrink-0">
                           {pt.remainingSessions}
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-bold text-slate-900">
+                        <td className="py-3.5 px-4 text-center font-medium text-slate-900 whitespace-nowrap shrink-0">
                           {pt.totalSessions}
                         </td>
 
@@ -687,7 +681,7 @@ export const PTSessionsManager = () => {
                             <button
                               type="button"
                               onClick={() => setSelectedSessionPkg(pt)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-2xs cursor-pointer"
                             >
                               View Logs ({(pt.logs || []).length})
                             </button>
@@ -718,10 +712,10 @@ export const PTSessionsManager = () => {
                 return (
                   <div key={pt.id} className="pt-2.5 first:pt-0 space-y-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200/80">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-bold text-sm text-slate-900 truncate">{pt.memberName}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm text-slate-900 truncate" title={pt.memberName}>{pt.memberName}</div>
                         {pt.memberEmail && (
-                          <div className="text-[10px] text-slate-400 font-mono truncate">{pt.memberEmail}</div>
+                          <div className="text-2xs text-slate-400 font-mono truncate" title={pt.memberEmail}>{pt.memberEmail}</div>
                         )}
                       </div>
                       {deletePTSession && (
@@ -731,20 +725,20 @@ export const PTSessionsManager = () => {
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer transition-colors shrink-0"
                           title="Delete Package"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 shrink-0" />
                         </button>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-teal-700 font-semibold bg-teal-50/80 px-2.5 py-1 rounded-lg border border-teal-100">
+                    <div className="flex items-center gap-1.5 text-xs text-teal-700 font-semibold bg-teal-50/80 px-2.5 py-1 rounded-lg border border-teal-100 min-w-0">
                       <Award className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Coach: {pt.trainerName}</span>
+                      <span className="truncate" title={`Coach: ${pt.trainerName}`}>Coach: {pt.trainerName}</span>
                     </div>
 
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-800">{pt.packageTitle}</span>
-                        <span className="text-[10px] text-slate-500 font-mono">{pct}% completed</span>
+                      <div className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-semibold text-slate-800 truncate min-w-0" title={pt.packageTitle}>{pt.packageTitle}</span>
+                        <span className="text-2xs text-slate-500 font-mono shrink-0 whitespace-nowrap">{pct}% completed</span>
                       </div>
                       <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                         <div className="bg-teal-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -753,16 +747,16 @@ export const PTSessionsManager = () => {
 
                     <div className="grid grid-cols-3 gap-2 pt-1 text-center">
                       <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                        <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Done</div>
-                        <div className="text-sm font-black text-emerald-700">{pt.completedSessions}</div>
+                        <div className="text-2xs uppercase font-semibold text-emerald-600 tracking-wider">Done</div>
+                        <div className="text-sm font-bold text-emerald-700">{pt.completedSessions}</div>
                       </div>
                       <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
-                        <div className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Remaining</div>
-                        <div className="text-sm font-black text-amber-700">{pt.remainingSessions}</div>
+                        <div className="text-2xs uppercase font-semibold text-amber-600 tracking-wider">Remaining</div>
+                        <div className="text-sm font-bold text-amber-700">{pt.remainingSessions}</div>
                       </div>
                       <div className="p-2 rounded-lg bg-slate-100 border border-slate-200">
-                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total</div>
-                        <div className="text-sm font-black text-slate-800">{pt.totalSessions}</div>
+                        <div className="text-2xs uppercase font-semibold text-slate-500 tracking-wider">Total</div>
+                        <div className="text-sm font-bold text-slate-800">{pt.totalSessions}</div>
                       </div>
                     </div>
 
@@ -795,11 +789,11 @@ export const PTSessionsManager = () => {
           <div className="space-y-3 text-xs">
             <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-teal-800 uppercase font-bold block">Assigned Coach</span>
+                <span className="text-2xs text-teal-800 uppercase font-semibold block">Assigned Coach</span>
                 <span className="font-bold text-teal-950 text-sm">{selectedSessionPkg.trainerName}</span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-teal-800 uppercase font-bold block">Progress</span>
+                <span className="text-2xs text-teal-800 uppercase font-semibold block">Progress</span>
                 <span className="font-mono font-bold text-teal-950">{selectedSessionPkg.completedSessions} / {selectedSessionPkg.totalSessions} Completed</span>
               </div>
             </div>
@@ -814,10 +808,10 @@ export const PTSessionsManager = () => {
                   <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-900">Session #{log.sessionNo}</span>
-                      <span className="text-[10px] font-mono text-slate-400">{log.date}</span>
+                      <span className="text-2xs font-mono text-slate-400">{log.date}</span>
                     </div>
-                    <p className="text-[11px] text-slate-600 italic">"{log.trainerNotes}"</p>
-                    <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-semibold">
+                    <p className="text-2xs text-slate-600 italic">"{log.trainerNotes}"</p>
+                    <div className="flex items-center gap-1 text-2xs text-emerald-700 font-semibold">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       <span>Verified via Member OTP confirmation</span>
                     </div>
@@ -867,7 +861,7 @@ export const PTSessionsManager = () => {
                     ))}
                   </select>
                   {selectedMember && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-500">
+                    <div className="mt-1 flex items-center gap-1.5 text-2xs text-slate-500">
                       <span className="font-semibold text-slate-700">Current Plan:</span>
                       <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium border border-slate-200">
                         {selectedMember.planName || 'Standard Member'}
@@ -893,7 +887,7 @@ export const PTSessionsManager = () => {
                     ))}
                   </select>
                   {selectedTrainer && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-teal-700">
+                    <div className="mt-1 flex items-center gap-1.5 text-2xs text-teal-700">
                       <Award className="w-3 h-3 text-teal-600 shrink-0" />
                       <span className="font-semibold">Specialty:</span>
                       <span>{selectedTrainer.specialty || 'Strength & Conditioning'}</span>
@@ -908,7 +902,7 @@ export const PTSessionsManager = () => {
                   <label className="block text-xs font-bold text-teal-900">
                     Choose PT Package Preset <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[10px] text-teal-700 font-medium">Auto-populates sessions, fee & dates</span>
+                  <span className="text-2xs text-teal-700 font-medium">Auto-populates sessions, fee & dates</span>
                 </div>
                 <select
                   value={form.selectedPtPlanId}
@@ -929,7 +923,7 @@ export const PTSessionsManager = () => {
                   )}
                 </select>
                 {(!ptPlans || ptPlans.length === 0) && (
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-2xs text-slate-500">
                     No predefined PT packages created in Plans & Packages. Enter custom package details below.
                   </p>
                 )}
@@ -938,7 +932,7 @@ export const PTSessionsManager = () => {
               {/* Package Details Configuration */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Package Title</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Package Title</label>
                   <input
                     type="text"
                     value={form.packageTitle}
@@ -950,7 +944,7 @@ export const PTSessionsManager = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Total Sessions</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Total Sessions</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -963,14 +957,14 @@ export const PTSessionsManager = () => {
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-teal-500 pr-16"
                       required
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-2xs text-slate-400 font-medium pointer-events-none">
                       Sessions
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Package Price / Fee (₹)</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Package Price / Fee (₹)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                     <input
@@ -989,7 +983,7 @@ export const PTSessionsManager = () => {
               {/* Start & End Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Start Date</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={form.startDate}
@@ -1000,7 +994,7 @@ export const PTSessionsManager = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Validity / End Date</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Validity / End Date</label>
                   <input
                     type="date"
                     value={form.endDate || ''}
@@ -1017,7 +1011,7 @@ export const PTSessionsManager = () => {
                     <Percent className="w-3.5 h-3.5 text-teal-600" />
                     <span>Trainer Commission (Incentive Payout)</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100/80 text-teal-800 border border-teal-300">
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded bg-teal-100/80 text-teal-800 border border-teal-300">
                     Coach: {selectedTrainer?.name || 'Assigned Coach'}
                   </span>
                 </div>
@@ -1028,7 +1022,7 @@ export const PTSessionsManager = () => {
                       <button
                         type="button"
                         onClick={() => setForm((p) => ({ ...p, commissionType: 'percent' }))}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
+                        className={`px-2.5 py-1 rounded-md text-2xs font-bold cursor-pointer transition-all ${
                           form.commissionType === 'percent'
                             ? 'bg-teal-600 text-white shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1039,7 +1033,7 @@ export const PTSessionsManager = () => {
                       <button
                         type="button"
                         onClick={() => setForm((p) => ({ ...p, commissionType: 'fixed' }))}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
+                        className={`px-2.5 py-1 rounded-md text-2xs font-bold cursor-pointer transition-all ${
                           form.commissionType === 'fixed'
                             ? 'bg-teal-600 text-white shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1077,11 +1071,11 @@ export const PTSessionsManager = () => {
                   </div>
 
                   <div className="bg-white px-3 py-1.5 rounded-lg border border-teal-200 text-right">
-                    <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Coach Incentive</span>
-                    <span className="text-sm font-black text-teal-700">₹{calculatedCommission.toLocaleString('en-IN')}</span>
+                    <span className="text-2xs text-slate-500 block uppercase font-medium tracking-wider">Coach Incentive</span>
+                    <span className="text-sm font-bold text-teal-700">₹{calculatedCommission.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-teal-700">
+                <p className="text-2xs text-teal-700">
                   ⚡ Recorded in Commissions table and automatically credited to the coach's pending monthly payroll.
                 </p>
               </div>
@@ -1093,7 +1087,7 @@ export const PTSessionsManager = () => {
                     <CreditCard className="w-3.5 h-3.5 text-teal-600" />
                     <span>Billing & Cash Inflow Record</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                  <span className="text-2xs font-bold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded">
                     Official Invoice Generated
                   </span>
                 </div>
@@ -1101,11 +1095,11 @@ export const PTSessionsManager = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
+                      <label className="block text-2xs font-bold text-slate-700">
                         Amount Received (₹) <span className="text-rose-500">*</span>
                       </label>
                       {duesAmount > 0 && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                        <span className="text-2xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
                           Due: ₹{duesAmount.toLocaleString('en-IN')}
                         </span>
                       )}
@@ -1126,7 +1120,7 @@ export const PTSessionsManager = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-2xs font-bold text-slate-700 mb-1">
                       Payment Mode <span className="text-rose-500">*</span>
                     </label>
                     <select
@@ -1151,18 +1145,18 @@ export const PTSessionsManager = () => {
                 {form.paymentMethod === 'Split' && (
                   <div className="p-3 rounded-xl bg-violet-50/80 border border-violet-200 space-y-2.5 animate-fadeIn">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-violet-900 flex items-center gap-1.5">
+                      <span className="text-2xs font-bold text-violet-900 flex items-center gap-1.5">
                         <Receipt className="w-3.5 h-3.5 text-violet-600" />
                         <span>Split Payment Breakdown</span>
                       </span>
-                      <span className="text-[10px] font-bold text-violet-700 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded">
+                      <span className="text-2xs font-bold text-violet-700 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded">
                         Total: ₹{paidAmountNum.toLocaleString('en-IN')}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1">Cash Portion (₹)</label>
+                        <label className="block text-2xs font-bold text-slate-600 mb-1">Cash Portion (₹)</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                           <input
@@ -1178,7 +1172,7 @@ export const PTSessionsManager = () => {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1">Online Portion (₹)</label>
+                        <label className="block text-2xs font-bold text-slate-600 mb-1">Online Portion (₹)</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                           <input
@@ -1195,7 +1189,7 @@ export const PTSessionsManager = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-violet-900 uppercase tracking-wider">
+                      <label className="block text-2xs font-semibold text-violet-900 uppercase tracking-wider">
                         Online Received Via
                       </label>
                       <div className="grid grid-cols-5 gap-1">
@@ -1210,7 +1204,7 @@ export const PTSessionsManager = () => {
                             key={provider.id}
                             type="button"
                             onClick={() => setForm((p) => ({ ...p, splitOnlineProvider: provider.id }))}
-                            className={`py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all border ${
+                            className={`py-1 rounded-md text-2xs font-bold cursor-pointer transition-all border ${
                               form.splitOnlineProvider === provider.id
                                 ? 'bg-violet-600 text-white border-violet-700 shadow-xs'
                                 : 'bg-white text-slate-600 border-violet-200 hover:bg-violet-100/50'
@@ -1225,7 +1219,7 @@ export const PTSessionsManager = () => {
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Transaction Notes / Reference (Optional)</label>
+                  <label className="block text-2xs font-bold text-slate-600 mb-1">Transaction Notes / Reference (Optional)</label>
                   <input
                     type="text"
                     value={form.notes}
@@ -1237,20 +1231,20 @@ export const PTSessionsManager = () => {
               </div>
 
               {/* Summary Strip */}
-              <div className="bg-slate-100/80 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="bg-slate-100/80 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-2xs">
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
-                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Package</span>
+                    <span className="text-slate-400 block text-2xs uppercase font-medium">Package</span>
                     <span className="font-bold text-slate-800">{form.totalSessions} Sessions</span>
                   </div>
                   <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                   <div>
-                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Inflow Amount</span>
+                    <span className="text-slate-400 block text-2xs uppercase font-medium">Inflow Amount</span>
                     <span className="font-bold text-emerald-700">₹{paidAmountNum.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                   <div>
-                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Trainer Commission</span>
+                    <span className="text-slate-400 block text-2xs uppercase font-medium">Trainer Commission</span>
                     <span className="font-bold text-teal-700">₹{calculatedCommission.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
@@ -1269,7 +1263,7 @@ export const PTSessionsManager = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold shadow-md shadow-teal-600/20 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <>
@@ -1337,7 +1331,7 @@ export const PTSessionsManager = () => {
                       key={st.id}
                       type="button"
                       onClick={() => setStatusFilter(st.id)}
-                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
+                      className={`text-2xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${
                         statusFilter === st.id
                           ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1354,7 +1348,7 @@ export const PTSessionsManager = () => {
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                   <span>Assigned PT Coach</span>
                   {trainerFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setTrainerFilter('ALL')} className="text-[10px] text-teal-600 font-bold hover:underline">
+                    <button type="button" onClick={() => setTrainerFilter('ALL')} className="text-2xs text-teal-600 font-bold hover:underline">
                       Reset
                     </button>
                   )}
@@ -1379,7 +1373,7 @@ export const PTSessionsManager = () => {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer"
               >
                 Reset All Filters
               </button>

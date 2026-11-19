@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
+import { SearchInput } from '../common/SearchInput';
 import {
   IndianRupee,
   FileText,
@@ -579,19 +580,22 @@ export const Financials = () => {
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
 
       {/* 1. HEADER BANNER */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Revenue & Billing
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Track subscription collections (Cash Inflow), operating expenditures (Cash Outflow), and net gym profitability.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                ₹{totalInflow.toLocaleString('en-IN')} Total Inflow
+              </div>
             </div>
           </div>
         </div>
@@ -602,20 +606,20 @@ export const Financials = () => {
             onClick={handleRefresh}
             disabled={isRefreshing}
             title="Refresh and sync data directly from database"
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden md:inline">Sync</span>
+            <RotateCw className={`w-3.5 h-3.5 text-slate-600 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Sync</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsAddExpenseOpen(true)}
-            className="flex items-center gap-1 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all cursor-pointer shadow-xs active:scale-95"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Add Expense</span>
-            <span className="inline sm:hidden">Expense</span>
+            <span className="sm:hidden">Expense</span>
           </button>
         </div>
       </div>
@@ -629,10 +633,10 @@ export const Financials = () => {
         >
           <div className="flex items-center justify-between gap-1">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
                 Cash Inflow
               </span>
-              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 inline-block">
+              <span className="text-2xs sm:text-2xs font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 inline-block">
                 Subscriptions
               </span>
             </div>
@@ -641,10 +645,10 @@ export const Financials = () => {
             </div>
           </div>
           <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
-            <div className="text-lg sm:text-xl font-black text-emerald-600 tracking-tight">
+            <div className="text-lg sm:text-xl font-bold text-emerald-600 tracking-tight">
               ₹{totalInflow.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+            <div className="flex items-center gap-0.5 text-2xs font-bold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
               <span>View</span>
               <ChevronRight className="w-3 h-3" />
             </div>
@@ -658,10 +662,10 @@ export const Financials = () => {
         >
           <div className="flex items-center justify-between gap-1">
             <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
                 Cash Outflow
               </span>
-              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 inline-block">
+              <span className="text-2xs sm:text-2xs font-semibold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 inline-block">
                 Overheads & Rent
               </span>
             </div>
@@ -670,10 +674,10 @@ export const Financials = () => {
             </div>
           </div>
           <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
-            <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">
+            <div className="text-lg sm:text-xl font-bold text-rose-600 tracking-tight">
               ₹{totalOutflow.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center gap-0.5 text-[10px] font-bold text-rose-700 group-hover:translate-x-0.5 transition-transform">
+            <div className="flex items-center gap-0.5 text-2xs font-bold text-rose-700 group-hover:translate-x-0.5 transition-transform">
               <span>View</span>
               <ChevronRight className="w-3 h-3" />
             </div>
@@ -686,7 +690,7 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('cashflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${financialTab === 'cashflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-2xs sm:text-xs font-bold transition-all cursor-pointer shrink-0 ${financialTab === 'cashflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -697,7 +701,7 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('inflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'inflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-2xs sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'inflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -709,7 +713,7 @@ export const Financials = () => {
         <button
           type="button"
           onClick={() => setFinancialTab('outflow')}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'outflow'
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-2xs sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${financialTab === 'outflow'
               ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -730,7 +734,7 @@ export const Financials = () => {
                 <h3 className="font-bold text-sm sm:text-base text-slate-900">
                   Monthly Cash Ratio
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-500">
+                <p className="text-2xs sm:text-xs text-slate-500">
                   Incoming subscriptions versus outgoing facility overheads
                 </p>
               </div>
@@ -738,7 +742,7 @@ export const Financials = () => {
 
             {/* Inflow vs Outflow Visual Bar */}
             <div className="space-y-1.5 sm:space-y-2">
-              <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold">
+              <div className="flex items-center justify-between text-2xs sm:text-xs font-bold">
                 <span className="text-emerald-700 flex items-center gap-1">
                   <ArrowDownLeft className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> Inflow: ₹{totalInflow.toLocaleString('en-IN')}
                 </span>
@@ -763,35 +767,35 @@ export const Financials = () => {
             {/* Quick Breakdown Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-2">
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Total Fees</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{totalInflow.toLocaleString('en-IN')}</div>
-                <div className="text-[9px] sm:text-[10px] text-emerald-600 font-semibold truncate">
+                <div className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400">Total Fees</div>
+                <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">₹{totalInflow.toLocaleString('en-IN')}</div>
+                <div className="text-2xs sm:text-2xs text-emerald-600 font-semibold truncate">
                   {gymInvoices.length} {gymInvoices.length === 1 ? 'Collection' : 'Collections'} • 100% Tax Compliant
                 </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Fixed Costs</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{fixedCosts.toLocaleString('en-IN')}</div>
-                <div className="text-[9px] sm:text-[10px] text-slate-500 truncate">
+                <div className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400">Fixed Costs</div>
+                <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">₹{fixedCosts.toLocaleString('en-IN')}</div>
+                <div className="text-2xs sm:text-2xs text-slate-500 truncate">
                   {fixedExpensesList.length > 0 ? `${fixedExpensesList.length} Items (Rent & Power)` : 'Rent & Utilities'}
                 </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Variable Costs</div>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">₹{variableCosts.toLocaleString('en-IN')}</div>
-                <div className="text-[9px] sm:text-[10px] text-slate-500 truncate">
+                <div className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400">Variable Costs</div>
+                <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">₹{variableCosts.toLocaleString('en-IN')}</div>
+                <div className="text-2xs sm:text-2xs text-slate-500 truncate">
                   {variableExpensesList.length > 0 ? `${variableExpensesList.length} Items (Trainers & Stock)` : 'Trainers & AMC'}
                 </div>
               </div>
 
               <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Retained Profit</div>
-                <div className={`text-sm sm:text-base font-black mt-0.5 ${isProfitable ? 'text-emerald-700' : 'text-rose-600'}`}>
+                <div className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400">Retained Profit</div>
+                <div className={`text-sm sm:text-base font-bold mt-0.5 ${isProfitable ? 'text-emerald-700' : 'text-rose-600'}`}>
                   {isProfitable ? `₹${netProfit.toLocaleString('en-IN')}` : `-₹${Math.abs(netProfit).toLocaleString('en-IN')}`}
                 </div>
-                <div className={`text-[9px] sm:text-[10px] font-semibold ${isProfitable ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <div className={`text-2xs sm:text-2xs font-semibold ${isProfitable ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {netMarginPct}% {isProfitable ? 'Margin' : 'Deficit'}
                 </div>
               </div>
@@ -810,19 +814,19 @@ export const Financials = () => {
                   </div>
                   <div>
                     <h4 className="font-bold text-xs sm:text-sm text-slate-900">Recent Inflows</h4>
-                    <p className="text-[10px] sm:text-[11px] text-slate-500">Fee payments received</p>
+                    <p className="text-2xs sm:text-2xs text-slate-500">Fee payments received</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFinancialTab('inflow')}
-                  className="text-[11px] sm:text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                  className="text-2xs sm:text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                 >
                   View All ({gymInvoices.length}) →
                 </button>
               </div>
 
-              <div className="divide-y divide-slate-100 text-[11px] sm:text-xs">
+              <div className="divide-y divide-slate-100 text-2xs sm:text-xs">
                 {gymInvoices.length === 0 ? (
                   <div className="py-6 text-center text-slate-400 text-xs">
                     No fee payments recorded yet
@@ -832,13 +836,13 @@ export const Financials = () => {
                     <div key={inv.id || inv._id || inv.invoiceNumber} className="py-2 flex items-center justify-between">
                       <div className="min-w-0 pr-2">
                         <div className="font-bold text-slate-900 truncate">{inv.memberName || inv.member_name || 'Member'}</div>
-                        <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{inv.planName || inv.plan_name || 'Membership'} • {inv.date}</div>
+                        <div className="text-2xs sm:text-2xs text-slate-500 truncate">{inv.planName || inv.plan_name || 'Membership'} • {inv.date}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-mono font-bold text-emerald-600">
                           +₹{Number(inv.amount).toLocaleString('en-IN')}
                         </div>
-                        <span className="text-[9px] sm:text-[10px] text-slate-400">{inv.paymentMethod || inv.payment_mode || 'Paid'}</span>
+                        <span className="text-2xs sm:text-2xs text-slate-400">{inv.paymentMethod || inv.payment_mode || 'Paid'}</span>
                       </div>
                     </div>
                   ))
@@ -855,35 +859,35 @@ export const Financials = () => {
                   </div>
                   <div>
                     <h4 className="font-bold text-xs sm:text-sm text-slate-900">Recent Outflows</h4>
-                    <p className="text-[10px] sm:text-[11px] text-slate-500">Expenses & vendor payments</p>
+                    <p className="text-2xs sm:text-2xs text-slate-500">Expenses & vendor payments</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFinancialTab('outflow')}
-                  className="text-[11px] sm:text-xs font-bold text-rose-700 hover:text-rose-800 cursor-pointer"
+                  className="text-2xs sm:text-xs font-bold text-rose-700 hover:text-rose-800 cursor-pointer"
                 >
                   View All ({gymExpenses.length}) →
                 </button>
               </div>
 
-              <div className="divide-y divide-slate-100 text-[11px] sm:text-xs">
+              <div className="divide-y divide-slate-100 text-2xs sm:text-xs">
                 {gymExpenses.length === 0 ? (
                   <div className="py-6 text-center text-slate-400 text-xs">
                     No expense outflows recorded yet
                   </div>
                 ) : (
                   gymExpenses.slice(0, 4).map((exp) => (
-                    <div key={exp.id || exp._id} className="py-2 flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <div className="font-bold text-slate-900 truncate">{exp.title}</div>
-                        <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">{exp.vendor || exp.category} • {exp.date}</div>
+                    <div key={exp.id || exp._id} className="py-2 flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="font-bold text-slate-900 truncate" title={exp.title}>{exp.title}</div>
+                        <div className="text-2xs sm:text-2xs text-slate-500 truncate" title={`${exp.vendor || exp.category} • ${exp.date}`}>{exp.vendor || exp.category} • {exp.date}</div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="font-mono font-bold text-rose-600">
+                        <div className="font-mono font-bold text-rose-600 whitespace-nowrap shrink-0">
                           -₹{Number(exp.amount).toLocaleString('en-IN')}
                         </div>
-                        <span className="text-[9px] sm:text-[10px] text-slate-400">{exp.paymentMode || exp.payment_mode || 'Expense'}</span>
+                        <span className="text-2xs sm:text-2xs text-slate-400 whitespace-nowrap">{exp.paymentMode || exp.payment_mode || 'Expense'}</span>
                       </div>
                     </div>
                   ))
@@ -903,19 +907,19 @@ export const Financials = () => {
               <h3 className="font-bold text-sm sm:text-base text-slate-900">
                 Invoices & Receipts
               </h3>
-              <p className="text-[10px] sm:text-xs text-slate-500">
+              <p className="text-2xs sm:text-xs text-slate-500">
                 Official billing records and recent member invoices with search
               </p>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="px-2.5 py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-emerald-600 text-white shadow-xs">
+              <span className="px-2.5 py-1 rounded-lg sm:rounded-xl text-2xs sm:text-xs font-bold bg-emerald-600 text-white shadow-xs">
                 Total Invoices: {invoices.length}
               </span>
               <button
                 type="button"
                 onClick={() => setIsRecordPaymentOpen(true)}
-                className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] sm:text-xs font-bold border border-slate-200 transition-colors cursor-pointer active:scale-95"
+                className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-2xs sm:text-xs font-bold border border-slate-200 transition-colors cursor-pointer active:scale-95"
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
                 <span>Record Fee</span>
@@ -925,41 +929,29 @@ export const Financials = () => {
 
           {/* INVOICES SEARCH & FILTER TOOLBAR */}
           <div className="p-2.5 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search member name to view user invoices (e.g. Liam, Aarav)..."
-                value={memberSearchTerm}
-                onChange={(e) => setMemberSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-white border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 shadow-xs truncate"
-              />
-              {memberSearchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setMemberSearchTerm('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                  title="Clear search"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            <SearchInput
+              value={memberSearchTerm}
+              onChange={(e) => setMemberSearchTerm(e.target.value)}
+              onClear={() => setMemberSearchTerm('')}
+              placeholder="Search member name to view user invoices (e.g. Liam, Aarav)..."
+              mobilePlaceholder="Search member name..."
+              containerClassName="flex-1 min-w-0"
+            />
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowFilterModal(true)}
-                className={`flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 whitespace-nowrap ${
+                className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 whitespace-nowrap shadow-2xs active:scale-95 ${
                   activeFiltersCount > 0
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                     : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'
                 }`}
               >
-                <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+                <Filter className={`w-3.5 h-3.5 shrink-0 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
                 <span>Filters</span>
                 {activeFiltersCount > 0 && (
-                  <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                  <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                     {activeFiltersCount}
                   </span>
                 )}
@@ -984,10 +976,10 @@ export const Financials = () => {
           {/* Active Filter Chips */}
           {activeFiltersCount > 0 && (
             <div className="px-4 py-2 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+              <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
 
               {invoiceFilter !== 'ALL' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-2xs font-medium">
                   Status: {invoiceFilter === 'PAID' ? 'Paid Invoices' : 'Pending / Due'}
                   <button type="button" onClick={() => setInvoiceFilter('ALL')} className="hover:text-emerald-950 cursor-pointer">
                     <X className="w-3 h-3" />
@@ -996,7 +988,7 @@ export const Financials = () => {
               )}
 
               {selectedMonth && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-2xs font-medium">
                   <Calendar className="w-3 h-3 text-emerald-600" />
                   Month: {selectedMonth}
                   <button type="button" onClick={() => setSelectedMonth('')} className="hover:text-emerald-950 cursor-pointer">
@@ -1006,7 +998,7 @@ export const Financials = () => {
               )}
 
               {(startDate || endDate) && !selectedMonth && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-2xs font-medium">
                   <Calendar className="w-3 h-3 text-emerald-600" />
                   Range: {startDate || 'Any'} → {endDate || 'Any'}
                   <button type="button" onClick={() => { setStartDate(''); setEndDate(''); }} className="hover:text-emerald-950 cursor-pointer">
@@ -1016,7 +1008,7 @@ export const Financials = () => {
               )}
 
               {paymentMethodFilter !== 'ALL' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-50 text-violet-800 border border-violet-200 rounded-lg text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-50 text-violet-800 border border-violet-200 rounded-lg text-2xs font-medium">
                   Mode: {paymentMethodFilter}
                   <button type="button" onClick={() => setPaymentMethodFilter('ALL')} className="hover:text-violet-950 cursor-pointer">
                     <X className="w-3 h-3" />
@@ -1025,7 +1017,7 @@ export const Financials = () => {
               )}
 
               {activeFilter !== 'ALL' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-2xs font-medium">
                   Preset: {activeFilter}
                   <button type="button" onClick={() => setActiveFilter('ALL')} className="hover:text-blue-950 cursor-pointer">
                     <X className="w-3 h-3" />
@@ -1036,7 +1028,7 @@ export const Financials = () => {
               <button
                 type="button"
                 onClick={handleResetInvoiceFilters}
-                className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer ml-1"
+                className="text-2xs text-rose-600 font-semibold hover:underline cursor-pointer ml-1"
               >
                 Clear All
               </button>
@@ -1049,17 +1041,17 @@ export const Financials = () => {
               {/* 1. Cash Total */}
               <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                  <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                     Cash Total
                   </span>
                   <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
                     <Banknote className="w-3 h-3" />
                   </div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight my-0.5">
+                <div className="text-base sm:text-lg font-bold text-emerald-700 tracking-tight my-0.5">
                   ₹{paymentBreakdown.cashTotal.toLocaleString('en-IN')}
                 </div>
-                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
                   <span>{paymentBreakdown.cashCount} {paymentBreakdown.cashCount === 1 ? 'Invoice' : 'Invoices'}</span>
                   <span className="text-slate-400 font-semibold">
                     {paymentBreakdown.totalAllPayments > 0
@@ -1072,17 +1064,17 @@ export const Financials = () => {
               {/* 2. UPI Total */}
               <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                  <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                     UPI Total
                   </span>
                   <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0">
                     <Smartphone className="w-3 h-3" />
                   </div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight my-0.5">
+                <div className="text-base sm:text-lg font-bold text-blue-700 tracking-tight my-0.5">
                   ₹{paymentBreakdown.upiTotal.toLocaleString('en-IN')}
                 </div>
-                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
                   <span>{paymentBreakdown.upiCount} {paymentBreakdown.upiCount === 1 ? 'Invoice' : 'Invoices'}</span>
                   <span className="text-slate-400 font-semibold">
                     {paymentBreakdown.totalAllPayments > 0
@@ -1095,17 +1087,17 @@ export const Financials = () => {
               {/* 3. Account Transfer Total */}
               <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+                  <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                     Account Transfer
                   </span>
                   <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 flex items-center justify-center shrink-0">
                     <Building2 className="w-3 h-3" />
                   </div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-purple-700 tracking-tight my-0.5">
+                <div className="text-base sm:text-lg font-bold text-purple-700 tracking-tight my-0.5">
                   ₹{paymentBreakdown.accountTransferTotal.toLocaleString('en-IN')}
                 </div>
-                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
                   <span>{paymentBreakdown.accountTransferCount} {paymentBreakdown.accountTransferCount === 1 ? 'Invoice' : 'Invoices'}</span>
                   <span className="text-slate-400 font-semibold">
                     {paymentBreakdown.totalAllPayments > 0
@@ -1118,17 +1110,17 @@ export const Financials = () => {
               {/* 4. Total of All Payment Options */}
               <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-emerald-300/80 bg-white shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-800 tracking-wider truncate">
+                  <span className="text-2xs sm:text-2xs uppercase font-semibold text-emerald-800 tracking-wider truncate">
                     Total of All
                   </span>
                   <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
                     <IndianRupee className="w-3 h-3" />
                   </div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+                <div className="text-base sm:text-lg font-bold text-slate-900 tracking-tight my-0.5">
                   ₹{paymentBreakdown.totalAllPayments.toLocaleString('en-IN')}
                 </div>
-                <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+                <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
                   <span>{paymentBreakdown.totalCount} {paymentBreakdown.totalCount === 1 ? 'Invoice' : 'Invoices'}</span>
                   <span className="text-emerald-600 font-bold">All Modes</span>
                 </div>
@@ -1144,7 +1136,7 @@ export const Financials = () => {
               <button
                 type="button"
                 onClick={() => setMemberSearchTerm('')}
-                className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                className="text-2xs font-bold text-emerald-700 hover:underline cursor-pointer"
               >
                 Show All Invoices
               </button>
@@ -1187,22 +1179,22 @@ export const Financials = () => {
                 {filteredInvoices.map((inv) => (
                   <div key={inv.id} className="p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <span className="font-mono text-2xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                         {inv.id?.toUpperCase()}
                       </span>
-                      <span className="font-mono font-black text-emerald-600 text-xs">
+                      <span className="font-mono font-bold text-emerald-600 text-xs">
                         +₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-bold text-slate-900 text-xs">{inv.memberName}</div>
-                        <div className="text-[10px] text-slate-500">{inv.planName} • {inv.date}</div>
+                        <div className="text-2xs text-slate-500">{inv.planName} • {inv.date}</div>
                       </div>
                       <button
                         type="button"
                         onClick={() => setSelectedInvoice(inv)}
-                        className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
+                        className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-2xs font-bold transition-colors cursor-pointer"
                       >
                         Receipt
                       </button>
@@ -1215,7 +1207,7 @@ export const Financials = () => {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                       <th className="py-3 px-4">Invoice #</th>
                       <th className="py-3 px-4">Member Name</th>
                       <th className="py-3 px-4">Plan / Package</th>
@@ -1229,28 +1221,28 @@ export const Financials = () => {
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-emerald-700">
+                        <td className="py-3 px-4 font-mono font-medium text-emerald-700">
                           {inv.id?.toUpperCase()}
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">
+                        <td className="py-3 px-4 font-medium text-slate-900">
                           {inv.memberName}
                         </td>
                         <td className="py-3 px-4 text-slate-700 font-medium">
                           {inv.planName}
                         </td>
-                        <td className="py-3 px-4 font-mono font-black text-emerald-600">
+                        <td className="py-3 px-4 font-mono font-medium text-emerald-600">
                           +₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                         </td>
                         <td className="py-3 px-4 text-slate-500">
                           {inv.date}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-2xs font-semibold border border-slate-200">
                             {inv.paymentMethod || 'UPI'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Collected
                           </span>
                         </td>
@@ -1281,7 +1273,7 @@ export const Financials = () => {
               <h3 className="font-bold text-sm sm:text-base text-slate-900">
                 Operating Expense Ledger
               </h3>
-              <p className="text-[10px] sm:text-xs text-slate-500 hidden sm:block">
+              <p className="text-2xs sm:text-xs text-slate-500 hidden sm:block max-w-[70ch]">
                 Facility rent, electricity, coach commissions, equipment AMC, and supplies
               </p>
             </div>
@@ -1290,7 +1282,7 @@ export const Financials = () => {
               <select
                 value={expenseCategoryFilter}
                 onChange={(e) => setExpenseCategoryFilter(e.target.value)}
-                className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-2xs sm:text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-500 cursor-pointer"
               >
                 <option value="ALL">All Categories</option>
                 <option value="Rent & Lease">Rent & Lease</option>
@@ -1306,7 +1298,7 @@ export const Financials = () => {
               <button
                 type="button"
                 onClick={() => setIsAddExpenseOpen(true)}
-                className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+                className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-2xs sm:text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Expense</span>
@@ -1322,17 +1314,17 @@ export const Financials = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">
+                  <span className="text-2xs font-semibold text-rose-800 uppercase tracking-wider">
                     {expenseCategoryFilter === 'ALL' ? 'All Operating Expenses' : `${expenseCategoryFilter} Expenses`} Total Tab
                   </span>
                   {expenseCategoryFilter !== 'ALL' && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs">
+                    <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-rose-600 text-white shadow-2xs">
                       Filtered Category
                     </span>
                   )}
                 </div>
                 <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                     ₹{filteredExpenseTotal.toLocaleString('en-IN')}
                   </span>
                   <span className="text-xs text-slate-500 font-semibold">
@@ -1344,19 +1336,19 @@ export const Financials = () => {
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3 shrink-0">
               <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
+                <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400 block truncate">
                   Total Fields / Records
                 </span>
-                <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
-                  {filteredExpenses.length} <span className="text-[10px] font-medium text-slate-500">Expenses</span>
+                <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                  {filteredExpenses.length} <span className="text-2xs font-medium text-slate-500">Expenses</span>
                 </div>
               </div>
 
               <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block truncate">
+                <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400 block truncate">
                   Average Outflow
                 </span>
-                <div className="text-sm sm:text-base font-black text-rose-700 mt-0.5">
+                <div className="text-sm sm:text-base font-bold text-rose-700 mt-0.5">
                   ₹{filteredExpenseAvg.toLocaleString('en-IN')}
                 </div>
               </div>
@@ -1395,17 +1387,17 @@ export const Financials = () => {
                 {filteredExpenses.map((exp) => (
                   <div key={exp.id} className="p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border ${getCategoryBadge(exp.category)}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-2xs font-bold border ${getCategoryBadge(exp.category)}`}>
                         {exp.category}
                       </span>
-                      <span className="font-mono font-black text-rose-600 text-xs">
+                      <span className="font-mono font-bold text-rose-600 text-xs">
                         -₹{Number(exp.amount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 pr-2">
                         <div className="font-bold text-slate-900 text-xs truncate">{exp.title}</div>
-                        <div className="text-[10px] text-slate-500">{exp.vendor || 'Vendor'} • {exp.date}</div>
+                        <div className="text-2xs text-slate-500">{exp.vendor || 'Vendor'} • {exp.date}</div>
                       </div>
                     </div>
                   </div>
@@ -1416,7 +1408,7 @@ export const Financials = () => {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                       <th className="py-3 px-4">Expense #</th>
                       <th className="py-3 px-4">Title / Description</th>
                       <th className="py-3 px-4">Category</th>
@@ -1429,31 +1421,31 @@ export const Financials = () => {
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredExpenses.map((exp) => (
                       <tr key={exp.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-500">
+                        <td className="py-3 px-4 font-mono font-medium text-slate-500 whitespace-nowrap shrink-0">
                           {exp.id}
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900">{exp.title}</div>
+                        <td className="py-3 px-4 max-w-[220px]">
+                          <div className="font-bold text-slate-900 truncate" title={exp.title}>{exp.title}</div>
                           {exp.notes && (
-                            <div className="text-[11px] text-slate-400 italic line-clamp-1">{exp.notes}</div>
+                            <div className="text-2xs text-slate-400 italic app-clamp-2" title={exp.notes}>{exp.notes}</div>
                           )}
                         </td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${getCategoryBadge(exp.category)}`}>
+                        <td className="py-3 px-4 whitespace-nowrap shrink-0">
+                          <span className={`inline-block px-2 py-0.5 rounded text-2xs font-bold border ${getCategoryBadge(exp.category)}`}>
                             {exp.category}
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-800">
-                          {exp.vendor || 'Authorized Vendor'}
+                        <td className="py-3 px-4 font-medium text-slate-800 max-w-[150px]">
+                          <span className="truncate block" title={exp.vendor || 'Authorized Vendor'}>{exp.vendor || 'Authorized Vendor'}</span>
                         </td>
-                        <td className="py-3 px-4 font-mono font-black text-rose-600">
+                        <td className="py-3 px-4 font-mono font-medium text-rose-600 whitespace-nowrap shrink-0">
                           -₹{Number(exp.amount || 0).toLocaleString('en-IN')}
                         </td>
-                        <td className="py-3 px-4 text-slate-500">
+                        <td className="py-3 px-4 text-slate-500 whitespace-nowrap shrink-0">
                           {exp.date}
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200">
+                        <td className="py-3 px-4 whitespace-nowrap shrink-0">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-2xs font-semibold border border-slate-200">
                             {exp.paymentMode || 'Bank Transfer'}
                           </span>
                         </td>
@@ -1476,7 +1468,7 @@ export const Financials = () => {
       >
         <form onSubmit={handleAddExpenseSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Expense Title / Purpose *
             </label>
             <input
@@ -1491,7 +1483,7 @@ export const Financials = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Expense Category *
               </label>
               <select
@@ -1511,7 +1503,7 @@ export const Financials = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Vendor / Payee Name *
               </label>
               <input
@@ -1527,7 +1519,7 @@ export const Financials = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Amount (₹ INR) *
               </label>
               <div className="relative">
@@ -1548,7 +1540,7 @@ export const Financials = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Payment Date *
               </label>
               <input
@@ -1564,7 +1556,7 @@ export const Financials = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Payment Mode
               </label>
               <select
@@ -1584,7 +1576,7 @@ export const Financials = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Bill / Receipt Reference #
               </label>
               <input
@@ -1598,7 +1590,7 @@ export const Financials = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Notes & Remarks
             </label>
             <textarea
@@ -1631,7 +1623,7 @@ export const Financials = () => {
             <button
               type="submit"
               disabled={isSubmittingExpense}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-md shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
               {isSubmittingExpense ? (
                 <>
@@ -1658,24 +1650,24 @@ export const Financials = () => {
             <div className="p-5 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-4">
               <div className="flex items-start justify-between border-b border-slate-100 pb-3.5">
                 <div>
-                  <h4 className="font-bold text-lg text-slate-900 tracking-tight uppercase">
+                  <h4 className="font-semibold text-lg text-slate-900 tracking-tight uppercase">
                     {gymInfo?.name || "PULSE FIT ATHLETIC CLUB"}
                   </h4>
-                  <p className="text-[11px] text-slate-500">{gymInfo?.address || "Powai, Mumbai"}</p>
-                  <p className="text-[11px] text-slate-500">Phone: {gymInfo?.phone || "+91 98201 54321"}</p>
+                  <p className="text-2xs text-slate-500">{gymInfo?.address || "Powai, Mumbai"}</p>
+                  <p className="text-2xs text-slate-500">Phone: {gymInfo?.phone || "+91 98201 54321"}</p>
                 </div>
                 <div className="text-right">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                     {selectedInvoice.status}
                   </span>
-                  <div className="text-[11px] font-mono font-bold text-slate-500 mt-1">
+                  <div className="text-2xs font-mono font-bold text-slate-500 mt-1">
                     #{selectedInvoice.id?.toUpperCase()}
                   </div>
                 </div>
               </div>
 
               <div className="text-xs space-y-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Billed To Member:</span>
+                <span className="text-2xs uppercase font-semibold text-slate-400 block">Billed To Member:</span>
                 <div className="font-bold text-slate-900 text-sm">{selectedInvoice.memberName}</div>
                 <div className="text-slate-500">Receipt Date: {selectedInvoice.date}</div>
                 <div className="text-slate-500">Mode: <strong>{selectedInvoice.paymentMethod || 'UPI Transfer'}</strong></div>
@@ -1686,14 +1678,14 @@ export const Financials = () => {
                   <span>{selectedInvoice.planName}</span>
                   <span>₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}</span>
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
+                <div className="text-2xs text-slate-500 mt-0.5">
                   Full facility membership subscription fee & access pass
                 </div>
               </div>
 
               <div className="flex justify-between items-baseline pt-1">
                 <span className="font-bold text-sm text-slate-700">Total Settled</span>
-                <span className="text-2xl font-black text-emerald-700 font-heading">
+                <span className="text-2xl font-bold text-emerald-700 font-heading">
                   ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                 </span>
               </div>
@@ -1813,7 +1805,7 @@ export const Financials = () => {
               <div className="pt-2 border-t border-slate-100">
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Month Selection</span>
-                  <span className="text-[11px] font-normal text-slate-400">View entire month's billing</span>
+                  <span className="text-2xs font-normal text-slate-400">View entire month's billing</span>
                 </label>
                 <input
                   type="month"
@@ -1844,7 +1836,7 @@ export const Financials = () => {
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
                         selectedMonth === mPreset.value
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1861,7 +1853,7 @@ export const Financials = () => {
                         setStartDate('');
                         setEndDate('');
                       }}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
+                      className="text-2xs px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
                     >
                       Clear Month
                     </button>
@@ -1876,7 +1868,7 @@ export const Financials = () => {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">Start Date</span>
                     <input
                       type="date"
                       value={startDate}
@@ -1888,7 +1880,7 @@ export const Financials = () => {
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">End Date</span>
                     <input
                       type="date"
                       value={endDate}
@@ -1935,7 +1927,7 @@ export const Financials = () => {
                   <label className="block text-xs font-bold text-slate-700">
                     Payment Mode & Split Settlement
                   </label>
-                  <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                  <span className="text-2xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
                     Online Platforms
                   </span>
                 </div>
@@ -1972,7 +1964,7 @@ export const Financials = () => {
               {/* Live Filter Total Tab in Modal */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-2xs font-semibold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Live Total Tab ({filterSummaryTitle})</span>
                   </span>
@@ -1982,18 +1974,18 @@ export const Financials = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">
                       Total Filtered Amount
                     </span>
-                    <span className="text-lg font-black text-slate-900">
+                    <span className="text-lg font-bold text-slate-900">
                       ₹{filteredInflowTotal.toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">
                       Average Ticket Value
                     </span>
-                    <span className="text-sm font-black text-emerald-800">
+                    <span className="text-sm font-bold text-emerald-800">
                       ₹{filteredAvgAmount.toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -2006,7 +1998,7 @@ export const Financials = () => {
               <button
                 type="button"
                 onClick={handleResetInvoiceFilters}
-                className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
               >
                 Clear Filters
               </button>

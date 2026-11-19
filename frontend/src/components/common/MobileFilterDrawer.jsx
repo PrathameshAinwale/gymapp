@@ -54,7 +54,7 @@ export const MobileFilterDrawer = ({
             <div>
               <h3 className="font-bold text-slate-900 text-sm leading-tight">{title}</h3>
               {activeCount > 0 && (
-                <span className="text-[10px] text-emerald-600 font-semibold">
+                <span className="text-2xs text-emerald-600 font-semibold">
                   {activeCount} filter{activeCount === 1 ? '' : 's'} active
                 </span>
               )}

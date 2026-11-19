@@ -52,13 +52,13 @@ export const MemberDashboard = ({ setActiveTab }) => {
               <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">
+              <span className="text-2xs font-semibold text-emerald-600 uppercase tracking-wide">
                 {currentMember?.attendanceStreak || 14} Day Streak 🔥
               </span>
-              <h1 className="text-base sm:text-xl font-black font-heading text-slate-900 truncate">
+              <h1 className="app-page-title font-bold font-heading text-slate-900 truncate" title={`Hey, ${currentMember?.name?.split(' ')[0] || 'Athlete'}`}>
                 Hey, {currentMember?.name?.split(' ')[0] || 'Athlete'}
               </h1>
-              <p className="text-[11px] text-slate-500 truncate">
+              <p className="text-2xs text-slate-500 truncate" title={currentMember?.planName || 'Unassigned Plan'}>
                 {currentMember?.planName || 'Unassigned Plan'}
               </p>
             </div>
@@ -69,27 +69,27 @@ export const MemberDashboard = ({ setActiveTab }) => {
       {/* 3 Quick Daily Metric Badges */}
       <div className="grid grid-cols-3 gap-2">
         <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Focus</span>
-          <div className="text-[11px] sm:text-xs font-bold text-slate-900 mt-0.5 truncate">
+          <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400 block">Focus</span>
+          <div className="text-2xs sm:text-xs font-bold text-slate-900 mt-0.5 truncate">
             {isSunday ? 'Rest' : todayWorkout?.label?.split(':')[0] || 'Strength'}
           </div>
-          <span className="text-[9px] sm:text-[10px] text-emerald-600 font-medium">{todayName}</span>
+          <span className="text-2xs sm:text-2xs text-emerald-600 font-medium">{todayName}</span>
         </div>
 
         <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Calories</span>
-          <div className="text-[11px] sm:text-xs font-bold text-amber-600 mt-0.5">
+          <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400 block">Calories</span>
+          <div className="text-2xs sm:text-xs font-bold text-amber-600 mt-0.5">
             {dietPlan?.dailyCaloriesTarget || 2400}
           </div>
-          <span className="text-[9px] sm:text-[10px] text-slate-500">kcal/day</span>
+          <span className="text-2xs sm:text-2xs text-slate-500">kcal/day</span>
         </div>
 
         <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Coach</span>
-          <div className="text-[11px] sm:text-xs font-bold text-teal-600 mt-0.5 truncate">
+          <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-400 block">Coach</span>
+          <div className="text-2xs sm:text-xs font-bold text-teal-600 mt-0.5 truncate">
             {currentMember?.trainerName ? currentMember.trainerName.split(' ')[0] : 'Alex'}
           </div>
-          <span className="text-[9px] sm:text-[10px] text-slate-500">Assigned</span>
+          <span className="text-2xs sm:text-2xs text-slate-500">Assigned</span>
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
             <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <h2 className="text-sm sm:text-base font-bold text-slate-900">Sunday Rest & Recovery</h2>
-          <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+          <p className="text-2xs text-slate-500 max-w-xs mx-auto">
             Stretch, hydrate, and recover. Muscles build during rest!
           </p>
           <button
@@ -114,18 +114,18 @@ export const MemberDashboard = ({ setActiveTab }) => {
         </div>
       ) : (
         <div className="p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 sm:space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> {todayName} Workout
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-2xs uppercase font-semibold text-emerald-600 tracking-wider flex items-center gap-1">
+                <Calendar className="w-3 h-3 shrink-0" /> <span className="truncate">{todayName} Workout</span>
               </div>
-              <h2 className="text-sm font-bold text-slate-900 mt-0.5">
+              <h2 className="text-sm font-bold text-slate-900 mt-0.5 truncate" title={todayWorkout?.label || "Today's Exercises"}>
                 {todayWorkout?.label || 'Today\'s Exercises'}
               </h2>
             </div>
-            <div className="text-right">
-              <div className="text-base font-black text-emerald-600">{progressPct}%</div>
-              <div className="text-[10px] text-slate-500">{completedCount} of {totalCount} Done</div>
+            <div className="text-right shrink-0 whitespace-nowrap">
+              <div className="text-base font-bold text-emerald-600">{progressPct}%</div>
+              <div className="text-2xs text-slate-500">{completedCount} of {totalCount} Done</div>
             </div>
           </div>
 
@@ -141,7 +141,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
           {exercises.length === 0 ? (
             <div className="py-6 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-xs font-semibold text-slate-700">No workout assigned for today</p>
-              <p className="text-[11px] text-slate-400">Ask your coach or trainer to set up your routine.</p>
+              <p className="text-2xs text-slate-400">Ask your coach or trainer to set up your routine.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -166,17 +166,17 @@ export const MemberDashboard = ({ setActiveTab }) => {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <span className={`text-xs font-bold block truncate ${isDone ? 'text-emerald-700 line-through' : 'text-slate-900'}`}>
+                      <span className={`text-xs font-bold block truncate ${isDone ? 'text-emerald-700 line-through' : 'text-slate-900'}`} title={`${idx + 1}. ${ex.name}`}>
                         {idx + 1}. {ex.name}
                       </span>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                        <span>{ex.sets} sets × {ex.reps}</span>
-                        {ex.weight && <span className="text-emerald-600 font-semibold">• {ex.weight}</span>}
+                      <div className="flex items-center gap-2 mt-0.5 text-2xs text-slate-500">
+                        <span className="whitespace-nowrap shrink-0">{ex.sets} sets × {ex.reps}</span>
+                        {ex.weight && <span className="text-emerald-600 font-semibold truncate" title={ex.weight}>• {ex.weight}</span>}
                       </div>
                     </div>
 
-                    <span className="text-[10px] text-slate-400 shrink-0 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {ex.rest}s
+                    <span className="text-2xs text-slate-400 shrink-0 whitespace-nowrap flex items-center gap-1">
+                      <Clock className="w-3 h-3 shrink-0" /> {ex.rest}s
                     </span>
                   </button>
                 );
@@ -191,7 +191,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <h3 className="text-xs font-bold text-emerald-700">Workout Finished!</h3>
-              <p className="text-[11px] text-slate-600">Great session! Now check your post-workout meal.</p>
+              <p className="text-2xs text-slate-600">Great session! Now check your post-workout meal.</p>
             </div>
           )}
         </div>
@@ -206,7 +206,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
         >
           <div>
             <span className="text-xs font-bold text-slate-900 block">Full Routines</span>
-            <span className="text-[10px] text-slate-500">All week workouts</span>
+            <span className="text-2xs text-slate-500">All week workouts</span>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>
@@ -218,7 +218,7 @@ export const MemberDashboard = ({ setActiveTab }) => {
         >
           <div>
             <span className="text-xs font-bold text-slate-900 block">Diet Plan</span>
-            <span className="text-[10px] text-slate-500">Meals & nutrition</span>
+            <span className="text-2xs text-slate-500">Meals & nutrition</span>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>

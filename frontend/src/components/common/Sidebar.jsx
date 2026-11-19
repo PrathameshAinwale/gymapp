@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { isTabAllowedForGym, resolveGymTier } from '../superadmin/packagePlans';
 import { PulseFitLogo } from './PulseFitLogo';
+import { getGymName } from '../../utils/whatsapp';
 import {
   LayoutDashboard,
   Users,
@@ -262,7 +263,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
   const { currentUser, currentRole } = useAuth();
   const { gymInfo } = useGymData();
 
-  const gymName = gymInfo?.name || (currentUser?.gymName && !currentUser.gymName.includes('Arch DevOps') ? currentUser.gymName : 'PulseFit Gym');
+  const gymName = getGymName(gymInfo?.name || (currentUser?.gymName && !currentUser.gymName.includes('Arch DevOps') ? currentUser.gymName : null));
   const gymLogo = gymInfo?.logo || '';
 
   const currentTier = resolveGymTier(gymInfo, currentUser);
@@ -424,7 +425,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
               onClick={() => toggleSection(sec.title)}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all duration-200 group select-none cursor-pointer relative ${
                 hasActiveItem
-                  ? `${accent.activeMainBg} font-black`
+                  ? `${accent.activeMainBg} font-bold`
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70 font-semibold'
               }`}
             >
@@ -439,11 +440,12 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
                   <SecIcon className="w-3.5 h-3.5" />
                 </div>
                 <span
-                  className={`text-[12.5px] uppercase tracking-wider font-heading truncate transition-colors ${
+                  className={`text-xs uppercase tracking-tight sm:tracking-normal font-heading truncate transition-colors ${
                     hasActiveItem
-                      ? 'text-slate-950 font-black'
-                      : 'text-slate-600 group-hover:text-slate-900 font-bold'
+                      ? 'text-slate-950 font-bold'
+                      : 'text-slate-600 group-hover:text-slate-900 font-semibold'
                   }`}
+                  title={sec.title}
                 >
                   {sec.title}
                 </span>
@@ -487,19 +489,19 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
                         setActiveTab(item.id);
                         if (isMobile) setIsMobileOpen(false);
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[12.5px] transition-all duration-150 group cursor-pointer relative ${
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs transition-all duration-150 group cursor-pointer relative ${
                         isSubActive
-                          ? `${accent.activeSubBg}`
+                          ? `${accent.activeSubBg} font-semibold`
                           : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100 font-medium'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <SubIcon
                           className={`w-4 h-4 shrink-0 transition-colors ${
                             isSubActive ? accent.activeSubIcon : 'text-slate-400 group-hover:text-slate-700'
                           }`}
                         />
-                        <span className="truncate tracking-tight">{item.label}</span>
+                        <span className="truncate tracking-tight" title={item.label}>{item.label}</span>
                       </div>
 
                       {/* Clean tasteful underline on active item */}
@@ -509,7 +511,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
 
                       {item.badge && (
                         <span
-                          className={`shrink-0 ml-auto px-1.5 py-0.2 text-[9px] font-bold rounded-md ${
+                          className={`shrink-0 ml-auto px-1.5 py-0.2 text-2xs font-bold rounded-md ${
                             isSubActive
                               ? 'bg-white/20 text-white'
                               : 'bg-slate-200/70 text-slate-600'
@@ -568,24 +570,24 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
                         }
                       }}
                     />
-                    <div className="hidden w-full h-full items-center justify-center bg-emerald-600 text-white font-black text-xs">
+                    <div className="hidden w-full h-full items-center justify-center bg-emerald-600 text-white font-bold text-xs">
                       {(gymName || 'A').charAt(0).toUpperCase()}
                     </div>
                   </div>
                 ) : (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shadow-2xs border border-emerald-500/30 shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-sm shadow-2xs border border-emerald-500/30 shrink-0">
                     {(gymName || 'A').charAt(0).toUpperCase()}
                   </div>
                 )}
 
                 {/* Gym Name & powered by ARCHFIT */}
                 <div className="flex flex-col justify-center min-w-0">
-                  <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[170px] leading-tight">
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate max-w-[170px] leading-tight" title={gymName || 'Fitness Club'}>
                     {gymName || 'Fitness Club'}
                   </span>
-                  <div className="flex items-center gap-1 text-[8px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
+                  <div className="flex items-center gap-1 text-2xs text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
                     <span>powered by</span>
-                    <span className="font-black text-slate-800 tracking-tight">
+                    <span className="font-bold text-slate-800 tracking-tight">
                       ARCH<span className="text-lime-500">FIT</span>
                     </span>
                   </div>
@@ -604,17 +606,6 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
 
             {/* Scrollable Navigation */}
             {renderNavList(true)}
-
-            {/* Drawer Footer with Powered by ARCHFIT */}
-            <div className="p-3.5 border-t border-slate-200/80 bg-slate-50/80 safe-bottom shrink-0 flex items-center justify-between text-slate-500">
-              <div className="flex items-center gap-1 font-semibold uppercase tracking-wider text-[9px] text-slate-400">
-                <span>powered by</span>
-                <span className="font-black text-slate-800 tracking-tight text-[11px]">
-                  ARCH<span className="text-lime-500">FIT</span>
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Gym Suite</span>
-            </div>
           </div>
         </div>
       )}

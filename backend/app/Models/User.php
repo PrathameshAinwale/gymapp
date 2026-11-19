@@ -19,6 +19,8 @@ class User extends Authenticatable
         'initial_password',
         'must_change_password',
         'role', // 'superadmin', 'owner', 'trainer', 'member'
+        'member_number',
+        'legacy_id',
         'gym_id',
         'phone',
         'avatar',

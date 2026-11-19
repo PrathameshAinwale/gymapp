@@ -39,7 +39,7 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
               <span>Feature Gated by SaaS Subscription</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2">
+            <h1 className="app-page-title font-bold tracking-normal text-white flex items-center gap-2">
               <span>{requiredFeature?.name || 'Advanced Module'}</span>
               <span className="text-sm font-semibold px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 Requires {requiredFeature?.minTier || 'Gold'} Plan
@@ -51,7 +51,7 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
             </p>
 
             <div className="pt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-              <span>Your Gym: <strong className="text-white">{gymInfo?.name || 'PulseFit Club'}</strong></span>
+              <span>Your Gym: <strong className="text-white">{gymInfo?.name || 'Active Gym'}</strong></span>
               <span>•</span>
               <span>Current Plan: <span className="text-cyan-400 font-bold">{currentPlan.name}</span></span>
             </div>
@@ -66,7 +66,7 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
             </button>
             <a
               href="mailto:archdevops360@gmail.com?subject=Upgrade%20Gym%20Plan%20Request"
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
             >
               <Crown className="w-4 h-4" />
               <span>Contact Superadmin to Upgrade</span>
@@ -78,7 +78,7 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
       {/* Plan Comparison Grid */}
       <div className="space-y-4">
         <div className="text-center space-y-1">
-          <h2 className="text-lg font-bold text-slate-900">Choose the Right PulseFit Tier for Your Gym</h2>
+          <h2 className="text-lg font-bold text-slate-900">Choose the Right Tier for Your Gym</h2>
           <p className="text-xs text-slate-500">Contact the Superadmin console anytime to upgrade features or adjust gym capacity limits.</p>
         </div>
 
@@ -99,12 +99,12 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
                 }`}
               >
                 {isCurrent && (
-                  <div className="absolute -top-3 left-6 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white uppercase tracking-wider">
+                  <div className="absolute -top-3 left-6 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-emerald-600 text-white uppercase tracking-wider">
                     Current Plan
                   </div>
                 )}
                 {isTop && !isCurrent && (
-                  <div className="absolute -top-3 right-6 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-600 text-white uppercase tracking-wider flex items-center gap-1">
+                  <div className="absolute -top-3 right-6 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-purple-600 text-white uppercase tracking-wider flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
                     <span>Top Plan</span>
                   </div>
@@ -112,23 +112,23 @@ export const PlanUpgradeLockView = ({ tabId, setActiveTab }) => {
 
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900">{plan.name}</h3>
+                    <h3 className="text-base font-bold text-slate-900">{plan.name}</h3>
                     <p className="text-xs text-slate-500 mt-1 line-clamp-2">{plan.description}</p>
                   </div>
 
                   <div className="pt-2 border-t border-slate-100">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-black text-slate-900">₹{plan.monthlyPrice.toLocaleString()}</span>
+                      <span className="text-2xl font-bold text-slate-900">₹{plan.monthlyPrice.toLocaleString()}</span>
                       <span className="text-xs text-slate-400 font-medium">/month</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
+                    <div className="text-2xs text-slate-500 mt-0.5">
                       or ₹{plan.annualPrice.toLocaleString()}/year (billed annually)
                     </div>
                   </div>
 
                   {/* Highlights list */}
                   <div className="space-y-2 pt-3">
-                    <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Included Capabilities:</div>
+                    <div className="text-2xs font-semibold text-slate-700 uppercase tracking-wider">Included Capabilities:</div>
                     <ul className="space-y-1.5 text-xs">
                       {plan.featureHighlights.map((feat, i) => (
                         <li key={i} className="flex items-start gap-2 text-slate-700 font-medium">

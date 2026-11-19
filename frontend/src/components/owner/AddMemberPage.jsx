@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
@@ -6,9 +6,10 @@ import { MembershipPlanModal, PACKAGE_TYPES, getPackagesForType, getPackageObjec
 import { api } from '../../services/api';
 import { generateInvoicePdf, downloadPdfBlob, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import { calculatePlanExpiryDate, formatDateDisplay, calculateAgeFromDob, calculateMaxPromiseDate, validatePromiseDate } from '../../utils/dateUtils';
-import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getWhatsAppUrl, getGymName } from '../../utils/whatsapp';
 import { getGymConsentForm } from '../../utils/consentFormConfig';
 import { mapInvoiceRecord } from '../../utils/invoiceMapper';
+import { withTitleCase } from '../../utils/textUtils';
 import {
   isValidName,
   isValidEmail,
@@ -157,6 +158,25 @@ export const AddMemberPage = ({
   const [balanceDueDate, setBalanceDueDate] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
   const [isGstIncluded, setIsGstIncluded] = useState(true);
+  const [paymentSectionError, setPaymentSectionError] = useState(false);
+
+  const paymentSectionRef = useRef(null);
+  const cashInputRef = useRef(null);
+  const balanceDueDateInputRef = useRef(null);
+
+  const directToPaymentSection = (focusTarget = 'cash') => {
+    setPaymentSectionError(true);
+    if (paymentSectionRef.current) {
+      paymentSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => {
+      if (focusTarget === 'dueDate' && balanceDueDateInputRef.current) {
+        balanceDueDateInputRef.current.focus();
+      } else if (cashInputRef.current) {
+        cashInputRef.current.focus();
+      }
+    }, 250);
+  };
 
 
   const [trainingType, setTrainingType] = useState('self');
@@ -915,12 +935,15 @@ export const AddMemberPage = ({
   const numTransfer = parseAmount(accountTransferAmount);
   const isAnyPartialFilled = cashAmount !== '' || upiAmount !== '' || accountTransferAmount !== '';
   const totalEnteredPaid = Math.round((numCash + numUpi + numTransfer) * 100) / 100;
-  const isPaymentAmountEntered = isAnyPartialFilled || totalEnteredPaid > 0;
-  const effectivePaidAmount = isAnyPartialFilled ? totalEnteredPaid : totalCalculatedAmount;
-  const calculatedBalanceDue = Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100);
+  const isPaymentAmountEntered = isAnyPartialFilled && (totalEnteredPaid > 0 || Boolean(balanceDueDate));
+  const effectivePaidAmount = totalEnteredPaid;
+  const calculatedBalanceDue = isPaymentAmountEntered
+    ? Math.max(0, Math.round((totalCalculatedAmount - effectivePaidAmount) * 100) / 100)
+    : totalCalculatedAmount;
 
   // Handles payment method amount change ensuring entered amount never exceeds total payable price
   const handlePaymentChange = (method, rawValue) => {
+    setPaymentSectionError(false);
     const sanitized = sanitizeDecimal(rawValue);
     if (sanitized === '') {
       if (method === 'cash') setCashAmount('');
@@ -957,6 +980,7 @@ export const AddMemberPage = ({
   // - If switching modes or paying full: clears other modes and sets this mode to totalCalculatedAmount
   // - If split payment in progress: fills remaining unpaid balance into this mode
   const handleFullPayment = (targetMode) => {
+    setPaymentSectionError(false);
     const currentVal = targetMode === 'cash' ? parseAmount(cashAmount) :
                        targetMode === 'upi' ? parseAmount(upiAmount) :
                        parseAmount(accountTransferAmount);
@@ -1085,7 +1109,7 @@ export const AddMemberPage = ({
     if (numCash > 0) return 'Cash';
     if (numUpi > 0) return 'UPI';
     if (numTransfer > 0) return 'Account Transfer';
-    return 'UPI';
+    return null;
   };
 
   const ptCommissionAmount = useMemo(() => {
@@ -1334,6 +1358,26 @@ export const AddMemberPage = ({
       if (totalCalculatedAmount <= 0) {
         addToast('Please select at least one top-up service (PT or Recovery) with price > 0.', 'error');
         return;
+      }
+
+      if (!isPaymentAmountEntered) {
+        addToast('Fee Calculation & Payment Settlement is compulsory. Please enter payment in Cash, UPI, or Account Transfer (or click [Full]).', 'error');
+        directToPaymentSection('cash');
+        return;
+      }
+
+      if (totalEnteredPaid > totalCalculatedAmount) {
+        addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
+        directToPaymentSection('cash');
+        return;
+      }
+
+      if (calculatedBalanceDue > 0) {
+        if (!balanceDueDate) {
+          addToast('Please select the date when the remaining balance due will be paid.', 'error');
+          directToPaymentSection('dueDate');
+          return;
+        }
       }
 
       setIsCreatingMember(true);
@@ -1650,12 +1694,21 @@ export const AddMemberPage = ({
       // Mandatory Fee Calculation & Settlement (matches CreateInvoicePage)
       if (totalCalculatedAmount <= 0) {
         addToast('Fee Calculation & Payment Settlement is mandatory. Total bill amount must be greater than ₹0.', 'error');
+        directToPaymentSection('cash');
+        setIsCreatingMember(false);
+        return;
+      }
+
+      if (!isPaymentAmountEntered) {
+        addToast('Fee Calculation & Payment Settlement is compulsory. Please enter payment in Cash, UPI, or Account Transfer (or click [Full]).', 'error');
+        directToPaymentSection('cash');
         setIsCreatingMember(false);
         return;
       }
 
       if (totalEnteredPaid > totalCalculatedAmount) {
         addToast(`Total payment entered (₹${totalEnteredPaid.toLocaleString('en-IN')}) cannot exceed total payable price (₹${totalCalculatedAmount.toLocaleString('en-IN')}).`, 'error');
+        directToPaymentSection('cash');
         setIsCreatingMember(false);
         return;
       }
@@ -1663,12 +1716,14 @@ export const AddMemberPage = ({
       if (calculatedBalanceDue > 0) {
         if (!balanceDueDate) {
           addToast('Please select the date when the remaining balance due will be paid.', 'error');
+          directToPaymentSection('dueDate');
           setIsCreatingMember(false);
           return;
         }
         const promiseCheck = validatePromiseDate(balanceDueDate, finalStartDate, finalExpiryDate);
         if (!promiseCheck.isValid) {
           addToast(promiseCheck.error, 'error');
+          directToPaymentSection('dueDate');
           setIsCreatingMember(false);
           return;
         }
@@ -1996,7 +2051,10 @@ export const AddMemberPage = ({
         `• SGST (${memberHalfTax}%): ₹${sgst.toLocaleString('en-IN')}\n`
       : `• Tax Applied: None (Non-GST Payment)\n`;
 
-    const text = `Welcome to *${gymInfo?.name || 'our Gym'}*!\n\n` +
+    const activeGym = getGymName(gymInfo?.name);
+    const welcomeHeader = activeGym ? `Welcome to *${activeGym}*!\n\n` : `Welcome to your membership!\n\n`;
+
+    const text = welcomeHeader +
       `Here are your Member Login Credentials:\n` +
       `• Member ID: *${newlyCreatedCredentials.id}*\n` +
       `• Password: *${newlyCreatedCredentials.password}*\n` +
@@ -2060,9 +2118,9 @@ export const AddMemberPage = ({
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   {newlyCreatedCredentials.isUpgrade ? 'Top-up Upgraded Successfully!' : 'Member Registered Successfully!'}
-                </h1>
+                </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Athlete profile and active membership pass are now live in your Member Directory.
                 </p>
@@ -2072,7 +2130,7 @@ export const AddMemberPage = ({
             <button
               type="button"
               onClick={handleBackToMemberList}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
             >
               <Users className="w-4 h-4" />
               <span>Go to Member Directory</span>
@@ -2089,12 +2147,12 @@ export const AddMemberPage = ({
               </div>
               <div>
                 <h4 className="font-bold text-xs">WhatsApp Welcome Message Sent Automatically!</h4>
-                <p className="text-[11px] text-emerald-700">
+                <p className="text-2xs text-emerald-700">
                   Directly dispatched to <strong>{newlyCreatedCredentials.phone}</strong> via {newlyCreatedCredentials.whatsappWelcome.provider || 'Gateway'}.
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 text-white uppercase tracking-wider shrink-0">
+            <span className="text-2xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white uppercase tracking-wider shrink-0">
               Auto Sent
             </span>
           </div>
@@ -2114,7 +2172,7 @@ export const AddMemberPage = ({
             <button
               type="button"
               onClick={handleShareMemberWhatsApp}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-2xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
             >
               <Send className="w-3.5 h-3.5" />
               <span>1-Click WhatsApp</span>
@@ -2132,7 +2190,7 @@ export const AddMemberPage = ({
                   <KeyRound className="w-4 h-4" />
                   <span>Member Portal Login Credentials</span>
                 </div>
-                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+                <span className="text-2xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
                   Role: Member
                 </span>
               </div>
@@ -2141,7 +2199,7 @@ export const AddMemberPage = ({
                 {/* Member ID */}
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Member ID</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">Member ID</span>
                     <span className="font-mono font-bold text-base text-white tracking-wide">{newlyCreatedCredentials.id}</span>
                   </div>
                   <button
@@ -2157,7 +2215,7 @@ export const AddMemberPage = ({
                 {/* Password */}
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Password</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">Password</span>
                     <span className="font-mono font-bold text-base text-emerald-400 tracking-wide">{newlyCreatedCredentials.password}</span>
                   </div>
                   <button
@@ -2173,7 +2231,7 @@ export const AddMemberPage = ({
                 {/* Email / Phone */}
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Login Phone / Email</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">Login Phone / Email</span>
                     <span className="font-medium text-slate-200">{newlyCreatedCredentials.phone} {newlyCreatedCredentials.email ? `• ${newlyCreatedCredentials.email}` : ''}</span>
                   </div>
                 </div>
@@ -2183,7 +2241,7 @@ export const AddMemberPage = ({
             <button
               type="button"
               onClick={handleCopyCredentials}
-              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer mt-2"
+              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer mt-2"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials & Welcome Message'}</span>
@@ -2199,10 +2257,10 @@ export const AddMemberPage = ({
                   <span>Invoice Summary</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="font-mono text-2xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
                     {newlyCreatedCredentials.invoiceNumber || newlyCreatedCredentials.invoice?.invoiceNumber}
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                     {newlyCreatedCredentials.duesAmount > 0 ? 'Partial Payment' : 'Paid in Full'}
                   </span>
                 </div>
@@ -2223,7 +2281,7 @@ export const AddMemberPage = ({
                 </div>
                 {newlyCreatedCredentials.packages && newlyCreatedCredentials.packages.length > 1 && (
                   <div className="py-2 border-b border-slate-100 space-y-1.5">
-                    <span className="text-[11px] font-bold text-slate-700">Packages Breakdown ({newlyCreatedCredentials.packages.length} items):</span>
+                    <span className="text-2xs font-bold text-slate-700">Packages Breakdown ({newlyCreatedCredentials.packages.length} items):</span>
                     {newlyCreatedCredentials.packages.map((pkg, pIdx) => {
                       const pType = pkg.package_type || pkg.packageType;
                       const pName = pkg.name || pkg.planName;
@@ -2231,7 +2289,7 @@ export const AddMemberPage = ({
                         ? `${pType} (${pName})`
                         : (pName || pType || 'Package');
                       return (
-                        <div key={pIdx} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded">
+                        <div key={pIdx} className="flex items-center justify-between text-2xs bg-slate-50 px-2 py-1 rounded">
                           <span className="text-slate-600 font-medium">{displayTitle}</span>
                           <span className="font-mono text-slate-800 font-semibold">₹{Number(pkg.price || 0).toLocaleString('en-IN')}</span>
                         </div>
@@ -2270,7 +2328,7 @@ export const AddMemberPage = ({
               <button
                 type="button"
                 onClick={handleShareMemberWhatsApp}
-                className="py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 border border-emerald-200 transition-all cursor-pointer"
+                className="py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center gap-1.5 border border-emerald-200 transition-all cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
                 <span>Send WhatsApp</span>
@@ -2279,7 +2337,7 @@ export const AddMemberPage = ({
               <button
                 type="button"
                 onClick={handleDownloadInvoicePdf}
-                className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
+                className="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
               >
                 <Download className="w-4 h-4 text-slate-600" />
                 <span>Download PDF</span>
@@ -2305,7 +2363,7 @@ export const AddMemberPage = ({
           <button
             type="button"
             onClick={handleBackToMemberList}
-            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
           >
             <Users className="w-4 h-4" />
             <span>Open Member Directory</span>
@@ -2320,18 +2378,18 @@ export const AddMemberPage = ({
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* 1. Header Navigation Bar */}
       {!isModal && (
-        <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={handleBackToMemberList}
-              className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0 flex items-center justify-center"
+              className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0 flex items-center justify-center"
               title="Return to Member Directory"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 {isUpgradeMode
                   ? `Upgrade Services: ${targetMember?.name || 'Member'}`
                   : isEditMode
@@ -2354,12 +2412,12 @@ export const AddMemberPage = ({
               <h4 className="text-xs sm:text-sm font-bold text-emerald-950 truncate">
                 Editing Athlete: {targetMember?.name} ({targetMember?.id || 'Profile'})
               </h4>
-              <p className="text-[11px] text-emerald-700 truncate">
+              <p className="text-2xs text-emerald-700 truncate">
                 Email and Phone number are locked for account security. Personal details, biometrics, goals, and coach can be updated below.
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0 ml-2">
+          <span className="text-2xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0 ml-2">
             Edit Mode
           </span>
         </div>
@@ -2376,12 +2434,12 @@ export const AddMemberPage = ({
               <h4 className="text-xs sm:text-sm font-bold text-violet-950 truncate">
                 Upgrade Mode: {targetMember?.name} ({targetMember?.id})
               </h4>
-              <p className="text-[11px] text-violet-700 truncate">
+              <p className="text-2xs text-violet-700 truncate">
                 Member profile and login credentials preserved. Select Personal Training, Recovery, or Plan upgrades below.
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wider shrink-0 ml-2">
+          <span className="text-2xs font-semibold px-2 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wider shrink-0 ml-2">
             Top-up
           </span>
         </div>
@@ -2396,7 +2454,7 @@ export const AddMemberPage = ({
               <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <User className="w-4 h-4" />
               </div>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                 1. Member Profile & Portal Access
               </h2>
             </div>
@@ -2418,7 +2476,7 @@ export const AddMemberPage = ({
                 </div>
                 {(!isUpgradeMode || isEditMode) && (
                   <div className="flex items-center gap-1.5 pt-0.5">
-                    <label className="cursor-pointer px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs inline-flex items-center gap-1 transition-all">
+                    <label className="cursor-pointer px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-bold shadow-2xs inline-flex items-center gap-1 transition-all">
                       <Upload className="w-3 h-3" />
                       <span>Upload</span>
                       <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
@@ -2427,7 +2485,7 @@ export const AddMemberPage = ({
                       <button
                         type="button"
                         onClick={() => setFormData((prev) => ({ ...prev, avatar: '' }))}
-                        className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-medium cursor-pointer"
+                        className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-2xs font-medium cursor-pointer"
                       >
                         Remove
                       </button>
@@ -2448,7 +2506,7 @@ export const AddMemberPage = ({
                   <button
                     type="button"
                     onClick={generateRandomPassword}
-                    className="text-[11px] text-emerald-700 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    className="text-2xs text-emerald-700 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="w-3 h-3" /> Auto-generate
                   </button>
@@ -2461,14 +2519,14 @@ export const AddMemberPage = ({
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
                     <span>Login Email: <strong>{formData.email || 'Mobile Login'}</strong></span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1">
+                  <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1">
                     <Lock className="w-2.5 h-2.5" /> Preserved
                   </span>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-2xs font-bold text-slate-700 mb-0.5">
                       Login Email (Optional)
                     </label>
                     <input
@@ -2480,7 +2538,7 @@ export const AddMemberPage = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                    <label className="block text-2xs font-bold text-slate-700 mb-0.5">
                       Initial Password *
                     </label>
                     <input
@@ -2503,21 +2561,21 @@ export const AddMemberPage = ({
             <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Users className="w-4 h-4" />
             </div>
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+            <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
               2. Personal Information & Identification
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Full Name *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Full Name *</label>
               <input
                 type="text"
                 required
                 disabled={isUpgradeMode && !isEditMode}
                 placeholder="e.g. Liam Hemsworth"
                 value={formData.name ?? ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={withTitleCase((e) => setFormData({ ...formData, name: e.target.value }))}
                 className={`w-full px-3 py-2 rounded-xl text-xs ${isUpgradeMode && !isEditMode
                   ? 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed font-medium'
                   : formData.name && !isValidName(formData.name)
@@ -2526,7 +2584,7 @@ export const AddMemberPage = ({
                   }`}
               />
               {formData.name && !isValidName(formData.name) && (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Name must contain letters only (spaces, hyphens, and apostrophes allowed).
                 </p>
               )}
@@ -2534,9 +2592,9 @@ export const AddMemberPage = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">Phone Number *</label>
+                <label className="block text-2xs font-bold text-slate-700">Phone Number *</label>
                 {(isUpgradeMode || isEditMode) && (
-                  <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  <span className="text-2xs font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                     <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
                   </span>
                 )}
@@ -2562,17 +2620,17 @@ export const AddMemberPage = ({
                   }`}
               />
               {isEditMode ? (
-                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                <p className="text-2xs text-slate-400 mt-1 flex items-center gap-1">
                   <Lock className="w-2.5 h-2.5 text-slate-400" />
                   <span>Locked for mobile OTP verification & account security.</span>
                 </p>
               ) : duplicatePhoneMember ? (
-                <p className="text-[10px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
+                <p className="text-2xs text-rose-600 font-semibold mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
                   <span>Existing member already registered with this mobile</span>
                 </p>
               ) : !isUpgradeMode && formData.phone && !isValidPhone(formData.phone) ? (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Please enter a valid 10-digit mobile number.
                 </p>
               ) : null}
@@ -2581,8 +2639,8 @@ export const AddMemberPage = ({
             {isEditMode && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700">Email Address</label>
-                  <span className="text-[10px] font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  <label className="block text-2xs font-bold text-slate-700">Email Address</label>
+                  <span className="text-2xs font-bold text-slate-400 inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                     <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked
                   </span>
                 </div>
@@ -2594,7 +2652,7 @@ export const AddMemberPage = ({
                   className="w-full px-3 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-xs cursor-not-allowed select-none font-medium"
                   placeholder="athlete@example.com"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                <p className="text-2xs text-slate-400 mt-1 flex items-center gap-1">
                   <Lock className="w-2.5 h-2.5 text-slate-400" />
                   <span>Permanent member login ID (cannot be changed).</span>
                 </p>
@@ -2602,7 +2660,7 @@ export const AddMemberPage = ({
             )}
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Invoice / Joining Date *</span>
               </label>
@@ -2625,7 +2683,7 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <Cake className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Date of Birth (DOB)</span>
               </label>
@@ -2650,7 +2708,7 @@ export const AddMemberPage = ({
                 }`}
               />
               {formData.dob && !isValidDob(formData.dob) && (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Date of birth cannot be in the future.
                 </p>
               )}
@@ -2658,8 +2716,8 @@ export const AddMemberPage = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">Age</label>
-                <span className="text-[10px] text-slate-400 font-medium flex items-center gap-0.5">
+                <label className="block text-2xs font-bold text-slate-700">Age</label>
+                <span className="text-2xs text-slate-400 font-medium flex items-center gap-0.5">
                   <Lock className="w-2.5 h-2.5 text-slate-400" />
                   <span>Auto from DOB</span>
                 </span>
@@ -2675,7 +2733,7 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Gender</label>
               <select
                 disabled={isUpgradeMode && !isEditMode}
                 value={formData.gender ?? 'Male'}
@@ -2690,11 +2748,11 @@ export const AddMemberPage = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
                   <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
                   <span>eSSL Biometric User ID</span>
                 </label>
-                <span className="text-[9px] text-slate-500 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                <span className="text-2xs text-slate-500 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 flex items-center gap-1">
                   <Lock className="w-2.5 h-2.5 text-slate-400" />
                   <span>Locked</span>
                 </span>
@@ -2706,7 +2764,7 @@ export const AddMemberPage = ({
                 value={formData.biometricUserId ? `ID: ${formData.biometricUserId}` : 'Auto-Assigned on Save'}
                 className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-mono cursor-not-allowed select-none"
               />
-              <p className="text-[9.5px] text-slate-400 mt-0.5">
+              <p className="text-2xs text-slate-400 mt-0.5">
                 Automatically assigned by eSSL biometric machine system.
               </p>
             </div>
@@ -2715,8 +2773,8 @@ export const AddMemberPage = ({
               <>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">Membership Status</label>
-                    <span className="text-[10px] text-slate-400 font-medium">Auto-derived from dates</span>
+                    <label className="block text-2xs font-bold text-slate-700">Membership Status</label>
+                    <span className="text-2xs text-slate-400 font-medium">Auto-derived from dates</span>
                   </div>
                   {['Frozen', 'Frozen (Paused)', 'On Hold', 'Suspended'].includes(formData.status) ? (
                     <div className="flex items-center gap-2">
@@ -2731,7 +2789,7 @@ export const AddMemberPage = ({
                             : 'Active';
                           setFormData({ ...formData, status: autoSt });
                         }}
-                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+                        className="text-2xs font-semibold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
                       >
                         Resume Membership
                       </button>
@@ -2765,7 +2823,7 @@ export const AddMemberPage = ({
                           </span>
                         );
                       })()}
-                      <span className="text-[11px] text-slate-400 italic">
+                      <span className="text-2xs text-slate-400 italic">
                         (Managed by plan validity)
                       </span>
                     </div>
@@ -2774,7 +2832,7 @@ export const AddMemberPage = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Plan Expiry Date</span>
                     </label>
@@ -2799,7 +2857,7 @@ export const AddMemberPage = ({
               <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <Dumbbell className="w-4 h-4" />
               </div>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                 {isEditMode ? '3. Active Membership Subscription' : '3. Membership Packages & Add-on Services *'}
               </h2>
             </div>
@@ -2809,7 +2867,7 @@ export const AddMemberPage = ({
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 inline-block mb-1">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 inline-block mb-1">
                     Active Plan On Record
                   </span>
                   <h3 className="font-bold text-sm text-slate-900">
@@ -2817,7 +2875,7 @@ export const AddMemberPage = ({
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                  <span className="text-2xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
                     Status: <strong className="text-emerald-700">{formData.status || targetMember?.status || 'Active'}</strong>
                   </span>
                 </div>
@@ -2825,7 +2883,7 @@ export const AddMemberPage = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Enrolled Date</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Enrolled Date</span>
                   <div className="font-medium text-slate-800 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     <span>{formData.joinDate || targetMember?.joinDate || 'N/A'}</span>
@@ -2833,7 +2891,7 @@ export const AddMemberPage = ({
                 </div>
 
                 <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Plan Expiry Date</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Plan Expiry Date</span>
                   <div className="font-medium text-slate-800 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                     <input
@@ -2847,7 +2905,7 @@ export const AddMemberPage = ({
                 </div>
 
                 <div className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Assigned Coach</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Assigned Coach</span>
                   <select
                     value={selectedTrainerId || formData.trainerId || ''}
                     onChange={(e) => {
@@ -2866,7 +2924,7 @@ export const AddMemberPage = ({
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500 pt-1">
+              <p className="text-2xs text-slate-500 pt-1">
                 ℹ️ Membership subscription was billed upon enrollment. To purchase additional Personal Training (PT) sessions or top-ups, return to directory and select <strong>Upgrade</strong>.
               </p>
             </div>
@@ -2906,7 +2964,7 @@ export const AddMemberPage = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Package Type */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Package Type *</label>
+                        <label className="block text-2xs font-bold text-slate-700 mb-1">Package Type *</label>
                         <select
                           value={pkgRow.packageType}
                           onChange={(e) => handlePackageTypeChange(pkgRow.id, e.target.value)}
@@ -2923,11 +2981,11 @@ export const AddMemberPage = ({
                       {/* Package Name */}
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700">Package Name *</label>
+                          <label className="block text-2xs font-bold text-slate-700">Package Name *</label>
                           <button
                             type="button"
                             onClick={() => handleOpenQuickAdd(pkgRow.packageType, pkgRow.id)}
-                            className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                            className="text-2xs text-emerald-600 hover:underline font-bold cursor-pointer"
                           >
                             + New
                           </button>
@@ -2953,7 +3011,7 @@ export const AddMemberPage = ({
                     {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                        <label className="block text-2xs font-bold text-slate-700 mb-1">Fee (₹)</label>
                         <input
                           type="text"
                           readOnly
@@ -2963,9 +3021,9 @@ export const AddMemberPage = ({
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700">Discount (₹)</label>
+                          <label className="block text-2xs font-bold text-slate-700">Discount (₹)</label>
                           {maxPlanDiscount > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
+                            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
                                 ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
                                 : 'bg-amber-50 text-amber-700 border-amber-200'
                             }`}>
@@ -2984,7 +3042,7 @@ export const AddMemberPage = ({
                             }`}
                         />
                         {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
-                          <p className="text-[10px] text-rose-600 font-bold mt-1">
+                          <p className="text-2xs text-rose-600 font-bold mt-1">
                             ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
                           </p>
                         )}
@@ -2995,7 +3053,7 @@ export const AddMemberPage = ({
                     <div className="space-y-1.5 pt-2 border-t border-slate-200/60">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                          <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Start Date *</span>
                           </label>
@@ -3009,7 +3067,7 @@ export const AddMemberPage = ({
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                               <span>End Date (Expiry) *</span>
                             </label>
@@ -3035,7 +3093,7 @@ export const AddMemberPage = ({
                         </div>
                       </div>
                       {pkgRow.chainingMessage && (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/70 border border-emerald-200/60 text-[10px] font-semibold text-emerald-800">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/70 border border-emerald-200/60 text-2xs font-semibold text-emerald-800">
                           <Sparkles className="w-3 h-3 text-emerald-600 flex-shrink-0" />
                           <span>{pkgRow.chainingMessage}</span>
                         </div>
@@ -3050,14 +3108,14 @@ export const AddMemberPage = ({
                             <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Dedicated PT Coach Selection</span>
                           </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                          <span className="text-2xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
                             {currentPkgObj?.sessions || ptCustomSessions} Sessions Included
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                           <div className="sm:col-span-7">
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            <label className="block text-2xs font-bold text-slate-700 mb-1">
                               Assigned Coach *
                             </label>
                             <select
@@ -3082,7 +3140,7 @@ export const AddMemberPage = ({
 
                           <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                              <span className="text-2xs font-bold text-slate-700 flex items-center gap-1">
                                 <Percent className="w-3.5 h-3.5 text-indigo-600" />
                                 <span>Commission</span>
                               </span>
@@ -3095,14 +3153,14 @@ export const AddMemberPage = ({
                                 <button
                                   type="button"
                                   onClick={() => setCommissionType('percent')}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                  className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
                                 >
                                   %
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setCommissionType('fixed')}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                  className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
                                 >
                                   ₹
                                 </button>
@@ -3139,7 +3197,7 @@ export const AddMemberPage = ({
                 <button
                   type="button"
                   onClick={handleAddPackageRow}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Package</span>
@@ -3155,14 +3213,14 @@ export const AddMemberPage = ({
             <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Activity className="w-4 h-4" />
             </div>
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+            <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
               4. Physical Stats, Fitness Goal & Emergency Contact
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Fitness Goal</label>
               <select
                 value={formData.goal ?? ''}
                 onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
@@ -3178,7 +3236,7 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Current Weight (kg)</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Current Weight (kg)</label>
               <input
                 type="number"
                 step="0.1"
@@ -3190,7 +3248,7 @@ export const AddMemberPage = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Weight (kg)</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Target Weight (kg)</label>
               <input
                 type="number"
                 step="0.1"
@@ -3203,8 +3261,8 @@ export const AddMemberPage = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">Height (cm)</label>
-                <span className="text-[10px] text-slate-400 font-medium">Max 300 cm</span>
+                <label className="block text-2xs font-bold text-slate-700">Height (cm)</label>
+                <span className="text-2xs text-slate-400 font-medium">Max 300 cm</span>
               </div>
               <input
                 type="number"
@@ -3234,14 +3292,14 @@ export const AddMemberPage = ({
                 }`}
               />
               {formData.height && Number(formData.height) > 300 && (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Height cannot exceed 300 cm.
                 </p>
               )}
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Emergency Contact Number
               </label>
               <input
@@ -3259,34 +3317,34 @@ export const AddMemberPage = ({
                 }`}
               />
               {formData.emergencyContact && !isValidEmergencyContact(formData.emergencyContact) && (
-                <p className="text-[10px] text-rose-500 mt-1 font-semibold">
+                <p className="text-2xs text-rose-500 mt-1 font-semibold">
                   Emergency contact must be a valid 10-digit phone number without letters.
                 </p>
               )}
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Front Desk Executive / Staff In-Charge
               </label>
               <input
                 type="text"
                 placeholder="Staff name"
                 value={formData.executive ?? ''}
-                onChange={(e) => setFormData({ ...formData, executive: e.target.value })}
+                onChange={withTitleCase((e) => setFormData({ ...formData, executive: e.target.value }))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div className="sm:col-span-4">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Medical Notes & Health Considerations
               </label>
               <input
                 type="text"
                 placeholder="Any prior injuries, chronic conditions, or physician recommendations (optional)"
                 value={formData.medicalNotes ?? ''}
-                onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
+                onChange={withTitleCase((e) => setFormData({ ...formData, medicalNotes: e.target.value }))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -3295,7 +3353,24 @@ export const AddMemberPage = ({
 
         {/* SECTION 5: Fee Calculation, Discounts & Payment Settlement (Unified Card) */}
         {!isEditMode && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
+          <div
+            ref={paymentSectionRef}
+            id="section-payment-settlement"
+            className={`p-4 sm:p-5 rounded-2xl bg-white border transition-all duration-300 space-y-3.5 ${
+              paymentSectionError
+                ? 'border-rose-400 ring-2 ring-rose-300/80 shadow-md shadow-rose-100'
+                : 'border-slate-200 shadow-xs'
+            }`}
+          >
+            {paymentSectionError && (
+              <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 border border-rose-300 text-xs text-rose-900 flex items-center gap-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold">
+                  Fee Calculation & Payment Settlement is compulsory. Please enter payment details below (or select [Full]) to register member.
+                </span>
+              </div>
+            )}
+
             {/* Header with Title, Gross Packages & Discounts, and Total Payable Price Badge */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="space-y-1">
@@ -3303,11 +3378,11 @@ export const AddMemberPage = ({
                   <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                     <CreditCard className="w-4 h-4" />
                   </div>
-                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                     5. Fee Calculation & Payment Settlement *
                   </h2>
                 </div>
-                <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
+                <div className="text-2xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 pl-7">
                   <span>Total Packages: <strong className="text-slate-700 font-mono">₹{totalGrossPackages.toLocaleString('en-IN')}</strong></span>
                   {numDiscount > 0 && (
                     <span className="text-amber-700 font-semibold">Total Discount: <strong className="font-mono">-₹{numDiscount.toLocaleString('en-IN')}</strong></span>
@@ -3324,8 +3399,8 @@ export const AddMemberPage = ({
 
               {/* Total Payable Price Pill */}
               <div className="sm:self-center shrink-0 bg-emerald-50/90 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2.5 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-emerald-800">Total Payable Price</span>
-                <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
+                <span className="text-2xs uppercase font-semibold text-emerald-800">Total Payable Price</span>
+                <span className="text-base sm:text-lg font-bold text-emerald-700 font-mono">
                   ₹{totalCalculatedAmount.toLocaleString('en-IN')}
                 </span>
               </div>
@@ -3340,6 +3415,7 @@ export const AddMemberPage = ({
                   <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-all flex-1 max-w-[150px] shadow-2xs">
                     <span className="text-xs font-bold text-slate-500 mr-1 select-none shrink-0">₹</span>
                     <input
+                      ref={cashInputRef}
                       type="text"
                       inputMode="decimal"
                       onKeyDown={(e) => preventNonNumericKey(e, true)}
@@ -3353,7 +3429,7 @@ export const AddMemberPage = ({
                     type="button"
                     title="Pay full amount in Cash"
                     onClick={() => handleFullPayment('cash')}
-                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -3380,7 +3456,7 @@ export const AddMemberPage = ({
                     type="button"
                     title="Pay full amount via UPI"
                     onClick={() => handleFullPayment('upi')}
-                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -3407,7 +3483,7 @@ export const AddMemberPage = ({
                     type="button"
                     title="Pay full amount via Account Transfer"
                     onClick={() => handleFullPayment('transfer')}
-                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2.5 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -3432,7 +3508,7 @@ export const AddMemberPage = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-slate-900">GST</span>
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${isGstIncluded
+                          className={`text-2xs font-bold px-2 py-0.5 rounded-full border transition-all ${isGstIncluded
                               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                               : 'bg-slate-200 text-slate-700 border-slate-300'
                             }`}
@@ -3440,7 +3516,7 @@ export const AddMemberPage = ({
                           {isGstIncluded ? 'GST Included' : 'GST Disabled (Non-GST)'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-2xs text-slate-500 mt-0.5">
                         {isGstIncluded
                           ? `GST included in ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}. Bill will display Base Fee + CGST + SGST = ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')}.`
                           : `Received ₹${gstBreakdown.targetAmount.toLocaleString('en-IN')} flat without GST. Bill will NOT have CGST / SGST bifurcation.`}
@@ -3465,27 +3541,27 @@ export const AddMemberPage = ({
 
                 {/* When GST is Ticked: Show Base Amount + CGST + SGST = Total Bifurcation */}
                 {isGstIncluded ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 text-[11px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 text-2xs">
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">Base Amount</span>
+                      <span className="text-slate-500 block text-2xs font-semibold uppercase">Base Amount</span>
                       <strong className="text-slate-800 font-mono text-xs">
                         ₹{gstBreakdown.taxable.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">CGST ({gstBreakdown.halfTaxRate || 9}%)</span>
+                      <span className="text-slate-500 block text-2xs font-semibold uppercase">CGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
                         ₹{gstBreakdown.cgst.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg bg-white border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-semibold uppercase">SGST ({gstBreakdown.halfTaxRate || 9}%)</span>
+                      <span className="text-slate-500 block text-2xs font-semibold uppercase">SGST ({gstBreakdown.halfTaxRate || 9}%)</span>
                       <strong className="text-slate-800 font-mono text-xs">
                         ₹{gstBreakdown.sgst.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-2 rounded-lg border bg-emerald-50/70 border-emerald-200 text-emerald-900">
-                      <span className="block text-[10px] font-semibold uppercase">
+                      <span className="block text-2xs font-semibold uppercase">
                         Total (Base + Taxes)
                       </span>
                       <strong className="font-mono text-xs">
@@ -3495,11 +3571,11 @@ export const AddMemberPage = ({
                   </div>
                 ) : (
                   /* When GST is Disabled: Non-Tax Banner, NO CGST / SGST Bifurcation */
-                  <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
+                  <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200/80 text-2xs text-slate-600 flex items-center justify-between">
                     <span className="font-medium">
                       Non-Tax Bill: Flat <strong>₹{gstBreakdown.targetAmount.toLocaleString('en-IN')}</strong> received without GST.
                     </span>
-                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
+                    <span className="text-2xs font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase">
                       No GST Bifurcation on Bill
                     </span>
                   </div>
@@ -3507,18 +3583,42 @@ export const AddMemberPage = ({
               </div>
             )}
 
-            {/* If Amount Added is Not Complete: Show Remaining Balance Due & Due Date Picker */}
-            {calculatedBalanceDue > 0 ? (
+            {/* Payment Settlement Status & Action Banners */}
+            {totalCalculatedAmount <= 0 ? (
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Fee Calculation & Payment Settlement is required. Please select at least one membership package above with a plan fee greater than ₹0.
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-semibold text-2xs uppercase border border-amber-300 shrink-0 ml-2">
+                  Required *
+                </span>
+              </div>
+            ) : !isPaymentAmountEntered ? (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Payment settlement is compulsory. Please enter payment in Cash, UPI, or Account Transfer (or click <strong>[Full]</strong> to settle ₹{totalCalculatedAmount.toLocaleString('en-IN')}).
+                  </span>
+                </div>
+                <span className="px-2.5 py-1 rounded-md bg-amber-200/90 text-amber-900 font-bold text-2xs uppercase border border-amber-300 shrink-0 ml-2">
+                  Payment Required *
+                </span>
+              </div>
+            ) : calculatedBalanceDue > 0 ? (
               <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                   {/* Balance Due Display */}
                   <div>
-                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                    <label className="block text-2xs font-bold text-amber-950 mb-1">
                       Remaining Balance Due (Pending)
                     </label>
                     <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                      <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
-                      <span className="text-sm font-black font-mono text-rose-600">
+                      <span className="text-2xs font-semibold text-slate-600">Balance Pending:</span>
+                      <span className="text-sm font-bold font-mono text-rose-600">
                         ₹{calculatedBalanceDue.toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -3526,24 +3626,28 @@ export const AddMemberPage = ({
 
                   {/* Date Option for Remaining Payment */}
                   <div>
-                    <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                    <label className="block text-2xs font-bold text-amber-950 mb-1 flex items-center justify-between">
                       <span>Promised Due Date *</span>
-                      <span className="text-[10px] font-normal text-amber-800">When remaining will be paid</span>
+                      <span className="text-2xs font-normal text-amber-800">When remaining will be paid</span>
                     </label>
                     <div className="relative">
                       <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
+                        ref={balanceDueDateInputRef}
                         type="date"
                         required
                         value={balanceDueDate ?? ''}
                         min={minPromiseDate}
                         max={maxPromiseDate}
-                        onChange={(e) => setBalanceDueDate(e.target.value)}
+                        onChange={(e) => {
+                          setPaymentSectionError(false);
+                          setBalanceDueDate(e.target.value);
+                        }}
                         className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
                       />
                     </div>
                     {effectiveMemberExpiryDate && (
-                      <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                      <div className="flex items-center justify-between text-2xs text-amber-900 mt-1">
                         <span>Permitted: {formatDateDisplay(minPromiseDate)} to {formatDateDisplay(maxPromiseDate)}</span>
                         <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
                       </div>
@@ -3552,7 +3656,7 @@ export const AddMemberPage = ({
                 </div>
 
                 {/* Settlement Summary */}
-                <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+                <div className="flex items-center justify-between text-2xs pt-2 border-t border-amber-200/80 font-medium">
                   <span className="text-slate-600">
                     Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong>
                   </span>
@@ -3564,18 +3668,6 @@ export const AddMemberPage = ({
                   </span>
                 </div>
               </div>
-            ) : totalCalculatedAmount <= 0 ? (
-              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 animate-fadeIn">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    Fee Calculation & Payment Settlement is required. Please select at least one membership package above with a plan fee greater than ₹0.
-                  </span>
-                </div>
-                <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-bold text-[10px] uppercase border border-amber-300 shrink-0 ml-2">
-                  Required *
-                </span>
-              </div>
             ) : (
               <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
                 <div className="flex items-center gap-2">
@@ -3584,7 +3676,7 @@ export const AddMemberPage = ({
                     Full payment of <strong>₹{totalCalculatedAmount.toLocaleString('en-IN')}</strong> entered. <strong>No balance remaining.</strong>
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold text-2xs uppercase border border-emerald-300">
                   No Balance Remaining
                 </span>
               </div>
@@ -3600,7 +3692,7 @@ export const AddMemberPage = ({
               <p className="font-bold text-emerald-900">
                 {isEditMode ? 'Digital Health Declaration & Liability Waiver Active On File' : 'Health Declaration & Liability Waiver Active On File'}
               </p>
-              <p className="text-[11px] text-emerald-700 mt-0.5">
+              <p className="text-2xs text-emerald-700 mt-0.5">
                 {isEditMode
                   ? 'Member digital consent was verified and signed upon initial registration. No re-signing required for profile updates.'
                   : 'Member digital consent is verified and signed on record. Top-up invoices are billed directly without re-signing.'}
@@ -3615,27 +3707,27 @@ export const AddMemberPage = ({
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                     6. {consentConfig?.title || 'Gym Rules & Liability Waiver Consent Form'}
                   </h2>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-2xs text-slate-500">
                     {consentConfig?.subtitle || 'Review terms & physical activity declaration below before signing.'}
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
+              <span className="text-2xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
                 {consentConfig?.badgeText || 'Compliance Document'}
               </span>
             </div>
 
             {/* FULLY READABLE LEGAL WAIVER DOCUMENT (OWNER CONFIGURED CLAUSES) */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-200 text-[11px]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-200 text-2xs">
                 <span className="font-bold text-slate-800">
                   Participant: <span className="text-emerald-700">{formData.name || 'Member (Athlete)'}</span>
                 </span>
                 <span className="text-slate-500">
-                  Facility: <strong className="text-slate-700">{gymInfo?.name || 'PulseFit Athletic Club'}</strong> &bull; Date: {formData.joinDate || getTodayDateStr()}
+                  Facility: <strong className="text-slate-700">{gymInfo?.name || 'Main Facility'}</strong> &bull; Date: {formData.joinDate || getTodayDateStr()}
                 </span>
               </div>
 
@@ -3670,7 +3762,7 @@ export const AddMemberPage = ({
                 <span className="font-bold block text-emerald-950">
                   {consentConfig?.declarationText || 'I have read, understood, and accept all terms of the Health Declaration, Liability Waiver & Gym Rules.'}
                 </span>
-                <span className="text-[11px] text-slate-600">
+                <span className="text-2xs text-slate-600">
                   {consentConfig?.declarationSubtext || 'By checking this box, the athlete confirms full agreement and understanding of the above clauses.'}
                 </span>
               </div>
@@ -3690,7 +3782,7 @@ export const AddMemberPage = ({
                     <span>Front Desk / Physical Paper Consent Signed (Instant Registration)</span>
                   </label>
                   {signedInPerson && (
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                    <span className="text-2xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
                       Physical Form Verified
                     </span>
                   )}
@@ -3705,17 +3797,17 @@ export const AddMemberPage = ({
                       <span>Sign Consent Form via Email OTP</span>
                     </span>
                     {otpVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <CheckCircle className="w-3.5 h-3.5" /> Digitally Signed
                       </span>
                     ) : (
-                      <span className="text-[11px] text-amber-700 font-semibold">
+                      <span className="text-2xs text-amber-700 font-semibold">
                         Signature Required
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-2xs text-slate-500">
                     An OTP sent to <strong className="text-slate-700">{formData.email || 'the member email'}</strong> acts as the legally binding digital signature on this consent form.
                   </p>
 
@@ -3726,7 +3818,7 @@ export const AddMemberPage = ({
                           type="button"
                           onClick={handleSendOtp}
                           disabled={isSendingOtp || !formData.email}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
                           {isSendingOtp ? (
                             <>
@@ -3755,7 +3847,7 @@ export const AddMemberPage = ({
                               type="button"
                               onClick={handleVerifyOtp}
                               disabled={isVerifyingOtp || !otpValue}
-                              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
+                              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
                             >
                               {isVerifyingOtp ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -3775,7 +3867,7 @@ export const AddMemberPage = ({
 
                           {/* Simulation Helper Box */}
                           {generatedOtp && (
-                            <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center justify-between">
+                            <div className="text-2xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center justify-between">
                               <span>Simulated Email Delivery: Verification code is <strong>{generatedOtp}</strong></span>
                               <button
                                 type="button"
@@ -3802,7 +3894,7 @@ export const AddMemberPage = ({
                           setOtpSent(false);
                           setOtpValue('');
                         }}
-                        className="text-[11px] text-emerald-700 hover:underline font-semibold"
+                        className="text-2xs text-emerald-700 hover:underline font-semibold"
                       >
                         Re-verify
                       </button>
@@ -3819,7 +3911,7 @@ export const AddMemberPage = ({
           <button
             type="button"
             onClick={handleBackToMemberList}
-            className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
+            className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center"
           >
             Cancel & Return
           </button>

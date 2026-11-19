@@ -11,7 +11,8 @@ import {
   DEFAULT_CARD_IDS,
   DEFAULT_MANAGER_CARD_IDS
 } from './CustomizeStatCardsModal';
-import { getTodayIso, recordMatchesDate } from '../../utils/dateUtils';
+import { getTodayIso, recordMatchesDate, formatDateDisplay } from '../../utils/dateUtils';
+import { generateInvoicePdf, shareInvoicePdfToMobile } from '../../utils/invoicePdfGenerator';
 import {
   hasSqlInjection,
   sanitizePhone,
@@ -20,7 +21,8 @@ import {
   isValidEmail
 } from '../../utils/validation';
 import { matchesMemberUniversal, matchesEnquiryUniversal } from '../../utils/searchUtils';
-import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getWhatsAppUrl, getGymName } from '../../utils/whatsapp';
+import { SearchInput } from '../common/SearchInput';
 import {
   Users,
   Search,
@@ -61,8 +63,12 @@ import {
   User,
   UserCheck,
   Phone,
+  PhoneCall,
   Mail,
-  Receipt
+  Receipt,
+  Download,
+  Printer,
+  Edit3
 } from 'lucide-react';
 import {
   AreaChart,
@@ -644,26 +650,70 @@ export const OwnerDashboard = ({
 
   // Recent invoices audit log with creator details
   const recentInvoicesAudit = useMemo(() => {
-    if (ownerStats?.recentInvoices && ownerStats.recentInvoices.length > 0) {
-      return ownerStats.recentInvoices.map((inv) => ({
+    const rawList = (ownerStats?.recentInvoices && ownerStats.recentInvoices.length > 0)
+      ? ownerStats.recentInvoices
+      : (invoices || []).slice(0, 6);
+
+    return rawList.map((inv) => {
+      const displayId = inv.invoiceNumber || inv.invoice_number || inv.id || 'INV';
+      const rawDate = inv.date || inv.created_at || inv.createdAt;
+      const formattedDate = rawDate ? formatDateDisplay(rawDate) : 'Today';
+
+      return {
         ...inv,
+        id: displayId,
+        numericId: inv.id,
+        memberName: inv.member_name || inv.memberName || inv.name || 'Member',
+        memberPhone: inv.memberPhone || inv.phone || '',
+        planName: inv.plan_name || inv.planName || inv.title || 'Gym Membership',
+        amount: Number(inv.amount || inv.total_amount || 0),
+        status: inv.status || 'Paid',
+        date: formattedDate,
         createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name, inv),
         creatorRole: resolveCreatorRole(inv)
-      }));
-    }
-    return (invoices || []).slice(0, 6).map((inv) => ({
-      id: inv.invoiceNumber || inv.invoice_number || inv.id || 'INV',
-      numericId: inv.id,
-      memberName: inv.member_name || inv.memberName || inv.name || 'Member',
-      memberPhone: inv.memberPhone || inv.phone || '',
-      planName: inv.plan_name || inv.planName || inv.title || 'Gym Membership',
-      amount: Number(inv.amount || inv.total_amount || 0),
-      status: inv.status || 'Paid',
-      date: inv.date || inv.created_at || new Date().toISOString().split('T')[0],
-      createdByName: resolveCreatorName(inv.createdByName || inv.created_by_name, inv),
-      creatorRole: resolveCreatorRole(inv)
-    }));
+      };
+    });
   }, [ownerStats, invoices, currentUser?.name, currentUser?.role]);
+
+  // Invoice Receipt Modal State for Dashboard
+  const [selectedDashboardInvoice, setSelectedDashboardInvoice] = useState(null);
+
+  const handleOpenInvoice = (inv) => {
+    if (!inv) return;
+    const matchedFullInvoice = (invoices || []).find(
+      (i) =>
+        (inv.numericId && (String(i.id) === String(inv.numericId) || String(i.numericId) === String(inv.numericId))) ||
+        (inv.id && (String(i.id) === String(inv.id) || String(i.invoiceNumber) === String(inv.id) || String(i.invoice_number) === String(inv.id)))
+    );
+
+    const mergedInv = matchedFullInvoice ? { ...matchedFullInvoice, ...inv } : inv;
+    const cleanPhone = String(mergedInv.memberPhone || mergedInv.phone || '').replace(/\D/g, '').slice(-10);
+    const targetMemberId = mergedInv.memberId || mergedInv.userId || mergedInv.user_id;
+
+    const matchedMember = (members || []).find(
+      (m) =>
+        (targetMemberId && String(m.id) === String(targetMemberId)) ||
+        (cleanPhone && String(m.phone || '').replace(/\D/g, '').slice(-10) === cleanPhone) ||
+        (mergedInv.memberName && m.name && m.name.trim().toLowerCase() === mergedInv.memberName.trim().toLowerCase())
+    ) || {
+      id: targetMemberId || 'PF-M',
+      name: mergedInv.memberName || 'Member',
+      phone: mergedInv.memberPhone || '',
+      email: mergedInv.memberEmail || ''
+    };
+
+    setSelectedDashboardInvoice({
+      ...mergedInv,
+      id: mergedInv.id || mergedInv.invoiceNumber || mergedInv.invoice_number || 'INV',
+      amount: Number(mergedInv.amount || 0),
+      status: mergedInv.status || 'Paid',
+      date: mergedInv.date || 'Today',
+      planName: mergedInv.planName || mergedInv.plan_name || 'Gym Membership',
+      paymentMethod: mergedInv.paymentMethod || mergedInv.payment_method || 'UPI',
+      createdByName: mergedInv.createdByName || resolveCreatorName(mergedInv.createdByName, mergedInv),
+      member: matchedMember
+    });
+  };
 
   // Dynamic values lookup map for all available stat cards
   const cardValuesMap = {
@@ -744,10 +794,10 @@ export const OwnerDashboard = ({
       <div className="bg-white border border-slate-200 p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate uppercase">
+            <h1 className="app-page-title font-bold text-slate-900 tracking-normal sm:tracking-wide truncate uppercase">
               GYM OVERVIEW
             </h1>
-            <p className="text-[11px] text-slate-500 hidden sm:block">
+            <p className="text-2xs text-slate-500 hidden sm:block max-w-[70ch]">
               Real-time overview of your memberships, live attendance, revenue, and daily operations.
             </p>
           </div>
@@ -757,7 +807,7 @@ export const OwnerDashboard = ({
             <button
               type="button"
               onClick={() => setIsAddEnquiryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 hover:border-blue-300 transition-all cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
             >
               <UserPlus className="w-3.5 h-3.5 text-blue-600" />
               <span>New Enquiry</span>
@@ -774,7 +824,7 @@ export const OwnerDashboard = ({
                   setIsCreateInvoiceOpen(true);
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Create Invoice</span>
@@ -791,7 +841,7 @@ export const OwnerDashboard = ({
                   setIsAddMemberOpen(true);
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Add Member</span>
@@ -812,7 +862,7 @@ export const OwnerDashboard = ({
                 setIsCreateInvoiceOpen(true);
               }
             }}
-            className="h-9.5 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white text-[11px] font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all truncate"
+            className="min-h-[42px] px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white text-sm font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all truncate"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
             <span className="truncate">Invoice</span>
@@ -821,7 +871,7 @@ export const OwnerDashboard = ({
           <button
             type="button"
             onClick={() => setIsAddEnquiryOpen(true)}
-            className="h-9.5 px-2 rounded-xl bg-blue-50 active:bg-blue-100 text-blue-700 text-[11px] font-bold border border-blue-200 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs truncate"
+            className="min-h-[42px] px-2 rounded-xl bg-blue-50 active:bg-blue-100 text-blue-700 text-sm font-semibold border border-blue-200 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs truncate"
           >
             <UserPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span className="truncate">Enquiry</span>
@@ -838,7 +888,7 @@ export const OwnerDashboard = ({
                 setIsAddMemberOpen(true);
               }
             }}
-            className="h-9.5 px-2 rounded-xl bg-slate-900 active:bg-slate-800 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs truncate"
+            className="min-h-[42px] px-2 rounded-xl bg-slate-900 active:bg-slate-800 text-white text-sm font-semibold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs truncate"
           >
             <UserPlus className="w-3.5 h-3.5 text-white shrink-0" />
             <span className="truncate">Member</span>
@@ -847,68 +897,49 @@ export const OwnerDashboard = ({
       </div>
 
       {/* UNIVERSAL DASHBOARD SEARCH BAR (Full width) */}
-      <div className="relative w-full" ref={searchContainerRef}>
-        <div className="bg-white border border-slate-200/90 rounded-xl px-3 h-9 sm:h-9.5 shadow-2xs transition-all focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 flex items-center gap-2">
-          <Search className="w-4 h-4 text-emerald-600 shrink-0" />
-
-          <div className="flex-1 relative flex items-center min-w-0">
-            <input
-              type="text"
-              value={memberSearchQuery}
-              onFocus={() => setIsSearchFocused(true)}
-              onChange={(e) => {
-                setMemberSearchQuery(e.target.value);
-                setIsSearchFocused(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setIsSearchFocused(false);
-                } else if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const target = searchResults[0];
-                  if (target) {
-                    setIsSearchFocused(false);
-                    setMemberSearchQuery('');
-                    if (onOpenMemberProfile) {
-                      onOpenMemberProfile(target.id);
-                    } else {
-                      setSelectedProfileMember(target);
-                      setActiveTab?.('member-profile');
-                    }
-                  } else if (searchStaffResults.length > 0) {
-                    setIsSearchFocused(false);
-                    setMemberSearchQuery('');
-                    setActiveTab?.('staff-accounts');
-                  } else if (searchEnquiryResults.length > 0) {
-                    setIsSearchFocused(false);
-                    setActiveTab?.('enquiries');
-                  }
-                }
-              }}
-              placeholder="Search members, staff, invoices..."
-              className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none pr-2"
-            />
-            {memberSearchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMemberSearchQuery('');
-                }}
-                className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                title="Clear search"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
+      <SearchInput
+        containerRef={searchContainerRef}
+        value={memberSearchQuery}
+        onFocus={() => setIsSearchFocused(true)}
+        onChange={(e) => {
+          setMemberSearchQuery(e.target.value);
+          setIsSearchFocused(true);
+        }}
+        onClear={() => setMemberSearchQuery('')}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setIsSearchFocused(false);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = searchResults[0];
+            if (target) {
+              setIsSearchFocused(false);
+              setMemberSearchQuery('');
+              if (onOpenMemberProfile) {
+                onOpenMemberProfile(target.id);
+              } else {
+                setSelectedProfileMember(target);
+                setActiveTab?.('member-profile');
+              }
+            } else if (searchStaffResults.length > 0) {
+              setIsSearchFocused(false);
+              setMemberSearchQuery('');
+              setActiveTab?.('staff-accounts');
+            } else if (searchEnquiryResults.length > 0) {
+              setIsSearchFocused(false);
+              setActiveTab?.('enquiries');
+            }
+          }
+        }}
+        placeholder="Search members, staff, invoices..."
+        mobilePlaceholder="Search members..."
+        containerClassName="w-full"
+      >
         {/* Live Search Results Dropdown */}
         {isSearchFocused && memberSearchQuery.trim().length > 0 && (
           <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[480px] flex flex-col">
             <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700 text-[11px]">
+              <span className="font-bold text-slate-700 text-2xs">
                 Found {searchResults.length + searchStaffResults.length + searchEnquiryResults.length} result{searchResults.length + searchStaffResults.length + searchEnquiryResults.length === 1 ? '' : 's'} matching "{memberSearchQuery}"
               </span>
               <button
@@ -928,7 +959,7 @@ export const OwnerDashboard = ({
                     setActiveTab?.('members');
                   }
                 }}
-                className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+                className="text-2xs font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
               >
                 <span>View in Member Directory</span>
                 <ArrowRight className="w-3 h-3" />
@@ -939,7 +970,7 @@ export const OwnerDashboard = ({
               {searchResults.length === 0 && searchStaffResults.length === 0 && searchEnquiryResults.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 space-y-2">
                   <p className="font-bold text-xs text-slate-700">No matching records found</p>
-                  <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                  <p className="text-2xs text-slate-400 max-w-md mx-auto">
                     Try searching by name, mobile number, email, date, plan name.....
                   </p>
                 </div>
@@ -976,7 +1007,7 @@ export const OwnerDashboard = ({
                               className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-emerald-300"
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center border border-emerald-200 shrink-0 group-hover:scale-105 transition-transform">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-sm flex items-center justify-center border border-emerald-200 shrink-0 group-hover:scale-105 transition-transform">
                               {m.name?.charAt(0) || 'M'}
                             </div>
                           )}
@@ -985,11 +1016,11 @@ export const OwnerDashboard = ({
                               <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 truncate">
                                 {m.name}
                               </span>
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                                 Member
                               </span>
                               <span
-                                className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${mStatus === 'Active'
+                                className={`px-1.5 py-0.2 rounded text-2xs font-bold border ${mStatus === 'Active'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     : mStatus === 'Expiring Soon'
                                       ? 'bg-amber-50 text-amber-700 border-amber-200'
@@ -1001,13 +1032,13 @@ export const OwnerDashboard = ({
                                 {mStatus}
                               </span>
                               {mDue > 0 && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                                   Due: ₹{mDue.toLocaleString('en-IN')}
                                 </span>
                               )}
                             </div>
 
-                            <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
+                            <div className="text-2xs text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
                               {m.phone && (
                                 <span className="font-medium text-slate-700 flex items-center gap-1">
                                   <Phone className="w-2.5 h-2.5 text-slate-400" />
@@ -1030,7 +1061,7 @@ export const OwnerDashboard = ({
                                 </span>
                               )}
                               {m.memberId && (
-                                <span className="text-slate-400 text-[10px]">
+                                <span className="text-slate-400 text-2xs">
                                   #{m.memberId}
                                 </span>
                               )}
@@ -1039,8 +1070,8 @@ export const OwnerDashboard = ({
                         </div>
 
                         <div className="text-left sm:text-right shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase block">Joined / Expiry</span>
-                          <span className="text-[11px] font-semibold text-slate-700 block">
+                          <span className="text-2xs font-semibold text-slate-400 uppercase block">Joined / Expiry</span>
+                          <span className="text-2xs font-semibold text-slate-700 block">
                             {formatDisplayDate(mJoinDate)} → {formatDisplayDate(m.expiryDate)}
                           </span>
                         </div>
@@ -1052,7 +1083,7 @@ export const OwnerDashboard = ({
                   {searchStaffResults.length > 0 && (
                     <div className="p-2.5 bg-indigo-50/40 border-t border-slate-200">
                       <div className="flex items-center justify-between mb-2 px-1">
-                        <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="text-2xs font-semibold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
                           Matching Staff & Coaches ({searchStaffResults.length})
                         </span>
@@ -1063,7 +1094,7 @@ export const OwnerDashboard = ({
                             setIsSearchFocused(false);
                             setActiveTab?.('staff-accounts');
                           }}
-                          className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                          className="text-2xs font-bold text-indigo-700 hover:underline cursor-pointer"
                         >
                           Open Staff Hub
                         </button>
@@ -1098,17 +1129,17 @@ export const OwnerDashboard = ({
                                   <span className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 truncate">
                                     {stf.name}
                                   </span>
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                                     Staff • {stf.roleLabel}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                <div className="text-2xs text-slate-500 flex items-center gap-2 mt-0.5">
                                   {stf.phone && <span>{stf.phone}</span>}
                                   {stf.email && <span className="text-slate-400 truncate max-w-[150px]">{stf.email}</span>}
                                 </div>
                               </div>
                             </div>
-                            <span className="text-[10px] font-bold text-indigo-600 shrink-0 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                            <span className="text-2xs font-bold text-indigo-600 shrink-0 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                               <span>Manage</span>
                               <ArrowRight className="w-3 h-3" />
                             </span>
@@ -1122,7 +1153,7 @@ export const OwnerDashboard = ({
                   {searchEnquiryResults.length > 0 && (
                     <div className="p-2.5 bg-slate-50/60 border-t border-slate-200">
                       <div className="flex items-center justify-between mb-2 px-1">
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <span className="text-2xs font-semibold text-slate-600 uppercase tracking-wider">
                           Matching Leads & Enquiries ({searchEnquiryResults.length})
                         </span>
                         <button
@@ -1132,7 +1163,7 @@ export const OwnerDashboard = ({
                             setIsSearchFocused(false);
                             setActiveTab?.('enquiries');
                           }}
-                          className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          className="text-2xs font-bold text-indigo-600 hover:underline cursor-pointer"
                         >
                           Open Leads Hub
                         </button>
@@ -1154,17 +1185,17 @@ export const OwnerDashboard = ({
                                 <span className="font-bold text-xs text-slate-900 truncate">
                                   {enq.name || enq.fullName}
                                 </span>
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <span className="text-2xs font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                   Lead • {enq.status || 'Active'}
                                 </span>
                               </div>
-                              <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                              <div className="text-2xs text-slate-500 flex items-center gap-2 mt-0.5">
                                 {enq.phone && <span>{enq.phone}</span>}
                                 {enq.planInterested && <span className="text-indigo-600">Interested: {enq.planInterested}</span>}
                                 {enq.date && <span>Date: {formatDisplayDate(enq.date)}</span>}
                               </div>
                             </div>
-                            <span className="text-[10px] font-bold text-indigo-600 shrink-0">
+                            <span className="text-2xs font-bold text-indigo-600 shrink-0">
                               View Lead →
                             </span>
                           </div>
@@ -1177,16 +1208,16 @@ export const OwnerDashboard = ({
             </div>
           </div>
         )}
-      </div>
+      </SearchInput>
 
       {/* 2. CUSTOMIZABLE STAT CARDS SECTION */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider truncate">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800 uppercase tracking-normal sm:tracking-wide truncate">
               OPERATIONAL METRICS
             </span>
-            <span className="hidden sm:inline-flex text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
+            <span className="hidden sm:inline-flex text-2xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
               {activeStatCards.length} Cards Active
             </span>
           </div>
@@ -1195,7 +1226,7 @@ export const OwnerDashboard = ({
             <button
               type="button"
               onClick={() => setIsCustomizeCardsOpen(true)}
-              className="h-7 px-2 sm:px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-[10px] sm:text-[11px] font-bold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+              className="h-7 px-2 sm:px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-2xs sm:text-xs font-semibold border border-slate-200 hover:border-slate-300 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
               title="Customise Cards"
               aria-label="Customise Cards"
             >
@@ -1302,7 +1333,7 @@ export const OwnerDashboard = ({
               <div
                 key={card.id}
                 onClick={() => handleCardClick(card)}
-                className={`group relative bg-white border border-slate-200 rounded-xl p-2.5 sm:p-3.5 shadow-2xs hover:shadow-sm ${colorClasses.borderHover} transition-all flex flex-col justify-between cursor-pointer active:scale-[0.98] select-none`}
+                className={`group relative bg-white border border-slate-200 rounded-xl p-3 sm:p-3.5 shadow-2xs hover:shadow-sm ${colorClasses.borderHover} transition-all flex flex-col justify-between cursor-pointer active:scale-[0.98] select-none`}
               >
                 {/* Remove Card 'X' Button on top-right */}
                 <button
@@ -1317,10 +1348,10 @@ export const OwnerDashboard = ({
                 {/* Top: Label + Icon */}
                 <div className="flex items-center justify-between gap-1 pr-3">
                   <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-normal sm:tracking-wide block truncate">
                       {card.shortLabel || card.label}
                     </span>
-                    <span className={`text-[8px] sm:text-[9px] font-semibold px-1 py-0.2 rounded border ${colorClasses.badgeBg} inline-block`}>
+                    <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded border ${colorClasses.badgeBg} inline-block`}>
                       {card.badge}
                     </span>
                   </div>
@@ -1331,10 +1362,10 @@ export const OwnerDashboard = ({
 
                 {/* Bottom: Number + Compact Link */}
                 <div className="mt-2 flex items-baseline justify-between pt-1 border-t border-slate-100/80">
-                  <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                  <div className="text-xl font-bold text-slate-900 tracking-tight">
                     {value}
                   </div>
-                  <div className={`flex items-center gap-0.5 text-[10px] font-bold ${colorClasses.linkText} group-hover:translate-x-0.5 transition-transform`}>
+                  <div className={`flex items-center gap-0.5 text-xs font-semibold ${colorClasses.linkText} group-hover:translate-x-0.5 transition-transform`}>
                     <span>View</span>
                     <ChevronRight className="w-3 h-3" />
                   </div>
@@ -1351,10 +1382,10 @@ export const OwnerDashboard = ({
             <div className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-600 flex items-center justify-center transition-colors mb-1">
               <Plus className="w-3 h-3" />
             </div>
-            <span className="text-[11px] font-bold text-slate-700 group-hover:text-emerald-700">
+            <span className="text-2xs font-bold text-slate-700 group-hover:text-emerald-700">
               + Customise
             </span>
-            <span className="text-[9px] text-slate-400">
+            <span className="text-2xs text-slate-400">
               Add / remove
             </span>
           </div>
@@ -1375,7 +1406,7 @@ export const OwnerDashboard = ({
               <span className="font-bold text-slate-900 text-xs sm:text-sm block truncate">
                 {pendingAdvances.length} Staff Salary Advance {pendingAdvances.length === 1 ? 'Application' : 'Applications'} Awaiting Sign-Off
               </span>
-              <span className="text-[11px] text-amber-800 truncate block">
+              <span className="text-2xs text-amber-800 truncate block">
                 Latest request from {pendingAdvances[0]?.staffName || pendingAdvances[0]?.trainerName} for ₹{Number(pendingAdvances[0]?.amount).toLocaleString('en-IN')}. Click to review & disburse.
               </span>
             </div>
@@ -1396,81 +1427,87 @@ export const OwnerDashboard = ({
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">TODAY'S PRIORITY ACTIONS</h3>
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-normal sm:tracking-wide">
+                  TODAY'S PRIORITY ACTIONS
+                </h3>
               </div>
 
-              {/* Segmented Tab Switcher */}
-              <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 overflow-x-auto no-scrollbar shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveActionTab('leads')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                    activeActionTab === 'leads'
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                  }`}
-                >
-                  <span>Hot Leads</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      hotLeads.length > 0
-                        ? 'bg-rose-100 text-rose-700'
-                        : activeActionTab === 'leads'
-                        ? 'bg-slate-100 text-slate-600'
-                        : 'bg-slate-200/80 text-slate-600'
-                    }`}
-                  >
-                    {hotLeads.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveActionTab('renewals')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                    activeActionTab === 'renewals'
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                  }`}
-                >
-                  <span>Renewals Due</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      expiringMembers.length > 0
-                        ? 'bg-amber-100 text-amber-800'
-                        : activeActionTab === 'renewals'
-                        ? 'bg-slate-100 text-slate-600'
-                        : 'bg-slate-200/80 text-slate-600'
-                    }`}
-                  >
-                    {expiringMembers.length}
-                  </span>
-                </button>
-
-                {canAccessFinancials && (
+              {/* Segmented Tab Switcher with Right Fade Hint */}
+              <div className="relative w-full sm:w-auto">
+                <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 overflow-x-auto scrollbar-none w-full">
                   <button
                     type="button"
-                    onClick={() => setActiveActionTab('advances')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      activeActionTab === 'advances'
+                    onClick={() => setActiveActionTab('leads')}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      activeActionTab === 'leads'
                         ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                     }`}
                   >
-                    <span>Advances</span>
+                    <span>Hot Leads</span>
                     <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        pendingAdvances.length > 0
-                          ? 'bg-amber-500 text-white'
-                          : activeActionTab === 'advances'
+                      className={`px-1.5 py-0.5 rounded-full text-2xs font-semibold ${
+                        hotLeads.length > 0
+                          ? 'bg-rose-100 text-rose-700'
+                          : activeActionTab === 'leads'
                           ? 'bg-slate-100 text-slate-600'
                           : 'bg-slate-200/80 text-slate-600'
                       }`}
                     >
-                      {pendingAdvances.length}
+                      {hotLeads.length}
                     </span>
                   </button>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveActionTab('renewals')}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      activeActionTab === 'renewals'
+                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <span>Renewals Due</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-2xs font-semibold ${
+                        expiringMembers.length > 0
+                          ? 'bg-amber-100 text-amber-800'
+                          : activeActionTab === 'renewals'
+                          ? 'bg-slate-100 text-slate-600'
+                          : 'bg-slate-200/80 text-slate-600'
+                      }`}
+                    >
+                      {expiringMembers.length}
+                    </span>
+                  </button>
+
+                  {canAccessFinancials && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveActionTab('advances')}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        activeActionTab === 'advances'
+                          ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                      }`}
+                    >
+                      <span>Advances</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-2xs font-semibold ${
+                          pendingAdvances.length > 0
+                            ? 'bg-amber-500 text-white'
+                            : activeActionTab === 'advances'
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'bg-slate-200/80 text-slate-600'
+                        }`}
+                      >
+                        {pendingAdvances.length}
+                      </span>
+                    </button>
+                  )}
+                </div>
+                {/* Visual scroll/fade hint on right edge for mobile */}
+                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-100/90 to-transparent sm:hidden rounded-r-xl" />
               </div>
             </div>
 
@@ -1478,7 +1515,7 @@ export const OwnerDashboard = ({
             {activeActionTab === 'leads' && (
               <div className="pt-4 space-y-3">
                 {hotLeads.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-400 space-y-2">
+                  <div className="text-center py-8 text-sm text-slate-400 space-y-2">
                     <p>No pending hot leads. All prospects followed up!</p>
                     <button
                       type="button"
@@ -1496,42 +1533,47 @@ export const OwnerDashboard = ({
                         key={lead.id}
                         className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 hover:bg-white transition-all flex flex-col justify-between space-y-2 text-xs"
                       >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-bold text-slate-900">{lead.name}</div>
-                            <div className="text-[11px] text-emerald-700 font-medium">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 truncate" title={lead.name}>{lead.name}</div>
+                            <div className="text-2xs text-emerald-700 font-medium truncate" title={lead.interestedPlan}>
                               {lead.interestedPlan}
                             </div>
                           </div>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="px-1.5 py-0.5 rounded text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0 whitespace-nowrap">
                             {lead.priority}
                           </span>
                         </div>
 
-                        <div className="text-[11px] text-slate-500">
-                          Phone: <span className="font-semibold text-slate-800">{lead.phone}</span>
+                        <div className="text-2xs text-slate-500">
+                          Phone: <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">{lead.phone}</span>
                           {lead.notes && (
-                            <p className="line-clamp-1 italic text-slate-500 mt-1">"{lead.notes}"</p>
+                            <p className="app-clamp-2 italic text-slate-500 mt-1" title={lead.notes}>"{lead.notes}"</p>
                           )}
                         </div>
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
-                          <a
-                            href={getWhatsAppUrl(
-                              lead.phone,
-                              `Hi ${lead.name}, greetings from ${gymInfo?.name || 'our gym'}! Following up on your enquiry for ${lead.interestedPlan}. Would you like to book a complimentary trial session this week?`
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
-                          >
-                            <MessageCircle className="w-3 h-3" />
-                            <span>WhatsApp</span>
-                          </a>
+                          {(() => {
+                            const activeGym = getGymName(gymInfo?.name);
+                            const leadMsg = activeGym
+                              ? `Hi ${lead.name}, greetings from ${activeGym}! Following up on your enquiry for ${lead.interestedPlan || 'membership'}. Would you like to book a complimentary trial session this week?`
+                              : `Hi ${lead.name}, following up on your enquiry for ${lead.interestedPlan || 'membership'}. Would you like to book a complimentary trial session this week?`;
+                            return (
+                              <a
+                                href={getWhatsAppUrl(lead.phone, leadMsg)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>WhatsApp</span>
+                              </a>
+                            );
+                          })()}
                           <button
                             type="button"
                             onClick={() => setActiveTab('enquiries')}
-                            className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 min-h-[36px] rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
                           >
                             View
                           </button>
@@ -1566,13 +1608,13 @@ export const OwnerDashboard = ({
                         key={m.id}
                         className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-white transition-all flex flex-col justify-between space-y-2 text-xs"
                       >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-bold text-slate-900">{m.name}</div>
-                            <div className="text-[11px] text-slate-500">{m.planName}</div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 truncate" title={m.name}>{m.name}</div>
+                            <div className="text-2xs text-slate-500 truncate" title={m.planName}>{m.planName}</div>
                           </div>
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${m.status === 'Expired'
+                            className={`px-1.5 py-0.5 rounded text-2xs font-bold shrink-0 whitespace-nowrap ${m.status === 'Expired'
                                 ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}
@@ -1581,23 +1623,28 @@ export const OwnerDashboard = ({
                           </span>
                         </div>
 
-                        <div className="text-[11px] text-slate-500">
-                          Expires: <span className="font-semibold text-slate-700">{m.expiryDate || 'Immediate'}</span>
+                        <div className="text-2xs text-slate-500">
+                          Expires: <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">{m.expiryDate || 'Immediate'}</span>
                         </div>
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
-                          <a
-                            href={getWhatsAppUrl(
-                              m.phone,
-                              `Hi ${m.name}, this is ${gymName || 'our gym'}. Your ${m.planName} membership is up for renewal. Let us know if you'd like us to reserve your spot!`
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
-                          >
-                            <MessageCircle className="w-3 h-3" />
-                            <span>Remind Renewal</span>
-                          </a>
+                          {(() => {
+                            const activeGym = getGymName(gymInfo?.name);
+                            const renewalMsg = activeGym
+                              ? `Hi ${m.name}, this is ${activeGym}. Your ${m.planName || 'membership'} plan is up for renewal. Let us know if you'd like us to reserve your spot!`
+                              : `Hi ${m.name}, your ${m.planName || 'membership'} plan is up for renewal. Let us know if you'd like us to reserve your spot!`;
+                            return (
+                              <a
+                                href={getWhatsAppUrl(m.phone, renewalMsg)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Remind Renewal</span>
+                              </a>
+                            );
+                          })()}
                         </div>
                       </div>
                     ))}
@@ -1619,7 +1666,7 @@ export const OwnerDashboard = ({
             {activeActionTab === 'advances' && (
               <div className="pt-4 space-y-3">
                 {pendingAdvances.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-400 space-y-2">
+                  <div className="text-center py-8 text-sm text-slate-400 space-y-2">
                     <p>No pending salary advance applications. All requests reviewed!</p>
                   </div>
                 ) : (
@@ -1629,22 +1676,22 @@ export const OwnerDashboard = ({
                         key={req.id}
                         className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-white transition-all flex flex-col justify-between space-y-2 text-xs"
                       >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-bold text-slate-900">{req.staffName || req.trainerName}</div>
-                            <div className="text-[11px] text-amber-700 font-semibold font-mono">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 truncate" title={req.staffName || req.trainerName}>{req.staffName || req.trainerName}</div>
+                            <div className="text-2xs text-amber-700 font-semibold font-mono whitespace-nowrap shrink-0">
                               ₹{Number(req.amount).toLocaleString('en-IN')} Requested
                             </div>
                           </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap">
                             Pending Review
                           </span>
                         </div>
 
-                        <div className="text-[11px] text-slate-500">
-                          <div>Repayment: <span className="font-semibold text-slate-700">{req.repaymentMonth || 'Next Cycle'}</span></div>
+                        <div className="text-2xs text-slate-500">
+                          <div>Repayment: <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">{req.repaymentMonth || 'Next Cycle'}</span></div>
                           {req.reason && (
-                            <p className="line-clamp-1 italic text-slate-600 mt-0.5">"{req.reason}"</p>
+                            <p className="app-clamp-2 italic text-slate-600 mt-0.5" title={req.reason}>"{req.reason}"</p>
                           )}
                         </div>
 
@@ -1652,7 +1699,7 @@ export const OwnerDashboard = ({
                           <button
                             type="button"
                             onClick={() => setActiveTab('advance-pay')}
-                            className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+                            className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-2xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
                           >
                             <Coins className="w-3.5 h-3.5" />
                             <span>Review & Disburse</span>
@@ -1686,23 +1733,24 @@ export const OwnerDashboard = ({
                     {recentInvoicesAudit.slice(0, 4).map((inv) => (
                       <div
                         key={inv.id || inv.numericId}
-                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 hover:bg-white transition-all flex flex-col justify-between space-y-2.5 text-xs shadow-2xs"
+                        onClick={() => handleOpenInvoice(inv)}
+                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 hover:bg-white transition-all flex flex-col justify-between space-y-2.5 text-xs shadow-2xs cursor-pointer active:scale-[0.99]"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[10px] font-mono font-bold text-slate-400">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-2xs font-mono font-bold text-slate-400 whitespace-nowrap shrink-0">
                               #{inv.id}
                             </span>
-                            <div className="font-bold text-slate-900 text-sm">{inv.memberName}</div>
-                            <div className="text-[11px] text-slate-500 font-medium">
+                            <div className="font-bold text-slate-900 text-sm truncate" title={inv.memberName}>{inv.memberName}</div>
+                            <div className="text-2xs text-slate-500 font-medium truncate" title={inv.planName}>
                               {inv.planName}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-sm font-black text-slate-900 font-mono block">
+                          <div className="text-right shrink-0">
+                            <span className="text-sm font-bold text-slate-900 font-mono block whitespace-nowrap">
                               ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                             </span>
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-2xs font-bold whitespace-nowrap ${(inv.status || '').toLowerCase() === 'paid'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}>
@@ -1713,29 +1761,32 @@ export const OwnerDashboard = ({
 
                         {/* CREATOR AUDIT BADGE */}
                         <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-100 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[9px] shrink-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-2xs shrink-0">
                               {(inv.createdByName || 'S').charAt(0).toUpperCase()}
                             </div>
-                            <div className="min-w-0">
-                              <span className="text-[9px] text-emerald-800 uppercase tracking-wider block font-semibold leading-tight">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-2xs text-emerald-800 uppercase tracking-wider block font-semibold leading-tight">
                                 Billed / Created By
                               </span>
-                              <span className="font-bold text-emerald-950 text-xs truncate block">
+                              <span className="font-bold text-emerald-950 text-xs truncate block" title={inv.createdByName || 'Staff / Owner'}>
                                 {inv.createdByName || 'Staff / Owner'}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px] text-slate-400">
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-2xs text-slate-400">
                           <span>Date: {inv.date}</span>
                           <button
                             type="button"
-                            onClick={() => setActiveTab('invoices')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenInvoice(inv);
+                            }}
                             className="font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-0.5 cursor-pointer"
                           >
-                            <span>Open Invoices</span>
+                            <span>View Receipt</span>
                             <ArrowRight className="w-3 h-3" />
                           </button>
                         </div>
@@ -1764,13 +1815,13 @@ export const OwnerDashboard = ({
                       <CalendarDays className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">STAFF LEAVE REQUESTS</h3>
-                      <p className="text-[11px] text-slate-500">
+                      <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">STAFF LEAVE REQUESTS</h3>
+                      <p className="text-2xs text-slate-500">
                         {pendingLeaves.length} {pendingLeaves.length === 1 ? 'staff member has applied for leave' : 'staff members have applied for leave'}
                       </p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {pendingLeaves.length} Pending
                   </span>
@@ -1791,7 +1842,7 @@ export const OwnerDashboard = ({
                         />
                         <div>
                           <div className="font-bold text-slate-900">{req.userName}</div>
-                          <div className="text-[11px] text-indigo-700 font-semibold">
+                          <div className="text-2xs text-indigo-700 font-semibold">
                             {req.leaveType} • {req.daysCount} {req.daysCount === 1 ? 'Day' : 'Days'}
                           </div>
                         </div>
@@ -1799,7 +1850,7 @@ export const OwnerDashboard = ({
                       <button
                         type="button"
                         onClick={() => setActiveTab('leaves')}
-                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xs transition-colors cursor-pointer"
                       >
                         Review
                       </button>
@@ -1829,10 +1880,10 @@ export const OwnerDashboard = ({
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">LIVE GYM FLOOR</h3>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">LIVE GYM FLOOR</h3>
                 <p className="text-xs text-slate-500">Real-time athlete presence</p>
               </div>
-              <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${liveOccupancyCount > 0
+              <span className={`flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-full border ${liveOccupancyCount > 0
                   ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
                   : 'text-slate-500 bg-slate-100 border-slate-200'
                 }`}>
@@ -1856,7 +1907,7 @@ export const OwnerDashboard = ({
                   style={{ width: `${liveOccupancyPct}%` }}
                 ></div>
               </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+              <div className="flex items-center justify-between text-2xs text-slate-400 pt-0.5">
                 <span>{liveOccupancyCount === 1 ? '1 member currently working out' : `${liveOccupancyCount} members currently working out`}</span>
                 <span>{Math.max(0, totalGymMembersCount - liveOccupancyCount)} not in gym</span>
               </div>
@@ -1871,7 +1922,7 @@ export const OwnerDashboard = ({
                 <ShoppingBag className="w-4 h-4 text-slate-600" />
                 <span className="font-semibold text-slate-800">Pro Shop Stock</span>
               </div>
-              <span className="text-[11px] text-slate-500 font-medium">
+              <span className="text-2xs text-slate-500 font-medium">
                 {lowStockProducts.length > 0 ? `${lowStockProducts.length} low stock items` : 'Stock Optimal'}
               </span>
             </div>
@@ -1880,28 +1931,28 @@ export const OwnerDashboard = ({
           {/* Recent Check-ins Feed */}
           <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wide">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 uppercase tracking-wide">
                 <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>RECENT MEMBER CHECK-INS</span>
               </div>
-              <span className="text-[10px] text-slate-400">Live Attendance</span>
+              <span className="text-2xs text-slate-400">Live Attendance</span>
             </div>
 
             <div className="divide-y divide-slate-100 text-xs">
               {recentCheckIns.length === 0 ? (
-                <div className="py-4 text-center text-slate-400 text-xs">No member check-ins recorded today.</div>
+                <div className="py-4 text-center text-slate-400 text-sm">No member check-ins recorded today.</div>
               ) : (
                 recentCheckIns.map((log) => (
-                  <div key={log.id} className="py-2 flex items-center justify-between">
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-slate-900 truncate">{log.personName}</div>
-                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${log.isInside ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
-                        <span>{log.mode}</span>
+                  <div key={log.id} className="py-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1 pr-1">
+                      <div className="font-bold text-slate-900 truncate" title={log.personName}>{log.personName}</div>
+                      <div className="text-2xs text-slate-400 truncate flex items-center gap-1" title={log.mode}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${log.isInside ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                        <span className="truncate">{log.mode}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${log.isInside ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'
+                      <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded whitespace-nowrap ${log.isInside ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'
                         }`}>
                         {log.isInside ? `In: ${log.time}` : `Out: ${log.checkOutTime || log.time}`}
                       </span>
@@ -1929,10 +1980,10 @@ export const OwnerDashboard = ({
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-emerald-600" />
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">
+            <h2 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wide">
               OPERATIONS DIRECTORY
             </h2>
-            <span className="text-[10px] text-slate-400 hidden sm:inline">• Click any page to navigate</span>
+            <span className="text-2xs text-slate-400 hidden sm:inline">• Click any page to navigate</span>
           </div>
         </div>
 
@@ -1952,7 +2003,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate">
                   Classes & Batches
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {classes.length} Schedules Active
                 </div>
               </div>
@@ -1973,7 +2024,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-purple-700 truncate">
                   PT Sessions
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {ptSessions.length} Active Packages
                 </div>
               </div>
@@ -1995,7 +2046,7 @@ export const OwnerDashboard = ({
                   <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
                     Invoices & Billing
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     {invoices.length} Invoices Issued
                   </div>
                 </div>
@@ -2017,7 +2068,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-orange-700 truncate">
                   Equipment Health
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {equipment.filter(e => e.status === 'Operational').length}/{equipment.length} Operational
                 </div>
               </div>
@@ -2038,7 +2089,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-pink-700 truncate">
                   Pro Shop Store
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {lowStockProducts.length > 0 ? `${lowStockProducts.length} low stock` : `${products.length} Products`}
                 </div>
               </div>
@@ -2059,7 +2110,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
                   Membership Plans
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {plans.length} Tier Options
                 </div>
               </div>
@@ -2081,7 +2132,7 @@ export const OwnerDashboard = ({
                   <div className="text-xs font-bold text-slate-800 group-hover:text-amber-700 truncate">
                     Coach Advance Pay
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     {advanceRequests.filter(r => r.status === 'Pending').length} Awaiting Approval
                   </div>
                 </div>
@@ -2103,7 +2154,7 @@ export const OwnerDashboard = ({
                 <div className="text-xs font-bold text-slate-800 group-hover:text-sky-700 truncate">
                   Freeze & Extensions
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-2xs text-slate-500 truncate">
                   {membershipFreezes.length} Active Holds
                 </div>
               </div>
@@ -2125,7 +2176,7 @@ export const OwnerDashboard = ({
                   <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 truncate">
                     Facility Reports
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     Analytics & Export
                   </div>
                 </div>
@@ -2142,7 +2193,7 @@ export const OwnerDashboard = ({
         {/* Mobile Slide Switcher Tabs (Hidden on Desktop) */}
         {canAccessFinancials && (
           <div className="flex lg:hidden items-center justify-between gap-2 px-0.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wide">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 uppercase tracking-wide">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
               <span>KEY ANALYTICS</span>
             </div>
@@ -2150,7 +2201,7 @@ export const OwnerDashboard = ({
               <button
                 type="button"
                 onClick={() => scrollToChartSlide(0)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold transition-all cursor-pointer ${
                   activeChartSlide === 0
                     ? 'bg-white text-emerald-700 shadow-2xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -2161,7 +2212,7 @@ export const OwnerDashboard = ({
               <button
                 type="button"
                 onClick={() => scrollToChartSlide(1)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold transition-all cursor-pointer ${
                   activeChartSlide === 1
                     ? 'bg-white text-emerald-700 shadow-2xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -2189,7 +2240,7 @@ export const OwnerDashboard = ({
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">REVENUE GROWTH TREND</h2>
+                  <h2 className="text-sm sm:text-base font-semibold text-slate-900 uppercase tracking-wide">REVENUE GROWTH TREND</h2>
                   <p className="text-xs text-slate-500">
                     <span className="sm:hidden">Monthly collections</span>
                     <span className="hidden sm:inline">Monthly membership & trainer fee collections (Mar – Aug 2026)</span>
@@ -2265,7 +2316,7 @@ export const OwnerDashboard = ({
               <div>
                 <div className="flex items-center gap-1.5">
                   <PieChartIcon className="w-4 h-4 text-emerald-600" />
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">
+                  <h2 className="text-sm sm:text-base font-semibold text-slate-900 uppercase tracking-wide">
                     ACTIVE VS ALL USERS
                   </h2>
                 </div>
@@ -2326,10 +2377,10 @@ export const OwnerDashboard = ({
 
                 {/* Donut Center Statistic */}
                 <div className="absolute flex flex-col items-center justify-center pointer-events-none text-center">
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                  <span className="text-xl sm:text-2xl font-bold text-slate-900 leading-none">
                     {activeMembersCount}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-0.5">
+                  <span className="text-2xs font-semibold text-slate-500 uppercase tracking-tight mt-0.5">
                     Active / {totalMembersCount}
                   </span>
                 </div>
@@ -2337,7 +2388,7 @@ export const OwnerDashboard = ({
 
               {/* Status Breakdown Legend with Clickable Filtering */}
               <div className="sm:col-span-6 space-y-2">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <div className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                   Membership Breakdown
                 </div>
                 {membershipBreakdown.map((item) => {
@@ -2367,7 +2418,7 @@ export const OwnerDashboard = ({
                       </div>
                       <div className="flex items-center gap-1.5 text-right shrink-0">
                         <span className="font-bold text-slate-900">{item.value}</span>
-                        <span className="text-[10px] text-slate-400">({pct}%)</span>
+                        <span className="text-2xs text-slate-400">({pct}%)</span>
                       </div>
                     </div>
                   );
@@ -2378,7 +2429,7 @@ export const OwnerDashboard = ({
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs mt-3">
             <span className="text-slate-500">
-              Total Lifetime: <strong>{totalMembersCount} athletes</strong>
+              Total Lifetime: <strong>{totalMembersCount} members</strong>
             </span>
             <button
               type="button"
@@ -2425,14 +2476,14 @@ export const OwnerDashboard = ({
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
                   <FileText className="w-4 h-4" />
                 </div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">
-                  RECENT INVOICES & STAFF CREATION AUDIT
+                <h3 className="text-sm sm:text-base font-semibold text-slate-900 uppercase tracking-wide">
+                  RECENT INVOICES
                 </h3>
               </div>
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="px-2.5 py-1 rounded-full text-2xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                 {invoices.length} Total Records
               </span>
               <button
@@ -2457,7 +2508,8 @@ export const OwnerDashboard = ({
                 {recentInvoicesAudit.map((inv) => (
                   <div
                     key={inv.id || inv.numericId}
-                    className="p-3.5 rounded-xl border border-slate-200/90 bg-white shadow-xs space-y-2.5"
+                    onClick={() => handleOpenInvoice(inv)}
+                    className="p-3.5 rounded-xl border border-slate-200/90 bg-white shadow-xs space-y-2.5 cursor-pointer hover:border-emerald-300 active:scale-[0.99] transition-all"
                   >
                     {/* Top Row: Invoice ID + Status + Date */}
                     <div className="flex items-center justify-between gap-2">
@@ -2466,7 +2518,7 @@ export const OwnerDashboard = ({
                           #{inv.id}
                         </span>
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-bold shrink-0 ${
                             (inv.status || '').toLowerCase() === 'paid'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -2475,7 +2527,7 @@ export const OwnerDashboard = ({
                           {inv.status || 'Paid'}
                         </span>
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                      <span className="text-2xs font-mono text-slate-400 shrink-0">
                         {inv.date}
                       </span>
                     </div>
@@ -2487,20 +2539,27 @@ export const OwnerDashboard = ({
                           {inv.memberName}
                         </div>
                         {inv.memberPhone && (
-                          <a
-                            href={`tel:${inv.memberPhone}`}
-                            className="text-xs text-slate-500 hover:text-emerald-600 transition-colors flex items-center gap-1 mt-0.5"
-                          >
-                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate">{inv.memberPhone}</span>
-                          </a>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-slate-500 flex items-center gap-1 font-mono">
+                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{inv.memberPhone}</span>
+                            </span>
+                            <a
+                              href={`tel:${inv.memberPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 transition-colors shrink-0"
+                              title="Call member"
+                            >
+                              <PhoneCall className="w-3 h-3" />
+                            </a>
+                          </div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        <div className="text-2xs uppercase font-semibold text-slate-400 tracking-wider">
                           Amount
                         </div>
-                        <div className="font-mono font-extrabold text-sm text-slate-900">
+                        <div className="font-mono font-bold text-sm text-slate-900">
                           ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                         </div>
                       </div>
@@ -2509,10 +2568,10 @@ export const OwnerDashboard = ({
                     {/* Bottom Row: Plan / Service & Created By Staff */}
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
                       <div className="text-slate-600 font-medium truncate flex-1 min-w-0">
-                        <span className="text-slate-400 text-[11px]">Plan: </span>
+                        <span className="text-slate-400 text-2xs">Plan: </span>
                         <span className="text-slate-800 font-semibold">{inv.planName}</span>
                       </div>
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px] shrink-0">
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-2xs shrink-0">
                         <User className="w-3 h-3 text-emerald-700 shrink-0" />
                         <span className="font-semibold truncate max-w-[110px]">
                           {inv.createdByName}
@@ -2527,7 +2586,7 @@ export const OwnerDashboard = ({
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr className="border-b border-slate-100 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                       <th className="pb-2.5 font-semibold">INVOICE ID</th>
                       <th className="pb-2.5 font-semibold">MEMBER</th>
                       <th className="pb-2.5 font-semibold">PLAN / SERVICE</th>
@@ -2539,37 +2598,41 @@ export const OwnerDashboard = ({
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {recentInvoicesAudit.map((inv) => (
-                      <tr key={inv.id || inv.numericId} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 font-mono font-bold text-slate-900">
+                      <tr
+                        key={inv.id || inv.numericId}
+                        onClick={() => handleOpenInvoice(inv)}
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer"
+                      >
+                        <td className="py-3 font-mono font-medium text-slate-900 whitespace-nowrap shrink-0">
                           #{inv.id}
                         </td>
-                        <td className="py-3">
-                          <div className="font-bold text-slate-800">{inv.memberName}</div>
+                        <td className="py-3 max-w-[180px]">
+                          <div className="font-bold text-slate-800 truncate" title={inv.memberName}>{inv.memberName}</div>
                           {inv.memberPhone && (
-                            <div className="text-[11px] text-slate-400">{inv.memberPhone}</div>
+                            <div className="text-2xs text-slate-400 whitespace-nowrap font-mono">{inv.memberPhone}</div>
                           )}
                         </td>
-                        <td className="py-3 text-slate-600">
-                          {inv.planName}
+                        <td className="py-3 text-slate-600 max-w-[160px]">
+                          <div className="truncate" title={inv.planName}>{inv.planName}</div>
                         </td>
-                        <td className="py-3 font-mono font-bold text-slate-900">
+                        <td className="py-3 font-mono font-medium text-slate-900 whitespace-nowrap shrink-0">
                           ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                         </td>
-                        <td className="py-3">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${(inv.status || '').toLowerCase() === 'paid'
+                        <td className="py-3 whitespace-nowrap shrink-0">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-2xs font-bold whitespace-nowrap ${(inv.status || '').toLowerCase() === 'paid'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}>
                             {inv.status || 'Paid'}
                           </span>
                         </td>
-                        <td className="py-3">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px]">
+                        <td className="py-3 max-w-[150px]">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-2xs max-w-full">
                             <User className="w-3 h-3 text-emerald-700 shrink-0" />
-                            <span className="font-bold">{inv.createdByName}</span>
+                            <span className="font-bold truncate" title={inv.createdByName}>{inv.createdByName}</span>
                           </div>
                         </td>
-                        <td className="py-3 text-right text-slate-500 font-mono text-[11px]">
+                        <td className="py-3 text-right text-slate-500 font-mono text-2xs whitespace-nowrap shrink-0">
                           {inv.date}
                         </td>
                       </tr>
@@ -2611,7 +2674,7 @@ export const OwnerDashboard = ({
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Prospect Full Name <span className="text-rose-500">*</span>
               </label>
               <input
@@ -2625,7 +2688,7 @@ export const OwnerDashboard = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Phone Number <span className="text-rose-500">*</span>
               </label>
               <input
@@ -2644,7 +2707,7 @@ export const OwnerDashboard = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Email Address</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Email Address</label>
               <input
                 type="email"
                 value={enquiryFormData.email}
@@ -2655,7 +2718,7 @@ export const OwnerDashboard = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Lead Source</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Lead Source</label>
               <select
                 value={enquiryFormData.source}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, source: e.target.value })}
@@ -2672,7 +2735,7 @@ export const OwnerDashboard = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Interested Plan</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Interested Plan</label>
               <select
                 value={selectedInterestedPlanValue}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, interestedPlan: e.target.value })}
@@ -2702,7 +2765,7 @@ export const OwnerDashboard = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Fitness Goal</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Fitness Goal</label>
               <select
                 value={enquiryFormData.goal || ''}
                 onChange={(e) => setEnquiryFormData({ ...enquiryFormData, goal: e.target.value })}
@@ -2720,7 +2783,7 @@ export const OwnerDashboard = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Lead Priority / Status</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Lead Priority / Status</label>
             <select
               value={enquiryFormData.status}
               onChange={(e) => setEnquiryFormData({ ...enquiryFormData, status: e.target.value })}
@@ -2733,7 +2796,7 @@ export const OwnerDashboard = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Logged By Staff Member <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
@@ -2759,8 +2822,8 @@ export const OwnerDashboard = ({
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-bold text-slate-700">Notes & Discussion Summary</label>
-              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+              <label className="block text-2xs font-bold text-slate-700">Notes & Discussion Summary</label>
+              <span className="text-2xs font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                 Date Stamped: {getTodayFormatted()}
               </span>
             </div>
@@ -2771,7 +2834,7 @@ export const OwnerDashboard = ({
               placeholder="Add details about their requirement, preferred workout hours, fitness history..."
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 resize-none"
             />
-            <p className="text-[9px] text-slate-400 mt-0.5">
+            <p className="text-2xs text-slate-400 mt-0.5">
               Today's date ({getTodayFormatted()}) will automatically be saved in front of this note.
             </p>
           </div>
@@ -2787,7 +2850,7 @@ export const OwnerDashboard = ({
             <button
               type="submit"
               disabled={isSubmittingEnquiry}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               {isSubmittingEnquiry && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSubmittingEnquiry ? 'Saving...' : 'Save Enquiry'}</span>
@@ -2817,6 +2880,225 @@ export const OwnerDashboard = ({
         isOpen={isCreateInvoiceOpen}
         onClose={() => setIsCreateInvoiceOpen(false)}
       />
+
+      {/* TAX INVOICE & RECEIPT MODAL */}
+      <Modal
+        isOpen={!!selectedDashboardInvoice}
+        onClose={() => setSelectedDashboardInvoice(null)}
+        title={selectedDashboardInvoice ? `Tax Invoice & Receipt: #${selectedDashboardInvoice.id?.toUpperCase()}` : 'Tax Invoice'}
+        maxWidth="max-w-2xl"
+      >
+        {selectedDashboardInvoice && (
+          <div className="space-y-4">
+            {/* Header / Actions toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">
+                    Tax Invoice & Receipt
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    Official gym payment voucher & tax summary
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const generated = generateInvoicePdf({
+                        invoice: selectedDashboardInvoice,
+                        member: selectedDashboardInvoice.member,
+                        gymInfo
+                      });
+                      generated.download();
+                      addToast?.(`Downloaded Invoice #${selectedDashboardInvoice.id}`, 'success');
+                    } catch (err) {
+                      console.error('Failed to download invoice PDF:', err);
+                      addToast?.('Failed to download invoice PDF', 'error');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    shareInvoicePdfToMobile(
+                      selectedDashboardInvoice,
+                      selectedDashboardInvoice.member,
+                      gymInfo,
+                      addToast
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </button>
+
+                {onNavigateToEditInvoice && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const invToEdit = selectedDashboardInvoice;
+                      setSelectedDashboardInvoice(null);
+                      onNavigateToEditInvoice(invToEdit);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold cursor-pointer active:scale-95 transition-all"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDashboardInvoice(null);
+                    setActiveTab('invoices');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold cursor-pointer active:scale-95 transition-all"
+                >
+                  <span>All Invoices</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Voucher Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 text-slate-900 shadow-sm space-y-4">
+              {/* Gym Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3 gap-2">
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">{gymInfo?.name || gymName}</h3>
+                  {gymInfo?.address && <p className="text-xs text-slate-500 mt-0.5">{gymInfo.address}</p>}
+                  {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      GSTIN: {gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    #{selectedDashboardInvoice.id}
+                  </span>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    {selectedDashboardInvoice.date}
+                  </div>
+                </div>
+              </div>
+
+              {/* Billed To & Payment Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Billed To Member
+                  </span>
+                  <strong className="text-slate-900 font-bold text-sm block">
+                    {selectedDashboardInvoice.member?.name || selectedDashboardInvoice.memberName}
+                  </strong>
+                  {selectedDashboardInvoice.member?.phone && (
+                    <div className="text-slate-600 flex items-center gap-1.5 font-mono">
+                      <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>{selectedDashboardInvoice.member.phone}</span>
+                    </div>
+                  )}
+                  {selectedDashboardInvoice.member?.email && (
+                    <div className="text-slate-600 flex items-center gap-1.5 truncate">
+                      <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate">{selectedDashboardInvoice.member.email}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1 sm:text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Payment Verification
+                  </span>
+                  <div className="flex justify-between sm:justify-end sm:gap-2">
+                    <span className="text-slate-500">Mode:</span>
+                    <strong className="text-slate-800 font-semibold">{selectedDashboardInvoice.paymentMethod || 'UPI'}</strong>
+                  </div>
+                  <div className="flex justify-between sm:justify-end sm:gap-2">
+                    <span className="text-slate-500">Status:</span>
+                    <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                      (selectedDashboardInvoice.status || '').toLowerCase() === 'paid'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {selectedDashboardInvoice.status || 'Paid'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between sm:justify-end sm:gap-2">
+                    <span className="text-slate-500">Billed By:</span>
+                    <strong className="text-slate-800 font-semibold truncate max-w-[140px]">
+                      {selectedDashboardInvoice.createdByName || 'Staff / Owner'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="p-2.5">Description</th>
+                      <th className="p-2.5 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    <tr>
+                      <td className="p-2.5 text-slate-800">
+                        {selectedDashboardInvoice.planName || 'Gym Membership Subscription'}
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                        ₹{Number(selectedDashboardInvoice.amount || 0).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-bold text-slate-900">
+                    <tr>
+                      <td className="p-2.5 text-xs">Total Amount Paid:</td>
+                      <td className="p-2.5 text-right font-mono text-emerald-700 text-sm">
+                        ₹{Number(selectedDashboardInvoice.amount || 0).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 flex items-center gap-1.5 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDashboardInvoice(null)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
     </div>
   );

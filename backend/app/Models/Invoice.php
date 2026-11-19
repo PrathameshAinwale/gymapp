@@ -12,6 +12,7 @@ class Invoice extends Model
     protected $fillable = [
         'gym_id',
         'invoice_number',
+        'legacy_id',
         'user_id',
         'plan_id',
         'package_type',

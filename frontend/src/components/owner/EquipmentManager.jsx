@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { hasSqlInjection } from '../../utils/validation';
 
 export const EquipmentManager = ({ initialFilterPreset }) => {
@@ -180,53 +181,55 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Equipment & Assets
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Log machine conditions, schedule preventative servicing, and track zone floor allocations.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {equipment.length} units • {maintenanceCount} maintenance
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsAddOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Equipment Asset</span>
-            <span className="inline sm:hidden">Add Asset</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsAddOpen(true)}
+          className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          title="Add Equipment Asset"
+        >
+          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+          <span className="hidden sm:inline">Add Equipment Asset</span>
+          <span className="sm:hidden">Add Asset</span>
+        </button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
         <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Maintenance</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{maintenanceCount} Pending</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Routine inspections</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Maintenance</span>
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">{maintenanceCount} Pending</div>
+          <span className="text-2xs sm:text-2xs text-amber-700 font-medium hidden sm:block">Routine inspections</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Assets</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{equipment.length} Units</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Free weights & machines</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Total Assets</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{equipment.length} Units</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">Free weights & machines</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Operational</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{operationalCount} Ready</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">100% floor certified</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Operational</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">{operationalCount} Ready</div>
+          <span className="text-2xs sm:text-2xs text-emerald-700 font-medium hidden sm:block">100% floor certified</span>
         </div>
       </div>
 
@@ -234,35 +237,23 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
       <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setIsSearchDropdownOpen(true);
-                }}
-                onFocus={() => setIsSearchDropdownOpen(true)}
-                placeholder="Search equipment by name, category, or floor zone..."
-                className="w-full pl-9 pr-9 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-base sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors truncate"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search equipment by name, category, or floor zone..."
+            mobilePlaceholder="Search equipment..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Suggestions Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="p-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                   Matching Equipment
                 </div>
                 {searchSuggestions.map((item) => (
@@ -277,14 +268,15 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
                   >
                     <div>
                       <span className="font-semibold text-slate-800">{item.name}</span>
-                      <span className="text-[10px] text-slate-400 ml-1.5">({item.category})</span>
+                      <span className="text-2xs text-slate-400 ml-1.5">({item.category})</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium">{item.location}</span>
+                    <span className="text-2xs text-slate-500 font-medium">{item.location}</span>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
           <div className="flex items-center gap-2 shrink-0">
@@ -300,7 +292,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
               <Filter className="w-3.5 h-3.5" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                   {activeFiltersCount}
                 </span>
               )}
@@ -310,7 +302,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {filterCategory !== 'ALL' && (
@@ -360,7 +352,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredEquipment.length} records
             </span>
           </div>
@@ -374,7 +366,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
           <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-1">
             {activeFiltersCount > 0 || searchTerm ? "No Matching Equipment Assets" : "No Assets Found"}
           </h3>
-          <p className="text-[11px] sm:text-xs text-slate-500 mb-3 max-w-sm mx-auto">
+          <p className="text-2xs sm:text-xs text-slate-500 mb-3 max-w-sm mx-auto">
             {activeFiltersCount > 0 || searchTerm
               ? "No equipment assets match your current search and filter criteria."
               : "Add your gym's workout machines, free weights, and maintenance schedules."}
@@ -409,50 +401,56 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
                 className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
-                    <div className="min-w-0">
-                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-2xs sm:text-2xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0 whitespace-nowrap">
                         {item.category || 'Gym Equipment'}
                       </span>
-                      <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1 truncate">
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1 truncate" title={item.name}>
                         {item.name}
                       </h3>
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 ${
+                      className={`px-2 py-0.5 rounded-full text-2xs sm:text-2xs font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 whitespace-nowrap ${
                         isOperational
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}
                     >
                       {isOperational ? (
-                        <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
                       ) : (
-                        <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
                       )}
-                      {item.status}
+                      <span>{item.status}</span>
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 text-[11px] sm:text-xs mb-3">
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <span className="text-slate-500 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" /> Location:
+                  <div className="space-y-1.5 text-2xs sm:text-xs mb-3">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 gap-2">
+                      <span className="text-slate-500 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" /> Location:
                       </span>
-                      <span className="font-semibold text-slate-800">{item.location || 'Main Floor'}</span>
+                      <span className="font-semibold text-slate-800 truncate" title={item.location || 'Main Floor'}>
+                        {item.location || 'Main Floor'}
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <span className="text-slate-500 flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400" /> Next Service:
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 gap-2">
+                      <span className="text-slate-500 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" /> Next Service:
                       </span>
-                      <span className="font-semibold text-slate-800">{item.nextServiceDue || item.next_service_due || 'Scheduled'}</span>
+                      <span className="font-semibold text-slate-800 shrink-0 whitespace-nowrap">
+                        {item.nextServiceDue || item.next_service_due || 'Scheduled'}
+                      </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <span className="text-[9px] sm:text-[10px] font-bold uppercase text-slate-400 block">Condition:</span>
-                      <p className="text-slate-700 text-[11px] sm:text-xs mt-0.5 line-clamp-2">{item.condition || 'Operational & structurally sound.'}</p>
+                      <span className="text-2xs sm:text-2xs font-semibold uppercase text-slate-400 block">Condition:</span>
+                      <p className="text-slate-700 text-2xs sm:text-xs mt-0.5 line-clamp-2" title={item.condition || 'Operational & structurally sound.'}>
+                        {item.condition || 'Operational & structurally sound.'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -573,7 +571,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer inline-flex items-center gap-2"
+              className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-md shadow-emerald-600/20 cursor-pointer inline-flex items-center gap-2"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmitting ? 'Saving...' : 'Save Asset'}</span>
@@ -594,7 +592,7 @@ export const EquipmentManager = ({ initialFilterPreset }) => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">Equipment Filters</h3>
-                  <p className="text-[11px] text-slate-400">Filter by category & operational status</p>
+                  <p className="text-2xs text-slate-400">Filter by category & operational status</p>
                 </div>
               </div>
               <button

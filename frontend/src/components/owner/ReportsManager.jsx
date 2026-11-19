@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
+import { SearchInput } from '../common/SearchInput';
 import { useAuth } from '../../context/AuthContext';
 import {
   FileText,
@@ -290,19 +291,22 @@ export const ReportsManager = ({ setActiveTab }) => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Reports & Analytics Center
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Generate customized operational, revenue, attendance, PT sessions, and payroll reports with instant CSV export.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {currentData.length} Total records
+              </div>
             </div>
           </div>
         </div>
@@ -312,10 +316,10 @@ export const ReportsManager = ({ setActiveTab }) => {
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="min-h-[38px] flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all border border-slate-200 cursor-pointer disabled:opacity-50 active:scale-95"
-            title="Refresh from MySQL Database"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            title="Refresh from Database"
           >
-            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
+            <RotateCw className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
 
@@ -323,24 +327,24 @@ export const ReportsManager = ({ setActiveTab }) => {
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className="min-h-[38px] flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 transition-all cursor-pointer active:scale-95"
+              className="hidden sm:flex h-8.5 sm:h-9 px-2.5 sm:px-3.5 items-center justify-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
             >
-              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-              <span><span className="hidden sm:inline">Visual </span>Charts</span>
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Visual Charts</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleExportCSV}
-            className="min-h-[38px] flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 shrink-0" />
             <span><span className="hidden sm:inline">Export </span>CSV</span>
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="min-h-[38px] min-w-[38px] p-2 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
+            className="hidden sm:flex w-8.5 h-8.5 sm:w-9 sm:h-9 items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer shrink-0"
             title="Print Report"
           >
             <Printer className="w-4 h-4" />
@@ -375,7 +379,7 @@ export const ReportsManager = ({ setActiveTab }) => {
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
               <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+              <span className={`px-1.5 py-0.5 rounded-full text-2xs ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
                 {tab.count}
               </span>
             </button>
@@ -387,30 +391,28 @@ export const ReportsManager = ({ setActiveTab }) => {
       <div className="bg-white border border-slate-200 p-3 sm:p-4 rounded-xl shadow-xs flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3 w-full">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder={`Search ${reportCategory} records...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
-              />
-            </div>
+            <SearchInput
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onClear={() => setSearchTerm('')}
+              placeholder={`Search ${reportCategory} records...`}
+              mobilePlaceholder="Search records..."
+              containerClassName="flex-1 min-w-0"
+            />
 
             {/* Dedicated Filter Button on mobile */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`min-h-[44px] sm:min-h-0 flex sm:hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${activeFiltersCount > 0
+              className={`h-9.5 sm:h-9 flex sm:hidden items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 shrink-0 ${activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
             >
-              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <Filter className={`w-3.5 h-3.5 shrink-0 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -420,11 +422,11 @@ export const ReportsManager = ({ setActiveTab }) => {
           <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0">
             {reportCategory === 'revenue' && (
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap hidden sm:inline">Payment:</span>
+                <span className="text-2xs font-bold text-slate-500 whitespace-nowrap hidden sm:inline">Payment:</span>
                 <select
                   value={paymentMethodFilter}
                   onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  className="px-2.5 h-9.5 sm:h-9 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
                 >
                   <option value="ALL">All Payment Modes</option>
                   <option value="UPI">UPI</option>
@@ -453,7 +455,7 @@ export const ReportsManager = ({ setActiveTab }) => {
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -465,7 +467,7 @@ export const ReportsManager = ({ setActiveTab }) => {
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {selectedMonth && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
                 <Calendar className="w-3 h-3 text-emerald-600" />
@@ -511,7 +513,7 @@ export const ReportsManager = ({ setActiveTab }) => {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -556,7 +558,7 @@ export const ReportsManager = ({ setActiveTab }) => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Month Selection</span>
-                  <span className="text-[11px] font-normal text-slate-400">View entire month's report</span>
+                  <span className="text-2xs font-normal text-slate-400">View entire month's report</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -592,7 +594,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors ${selectedMonth === mPreset.value
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${selectedMonth === mPreset.value
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
@@ -610,7 +612,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">Start Date</span>
                     <input
                       type="date"
                       value={startDate}
@@ -619,7 +621,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">End Date</span>
                     <input
                       type="date"
                       value={endDate}
@@ -668,7 +670,7 @@ export const ReportsManager = ({ setActiveTab }) => {
                   <label className="block text-xs font-bold text-slate-700">
                     Payment Mode & Split Settlement
                   </label>
-                  <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                  <span className="text-2xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
                     Online Platforms
                   </span>
                 </div>
@@ -708,7 +710,7 @@ export const ReportsManager = ({ setActiveTab }) => {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
               >
                 Clear Filters
               </button>
@@ -742,26 +744,26 @@ export const ReportsManager = ({ setActiveTab }) => {
                 return (
                   <div key={m.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-bold text-slate-900 text-xs truncate">{m.name}</div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                      <div className="font-bold text-slate-900 text-xs truncate min-w-0 flex-1" title={m.name}>{m.name}</div>
+                      <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border shrink-0 whitespace-nowrap ${
                         isExpired ? 'bg-rose-50 text-rose-700 border-rose-200' : isExp ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       }`}>
                         {effectiveStatus}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 text-[11px]">
-                      <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Plan</span>
-                        <span className="font-semibold text-slate-800 truncate block">{m.planName}</span>
+                    <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 text-2xs">
+                      <div className="min-w-0">
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Plan</span>
+                        <span className="font-semibold text-slate-800 truncate block" title={m.planName}>{m.planName}</span>
                       </div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Expires</span>
+                      <div className="text-right shrink-0 whitespace-nowrap">
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Expires</span>
                         <span className="font-mono text-slate-600 block">{m.expiryDate}</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                      <span>Coach: <strong className="text-emerald-700">{m.trainerName || 'None'}</strong></span>
-                      <span>{m.phone || m.email || ''}</span>
+                    <div className="flex items-center justify-between text-2xs text-slate-500 pt-1 border-t border-slate-100 gap-2">
+                      <span className="truncate min-w-0" title={`Coach: ${m.trainerName || 'None'}`}>Coach: <strong className="text-emerald-700">{m.trainerName || 'None'}</strong></span>
+                      <span className="shrink-0 whitespace-nowrap">{m.phone || m.email || ''}</span>
                     </div>
                   </div>
                 );
@@ -770,25 +772,25 @@ export const ReportsManager = ({ setActiveTab }) => {
               {reportCategory === 'revenue' && currentData.map((inv) => (
                 <div key={inv.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{inv.memberName || inv.member_name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">Invoice #{inv.id}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={inv.memberName || inv.member_name}>{inv.memberName || inv.member_name}</div>
+                      <div className="text-2xs text-slate-400 font-mono whitespace-nowrap shrink-0">Invoice #{inv.id}</div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-black text-emerald-600 text-sm font-mono">₹{Number(inv.amount).toLocaleString('en-IN')}</div>
-                      <span className="px-2 py-0.2 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <div className="text-right shrink-0 whitespace-nowrap">
+                      <div className="font-bold text-emerald-600 text-sm font-mono whitespace-nowrap">₹{Number(inv.amount).toLocaleString('en-IN')}</div>
+                      <span className="px-2 py-0.2 rounded-md text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                         {inv.status}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] p-2 rounded-lg bg-slate-50">
-                    <div className="min-w-0">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Package</span>
-                      <span className="font-semibold text-slate-800 truncate block">{inv.planName}</span>
+                  <div className="flex items-center justify-between text-2xs p-2 rounded-lg bg-slate-50 gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Package</span>
+                      <span className="font-semibold text-slate-800 truncate block" title={inv.planName}>{inv.planName}</span>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Mode • Date</span>
-                      <span className="text-slate-600 font-medium">{inv.paymentMethod || inv.payment_method || 'UPI'} • {inv.date}</span>
+                    <div className="text-right shrink-0 whitespace-nowrap">
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Mode • Date</span>
+                      <span className="text-slate-600 font-medium whitespace-nowrap">{inv.paymentMethod || inv.payment_method || 'UPI'} • {inv.date}</span>
                     </div>
                   </div>
                 </div>
@@ -797,26 +799,26 @@ export const ReportsManager = ({ setActiveTab }) => {
               {reportCategory === 'attendance' && currentData.map((att, idx) => (
                 <div key={att.id || idx} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{att.memberName || att.name}</div>
-                      <div className="text-[10px] text-slate-500 truncate">{att.planName}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={att.memberName || att.name}>{att.memberName || att.name}</div>
+                      <div className="text-2xs text-slate-500 truncate" title={att.planName}>{att.planName}</div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                       {att.status}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-2xs text-center">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Check In</span>
-                      <span className="font-bold text-emerald-700">{att.checkInTime}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Check In</span>
+                      <span className="font-bold text-emerald-700 whitespace-nowrap">{att.checkInTime}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Check Out</span>
-                      <span className="font-semibold text-slate-700">{att.checkOutTime || '--'}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Check Out</span>
+                      <span className="font-semibold text-slate-700 whitespace-nowrap">{att.checkOutTime || '--'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
-                      <span className="font-semibold text-slate-600">{att.duration || (att.checkOutTime ? '1h 15m' : 'In Progress')}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Duration</span>
+                      <span className="font-semibold text-slate-600 whitespace-nowrap">{att.duration || (att.checkOutTime ? '1h 15m' : 'In Progress')}</span>
                     </div>
                   </div>
                 </div>
@@ -825,26 +827,26 @@ export const ReportsManager = ({ setActiveTab }) => {
               {reportCategory === 'pt' && currentData.map((pt) => (
                 <div key={pt.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{pt.memberName}</div>
-                      <div className="text-[10px] text-teal-700 font-semibold truncate">{pt.trainerName}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={pt.memberName}>{pt.memberName}</div>
+                      <div className="text-2xs text-teal-700 font-semibold truncate" title={pt.trainerName}>{pt.trainerName}</div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 shrink-0">
+                    <span className="px-2 py-0.5 rounded text-2xs font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 shrink-0 whitespace-nowrap">
                       OTP: {pt.otp || '****'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-2xs text-center">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Total</span>
-                      <span className="font-bold text-slate-800">{pt.totalSessions}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Total</span>
+                      <span className="font-bold text-slate-800 whitespace-nowrap">{pt.totalSessions}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Done</span>
-                      <span className="font-bold text-emerald-700">{pt.completedSessions}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Done</span>
+                      <span className="font-bold text-emerald-700 whitespace-nowrap">{pt.completedSessions}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Left</span>
-                      <span className="font-bold text-amber-700">{pt.remainingSessions}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Left</span>
+                      <span className="font-bold text-amber-700 whitespace-nowrap">{pt.remainingSessions}</span>
                     </div>
                   </div>
                 </div>
@@ -853,29 +855,29 @@ export const ReportsManager = ({ setActiveTab }) => {
               {reportCategory === 'payroll' && currentData.map((pay) => (
                 <div key={pay.id} className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{pay.trainerName || pay.name}</div>
-                      <div className="text-[10px] text-slate-500 capitalize truncate">{pay.role}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={pay.trainerName || pay.name}>{pay.trainerName || pay.name}</div>
+                      <div className="text-2xs text-slate-500 capitalize truncate" title={pay.role}>{pay.role}</div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-black text-slate-900 text-sm">₹{Number(pay.netPay).toLocaleString('en-IN')}</div>
-                      <span className="px-2 py-0.2 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <div className="text-right shrink-0 whitespace-nowrap">
+                      <div className="font-bold text-slate-900 text-sm whitespace-nowrap">₹{Number(pay.netPay).toLocaleString('en-IN')}</div>
+                      <span className="px-2 py-0.2 rounded-md text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                         {pay.status}
                       </span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-[10px] text-center">
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 text-2xs text-center">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Base</span>
-                      <span className="font-semibold text-slate-700">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Base</span>
+                      <span className="font-semibold text-slate-700 whitespace-nowrap">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Comm/Bonus</span>
-                      <span className="font-semibold text-emerald-700">+₹{(Number(pay.commissions || 0) + Number(pay.bonus || 0)).toLocaleString('en-IN')}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Comm/Bonus</span>
+                      <span className="font-semibold text-emerald-700 whitespace-nowrap">+₹{(Number(pay.commissions || 0) + Number(pay.bonus || 0)).toLocaleString('en-IN')}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Deduct</span>
-                      <span className="font-semibold text-rose-600">-₹{Number(pay.deductions || 0).toLocaleString('en-IN')}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Deduct</span>
+                      <span className="font-semibold text-rose-600 whitespace-nowrap">-₹{Number(pay.deductions || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -887,7 +889,7 @@ export const ReportsManager = ({ setActiveTab }) => {
               {reportCategory === 'members' && (
                 <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Member Name</th>
                   <th className="py-3 px-4">Email / Phone</th>
                   <th className="py-3 px-4">Plan Name</th>
@@ -899,18 +901,26 @@ export const ReportsManager = ({ setActiveTab }) => {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentData.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50/70">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{m.name}</td>
-                    <td className="py-3.5 px-4 text-slate-500">{m.email} • {m.phone || 'N/A'}</td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-800">{m.planName}</td>
-                    <td className="py-3.5 px-4 text-emerald-700 font-medium">{m.trainerName || 'None'}</td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">{m.expiryDate}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={m.name}>{m.name}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-500 max-w-[200px] min-w-0">
+                      <span className="truncate block" title={`${m.email} • ${m.phone || 'N/A'}`}>{m.email} • {m.phone || 'N/A'}</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-800 max-w-[160px] min-w-0">
+                      <span className="truncate block" title={m.planName}>{m.planName}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-emerald-700 font-medium max-w-[140px] min-w-0">
+                      <span className="truncate block" title={m.trainerName || 'None'}>{m.trainerName || 'None'}</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap shrink-0">{m.expiryDate}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                       {(() => {
                         const effectiveStatus = calculateMemberStatus ? calculateMemberStatus(m.expiryDate, m.status) : (m.status || 'Active');
                         const isExp = effectiveStatus === 'Expiring Soon';
                         const isExpired = effectiveStatus === 'Expired';
                         return (
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${isExpired
+                          <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border whitespace-nowrap ${isExpired
                               ? 'bg-rose-50 text-rose-700 border-rose-200'
                               : isExp
                                 ? 'bg-amber-50 text-amber-700 border-amber-200'
@@ -930,7 +940,7 @@ export const ReportsManager = ({ setActiveTab }) => {
           {reportCategory === 'revenue' && (
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Invoice ID</th>
                   <th className="py-3 px-4">Member Name</th>
                   <th className="py-3 px-4">Service / Package</th>
@@ -943,22 +953,26 @@ export const ReportsManager = ({ setActiveTab }) => {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentData.map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50/70">
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{inv.id}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{inv.memberName || inv.member_name}</td>
-                    <td className="py-3.5 px-4 text-slate-700">{inv.planName}</td>
-                    <td className="py-3.5 px-4 font-mono font-black text-emerald-600">₹{Number(inv.amount).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 font-mono font-medium text-slate-800 whitespace-nowrap shrink-0">{inv.id}</td>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={inv.memberName || inv.member_name}>{inv.memberName || inv.member_name}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={inv.planName}>{inv.planName}</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-medium text-emerald-600 whitespace-nowrap shrink-0">₹{Number(inv.amount).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                       {(() => {
                         const method = inv.paymentMethod || inv.payment_method || 'UPI';
                         const isSplit = method.toLowerCase().includes('split');
                         if (isSplit) {
                           return (
                             <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
                                 <Receipt className="w-2.5 h-2.5 text-violet-500" />
                                 Split Payment
                               </span>
-                              <div className="text-[11px] text-slate-700 font-medium">
+                              <div className="text-2xs text-slate-700 font-medium">
                                 {method}
                               </div>
                             </div>
@@ -969,9 +983,9 @@ export const ReportsManager = ({ setActiveTab }) => {
                         );
                       })()}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 font-mono">{inv.date}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <td className="py-3.5 px-4 text-slate-600 font-mono whitespace-nowrap shrink-0">{inv.date}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                      <span className="px-2 py-0.5 rounded-md text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {inv.status}
                       </span>
                     </td>
@@ -984,7 +998,7 @@ export const ReportsManager = ({ setActiveTab }) => {
           {reportCategory === 'attendance' && (
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Member Name</th>
                   <th className="py-3 px-4">Plan Name</th>
                   <th className="py-3 px-4">Date</th>
@@ -997,14 +1011,18 @@ export const ReportsManager = ({ setActiveTab }) => {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentData.map((att, idx) => (
                   <tr key={att.id || idx} className="hover:bg-slate-50/70">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{att.memberName || att.name}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{att.planName}</td>
-                    <td className="py-3.5 px-4 text-slate-500">{att.displayDate || formatDateDisplay(att.date || att.rawDate, { withRelative: true }) || 'Today'}</td>
-                    <td className="py-3.5 px-4 font-bold text-emerald-700">{att.checkInTime}</td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-700">{att.checkOutTime || '--'}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{att.duration || (att.checkOutTime ? '1h 15m' : 'In Progress')}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={att.memberName || att.name}>{att.memberName || att.name}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={att.planName}>{att.planName}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap shrink-0">{att.displayDate || formatDateDisplay(att.date || att.rawDate, { withRelative: true }) || 'Today'}</td>
+                    <td className="py-3.5 px-4 font-medium text-emerald-700 whitespace-nowrap shrink-0">{att.checkInTime}</td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-700 whitespace-nowrap shrink-0">{att.checkOutTime || '--'}</td>
+                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap shrink-0">{att.duration || (att.checkOutTime ? '1h 15m' : 'In Progress')}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                      <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {att.status}
                       </span>
                     </td>
@@ -1017,7 +1035,7 @@ export const ReportsManager = ({ setActiveTab }) => {
           {reportCategory === 'pt' && (
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Member Name</th>
                   <th className="py-3 px-4">Assigned PT Trainer</th>
                   <th className="py-3 px-4">Package</th>
@@ -1030,13 +1048,19 @@ export const ReportsManager = ({ setActiveTab }) => {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentData.map((pt) => (
                   <tr key={pt.id} className="hover:bg-slate-50/70">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{pt.memberName}</td>
-                    <td className="py-3.5 px-4 text-teal-700 font-semibold">{pt.trainerName}</td>
-                    <td className="py-3.5 px-4 text-slate-700">{pt.packageTitle}</td>
-                    <td className="py-3.5 px-4 font-bold">{pt.totalSessions}</td>
-                    <td className="py-3.5 px-4 text-emerald-700 font-bold">{pt.completedSessions}</td>
-                    <td className="py-3.5 px-4 text-amber-700 font-bold">{pt.remainingSessions}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-700">{pt.otp || '****'}</td>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={pt.memberName}>{pt.memberName}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-teal-700 font-semibold max-w-[150px] min-w-0">
+                      <span className="truncate block" title={pt.trainerName}>{pt.trainerName}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={pt.packageTitle}>{pt.packageTitle}</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-medium whitespace-nowrap shrink-0">{pt.totalSessions}</td>
+                    <td className="py-3.5 px-4 text-emerald-700 font-medium whitespace-nowrap shrink-0">{pt.completedSessions}</td>
+                    <td className="py-3.5 px-4 text-amber-700 font-medium whitespace-nowrap shrink-0">{pt.remainingSessions}</td>
+                    <td className="py-3.5 px-4 font-mono font-medium text-indigo-700 whitespace-nowrap shrink-0">{pt.otp || '****'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1046,7 +1070,7 @@ export const ReportsManager = ({ setActiveTab }) => {
           {reportCategory === 'payroll' && (
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3 px-4">Employee</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Base Pay</th>
@@ -1060,15 +1084,19 @@ export const ReportsManager = ({ setActiveTab }) => {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentData.map((pay) => (
                   <tr key={pay.id} className="hover:bg-slate-50/70">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{pay.trainerName || pay.name}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{pay.role}</td>
-                    <td className="py-3.5 px-4 font-semibold">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4 text-emerald-700 font-semibold">+₹{Number(pay.commissions || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4 text-emerald-700 font-semibold">+₹{Number(pay.bonus || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4 text-rose-600 font-semibold">-₹{Number(pay.deductions || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4 font-black text-slate-900">₹{Number(pay.netPay).toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-[180px] min-w-0">
+                      <span className="truncate block" title={pay.trainerName || pay.name}>{pay.trainerName || pay.name}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 max-w-[140px] min-w-0">
+                      <span className="truncate block" title={pay.role}>{pay.role}</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold whitespace-nowrap shrink-0">₹{Number(pay.baseSalary).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-emerald-700 font-semibold whitespace-nowrap shrink-0">+₹{Number(pay.commissions || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-emerald-700 font-semibold whitespace-nowrap shrink-0">+₹{Number(pay.bonus || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-rose-600 font-semibold whitespace-nowrap shrink-0">-₹{Number(pay.deductions || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 whitespace-nowrap shrink-0">₹{Number(pay.netPay).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                      <span className="px-2 py-0.5 rounded-md text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {pay.status}
                       </span>
                     </td>

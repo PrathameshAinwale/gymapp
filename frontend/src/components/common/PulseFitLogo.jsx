@@ -69,21 +69,21 @@ export const ArchFitLogo = ({
         </div>
 
         {/* Brand Wordmark */}
-        <div className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 mt-1">
+        <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 mt-1">
           ARCH<span className="text-lime-500">FIT</span>
         </div>
 
         {/* Tagline 1 */}
-        <div className={`flex items-center gap-2 mt-1 text-[10px] sm:text-[11px] font-black tracking-[0.22em] uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+        <div className={`flex items-center gap-2 mt-1 text-2xs sm:text-2xs font-bold tracking-[0.22em] uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           <span>MANAGE</span>
-          <span className="text-lime-500 font-black">|</span>
+          <span className="text-lime-500 font-bold">|</span>
           <span>MOTIVATE</span>
-          <span className="text-lime-500 font-black">|</span>
+          <span className="text-lime-500 font-bold">|</span>
           <span>GROW</span>
         </div>
 
         {/* Tagline 2 */}
-        <div className="mt-1 text-[9px] sm:text-[10px] font-bold tracking-[0.16em] text-slate-400 uppercase">
+        <div className="mt-1 text-2xs sm:text-2xs font-semibold tracking-[0.16em] text-slate-400 uppercase">
           Gym Management App &amp; Website
         </div>
       </div>
@@ -107,13 +107,13 @@ export const ArchFitLogo = ({
       </div>
 
       <div className="flex flex-col justify-center leading-none">
-        <div className="flex items-center text-sm sm:text-base font-black tracking-tight text-slate-900">
+        <div className="flex items-center text-sm sm:text-base font-bold tracking-tight text-slate-900">
           <span>ARCH</span><span className="text-lime-500">FIT</span>
         </div>
       </div>
 
       {showTagline && (
-        <span className="text-[9px] font-black tracking-widest text-lime-600 uppercase truncate hidden sm:inline ml-2 pl-2 border-l border-slate-200">
+        <span className="text-2xs font-semibold tracking-widest text-lime-600 uppercase truncate hidden sm:inline ml-2 pl-2 border-l border-slate-200">
           MANAGE • MOTIVATE • GROW
         </span>
       )}

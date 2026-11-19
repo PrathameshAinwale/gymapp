@@ -23,6 +23,7 @@ import {
   sanitizeDigits,
   preventNonNumericKey
 } from '../../utils/validation';
+import { withTitleCase } from '../../utils/textUtils';
 import {
   IndianRupee,
   Calendar,
@@ -741,7 +742,7 @@ export const EditInvoiceModal = ({
                 <span>Member Information &amp; Selection</span>
               </label>
               {currentMember && (
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                <span className="text-2xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
                   Status: {currentMember.status || 'Active'}
                 </span>
               )}
@@ -750,9 +751,9 @@ export const EditInvoiceModal = ({
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               {/* Member Search & Select (Allows reassigning member) */}
               <div className="sm:col-span-6">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Select / Change Member</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Switch member</span>
+                  <span className="text-2xs text-slate-400 font-normal">Switch member</span>
                 </label>
                 <MemberSearchSelect
                   members={members}
@@ -765,12 +766,12 @@ export const EditInvoiceModal = ({
 
               {/* EDITABLE MEMBER NAME INPUT (Direct User Requirement) */}
               <div className="sm:col-span-6">
-                <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-emerald-900 font-extrabold">
+                <label className="block text-2xs font-bold text-slate-800 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-emerald-900 font-bold">
                     <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Member Name *</span>
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
+                  <span className="text-2xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
                     Editable Field
                   </span>
                 </label>
@@ -790,30 +791,30 @@ export const EditInvoiceModal = ({
 
             {/* Member Snapshot Cards */}
             {currentMember && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] text-slate-600">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-2xs text-slate-600">
                 <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">Contact:</span>
+                  <span className="text-2xs text-slate-400 block font-medium">Contact:</span>
                   <span className="font-bold text-slate-900 truncate block">
                     {memberPhone || currentMember.phone || currentMember.email || 'N/A'}
                   </span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">Current Plan:</span>
+                  <span className="text-2xs text-slate-400 block font-medium">Current Plan:</span>
                   <span className="font-bold text-slate-900 truncate block">
                     {currentMember.planName || 'Standard'}
                   </span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">Plan Expiry:</span>
+                  <span className="text-2xs text-slate-400 block font-medium">Plan Expiry:</span>
                   <span className="font-bold text-slate-900 truncate block">
                     {currentMember.expiryDate ? String(currentMember.expiryDate).split('T')[0] : 'N/A'}
                   </span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-medium">Pending Dues:</span>
+                  <span className="text-2xs text-slate-400 block font-medium">Pending Dues:</span>
                   <span className="font-bold truncate block">
                     {memberDueAmount > 0 ? (
-                      <span className="text-rose-600 font-extrabold font-mono">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
+                      <span className="text-rose-600 font-bold font-mono">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
                     ) : (
                       <span className="text-emerald-700">₹0 Settled</span>
                     )}
@@ -832,7 +833,7 @@ export const EditInvoiceModal = ({
                 <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <Dumbbell className="w-4 h-4" />
                 </div>
-                <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                   Membership Packages &amp; Services
                 </h3>
               </div>
@@ -856,7 +857,7 @@ export const EditInvoiceModal = ({
                       <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                         <Tag className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Package #{idx + 1}</span>
-                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
+                        <span className="text-2xs uppercase font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
                           {pkgRow.packageType}
                         </span>
                       </span>
@@ -876,7 +877,7 @@ export const EditInvoiceModal = ({
                     {/* Line 1: Package Type & Package Name */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        <label className="block text-2xs font-bold text-slate-700 mb-1">
                           Package Type *
                         </label>
                         <select
@@ -894,13 +895,13 @@ export const EditInvoiceModal = ({
 
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700">
+                          <label className="block text-2xs font-bold text-slate-700">
                             Package Name *
                           </label>
                           <button
                             type="button"
                             onClick={() => setQuickAddModal({ isOpen: true, packageType: pkgRow.packageType, targetRowId: pkgRow.id })}
-                            className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                            className="text-2xs text-emerald-600 hover:underline font-bold cursor-pointer"
                           >
                             + New Plan
                           </button>
@@ -931,7 +932,7 @@ export const EditInvoiceModal = ({
                     {/* Line 2: Fee & Discount */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                        <label className="block text-2xs font-bold text-slate-700 mb-1">Fee (₹)</label>
                         <input
                           type="number"
                           min="0"
@@ -944,9 +945,9 @@ export const EditInvoiceModal = ({
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold text-slate-700">Discount</label>
+                          <label className="block text-2xs font-bold text-slate-700">Discount</label>
                           {maxPlanDiscount > 0 && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
+                            <span className="text-2xs font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
                               Max: ₹{maxPlanDiscount.toLocaleString('en-IN')}
                             </span>
                           )}
@@ -968,7 +969,7 @@ export const EditInvoiceModal = ({
                     {(idx === 0 || !isPt) && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                          <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Membership Start Date *</span>
                           </label>
@@ -988,11 +989,11 @@ export const EditInvoiceModal = ({
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                               <span>End Date (Expiry) *</span>
                             </label>
-                            <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            <span className="text-2xs text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                               Auto-calculated
                             </span>
                           </div>
@@ -1014,16 +1015,16 @@ export const EditInvoiceModal = ({
                             <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Dedicated PT Coach Selection</span>
                           </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                          <span className="text-2xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
                             {currentPkgObj?.sessions || 12} Sessions
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                           <div className="sm:col-span-7">
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                            <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                               <span>Assigned Coach / Trainer</span>
-                              <span className="text-rose-500 font-extrabold">* (Compulsory)</span>
+                              <span className="text-rose-500 font-bold">* (Compulsory)</span>
                             </label>
                             <select
                               required
@@ -1046,7 +1047,7 @@ export const EditInvoiceModal = ({
 
                           <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                              <span className="text-2xs font-bold text-slate-700 flex items-center gap-1">
                                 <Percent className="w-3.5 h-3.5 text-indigo-600" />
                                 <span>Commission</span>
                               </span>
@@ -1059,14 +1060,14 @@ export const EditInvoiceModal = ({
                                 <button
                                   type="button"
                                   onClick={() => setCommissionType('percent')}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                  className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
                                 >
                                   %
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setCommissionType('fixed')}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
+                                  className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'}`}
                                 >
                                   ₹
                                 </button>
@@ -1107,7 +1108,7 @@ export const EditInvoiceModal = ({
                 <button
                   type="button"
                   onClick={handleAddPackageRow}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors cursor-pointer active:scale-95 shadow-2xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Package</span>
@@ -1146,7 +1147,7 @@ export const EditInvoiceModal = ({
                   <div key={pkgRow.id || idx} className="flex items-center justify-between">
                     <span className="font-medium text-slate-700">
                       {pkgObj ? pkgObj.name : `Package #${idx + 1}`} ({pkgRow.packageType}):
-                      {rowDisc > 0 && <span className="text-[10px] text-emerald-600 ml-1.5 font-bold">(-₹{rowDisc.toLocaleString('en-IN')} off)</span>}
+                      {rowDisc > 0 && <span className="text-2xs text-emerald-600 ml-1.5 font-bold">(-₹{rowDisc.toLocaleString('en-IN')} off)</span>}
                     </span>
                     <span className="font-mono font-bold text-slate-900">
                       ₹{rowNet.toLocaleString('en-IN')}
@@ -1158,7 +1159,7 @@ export const EditInvoiceModal = ({
 
             {/* GST Details if enabled */}
             {isGstIncluded && (
-              <div className="pt-2 border-t border-emerald-200/60 grid grid-cols-3 gap-2 text-[11px] text-emerald-950 font-semibold">
+              <div className="pt-2 border-t border-emerald-200/60 grid grid-cols-3 gap-2 text-2xs text-emerald-950 font-semibold">
                 <div>Plan Base: <strong className="font-mono">₹{totalBaseFee.toLocaleString('en-IN')}</strong></div>
                 <div>CGST ({halfTaxRate}%): <strong className="font-mono">₹{cgst.toLocaleString('en-IN')}</strong></div>
                 <div>SGST ({halfTaxRate}%): <strong className="font-mono">₹{sgst.toLocaleString('en-IN')}</strong></div>
@@ -1167,7 +1168,7 @@ export const EditInvoiceModal = ({
 
             <div className="flex items-center justify-between pt-2 border-t border-emerald-200/70">
               <span className="text-xs font-bold text-slate-800">Total Invoice Bill Amount:</span>
-              <span className="text-lg font-black text-emerald-700 font-mono">
+              <span className="text-lg font-bold text-emerald-700 font-mono">
                 ₹{totalCalculatedBill.toLocaleString('en-IN')}
               </span>
             </div>
@@ -1184,19 +1185,19 @@ export const EditInvoiceModal = ({
                   Payment Collection &amp; Settlement
                 </span>
               </div>
-              <div className="text-[10px] font-semibold text-slate-500">
+              <div className="text-2xs font-semibold text-slate-500">
                 Total Bill: <strong className="font-mono text-slate-800">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
               </div>
             </div>
 
             {/* Payment / Issue Date */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+              <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Invoice Issue Date (Payment Date) *</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal">
+                <span className="text-2xs text-slate-400 font-normal">
                   Serves as official invoice transaction date
                 </span>
               </label>
@@ -1235,7 +1236,7 @@ export const EditInvoiceModal = ({
                       const rem = Math.max(0, totalCalculatedBill - other);
                       setCashAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -1266,7 +1267,7 @@ export const EditInvoiceModal = ({
                       const rem = Math.max(0, totalCalculatedBill - other);
                       setUpiAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -1297,7 +1298,7 @@ export const EditInvoiceModal = ({
                       const rem = Math.max(0, totalCalculatedBill - other);
                       setAccountTransferAmount(rem > 0 ? String(rem) : '');
                     }}
-                    className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                    className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     Full
                   </button>
@@ -1310,21 +1311,21 @@ export const EditInvoiceModal = ({
               <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                   <div>
-                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                    <label className="block text-2xs font-bold text-amber-950 mb-1">
                       Remaining Balance Due (Pending)
                     </label>
                     <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                      <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
-                      <span className="text-sm font-black font-mono text-rose-600">
+                      <span className="text-2xs font-semibold text-slate-600">Balance Pending:</span>
+                      <span className="text-sm font-bold font-mono text-rose-600">
                         ₹{calculatedBalanceDue.toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                    <label className="block text-2xs font-bold text-amber-950 mb-1 flex items-center justify-between">
                       <span>Promised Due Date *</span>
-                      <span className="text-[10px] font-normal text-amber-800">When balance will be paid</span>
+                      <span className="text-2xs font-normal text-amber-800">When balance will be paid</span>
                     </label>
                     <div className="relative">
                       <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1341,7 +1342,7 @@ export const EditInvoiceModal = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+                <div className="flex items-center justify-between text-2xs pt-2 border-t border-amber-200/80 font-medium">
                   <span className="text-slate-600">
                     Total: <strong className="text-slate-900 font-mono">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
                   </span>
@@ -1361,7 +1362,7 @@ export const EditInvoiceModal = ({
                     Full payment of <strong>₹{totalCalculatedBill.toLocaleString('en-IN')}</strong> accounted for. <strong>No balance remaining.</strong>
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300 shrink-0">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold text-2xs uppercase border border-emerald-300 shrink-0">
                   Fully Settled
                 </span>
               </div>
@@ -1374,12 +1375,12 @@ export const EditInvoiceModal = ({
                   <User className="w-3.5 h-3.5 text-slate-500" />
                   <span>Invoice Handled By (Staff / Owner)</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal">Audit Record</span>
+                <span className="text-2xs text-slate-400 font-normal">Audit Record</span>
               </label>
               <input
                 type="text"
                 value={handledByStaffName}
-                onChange={(e) => setHandledByStaffName(e.target.value)}
+                onChange={withTitleCase((e) => setHandledByStaffName(e.target.value))}
                 placeholder="e.g. Vikramaditya (Owner) / Staff Name"
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
               />
@@ -1387,13 +1388,13 @@ export const EditInvoiceModal = ({
 
             {/* Notes */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Bill Remarks / Notes (Optional)
               </label>
               <input
                 type="text"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={withTitleCase((e) => setNotes(e.target.value))}
                 placeholder="e.g. Renewal discount applied, modified package duration"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
@@ -1418,7 +1419,7 @@ export const EditInvoiceModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer border border-slate-200 active:scale-95 transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95 transition-all"
               >
                 Cancel
               </button>
@@ -1426,7 +1427,7 @@ export const EditInvoiceModal = ({
               <button
                 type="submit"
                 disabled={isSubmitting || totalCalculatedBill <= 0}
-                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 {isSubmitting ? (
                   <>

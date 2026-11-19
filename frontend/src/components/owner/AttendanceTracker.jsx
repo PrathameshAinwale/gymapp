@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import { useGymData } from '../../context/GymDataContext';
+import { SearchInput } from '../common/SearchInput';
 import {
   CalendarCheck,
   Search,
@@ -28,7 +29,8 @@ import {
   Radio,
   Server,
   Wifi,
-  Check
+  Check,
+  Users
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
@@ -446,18 +448,21 @@ export const AttendanceTracker = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Attendance Tracker
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Daily member turnstile check-ins & coach shift tracking.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {formatDateDisplay(selectedDate)}
               </p>
             </div>
           </div>
@@ -467,10 +472,10 @@ export const AttendanceTracker = () => {
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
             title="Muster Report"
           >
-            <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+            <FileText className="w-3.5 h-3.5 text-emerald-600" />
             <span className="hidden sm:inline">Muster Report</span>
           </button>
 
@@ -478,18 +483,19 @@ export const AttendanceTracker = () => {
             <button
               type="button"
               onClick={() => activeTab === 'staff' ? setIsStaffCheckInModalOpen(true) : setIsMemberCheckInModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm shadow-emerald-600/20"
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              <span>{activeTab === 'staff' ? 'Punch In Staff' : 'Punch In Member'}</span>
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <span className="hidden sm:inline">{activeTab === 'staff' ? 'Punch In Staff' : 'Punch In Member'}</span>
+              <span className="sm:hidden">Punch In</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setSelectedDate(todayIso)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs"
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-xs shrink-0"
             >
-              <RotateCcw className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+              <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
               <span>Today</span>
             </button>
           )}
@@ -497,34 +503,66 @@ export const AttendanceTracker = () => {
       </div>
 
       {/* INTERACTIVE DATE TRACKER CONTROL BAR */}
-      <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Left: Date Navigator Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 text-slate-700 font-bold text-xs mr-1">
-              <CalendarDays className="w-4 h-4 text-emerald-600" />
-              <span>Attendance Date:</span>
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          {/* Top on mobile / Left on desktop: Label & Quick Chips */}
+          <div className="flex items-center justify-between sm:justify-start gap-2">
+            <div className="flex items-center gap-1.5 text-slate-700 font-bold text-xs">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0">
+                <CalendarDays className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-xs font-bold text-slate-900 tracking-tight">Attendance Date</span>
             </div>
 
+            {/* Quick Chips: Today & Yesterday */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayIso)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                  isToday
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
+              >
+                Today
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedDate(yesterdayIso)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                  isYesterday
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
+              >
+                Yesterday
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom on mobile / Right on desktop: Symmetrical Date Stepper with Prev & Next */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
             {/* Prev Day Button */}
             <button
               type="button"
               onClick={handlePrevDay}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1 transition-colors cursor-pointer active:scale-95"
+              className="w-9 h-9 sm:w-auto sm:h-8.5 sm:px-2.5 flex items-center justify-center gap-1 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-colors cursor-pointer active:scale-95 shrink-0"
               title="View Previous Day"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Prev Day</span>
             </button>
 
             {/* Native Date Input Picker */}
-            <div className="relative inline-flex items-center">
+            <div className="relative flex-1 sm:flex-none">
               <input
                 type="date"
                 value={selectedDate}
                 max={todayIso}
                 onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all cursor-pointer shadow-2xs"
+                className="w-full sm:w-44 h-9 sm:h-8.5 px-3 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all cursor-pointer shadow-2xs text-center"
               />
             </div>
 
@@ -533,75 +571,50 @@ export const AttendanceTracker = () => {
               type="button"
               onClick={handleNextDay}
               disabled={selectedDate >= todayIso}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1 transition-colors cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-9 h-9 sm:w-auto sm:h-8.5 sm:px-2.5 flex items-center justify-center gap-1 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-colors cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               title="View Next Day"
             >
               <span className="hidden sm:inline">Next Day</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
-
-            {/* Quick Chips: Today & Yesterday */}
-            <div className="flex items-center gap-1 ml-1">
-              <button
-                type="button"
-                onClick={() => setSelectedDate(todayIso)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isToday
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                  }`}
-              >
-                Today
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedDate(yesterdayIso)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${isYesterday
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                  }`}
-              >
-                Yesterday
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
       {/* KPI Cards (Filtered strictly for selectedDate) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
-        <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-            {isToday ? "Today's Total Footfall" : `Total Footfall (${formatDateDisplay(selectedDate, { withRelative: true })})`}
-          </span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-            {totalDayCheckins}
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
+        {/* Currently on Floor / Members Attended */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-xs hover:border-emerald-300 transition-colors">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
+              {isToday ? 'Currently on Floor' : 'Members Attended'}
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0">
+              <Users className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">
-            {isToday ? 'Turnstile & staff punches (starts at 0)' : `Recorded on ${formatDateDisplay(selectedDate)}`}
-          </span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-            {isToday ? 'Currently on Floor' : 'Members Attended'}
-          </span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1 sm:mt-1.5 tracking-tight">
             {isToday ? `${currentlyInsideCount} Inside Now` : `${dayMemberAttendance.length} Members`}
           </div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">
+          <span className="text-2xs sm:text-2xs text-emerald-700/90 font-medium block truncate mt-0.5">
             {isToday ? `${dayMemberAttendance.length} total check-ins today` : `Checked in on ${formatDateDisplay(selectedDate)}`}
           </span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
-            {isToday ? 'Staff on Duty' : 'Staff On Shift'}
-          </span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+        {/* Staff on Duty / Shift */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-xs hover:border-indigo-300 transition-colors">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
+              {isToday ? 'Staff on Duty' : 'Staff On Shift'}
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center justify-center shrink-0">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-1 sm:mt-1.5 tracking-tight">
             {staffOnDuty} On Duty
           </div>
-          <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">
+          <span className="text-2xs sm:text-2xs text-slate-500 font-medium block truncate mt-0.5">
             {isToday ? 'Active duty shifts' : `Staff logged on ${formatDateDisplay(selectedDate)}`}
           </span>
         </div>
@@ -610,62 +623,57 @@ export const AttendanceTracker = () => {
       {/* Search & Filter Toolbar */}
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
-          {/* Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab('members')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'members'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+          {/* Tabs with Right Fade Hint */}
+          <div className="relative w-full sm:w-auto shrink-0">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start w-full sm:w-auto overflow-x-auto scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setActiveTab('members')}
+                className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'members'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
-            >
-              Members ({dayMemberAttendance.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('staff')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'staff'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+              >
+                Members ({dayMemberAttendance.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('staff')}
+                className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'staff'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
-            >
-              Staff & Trainers ({dayStaffAttendance.length})
-            </button>
+              >
+                Staff & Trainers ({dayStaffAttendance.length})
+              </button>
+            </div>
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-100 to-transparent sm:hidden rounded-r-xl" />
           </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Autocomplete Search Bar */}
-            <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchTerm}
-                onFocus={() => setIsSearchDropdownOpen(true)}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setIsSearchDropdownOpen(true);
-                }}
-                placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
-                className="w-full pl-9 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('');
-                    setIsSearchDropdownOpen(false);
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-
+            <SearchInput
+              containerRef={searchContainerRef}
+              value={searchTerm}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              onClear={() => {
+                setSearchTerm('');
+                setIsSearchDropdownOpen(false);
+              }}
+              placeholder={activeTab === 'members' ? "Search member, pass plan..." : "Search coach, role..."}
+              mobilePlaceholder={activeTab === 'members' ? "Search members..." : "Search staff..."}
+              containerClassName="flex-1 min-w-0"
+            >
               {/* Autocomplete Suggestions */}
               {isSearchDropdownOpen && searchSuggestions.length > 0 && (
                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                  <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                     Suggestions
                   </div>
                   {searchSuggestions.map((item, idx) => (
@@ -680,31 +688,32 @@ export const AttendanceTracker = () => {
                     >
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-800">{item.memberName || item.staffName || item.name}</span>
-                        <span className="text-[10px] text-slate-400">({item.planName || item.role || 'Entry'})</span>
+                        <span className="text-2xs text-slate-400">({item.planName || item.role || 'Entry'})</span>
                       </div>
-                      <span className="text-[10px] text-emerald-600 font-medium">
+                      <span className="text-2xs text-emerald-600 font-medium">
                         {item.checkInTime || 'Checked in'}
                       </span>
                     </button>
                   ))}
                 </div>
               )}
-            </div>
+            </SearchInput>
 
             {/* Action Buttons: Filter */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowFilterModal(true)}
-                className={`px-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${activeFiltersCount > 0
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
+                className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
+                  activeFiltersCount > 0
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
               >
-                <Filter className="w-3.5 h-3.5" />
+                <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
                 <span>Filters</span>
                 {activeFiltersCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                     {activeFiltersCount}
                   </span>
                 )}
@@ -715,7 +724,7 @@ export const AttendanceTracker = () => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {selectedDate !== todayIso && (
@@ -765,7 +774,7 @@ export const AttendanceTracker = () => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {activeTab === 'members' ? filteredMemberAttendance.length : filteredStaffAttendance.length} records
             </span>
           </div>
@@ -800,28 +809,28 @@ export const AttendanceTracker = () => {
               filteredMemberAttendance.map((log, idx) => (
                 <div key={log.id || idx} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{log.memberName || log.name || 'Member'}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">{log.planName || 'Active Pass'}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={log.memberName || log.name || 'Member'}>{log.memberName || log.name || 'Member'}</div>
+                      <div className="text-2xs text-slate-500 mt-0.5 truncate" title={log.planName || 'Active Pass'}>{log.planName || 'Active Pass'}</div>
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold shrink-0 whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <CheckCircle2 className="w-2.5 h-2.5" />
                       <span>{log.status === 'Inside Gym' ? 'Inside Gym' : 'Present'}</span>
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                  <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">In Time</span>
-                      <span className="font-semibold text-emerald-700">{log.checkInTime || log.punchInTime || '--'}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">In Time</span>
+                      <span className="font-semibold text-emerald-700 whitespace-nowrap">{log.checkInTime || log.punchInTime || '--'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Out Time</span>
-                      <span className="font-semibold text-slate-700">{log.checkOutTime || '--'}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Out Time</span>
+                      <span className="font-semibold text-slate-700 whitespace-nowrap">{log.checkOutTime || '--'}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
-                      <span className="font-medium text-slate-600">{log.duration || (log.checkOutTime && log.checkOutTime !== '--' ? '1h 15m' : (log.checkInTime ? 'In gym' : '--'))}</span>
+                      <span className="text-2xs text-slate-400 uppercase font-medium block">Duration</span>
+                      <span className="font-medium text-slate-600 whitespace-nowrap">{log.duration || (log.checkOutTime && log.checkOutTime !== '--' ? '1h 15m' : (log.checkInTime ? 'In gym' : '--'))}</span>
                     </div>
                   </div>
 
@@ -865,7 +874,7 @@ export const AttendanceTracker = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                       <th className="py-3.5 px-5">Member Name</th>
                       <th className="py-3.5 px-5">Plan</th>
                       <th className="py-3.5 px-5">Date</th>
@@ -879,35 +888,39 @@ export const AttendanceTracker = () => {
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredMemberAttendance.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-5 font-bold text-slate-900 text-xs">
-                          {log.memberName || log.name || 'Member'}
+                        <td className="py-3.5 px-5 font-medium text-slate-900 text-xs max-w-[200px]">
+                          <div className="truncate" title={log.memberName || log.name || 'Member'}>
+                            {log.memberName || log.name || 'Member'}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-5 text-slate-600">
-                          {log.planName || 'Active Membership Pass'}
+                        <td className="py-3.5 px-5 text-slate-600 max-w-[180px]">
+                          <div className="truncate" title={log.planName || 'Active Membership Pass'}>
+                            {log.planName || 'Active Membership Pass'}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-5 text-slate-700">
+                        <td className="py-3.5 px-5 text-slate-700 whitespace-nowrap shrink-0">
                           <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>{log.displayDate || formatDateDisplay(log.date || log.rawDate, { withRelative: true }) || 'Today'}</span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-5 text-emerald-700 font-bold">
+                        <td className="py-3.5 px-5 text-emerald-700 font-medium whitespace-nowrap shrink-0">
                           {log.checkInTime || log.punchInTime || '--'}
                         </td>
-                        <td className="py-3.5 px-5 text-slate-700 font-semibold">
+                        <td className="py-3.5 px-5 text-slate-700 font-semibold whitespace-nowrap shrink-0">
                           {log.checkOutTime || '--'}
                         </td>
-                        <td className="py-3.5 px-5 text-slate-500 font-medium">
+                        <td className="py-3.5 px-5 text-slate-500 font-medium whitespace-nowrap shrink-0">
                           {log.duration || (log.checkOutTime && log.checkOutTime !== '--' ? '1h 15m' : (log.checkInTime ? <span className="text-emerald-600 font-bold">In Progress</span> : '--'))}
                         </td>
-                        <td className="py-3.5 px-5">
+                        <td className="py-3.5 px-5 whitespace-nowrap shrink-0">
                           {(!log.checkOutTime || log.checkOutTime === '--' || log.status === 'Inside Gym') ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               <span>Inside Gym</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                               <CheckCircle2 className="w-3 h-3 text-slate-400" />
                               <span>Completed</span>
                             </span>
@@ -924,7 +937,7 @@ export const AttendanceTracker = () => {
                               <span>Punch Out</span>
                             </button>
                           ) : (
-                            <span className="text-[11px] text-slate-400 font-mono">Archived</span>
+                            <span className="text-2xs text-slate-400 font-mono">Archived</span>
                           )}
                         </td>
                       </tr>
@@ -967,10 +980,10 @@ export const AttendanceTracker = () => {
                           <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           <span className="truncate">{stf.staffName}</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 truncate">{stf.role}</div>
+                        <div className="text-2xs text-slate-500 mt-0.5 truncate">{stf.role}</div>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold shrink-0 ${stf.status === 'Unpaid Leave'
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold shrink-0 ${stf.status === 'Unpaid Leave'
                           ? 'bg-rose-50 text-rose-700 border border-rose-200'
                           : isOnDuty
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -1000,19 +1013,19 @@ export const AttendanceTracker = () => {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch In</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Punch In</span>
                         <span className="font-semibold text-slate-800">{stf.checkInTime || '—'}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Punch Out</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Punch Out</span>
                         <span className="font-semibold text-slate-800">
                           {stf.checkOutTime || (isOnDuty ? 'In Progress' : '—')}
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Total Hours</span>
+                        <span className="text-2xs text-slate-400 uppercase font-medium block">Total Hours</span>
                         <span className="font-bold text-emerald-700">{stf.totalHours || (isOnDuty ? 'In progress' : (isPunchedOut ? '8.0 hrs' : '--'))}</span>
                       </div>
                     </div>
@@ -1024,13 +1037,13 @@ export const AttendanceTracker = () => {
                             type="button"
                             disabled={loadingStaffId === (stf.staffId || stf.id)}
                             onClick={() => handleRecordStaffPunch(stf)}
-                            className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
+                            className="px-3 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 flex items-center gap-1.5"
                           >
                             {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
                             <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch Out'}</span>
                           </button>
                         ) : isPunchedOut ? (
-                          <span className="text-emerald-700 font-bold text-[10px] flex items-center gap-1">
+                          <span className="text-emerald-700 font-bold text-2xs flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Shift Completed
                           </span>
                         ) : (
@@ -1038,7 +1051,7 @@ export const AttendanceTracker = () => {
                             type="button"
                             disabled={loadingStaffId === (stf.staffId || stf.id)}
                             onClick={() => handleRecordStaffPunch(stf)}
-                            className="px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
+                            className="px-3 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5"
                           >
                             {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-white" />}
                             <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch In'}</span>
@@ -1073,7 +1086,7 @@ export const AttendanceTracker = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                       <th className="py-3.5 px-5">Trainer / Staff</th>
                       <th className="py-3.5 px-5">Role</th>
                       <th className="py-3.5 px-5">Date</th>
@@ -1091,7 +1104,7 @@ export const AttendanceTracker = () => {
 
                       return (
                         <tr key={stf.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3.5 px-5 font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <td className="py-3.5 px-5 font-medium text-slate-900 text-xs flex items-center gap-2">
                             <Award className="w-4 h-4 text-emerald-600" />
                             <span>{stf.staffName}</span>
                           </td>
@@ -1115,22 +1128,22 @@ export const AttendanceTracker = () => {
                           </td>
                           <td className="py-3.5 px-5">
                             {stf.status === 'Unpaid Leave' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                 <XCircle className="w-3 h-3 text-rose-600" />
                                 <span>Unpaid Leave (Absent)</span>
                               </span>
                             ) : isOnDuty ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                 <span>On Duty</span>
                               </span>
                             ) : isPunchedOut ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 <span>Shift Completed</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                                 <span>{stf.isNotCheckedIn || !stf.checkInTime ? 'Not Checked In' : (stf.status || 'Not Checked In')}</span>
                               </span>
@@ -1138,7 +1151,7 @@ export const AttendanceTracker = () => {
                           </td>
                           <td className="py-3.5 px-5 text-right">
                             {stf.status === 'Unpaid Leave' ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-2xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg">
                                 <XCircle className="w-3.5 h-3.5 text-rose-600" />
                                 <span>Salary Deducted</span>
                               </span>
@@ -1148,13 +1161,13 @@ export const AttendanceTracker = () => {
                                   type="button"
                                   disabled={loadingStaffId === (stf.staffId || stf.id)}
                                   onClick={() => handleRecordStaffPunch(stf)}
-                                  className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
+                                  className="px-3 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer active:scale-95 bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 disabled:opacity-60 inline-flex items-center gap-1.5"
                                 >
                                   {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-rose-600" />}
                                   <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch Out'}</span>
                                 </button>
                               ) : isPunchedOut ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                                <span className="inline-flex items-center gap-1 text-2xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                   <span>Punched Out ({stf.checkOutTime})</span>
                                 </span>
@@ -1163,14 +1176,14 @@ export const AttendanceTracker = () => {
                                   type="button"
                                   disabled={loadingStaffId === (stf.staffId || stf.id)}
                                   onClick={() => handleRecordStaffPunch(stf)}
-                                  className="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
+                                  className="px-3 py-1 rounded-lg text-2xs font-bold border transition-all cursor-pointer active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 inline-flex items-center gap-1.5"
                                 >
                                   {loadingStaffId === (stf.staffId || stf.id) && <Loader2 className="w-3 h-3 animate-spin text-white" />}
                                   <span>{loadingStaffId === (stf.staffId || stf.id) ? 'Saving...' : 'Punch In'}</span>
                                 </button>
                               )
                             ) : (
-                              <span className="text-[11px] text-slate-400 font-mono">Archived</span>
+                              <span className="text-2xs text-slate-400 font-mono">Archived</span>
                             )}
                           </td>
                         </tr>
@@ -1193,7 +1206,7 @@ export const AttendanceTracker = () => {
       >
         <form onSubmit={handleManualMemberCheckIn} className="space-y-3 sm:space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Member *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Select Member *</label>
             <select
               value={selectedMemberId}
               onChange={(e) => setSelectedMemberId(e.target.value)}
@@ -1218,7 +1231,7 @@ export const AttendanceTracker = () => {
             <button
               type="submit"
               disabled={isCheckingInManual}
-              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
             >
               {isCheckingInManual && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
               <span>{isCheckingInManual ? 'Punching In...' : 'Confirm Punch In'}</span>
@@ -1236,7 +1249,7 @@ export const AttendanceTracker = () => {
       >
         <form onSubmit={handleManualStaffCheckIn} className="space-y-3 sm:space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Staff Member *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Select Staff Member *</label>
             <select
               value={selectedStaffId}
               onChange={(e) => setSelectedStaffId(e.target.value)}
@@ -1261,7 +1274,7 @@ export const AttendanceTracker = () => {
             <button
               type="submit"
               disabled={isCheckingInStaff || !selectedStaffId}
-              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
             >
               {isCheckingInStaff && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
               <span>{isCheckingInStaff ? 'Punching In...' : 'Confirm Staff Punch In'}</span>
@@ -1281,13 +1294,13 @@ export const AttendanceTracker = () => {
           {/* Report Header */}
           <div className="p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+              <div className="text-2xs font-semibold text-emerald-700 uppercase tracking-wider">
                 Turnstile & Biometric Muster Roll
               </div>
-              <h3 className="text-sm sm:text-lg font-black text-slate-900 mt-0.5">
+              <h3 className="text-sm sm:text-lg font-bold text-slate-900 mt-0.5">
                 PULSE FIT Athletic Club
               </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-2xs text-slate-500 mt-0.5">
                 Audited check-in & shift logs for <strong>{formatDateDisplay(selectedDate, { includeWeekday: true })}</strong>.
               </p>
             </div>
@@ -1305,16 +1318,16 @@ export const AttendanceTracker = () => {
           {/* KPI Summary Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <div className="text-[9px] uppercase font-bold text-slate-400">Total Day Punches</div>
-              <div className="text-base font-black text-slate-900 mt-0.5">{totalDayCheckins}</div>
+              <div className="text-2xs uppercase font-semibold text-slate-400">Total Day Punches</div>
+              <div className="text-base font-bold text-slate-900 mt-0.5">{totalDayCheckins}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <div className="text-[9px] uppercase font-bold text-slate-400">Members Present</div>
-              <div className="text-base font-black text-emerald-600 mt-0.5">{dayMemberAttendance.length}</div>
+              <div className="text-2xs uppercase font-semibold text-slate-400">Members Present</div>
+              <div className="text-base font-bold text-emerald-600 mt-0.5">{dayMemberAttendance.length}</div>
             </div>
             <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <div className="text-[9px] uppercase font-bold text-slate-400">Staff On Duty/Shift</div>
-              <div className="text-base font-black text-purple-600 mt-0.5">{staffOnDuty}</div>
+              <div className="text-2xs uppercase font-semibold text-slate-400">Staff On Duty/Shift</div>
+              <div className="text-base font-bold text-purple-600 mt-0.5">{staffOnDuty}</div>
             </div>
           </div>
 
@@ -1322,7 +1335,7 @@ export const AttendanceTracker = () => {
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-600 font-bold uppercase text-[9px]">
+                <tr className="bg-slate-100 text-slate-600 font-semibold uppercase text-2xs">
                   <th className="py-2 px-3">Name</th>
                   <th className="py-2 px-3">Plan / Role</th>
                   <th className="py-2 px-3">Punch In</th>
@@ -1341,18 +1354,18 @@ export const AttendanceTracker = () => {
                       <tr key={m.id}>
                         <td className="py-2 px-3 font-semibold">{m.memberName || m.name}</td>
                         <td className="py-2 px-3 text-slate-500">{m.planName}</td>
-                        <td className="py-2 px-3 text-emerald-700 font-bold">{m.checkInTime}</td>
+                        <td className="py-2 px-3 text-emerald-700 font-medium">{m.checkInTime}</td>
                         <td className="py-2 px-3 text-slate-500">{m.checkOutTime || '--'}</td>
-                        <td className="py-2 px-3 text-emerald-600 font-bold">{m.status}</td>
+                        <td className="py-2 px-3 text-emerald-600 font-medium">{m.status}</td>
                       </tr>
                     ))}
                     {dayStaffAttendance.map((s) => (
                       <tr key={s.id} className="bg-slate-50/50">
                         <td className="py-2 px-3 font-semibold text-purple-900">{s.staffName} (Staff)</td>
                         <td className="py-2 px-3 text-slate-500">{s.role}</td>
-                        <td className="py-2 px-3 text-purple-700 font-bold">{s.checkInTime}</td>
+                        <td className="py-2 px-3 text-purple-700 font-medium">{s.checkInTime}</td>
                         <td className="py-2 px-3 text-slate-500">{s.checkOutTime || '--'}</td>
-                        <td className="py-2 px-3 text-purple-600 font-bold">{s.status}</td>
+                        <td className="py-2 px-3 text-purple-600 font-medium">{s.status}</td>
                       </tr>
                     ))}
                   </>
@@ -1361,7 +1374,7 @@ export const AttendanceTracker = () => {
             </table>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-400">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-2xs text-slate-400">
             <span>Official Pulse Fit Turnstile Hardware Sync</span>
             <button
               type="button"
@@ -1386,7 +1399,7 @@ export const AttendanceTracker = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">Attendance Filters</h3>
-                  <p className="text-[11px] text-slate-400">Refine punches by date & stay status</p>
+                  <p className="text-2xs text-slate-400">Refine punches by date & stay status</p>
                 </div>
               </div>
               <button
@@ -1506,7 +1519,7 @@ export const AttendanceTracker = () => {
                 <Server className="w-4 h-4 text-amber-400" />
                 Cloud Server Setting (On Your eSSL Machine)
               </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
+              <span className="text-2xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
                 ADMS Active
               </span>
             </div>
@@ -1598,7 +1611,7 @@ export const AttendanceTracker = () => {
             <Radio className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
             <div className="text-xs text-purple-900">
               <span className="font-bold block text-purple-950">Test Real-Time Biometric Punch</span>
-              <p className="mt-0.5 text-purple-700 text-[11px]">
+              <p className="mt-0.5 text-purple-700 text-2xs">
                 Sends a simulated ADMS punch through the eSSL receiver pipeline. If the member is outside, it checks them in. If they are already inside, it checks them out and calculates duration!
               </p>
             </div>
@@ -1626,7 +1639,7 @@ export const AttendanceTracker = () => {
 
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-3 text-slate-400 text-[10px] uppercase font-bold">Or Enter Custom Device PIN</span>
+            <span className="flex-shrink mx-3 text-slate-400 text-2xs uppercase font-medium">Or Enter Custom Device PIN</span>
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
@@ -1641,7 +1654,7 @@ export const AttendanceTracker = () => {
               onChange={(e) => setCustomPin(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-purple-500 font-mono"
             />
-            <span className="text-[10px] text-slate-400 mt-1 block">
+            <span className="text-2xs text-slate-400 mt-1 block">
               Tip: The PIN matches the user ID enrolled on the biometric machine.
             </span>
           </div>
@@ -1657,7 +1670,7 @@ export const AttendanceTracker = () => {
             <button
               type="submit"
               disabled={isSimulating}
-              className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
             >
               {isSimulating ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />

@@ -339,7 +339,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>SaaS Subscription Plans Management</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -360,7 +360,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
 
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Create New Plan</span>
@@ -379,7 +379,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
           <p className="text-sm text-slate-500">No SaaS plans configured yet.</p>
           <button
             onClick={handleOpenCreate}
-            className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+            className="mt-2.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
           >
             Create Initial Plan
           </button>
@@ -397,7 +397,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
               >
                 {/* Popular Pill */}
                 {plan.is_popular && (
-                  <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1">
+                  <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-indigo-600 text-white text-2xs font-semibold uppercase tracking-wider shadow-xs flex items-center gap-1">
                     <Crown className="w-2.5 h-2.5" /> Most Popular
                   </div>
                 )}
@@ -405,7 +405,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                 <div>
                   {/* Tier Badge & Actions */}
                   <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide border ${theme.badge}`}>
+                    <span className={`px-2 py-0.5 rounded-md text-2xs font-bold uppercase tracking-wide border ${theme.badge}`}>
                       {plan.tier || 'Plan'}
                     </span>
                     <div className="flex items-center gap-1">
@@ -427,7 +427,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                   </div>
 
                   {/* Plan Name & Price */}
-                  <h3 className="text-sm font-extrabold text-slate-900">{plan.name}</h3>
+                  <h3 className="text-sm font-bold text-slate-900">{plan.name}</h3>
                   <p className="text-xs text-slate-500 mt-0.5 line-clamp-2 min-h-[28px]">
                     {plan.description || 'Custom tailored SaaS plan for gym management.'}
                   </p>
@@ -436,18 +436,18 @@ export const PlansManager = ({ onPlansUpdated }) => {
                   <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-0.5">
                     {plan.annual_price != null && (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-black text-slate-900">
+                        <span className="text-lg font-bold text-slate-900">
                           ₹{Number(plan.annual_price).toLocaleString('en-IN')}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-500">/ year</span>
+                        <span className="text-2xs font-bold text-slate-500">/ year</span>
                       </div>
                     )}
                     {plan.monthly_price != null ? (
-                      <div className="text-[11px] font-semibold text-slate-600">
+                      <div className="text-2xs font-semibold text-slate-600">
                         ₹{Number(plan.monthly_price).toLocaleString('en-IN')} / month
                       </div>
                     ) : (
-                      <div className="text-[10px] font-semibold text-purple-700">
+                      <div className="text-2xs font-semibold text-purple-700">
                         Flat Annual Package
                       </div>
                     )}
@@ -456,20 +456,20 @@ export const PlansManager = ({ onPlansUpdated }) => {
                   {/* Quotas & Capacity */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-3 gap-1.5 text-center">
                     <div className="p-1.5 rounded-md bg-slate-50/80 border border-slate-200/70">
-                      <div className="text-[9px] text-slate-500 uppercase font-bold">Athletes</div>
-                      <div className="text-xs font-black text-slate-900 mt-0.5">
+                      <div className="text-2xs text-slate-500 uppercase font-medium">Members</div>
+                      <div className="text-xs font-bold text-slate-900 mt-0.5">
                         {plan.max_members ? plan.max_members : 'Unlimited'}
                       </div>
                     </div>
                     <div className="p-1.5 rounded-md bg-slate-50/80 border border-slate-200/70">
-                      <div className="text-[9px] text-slate-500 uppercase font-bold">Coaches</div>
-                      <div className="text-xs font-black text-slate-900 mt-0.5">
+                      <div className="text-2xs text-slate-500 uppercase font-medium">Coaches</div>
+                      <div className="text-xs font-bold text-slate-900 mt-0.5">
                         {plan.max_trainers ? plan.max_trainers : 'Unlimited'}
                       </div>
                     </div>
                     <div className="p-1.5 rounded-md bg-slate-50/80 border border-slate-200/70">
-                      <div className="text-[9px] text-slate-500 uppercase font-bold">Branches</div>
-                      <div className="text-xs font-black text-slate-900 mt-0.5">
+                      <div className="text-2xs text-slate-500 uppercase font-medium">Branches</div>
+                      <div className="text-xs font-bold text-slate-900 mt-0.5">
                         {plan.max_branches || 1}
                       </div>
                     </div>
@@ -477,7 +477,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
 
                   {/* Features List */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wide block">
                       Included Modules ({planFeatures.length})
                     </span>
                     <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
@@ -523,10 +523,10 @@ export const PlansManager = ({ onPlansUpdated }) => {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-slate-900 text-base">
+                    <h3 className="font-bold text-slate-900 text-base">
                       {editingPlan ? `Edit SaaS Plan: ${editingPlan.name}` : 'Create New SaaS Subscription Plan'}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <span className="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
                       {formData.tier} Tier
                     </span>
                   </div>
@@ -577,21 +577,21 @@ export const PlansManager = ({ onPlansUpdated }) => {
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>2. Modular Features</span>
-                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <span className="px-1.5 py-0.5 rounded-md text-2xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                     {formData.features.length}
                   </span>
                 </button>
               </div>
 
               {/* Quick Tier Preset loader */}
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500">
+              <div className="hidden sm:flex items-center gap-1.5 text-2xs text-slate-500">
                 <span>Load Preset:</span>
                 {['Bronze', 'Silver', 'Gold', 'Platinum'].map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => applyTierPreset(t)}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md text-2xs font-bold border transition-colors cursor-pointer ${
                       formData.tier.toLowerCase() === t.toLowerCase()
                         ? 'bg-white text-indigo-700 border-indigo-200 shadow-xs'
                         : 'bg-white/60 text-slate-600 border-slate-200 hover:bg-white hover:text-slate-900'
@@ -673,13 +673,13 @@ export const PlansManager = ({ onPlansUpdated }) => {
 
                     {/* Quotas & Capacity */}
                     <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200 space-y-3">
-                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                         Capacity &amp; Resource Limits
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                            Max Athletes / Members
+                            Max Members
                           </label>
                           <input
                             type="number"
@@ -689,7 +689,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                             onChange={(e) => setFormData({ ...formData, max_members: e.target.value })}
                             className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                           />
-                          <span className="text-[10px] text-slate-500 mt-1 block">
+                          <span className="text-2xs text-slate-500 mt-1 block">
                             {formData.tier === 'Bronze' ? 'Bronze standard: 200' : formData.tier === 'Silver' ? 'Silver standard: 500' : formData.tier === 'Gold' ? 'Gold standard: 1000' : 'Platinum: Unlimited / custom'}
                           </span>
                         </div>
@@ -705,7 +705,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                             onChange={(e) => setFormData({ ...formData, max_trainers: e.target.value })}
                             className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                           />
-                          <span className="text-[10px] text-slate-500 mt-1 block">
+                          <span className="text-2xs text-slate-500 mt-1 block">
                             {formData.tier === 'Gold' ? 'Gold standard: 10 staff limit' : 'Empty = Unlimited'}
                           </span>
                         </div>
@@ -720,7 +720,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                             onChange={(e) => setFormData({ ...formData, max_branches: e.target.value })}
                             className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                           />
-                          <span className="text-[10px] text-slate-500 mt-1 block">
+                          <span className="text-2xs text-slate-500 mt-1 block">
                             {formData.tier === 'Bronze' ? 'Bronze: 1 single gym' : 'Multi-branch allowance'}
                           </span>
                         </div>
@@ -768,7 +768,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                           <Sparkles className="w-4 h-4 text-indigo-600" />
                           <span>Feature Permissions ({formData.features.length} enabled)</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-2xs text-slate-500 mt-0.5">
                           Switch to the Modular Features tab to customize exact module access for this plan.
                         </p>
                       </div>
@@ -789,11 +789,11 @@ export const PlansManager = ({ onPlansUpdated }) => {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                       <div>
-                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                           <Sparkles className="w-4 h-4 text-indigo-600" />
                           <span>Modular Feature Checklist ({formData.features.length} Selected)</span>
                         </h4>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-2xs text-slate-500">
                           Check each module that will be unlocked for gyms on this tier. Unchecked modules will not appear in their sidebar or navigation.
                         </p>
                       </div>
@@ -801,14 +801,14 @@ export const PlansManager = ({ onPlansUpdated }) => {
                         <button
                           type="button"
                           onClick={handleSelectAllFeatures}
-                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-2xs font-semibold border border-indigo-200 cursor-pointer"
                         >
                           Select All
                         </button>
                         <button
                           type="button"
                           onClick={handleClearFeatures}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold border border-slate-200 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-2xs font-semibold border border-slate-200 cursor-pointer"
                         >
                           Clear All
                         </button>
@@ -818,7 +818,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                     <div className="space-y-4">
                       {SYSTEM_FEATURE_CATEGORIES.map((cat, catIdx) => (
                         <div key={catIdx} className="space-y-2">
-                          <span className="text-[11px] font-black uppercase tracking-wider text-indigo-700 block">
+                          <span className="text-2xs font-semibold uppercase tracking-wider text-indigo-700 block">
                             {cat.category}
                           </span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -847,7 +847,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                                     <div className="text-xs font-bold leading-tight truncate">
                                       {feat.name}
                                     </div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                                    <div className="text-2xs text-slate-500 mt-0.5 line-clamp-1">
                                       {feat.desc}
                                     </div>
                                   </div>
@@ -884,7 +884,7 @@ export const PlansManager = ({ onPlansUpdated }) => {
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-black tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold tracking-wide shadow-md shadow-indigo-500/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
                   >
                     {isSaving ? (
                       <>

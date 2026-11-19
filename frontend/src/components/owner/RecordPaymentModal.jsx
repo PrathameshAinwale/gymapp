@@ -1019,7 +1019,7 @@ export const RecordPaymentModal = ({
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-base font-bold text-slate-900">
                   Payment Recorded & Invoice Issued!
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
@@ -1050,11 +1050,11 @@ export const RecordPaymentModal = ({
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <span className="font-bold text-slate-700">Member:</span>
-                <span className="font-black text-slate-900">{completedInvoiceData.memberName}</span>
+                <span className="font-bold text-slate-900">{completedInvoiceData.memberName}</span>
               </div>
 
               <div className="space-y-1">
-                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                <span className="font-semibold text-slate-500 uppercase tracking-wider text-2xs">
                   Invoiced Packages & Services:
                 </span>
                 <div className="p-2 rounded-lg bg-white border border-slate-200 font-semibold text-slate-800">
@@ -1064,14 +1064,14 @@ export const RecordPaymentModal = ({
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-                  <span className="text-[10px] text-slate-500 font-medium block">Total Bill:</span>
-                  <span className="text-sm font-black text-slate-900">
+                  <span className="text-2xs text-slate-500 font-medium block">Total Bill:</span>
+                  <span className="text-sm font-bold text-slate-900">
                     ₹{Number(completedInvoiceData.totalAmount || 0).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
-                  <span className="text-[10px] text-emerald-700 font-bold block">Paid Amount:</span>
-                  <span className="text-sm font-black text-emerald-800">
+                  <span className="text-2xs text-emerald-700 font-bold block">Paid Amount:</span>
+                  <span className="text-sm font-bold text-emerald-800">
                     ₹{Number(completedInvoiceData.amount || 0).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -1090,7 +1090,7 @@ export const RecordPaymentModal = ({
               <button
                 type="button"
                 onClick={handleDownloadPdf}
-                className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95"
+                className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Download PDF Invoice</span>
@@ -1099,7 +1099,7 @@ export const RecordPaymentModal = ({
               <button
                 type="button"
                 onClick={handleShareWhatsApp}
-                className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+                className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
                 <span>Share on WhatsApp</span>
@@ -1108,7 +1108,7 @@ export const RecordPaymentModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95"
+                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer active:scale-95"
               >
                 Done
               </button>
@@ -1125,7 +1125,7 @@ export const RecordPaymentModal = ({
                   <span>Select Member *</span>
                 </label>
                 {currentMember && (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  <span className="text-2xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
                     Status: {currentMember.status || 'Active'}
                   </span>
                 )}
@@ -1139,30 +1139,30 @@ export const RecordPaymentModal = ({
               />
 
               {currentMember && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] text-slate-600">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-2xs text-slate-600">
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-400 block font-medium">Contact:</span>
+                    <span className="text-2xs text-slate-400 block font-medium">Contact:</span>
                     <span className="font-bold text-slate-900 truncate block">
                       {currentMember.phone || currentMember.email || 'N/A'}
                     </span>
                   </div>
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-400 block font-medium">Current Plan:</span>
+                    <span className="text-2xs text-slate-400 block font-medium">Current Plan:</span>
                     <span className="font-bold text-slate-900 truncate block">
                       {currentMember.planName || 'Standard'}
                     </span>
                   </div>
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-400 block font-medium">Plan Expiry:</span>
+                    <span className="text-2xs text-slate-400 block font-medium">Plan Expiry:</span>
                     <span className="font-bold text-slate-900 truncate block">
                       {currentMember.expiryDate || 'N/A'}
                     </span>
                   </div>
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-400 block font-medium">Pending Dues:</span>
+                    <span className="text-2xs text-slate-400 block font-medium">Pending Dues:</span>
                     <span className="font-bold truncate block">
                       {memberDueAmount > 0 ? (
-                        <span className="text-rose-600 font-extrabold font-mono">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
+                        <span className="text-rose-600 font-bold font-mono">₹{memberDueAmount.toLocaleString('en-IN')} Due</span>
                       ) : (
                         <span className="text-emerald-700">₹0 Settled</span>
                       )}
@@ -1184,13 +1184,13 @@ export const RecordPaymentModal = ({
                     <button
                       type="button"
                       onClick={() => setIsPayingDueOpen(true)}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-2xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                     >
                       <CreditCard className="w-3.5 h-3.5" />
                       <span>Pay Due First</span>
                     </button>
                   </div>
-                  <p className="text-[11px] text-rose-700">
+                  <p className="text-2xs text-rose-700">
                     Existing due balance must be collected and cleared first to prevent losing or overwriting previous member dues.
                   </p>
                 </div>
@@ -1204,14 +1204,14 @@ export const RecordPaymentModal = ({
                   <div className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                     <Dumbbell className="w-4 h-4" />
                   </div>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  <h3 className="text-xs sm:text-sm font-semibold text-slate-900 uppercase tracking-wider">
                     Membership Packages & Services
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddPackageRow}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer active:scale-95"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors cursor-pointer active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Package</span>
@@ -1238,7 +1238,7 @@ export const RecordPaymentModal = ({
                         <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                           <Tag className="w-3.5 h-3.5 text-emerald-600" />
                           <span>Package #{idx + 1}</span>
-                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
+                          <span className="text-2xs uppercase font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1">
                             {pkgRow.packageType}
                           </span>
                         </span>
@@ -1259,7 +1259,7 @@ export const RecordPaymentModal = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Package Type */}
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          <label className="block text-2xs font-bold text-slate-700 mb-1">
                             Package Type *
                           </label>
                           <select
@@ -1278,13 +1278,13 @@ export const RecordPaymentModal = ({
                         {/* Package Name / Selector */}
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-slate-700">
+                            <label className="block text-2xs font-bold text-slate-700">
                               Package Name *
                             </label>
                             <button
                               type="button"
                               onClick={() => handleOpenQuickAdd(pkgRow.packageType, pkgRow.id)}
-                              className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                              className="text-2xs text-emerald-600 hover:underline font-bold cursor-pointer"
                             >
                               + New
                             </button>
@@ -1310,7 +1310,7 @@ export const RecordPaymentModal = ({
                       {/* Line 2: Amount / Fee & Discount (below Package Type and Package Name) */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee (₹)</label>
+                          <label className="block text-2xs font-bold text-slate-700 mb-1">Fee (₹)</label>
                           <input
                             type="number"
                             min="0"
@@ -1323,9 +1323,9 @@ export const RecordPaymentModal = ({
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-slate-700">Discount</label>
+                            <label className="block text-2xs font-bold text-slate-700">Discount</label>
                             {maxPlanDiscount > 0 && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
+                              <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border transition-colors ${Number(pkgRow.discount) > maxPlanDiscount
                                   ? 'bg-rose-100 text-rose-700 border-rose-300 animate-pulse'
                                   : 'bg-amber-50 text-amber-700 border-amber-200'
                                 }`}>
@@ -1347,7 +1347,7 @@ export const RecordPaymentModal = ({
                               }`}
                           />
                           {maxPlanDiscount > 0 && Number(pkgRow.discount) > maxPlanDiscount && (
-                            <p className="text-[10px] text-rose-600 font-bold mt-1">
+                            <p className="text-2xs text-rose-600 font-bold mt-1">
                               ⚠️ Discount cannot exceed ₹{maxPlanDiscount.toLocaleString('en-IN')}
                             </p>
                           )}
@@ -1358,7 +1358,7 @@ export const RecordPaymentModal = ({
                       {(idx === 0 || !isPt) && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                            <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Membership Start Date *</span>
                             </label>
@@ -1378,11 +1378,11 @@ export const RecordPaymentModal = ({
                           </div>
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                              <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
                                 <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                                 <span>End Date (Expiry) *</span>
                               </label>
-                              <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              <span className="text-2xs text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                 Auto-calculated
                               </span>
                             </div>
@@ -1396,7 +1396,7 @@ export const RecordPaymentModal = ({
                           </div>
 
                           {currentMember?.expiryDate && String(currentMember.expiryDate).split('T')[0] >= formatDate(new Date()) && (
-                            <div className="sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-100/80 text-emerald-900 border border-emerald-300 rounded-lg text-[10px] font-semibold">
+                            <div className="sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-100/80 text-emerald-900 border border-emerald-300 rounded-lg text-2xs font-semibold">
                               <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                               <span>
                                 Combined Expiry: Current plan expires on <strong>{String(currentMember.expiryDate).split('T')[0]}</strong>. The new plan duration is stacked onto current expiry, extending validity to <strong>{membershipEndDate}</strong>.
@@ -1405,7 +1405,7 @@ export const RecordPaymentModal = ({
                           )}
 
                           {currentPkgObj && (currentPkgObj.offer || Number(currentPkgObj.offerDays || currentPkgObj.offer_days) > 0) && (
-                            <div className="sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold">
+                            <div className="sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-2xs font-bold">
                               <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>
                                 {currentPkgObj.offer || 'Offer'}{Number(currentPkgObj.offerDays || currentPkgObj.offer_days) > 0 ? ` (+${currentPkgObj.offerDays || currentPkgObj.offer_days} bonus days automatically added to expiry)` : ''}
@@ -1423,16 +1423,16 @@ export const RecordPaymentModal = ({
                               <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
                               <span>Dedicated PT Coach Selection</span>
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                            <span className="text-2xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
                               {currentPkgObj?.sessions || ptCustomSessions} Sessions Included
                             </span>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                             <div className="sm:col-span-7">
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                              <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                                 <span>Assigned Coach / Trainer</span>
-                                <span className="text-rose-500 font-extrabold">* (Compulsory)</span>
+                                <span className="text-rose-500 font-bold">* (Compulsory)</span>
                               </label>
                               <select
                                 required
@@ -1453,7 +1453,7 @@ export const RecordPaymentModal = ({
                                 )}
                               </select>
                               {!selectedTrainerId && (
-                                <span className="text-[10px] text-rose-500 font-semibold mt-1 block">
+                                <span className="text-2xs text-rose-500 font-semibold mt-1 block">
                                   Trainer selection is compulsory for Personal Training.
                                 </span>
                               )}
@@ -1461,7 +1461,7 @@ export const RecordPaymentModal = ({
 
                             <div className="sm:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                <span className="text-2xs font-bold text-slate-700 flex items-center gap-1">
                                   <Percent className="w-3.5 h-3.5 text-indigo-600" />
                                   <span>Commission</span>
                                 </span>
@@ -1474,7 +1474,7 @@ export const RecordPaymentModal = ({
                                   <button
                                     type="button"
                                     onClick={() => setCommissionType('percent')}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
+                                    className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'percent' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
                                       }`}
                                   >
                                     %
@@ -1482,7 +1482,7 @@ export const RecordPaymentModal = ({
                                   <button
                                     type="button"
                                     onClick={() => setCommissionType('fixed')}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
+                                    className={`px-2 py-0.5 rounded-md text-2xs font-bold cursor-pointer transition-all ${commissionType === 'fixed' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500'
                                       }`}
                                   >
                                     ₹
@@ -1528,7 +1528,7 @@ export const RecordPaymentModal = ({
                   <Receipt className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Invoice Bill Breakdown</span>
                 </span>
-                <span className="text-[10px] text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md font-bold">
+                <span className="text-2xs text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md font-bold">
                   {selectedPackages.length} Item(s) Selected
                 </span>
               </div>
@@ -1543,7 +1543,7 @@ export const RecordPaymentModal = ({
                     <div key={pkgRow.id || idx} className="flex items-center justify-between">
                       <span className="font-medium text-slate-700">
                         {pkgObj ? pkgObj.name : `Package #${idx + 1}`} ({pkgRow.packageType}):
-                        {rowDisc > 0 && <span className="text-[10px] text-emerald-600 ml-1.5 font-bold">(-₹{rowDisc.toLocaleString('en-IN')} off)</span>}
+                        {rowDisc > 0 && <span className="text-2xs text-emerald-600 ml-1.5 font-bold">(-₹{rowDisc.toLocaleString('en-IN')} off)</span>}
                       </span>
                       <span className="font-mono font-bold text-slate-900">
                         ₹{rowNet.toLocaleString('en-IN')}
@@ -1555,7 +1555,7 @@ export const RecordPaymentModal = ({
 
               <div className="flex items-center justify-between pt-2 border-t border-emerald-200/70">
                 <span className="text-xs font-bold text-slate-800">Total Invoice Bill Amount:</span>
-                <span className="text-lg font-black text-emerald-700 font-mono">
+                <span className="text-lg font-bold text-emerald-700 font-mono">
                   ₹{totalCalculatedBill.toLocaleString('en-IN')}
                 </span>
               </div>
@@ -1570,19 +1570,19 @@ export const RecordPaymentModal = ({
                     Payment Collection & Settlement
                   </span>
                 </div>
-                <div className="text-[10px] font-semibold text-slate-500">
+                <div className="text-2xs font-semibold text-slate-500">
                   Total Payable: <strong className="font-mono text-slate-800">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
                 </div>
               </div>
 
               {/* Invoice / Payment Date */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <label className="block text-2xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Invoice Date (Payment Date) *</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">
+                  <span className="text-2xs text-slate-400 font-normal">
                     Serves as official invoice & transaction date
                   </span>
                 </label>
@@ -1602,7 +1602,7 @@ export const RecordPaymentModal = ({
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Duplicate Invoice Detected for Active Plan</p>
-                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                      <p className="text-2xs text-amber-800 mt-0.5 leading-relaxed">
                         An identical invoice (#{duplicateActivePlanInvoice.invoiceNumber || duplicateActivePlanInvoice.id || 'INV'}) of <strong>₹{effectivePaidAmount.toLocaleString('en-IN')}</strong> already exists on <strong>{paymentDate}</strong> for {currentMember?.name}'s active plan. If this is a separate transaction, please select a different invoice date or modify bill contents.
                       </p>
                     </div>
@@ -1642,7 +1642,7 @@ export const RecordPaymentModal = ({
                           setAccountTransferAmount('');
                         }
                       }}
-                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                      className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
                       Full
                     </button>
@@ -1679,7 +1679,7 @@ export const RecordPaymentModal = ({
                           setAccountTransferAmount('');
                         }
                       }}
-                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                      className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
                       Full
                     </button>
@@ -1716,7 +1716,7 @@ export const RecordPaymentModal = ({
                           setUpiAmount('');
                         }
                       }}
-                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                      className="px-2 py-1.5 text-2xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-sky-700 hover:border-sky-300 hover:bg-sky-50/50 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                     >
                       Full
                     </button>
@@ -1729,21 +1729,21 @@ export const RecordPaymentModal = ({
                 <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 space-y-3 animate-fadeIn">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                     <div>
-                      <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      <label className="block text-2xs font-bold text-amber-950 mb-1">
                         Remaining Balance Due (Pending)
                       </label>
                       <div className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 flex items-center justify-between shadow-2xs">
-                        <span className="text-[11px] font-semibold text-slate-600">Balance Pending:</span>
-                        <span className="text-sm font-black font-mono text-rose-600">
+                        <span className="text-2xs font-semibold text-slate-600">Balance Pending:</span>
+                        <span className="text-sm font-bold font-mono text-rose-600">
                           ₹{calculatedBalanceDue.toLocaleString('en-IN')}
                         </span>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-amber-950 mb-1 flex items-center justify-between">
+                      <label className="block text-2xs font-bold text-amber-950 mb-1 flex items-center justify-between">
                         <span>Promised Due Date *</span>
-                        <span className="text-[10px] font-normal text-amber-800">When balance will be paid</span>
+                        <span className="text-2xs font-normal text-amber-800">When balance will be paid</span>
                       </label>
                       <div className="relative">
                         <Calendar className="w-3.5 h-3.5 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1758,7 +1758,7 @@ export const RecordPaymentModal = ({
                         />
                       </div>
                       {effectiveModalExpiryDate && (
-                        <div className="flex items-center justify-between text-[10px] text-amber-900 mt-1">
+                        <div className="flex items-center justify-between text-2xs text-amber-900 mt-1">
                           <span>Permitted: {formatDateDisplay(minModalPromiseDate)} to {formatDateDisplay(maxModalPromiseDate)}</span>
                           <span className="font-semibold text-amber-700">(Strictly before expiry)</span>
                         </div>
@@ -1766,7 +1766,7 @@ export const RecordPaymentModal = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-amber-200/80 font-medium">
+                  <div className="flex items-center justify-between text-2xs pt-2 border-t border-amber-200/80 font-medium">
                     <span className="text-slate-600">
                       Total Bill: <strong className="text-slate-900 font-mono">₹{totalCalculatedBill.toLocaleString('en-IN')}</strong>
                     </span>
@@ -1790,7 +1790,7 @@ export const RecordPaymentModal = ({
                       )}
                     </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300 shrink-0">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold text-2xs uppercase border border-emerald-300 shrink-0">
                     No Balance Remaining
                   </span>
                 </div>
@@ -1803,7 +1803,7 @@ export const RecordPaymentModal = ({
                     <User className="w-3.5 h-3.5 text-slate-500" />
                     <span>Invoice Created / Handled By (Staff / Owner)</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Audit Record</span>
+                  <span className="text-2xs text-slate-400 font-normal">Audit Record</span>
                 </label>
                 <input
                   type="text"
@@ -1816,7 +1816,7 @@ export const RecordPaymentModal = ({
 
               {/* Notes */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-2xs font-bold text-slate-700 mb-1">
                   Bill Remarks / Notes (Optional)
                 </label>
                 <input
@@ -1834,7 +1834,7 @@ export const RecordPaymentModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer border border-slate-200 active:scale-95 transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer border border-slate-200 active:scale-95 transition-all"
               >
                 Cancel
               </button>
@@ -1853,7 +1853,7 @@ export const RecordPaymentModal = ({
                 <button
                   type="submit"
                   disabled={isSubmitting || totalCalculatedBill <= 0 || Boolean(duplicateActivePlanInvoice)}
-                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   {isSubmitting ? (
                     <>
@@ -1942,7 +1942,7 @@ export const RecordPaymentModal = ({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Fee / Price (₹) *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">₹</span>
                   <input
                     type="number"
                     min={0}
@@ -2005,7 +2005,7 @@ export const RecordPaymentModal = ({
             <button
               type="submit"
               disabled={isSavingQuickPlan}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
             >
               {isSavingQuickPlan ? (
                 <>

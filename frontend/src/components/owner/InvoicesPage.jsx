@@ -10,6 +10,7 @@ import { PayDueModal } from './PayDueModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
 import { compareInvoicesDesc } from '../../utils/searchUtils';
+import { SearchInput } from '../common/SearchInput';
 import {
   Search,
   FileText,
@@ -915,34 +916,49 @@ export const InvoicesPage = ({
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
 
       {/* 1. CLEAN & CALM HEADER */}
-      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-            Member Invoices
-          </h1>
-          <p className="text-[11px] text-slate-500 hidden sm:block">
-            Search member billing records, view payment history, and generate GST invoices.
-          </p>
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
+                Member Invoices
+              </h1>
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
+                Search member billing records, view payment history, and generate GST invoices.
+              </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {currentDisplayedInvoices?.length || 0} Invoices
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
           <button
             type="button"
             onClick={handleToggleExpandAll}
-            className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 shadow-2xs"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
+            title={filteredMembers.length > 0 && filteredMembers.every((m) => expandedMembers[m.memberKey]) ? 'Collapse All' : 'Expand All'}
           >
-            {filteredMembers.length > 0 && filteredMembers.every((m) => expandedMembers[m.memberKey])
-              ? 'Collapse All'
-              : 'Expand All'}
+            <ChevronDown className="w-3.5 h-3.5 sm:hidden shrink-0" />
+            <span className="hidden sm:inline">
+              {filteredMembers.length > 0 && filteredMembers.every((m) => expandedMembers[m.memberKey])
+                ? 'Collapse All'
+                : 'Expand All'}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => handleOpenCreateInvoice()}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
           >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Create Invoice</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Create Invoice</span>
+            <span className="sm:hidden">Create</span>
           </button>
         </div>
       </div>
@@ -962,19 +978,19 @@ export const InvoicesPage = ({
             }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider truncate">
               Total Invoiced
             </span>
             <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
               <IndianRupee className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+          <div className="text-base sm:text-lg font-bold text-slate-900 tracking-tight my-0.5">
             ₹{(displayedRevenue / 100000).toFixed(2)}L
           </div>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+          <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>₹{displayedRevenue.toLocaleString('en-IN')} Total</span>
-            <span className="text-[9px] sm:text-[10px] text-emerald-600 font-bold">
+            <span className="text-2xs sm:text-2xs text-emerald-600 font-bold">
               {activeFilter === 'ALL' && statusFilter === 'ALL' ? '● Active' : 'View All'}
             </span>
           </div>
@@ -992,19 +1008,19 @@ export const InvoicesPage = ({
             }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider truncate">
               Paid Invoices
             </span>
             <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
               <CheckCircle className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+          <div className="text-base sm:text-lg font-bold text-slate-900 tracking-tight my-0.5">
             {displayedPaidCount}
           </div>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-blue-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
+          <div className="flex items-center justify-between text-2xs sm:text-2xs text-blue-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>Verified Settled</span>
-            <span className="text-[9px] sm:text-[10px] text-blue-600 font-bold">
+            <span className="text-2xs sm:text-2xs text-blue-600 font-bold">
               {statusFilter === 'paid' || activeFilter === 'PAID' ? '● Active' : 'Filter'}
             </span>
           </div>
@@ -1013,19 +1029,19 @@ export const InvoicesPage = ({
         {/* Billed Members */}
         <div className="bg-white border border-slate-200 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1 mb-0.5">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider truncate">
               Billed Members
             </span>
             <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
               <Users className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+          <div className="text-base sm:text-lg font-bold text-slate-900 tracking-tight my-0.5">
             {filteredMembers.length}
           </div>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-purple-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
+          <div className="flex items-center justify-between text-2xs sm:text-2xs text-purple-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>Active Accounts</span>
-            <span className="text-[9px] sm:text-[10px] text-slate-400">of {memberInvoicesMap.length} Total</span>
+            <span className="text-2xs sm:text-2xs text-slate-400">of {memberInvoicesMap.length} Total</span>
           </div>
         </div>
 
@@ -1041,19 +1057,19 @@ export const InvoicesPage = ({
             }`}
         >
           <div className="flex items-center justify-between gap-1 mb-0.5">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider truncate">
               Pending Invoices
             </span>
             <div className="w-5 h-5 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
               <Clock className="w-3 h-3" />
             </div>
           </div>
-          <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight my-0.5">
+          <div className="text-base sm:text-lg font-bold text-amber-600 tracking-tight my-0.5">
             {displayedPendingCount}
           </div>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-amber-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
+          <div className="flex items-center justify-between text-2xs sm:text-2xs text-amber-700 font-medium pt-1 mt-0.5 border-t border-slate-100">
             <span>₹{displayedPendingAmount.toLocaleString('en-IN')} Due</span>
-            <span className="text-[9px] sm:text-[10px] text-amber-600 font-bold">
+            <span className="text-2xs sm:text-2xs text-amber-600 font-bold">
               {statusFilter === 'pending' || activeFilter === 'PENDING' ? '● Active' : 'Filter'}
             </span>
           </div>
@@ -1065,35 +1081,23 @@ export const InvoicesPage = ({
         <div className="flex items-center justify-between gap-2 sm:gap-3">
 
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search member name, phone, or invoice..."
-              className="w-full pl-9 pr-8 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
-            />
-
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs font-bold cursor-pointer"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search member name, phone, or invoice..."
+            mobilePlaceholder="Search invoices..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="p-2 bg-slate-50 text-2xs font-semibold text-slate-500 uppercase tracking-wider">
                   Matching Members ({searchSuggestions.length})
                 </div>
                 {searchSuggestions.map((member) => (
@@ -1110,7 +1114,7 @@ export const InvoicesPage = ({
                           className="w-6 h-6 rounded-full object-cover border border-slate-200"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-2xs flex items-center justify-center border border-emerald-200">
                           {member.name.charAt(0)}
                         </div>
                       )}
@@ -1118,13 +1122,13 @@ export const InvoicesPage = ({
                         <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
                           {member.name}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-2xs text-slate-400">
                           {member.phone || member.email || member.planName}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-2xs font-bold">
                         {member.invoices.length} {member.invoices.length === 1 ? 'Invoice' : 'Invoices'}
                       </span>
                       <span className="text-xs font-bold text-slate-700">
@@ -1135,23 +1139,23 @@ export const InvoicesPage = ({
                 ))}
               </div>
             )}
-          </div>
+          </SearchInput>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
 
             {/* Dedicated Filter Button (With active badge - same as Reports page) */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${activeFiltersCount > 0
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 shrink-0 ${activeFiltersCount > 0
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
             >
-              <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+              <Filter className={`w-3.5 h-3.5 shrink-0 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -1162,7 +1166,7 @@ export const InvoicesPage = ({
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {selectedMonth && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
                 <Calendar className="w-3 h-3 text-emerald-600" />
@@ -1208,7 +1212,7 @@ export const InvoicesPage = ({
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -1222,17 +1226,17 @@ export const InvoicesPage = ({
           {/* 1. Cash Total */}
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+              <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                 Cash Total
               </span>
               <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
                 <Banknote className="w-3 h-3" />
               </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight my-0.5">
+            <div className="text-base sm:text-lg font-bold text-emerald-700 tracking-tight my-0.5">
               ₹{paymentBreakdown.cashTotal.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
               <span>{paymentBreakdown.cashCount} {paymentBreakdown.cashCount === 1 ? 'Invoice' : 'Invoices'}</span>
               <span className="text-slate-400 font-semibold">
                 {paymentBreakdown.totalAllPayments > 0
@@ -1245,17 +1249,17 @@ export const InvoicesPage = ({
           {/* 2. UPI Total */}
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+              <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                 UPI Total
               </span>
               <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0">
                 <Smartphone className="w-3 h-3" />
               </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight my-0.5">
+            <div className="text-base sm:text-lg font-bold text-blue-700 tracking-tight my-0.5">
               ₹{paymentBreakdown.upiTotal.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
               <span>{paymentBreakdown.upiCount} {paymentBreakdown.upiCount === 1 ? 'Invoice' : 'Invoices'}</span>
               <span className="text-slate-400 font-semibold">
                 {paymentBreakdown.totalAllPayments > 0
@@ -1268,17 +1272,17 @@ export const InvoicesPage = ({
           {/* 3. Account Transfer Total */}
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider truncate">
+              <span className="text-2xs sm:text-2xs uppercase font-semibold text-slate-500 tracking-wider truncate">
                 Account Transfer
               </span>
               <div className="w-5 h-5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 flex items-center justify-center shrink-0">
                 <Building2 className="w-3 h-3" />
               </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-purple-700 tracking-tight my-0.5">
+            <div className="text-base sm:text-lg font-bold text-purple-700 tracking-tight my-0.5">
               ₹{paymentBreakdown.accountTransferTotal.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
               <span>{paymentBreakdown.accountTransferCount} {paymentBreakdown.accountTransferCount === 1 ? 'Invoice' : 'Invoices'}</span>
               <span className="text-slate-400 font-semibold">
                 {paymentBreakdown.totalAllPayments > 0
@@ -1291,17 +1295,17 @@ export const InvoicesPage = ({
           {/* 4. Total of All Payment Options */}
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-emerald-300/80 bg-white shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-800 tracking-wider truncate">
+              <span className="text-2xs sm:text-2xs uppercase font-semibold text-emerald-800 tracking-wider truncate">
                 Total of All
               </span>
               <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
                 <IndianRupee className="w-3 h-3" />
               </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight my-0.5">
+            <div className="text-base sm:text-lg font-bold text-slate-900 tracking-tight my-0.5">
               ₹{paymentBreakdown.totalAllPayments.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-2xs sm:text-2xs text-slate-500 font-medium pt-1 mt-0.5 border-t border-slate-100">
               <span>{paymentBreakdown.totalCount} {paymentBreakdown.totalCount === 1 ? 'Invoice' : 'Invoices'}</span>
               <span className="text-emerald-600 font-bold">All Modes</span>
             </div>
@@ -1346,7 +1350,7 @@ export const InvoicesPage = ({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Month Selection</span>
-                  <span className="text-[11px] font-normal text-slate-400">View entire month's invoices</span>
+                  <span className="text-2xs font-normal text-slate-400">View entire month's invoices</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -1385,7 +1389,7 @@ export const InvoicesPage = ({
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
@@ -1401,7 +1405,7 @@ export const InvoicesPage = ({
                         setStartDate('');
                         setEndDate('');
                       }}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
+                      className="text-2xs px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
                     >
                       Clear Month
                     </button>
@@ -1416,7 +1420,7 @@ export const InvoicesPage = ({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">Start Date</span>
                     <input
                       type="date"
                       value={startDate}
@@ -1428,7 +1432,7 @@ export const InvoicesPage = ({
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">End Date</span>
                     <input
                       type="date"
                       value={endDate}
@@ -1474,7 +1478,7 @@ export const InvoicesPage = ({
                   <label className="block text-xs font-bold text-slate-700">
                     Payment Mode & Split Settlement
                   </label>
-                  <span className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                  <span className="text-2xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
                     Online Platforms
                   </span>
                 </div>
@@ -1510,7 +1514,7 @@ export const InvoicesPage = ({
               {/* Live Filter Total Tab in Modal */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-2xs font-semibold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Live Total Tab ({filterSummaryTitle})</span>
                   </span>
@@ -1520,18 +1524,18 @@ export const InvoicesPage = ({
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">
                       Total Filtered Amount
                     </span>
-                    <span className="text-lg font-black text-slate-900">
+                    <span className="text-lg font-bold text-slate-900">
                       ₹{displayedRevenue.toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">
                       Average Ticket Value
                     </span>
-                    <span className="text-sm font-black text-emerald-800">
+                    <span className="text-sm font-bold text-emerald-800">
                       ₹{displayedAvgAmount.toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -1544,7 +1548,7 @@ export const InvoicesPage = ({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
               >
                 Clear Filters
               </button>
@@ -1567,7 +1571,7 @@ export const InvoicesPage = ({
           Showing <strong className="text-emerald-700">{filteredMembers.length}</strong> of {memberInvoicesMap.length} Members
         </span>
         {searchTerm && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-2xs text-slate-400">
             Filtered by "{searchTerm}"
           </span>
         )}
@@ -1609,7 +1613,7 @@ export const InvoicesPage = ({
                   className={`p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 cursor-pointer transition-colors ${isExpanded ? 'bg-slate-50/90 border-b border-slate-200' : 'hover:bg-slate-50/60'
                     }`}
                 >
-                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                     {/* Avatar */}
                     {member.avatar ? (
                       <img
@@ -1624,7 +1628,7 @@ export const InvoicesPage = ({
                     )}
 
                     {/* Member Details */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -1632,21 +1636,21 @@ export const InvoicesPage = ({
                             e.stopPropagation();
                             toggleMemberDropdown(member.memberKey);
                           }}
-                          className="font-bold text-slate-900 text-xs sm:text-sm hover:text-emerald-700 transition-colors text-left flex items-center gap-1.5 cursor-pointer group"
+                          className="font-bold text-slate-900 text-xs sm:text-sm hover:text-emerald-700 transition-colors text-left flex items-center gap-1.5 cursor-pointer group min-w-0"
                         >
-                          <span className="truncate group-hover:underline">{member.name}</span>
+                          <span className="truncate group-hover:underline" title={member.name}>{member.name}</span>
                         </button>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-slate-500 mt-0.5">
                         {member.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-400" />
+                          <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                             <span>{member.phone}</span>
                           </span>
                         )}
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-600 font-medium truncate max-w-[160px]">
+                        <span className="text-slate-400 shrink-0">•</span>
+                        <span className="text-slate-600 font-medium truncate max-w-[160px]" title={member.planName}>
                           {member.planName}
                         </span>
                       </div>
@@ -1656,12 +1660,12 @@ export const InvoicesPage = ({
                   {/* Summary & Dropdown Toggle Button */}
                   <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                     <div className="text-left sm:text-right">
-                      <div className="text-xs sm:text-sm font-bold text-slate-900">
+                      <div className="text-xs sm:text-sm font-bold text-slate-900 whitespace-nowrap shrink-0">
                         ₹{currentTotal.toLocaleString('en-IN')}
                       </div>
                       {Number(member.totalPending || 0) > 0 && (
                         <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                          <span className="text-[10px] font-bold text-rose-600">
+                          <span className="text-2xs font-bold text-rose-600 whitespace-nowrap shrink-0">
                             ₹{Number(member.totalPending).toLocaleString('en-IN')} Pending
                           </span>
                           <button
@@ -1683,7 +1687,7 @@ export const InvoicesPage = ({
                               };
                               setPayingDueMember(target);
                             }}
-                            className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer active:scale-95 transition-all inline-flex items-center gap-1 shadow-2xs"
+                            className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-2xs font-bold cursor-pointer active:scale-95 transition-all inline-flex items-center gap-1 shadow-2xs"
                             title={`Pay remaining balance of ₹${Number(member.totalPending).toLocaleString('en-IN')}`}
                           >
                             <CreditCard className="w-3 h-3 text-rose-600" />
@@ -1691,7 +1695,7 @@ export const InvoicesPage = ({
                           </button>
                         </div>
                       )}
-                      <div className="text-[10px] text-slate-400 font-medium">
+                      <div className="text-2xs text-slate-400 font-medium">
                         {invoicesList.length} {invoicesList.length === 1 ? 'Invoice' : 'Invoices'}
                       </div>
                     </div>
@@ -1702,7 +1706,7 @@ export const InvoicesPage = ({
                         e.stopPropagation();
                         toggleMemberDropdown(member.memberKey);
                       }}
-                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${isExpanded
+                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-2xs sm:text-2xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${isExpanded
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                         }`}
@@ -1716,7 +1720,7 @@ export const InvoicesPage = ({
                 {/* EXPANDABLE INVOICES DROPDOWN LIST */}
                 {isExpanded && (
                   <div className="bg-slate-50/70 p-3 sm:p-4 space-y-2.5 animate-fadeIn">
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 pb-0.5">
+                    <div className="flex items-center justify-between text-2xs text-slate-600 pb-0.5">
                     </div>
 
                     {/* MOBILE INVOICE CARDS (< 640px) */}
@@ -1760,18 +1764,18 @@ export const InvoicesPage = ({
                                   )}
                                 </button>
                                 {isPendingInv ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shrink-0">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-300 shrink-0">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                                     <span>Pending</span>
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                                     <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
                                     <span>Paid</span>
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                              <span className="text-2xs font-mono text-slate-400 shrink-0">
                                 {inv.date || 'Today'}
                               </span>
                             </div>
@@ -1783,21 +1787,21 @@ export const InvoicesPage = ({
                                   {inv.planName || 'Membership Plan'}
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold">
+                                  <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 text-2xs font-semibold">
                                     {inv.paymentMethod || 'UPI Transfer'}
                                   </span>
-                                  <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
+                                  <span className="inline-flex items-center gap-1 text-2xs text-slate-500">
                                     <User className="w-2.5 h-2.5 text-slate-400" />
                                     <span className="truncate max-w-[100px]">{resolveCreatorName(inv.createdByName || inv.created_by_name, inv)}</span>
                                   </span>
                                 </div>
                               </div>
                               <div className="text-right shrink-0">
-                                <span className="font-extrabold text-sm font-mono text-slate-900 block">
+                                <span className="font-bold text-sm font-mono text-slate-900 block">
                                   ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                                 </span>
                                 {invPending > 0 && (
-                                  <span className="text-[10px] font-bold text-rose-600 block">
+                                  <span className="text-2xs font-bold text-rose-600 block">
                                     ₹{invPending.toLocaleString('en-IN')} Due
                                   </span>
                                 )}
@@ -1901,7 +1905,7 @@ export const InvoicesPage = ({
                     <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs text-slate-600">
-                          <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 tracking-wider">
+                          <thead className="bg-slate-50 text-2xs uppercase font-semibold text-slate-500 border-b border-slate-200 tracking-wider">
                             <tr>
                               <th className="py-2 px-3">Invoice ID</th>
                               <th className="py-2 px-3">Issued Date</th>
@@ -1959,26 +1963,26 @@ export const InvoicesPage = ({
                                     {inv.date || 'Today'}
                                   </td>
 
-                                  <td className="py-2 sm:py-2.5 px-3">
-                                    <div className="font-bold text-slate-900 truncate max-w-[200px] text-xs">
+                                  <td className="py-2 sm:py-2.5 px-3 max-w-[200px]">
+                                    <div className="font-bold text-slate-900 truncate text-xs" title={inv.planName || 'Membership Plan'}>
                                       {inv.planName || 'Membership Plan'}
                                     </div>
                                   </td>
 
                                   <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
-                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-2xs font-semibold">
                                       {inv.paymentMethod || 'UPI Transfer'}
                                     </span>
                                   </td>
 
                                   <td className="py-2 sm:py-2.5 px-3 whitespace-nowrap">
                                     {isPendingInv ? (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                                         <span>Pending</span>
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                         <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
                                         <span>Paid</span>
                                       </span>
@@ -1991,20 +1995,20 @@ export const InvoicesPage = ({
                                         <User className="w-3 h-3" />
                                       </div>
                                       <div className="min-w-0">
-                                        <span className="font-semibold text-slate-800 text-xs block truncate max-w-[130px]">
+                                        <span className="font-semibold text-slate-800 text-xs block truncate max-w-[130px]" title={resolveCreatorName(inv.createdByName || inv.created_by_name, inv)}>
                                           {resolveCreatorName(inv.createdByName || inv.created_by_name, inv)}
                                         </span>
                                       </div>
                                     </div>
                                   </td>
 
-                                  <td className="py-2 sm:py-2.5 px-3 text-right whitespace-nowrap">
+                                  <td className="py-2 sm:py-2.5 px-3 text-right whitespace-nowrap shrink-0">
                                     <div>
                                       <span className="font-bold text-slate-900 text-xs sm:text-sm block">
                                         ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                                       </span>
                                       {invPending > 0 && (
-                                        <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                                        <span className="text-2xs font-bold text-rose-600 block mt-0.5">
                                           ₹{invPending.toLocaleString('en-IN')} Pending
                                         </span>
                                       )}
@@ -2030,7 +2034,7 @@ export const InvoicesPage = ({
                                             setEditingInvoice(payload);
                                           }
                                         }}
-                                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
+                                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-2xs font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title="Edit Invoice Details, Amount, or Payment Method"
                                       >
                                         <Edit2 className="w-3 h-3 text-indigo-600" />
@@ -2056,7 +2060,7 @@ export const InvoicesPage = ({
                                           e.stopPropagation();
                                           handleSharePdfToMobileNumber(inv, member);
                                         }}
-                                        className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-2xs font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                                         title={`Share invoice in PDF format to ${member.phone || 'mobile number'}`}
                                       >
                                         <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -2085,7 +2089,7 @@ export const InvoicesPage = ({
                                             };
                                             setPayingDueMember(target);
                                           }}
-                                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1 shadow-2xs"
+                                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-2xs font-bold transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1 shadow-2xs"
                                           title={`Pay remaining balance of ₹${invPending.toLocaleString('en-IN')}`}
                                         >
                                           <CreditCard className="w-3.5 h-3.5 text-rose-600" />
@@ -2143,7 +2147,7 @@ export const InvoicesPage = ({
                   <div className="text-xs font-bold text-slate-800 truncate">
                     Tax Invoice & Receipt
                   </div>
-                  <div className="text-[11px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     Official gym payment voucher & tax summary
                   </div>
                 </div>
@@ -2262,7 +2266,7 @@ export const InvoicesPage = ({
               {/* Gym Header Branding & Receipt Pill */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-base shadow-sm">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
                     {(gymInfo?.name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '★'}
                   </div>
                   <div>
@@ -2275,7 +2279,7 @@ export const InvoicesPage = ({
                       </p>
                     )}
                     {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number || gymInfo?.phone) && (
-                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                      <div className="flex flex-wrap items-center gap-x-2 text-2xs text-slate-400 mt-1">
                         {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
                           <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</strong></span>
                         )}
@@ -2304,14 +2308,14 @@ export const InvoicesPage = ({
 
                     if (isPendingModal) {
                       return (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1.5 shadow-2xs">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1.5 shadow-2xs">
                           <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
                           Pending {selPending > 0 ? `• ₹${selPending.toLocaleString('en-IN')} Due` : ''}
                         </span>
                       );
                     }
                     return (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
                         <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                         Payment Verified
                       </span>
@@ -2320,7 +2324,7 @@ export const InvoicesPage = ({
                   <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
                     Receipt #{selectedInvoice.id?.toUpperCase()}
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="text-2xs text-slate-400 mt-0.5">
                     Issued: {selectedInvoice.date || 'Today'}
                   </div>
                 </div>
@@ -2330,7 +2334,7 @@ export const InvoicesPage = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 {/* Billed To Customer */}
                 <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                  <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">
                     Member Information
                   </span>
                   <div className="font-bold text-slate-900 text-sm">
@@ -2354,7 +2358,7 @@ export const InvoicesPage = ({
 
                 {/* Payment Details */}
                 <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 space-y-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                  <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">
                     Payment Verification
                   </span>
                   <div className="flex justify-between">
@@ -2412,7 +2416,7 @@ export const InvoicesPage = ({
               <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                    <span className="px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
                       Active Membership Subscription
                     </span>
                     <h3 className="font-bold text-base sm:text-lg text-slate-900 mt-1">
@@ -2432,11 +2436,11 @@ export const InvoicesPage = ({
                       return (
                         <>
                           <span className="text-xs text-slate-400 block">Total Subscription Fee</span>
-                          <span className="text-xl sm:text-2xl font-black text-slate-900">
+                          <span className="text-xl sm:text-2xl font-bold text-slate-900">
                             ₹{Number(selectedInvoice.totalAmount || (Number(selectedInvoice.amount || 0) + selPending)).toLocaleString('en-IN')}
                           </span>
                           {selPending > 0 && (
-                            <span className="text-[11px] font-bold text-rose-600 block mt-0.5">
+                            <span className="text-2xs font-bold text-rose-600 block mt-0.5">
                               (₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')} Paid • ₹{selPending.toLocaleString('en-IN')} Pending)
                             </span>
                           )}
@@ -2471,13 +2475,13 @@ export const InvoicesPage = ({
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start text-xs">
                 {/* Left: Notes and Words */}
                 <div className="sm:col-span-7 bg-slate-50 p-4 rounded-xl border border-slate-200/70 space-y-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">
                     Amount In Words
                   </span>
                   <div className="font-bold text-slate-900 text-xs">
                     Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
                   </div>
-                  <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                  <p className="text-2xs text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
                     Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
                   </p>
                 </div>
@@ -2500,11 +2504,11 @@ export const InvoicesPage = ({
                               ₹{taxable.toLocaleString('en-IN')}
                             </span>
                           </div>
-                          <div className="flex justify-between text-slate-500 text-[11px]">
+                          <div className="flex justify-between text-slate-500 text-2xs">
                             <span>CGST ({invHalfTax}%):</span>
                             <span>₹{cgst.toLocaleString('en-IN')}</span>
                           </div>
-                          <div className="flex justify-between text-slate-500 text-[11px]">
+                          <div className="flex justify-between text-slate-500 text-2xs">
                             <span>SGST ({invHalfTax}%):</span>
                             <span>₹{sgst.toLocaleString('en-IN')}</span>
                           </div>
@@ -2514,7 +2518,7 @@ export const InvoicesPage = ({
                     return (
                       <div className="flex justify-between py-1">
                         <span className="text-slate-500">Tax Type:</span>
-                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-2xs">
                           Non-GST Payment (No Tax Bifurcation)
                         </span>
                       </div>
@@ -2522,7 +2526,7 @@ export const InvoicesPage = ({
                   })()}
                   <div className="border-t border-slate-200 pt-2 flex justify-between items-baseline">
                     <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
-                    <span className="text-2xl font-black text-emerald-600 font-mono">
+                    <span className="text-2xl font-bold text-emerald-600 font-mono">
                       ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -2530,20 +2534,20 @@ export const InvoicesPage = ({
               </div>
 
               {/* Terms & Official Seal Signature */}
-              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-2xs text-slate-500">
                 <div className="space-y-1">
                   <p>• Membership passes are non-transferable & non-refundable once activated.</p>
                   <p>• Turnstile QR Pass is required for gym floor access.</p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[180px]">
-                  <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
+                  <div className="text-emerald-700 font-semibold uppercase text-2xs flex items-center justify-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span>Digitally Verified</span>
                   </div>
                   <div className="font-bold text-slate-800 text-xs mt-0.5">
                     {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}
                   </div>
-                  <div className="text-[10px] text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                  <div className="text-2xs text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
                 </div>
               </div>
             </div>

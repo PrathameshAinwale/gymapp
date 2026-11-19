@@ -139,15 +139,15 @@ export const MemberProfile = () => {
   const isExpiringSoon = rawDiff >= 0 && rawDiff <= 10;
 
   const planStatusBadge = isExpired ? (
-    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+    <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200">
       Expired
     </span>
   ) : isExpiringSoon ? (
-    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+    <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
       Expiring Soon
     </span>
   ) : (
-    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+    <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
       Active
     </span>
   );
@@ -162,18 +162,18 @@ export const MemberProfile = () => {
       {/* 1. Profile Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm">
         <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xl sm:text-2xl font-black shadow-md shadow-emerald-500/20 shrink-0">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xl sm:text-2xl font-bold shadow-md shadow-emerald-500/20 shrink-0">
             {member?.name ? member.name.charAt(0) : currentUser?.name ? currentUser.name.charAt(0) : 'M'}
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base sm:text-2xl font-bold font-heading text-slate-900 tracking-tight truncate">
+              <h1 className="app-page-title font-bold font-heading text-slate-900 tracking-normal truncate">
                 {member?.name || currentUser?.name || 'Athlete'}
               </h1>
               {planStatusBadge}
             </div>
-            <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 mt-0.5 flex-wrap">
+            <div className="flex items-center gap-2 text-2xs sm:text-xs text-slate-500 mt-0.5 flex-wrap">
               <span className="font-medium text-slate-700">{currentUser?.email || member?.email}</span>
               <span>•</span>
               <span className="text-emerald-700 font-bold">{member?.planName || memberPlan?.name || 'Annual Elite'}</span>
@@ -187,7 +187,7 @@ export const MemberProfile = () => {
           <button
             type="button"
             onClick={handleOpenEdit}
-            className="px-3 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5"
+            className="px-3 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
             <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>Edit Profile</span>
@@ -255,7 +255,7 @@ export const MemberProfile = () => {
           />
         </div>
 
-        <div className="flex items-center justify-between text-[10px] sm:text-xs text-slate-500 pt-0.5">
+        <div className="flex items-center justify-between text-2xs sm:text-xs text-slate-500 pt-0.5">
           <span>
             Joined: <strong className="text-slate-700">{member?.joinDate || 'Jan 15, 2026'}</strong>
           </span>
@@ -354,12 +354,12 @@ export const MemberProfile = () => {
       <div className="bg-white border border-slate-200 p-4 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div>
           <h4 className="text-xs sm:text-sm font-bold text-slate-900">Sign Out of Session</h4>
-          <p className="text-[11px] text-slate-500">Log out of your member account securely on this device.</p>
+          <p className="text-2xs text-slate-500">Log out of your member account securely on this device.</p>
         </div>
         <button
           type="button"
           onClick={logout}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0"
         >
           <LogOut className="w-4 h-4" />
           <span>Sign Out of ArchFit</span>
@@ -375,7 +375,7 @@ export const MemberProfile = () => {
       >
         <form onSubmit={handleSaveProfile} className="space-y-3.5 text-xs">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Full Name
             </label>
             <input
@@ -389,7 +389,7 @@ export const MemberProfile = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Phone Number
               </label>
               <input
@@ -402,7 +402,7 @@ export const MemberProfile = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Emergency Contact
               </label>
               <input
@@ -418,7 +418,7 @@ export const MemberProfile = () => {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Weight (kg)
               </label>
               <input
@@ -432,7 +432,7 @@ export const MemberProfile = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Target (kg)
               </label>
               <input
@@ -446,7 +446,7 @@ export const MemberProfile = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-2xs font-bold text-slate-700 mb-1">
                 Height (cm)
               </label>
               <input
@@ -461,7 +461,7 @@ export const MemberProfile = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Primary Fitness Goal
             </label>
             <input
@@ -474,7 +474,7 @@ export const MemberProfile = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-2xs font-bold text-slate-700 mb-1">
               Medical Notes / Restrictions
             </label>
             <textarea
@@ -497,7 +497,7 @@ export const MemberProfile = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all text-xs cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-60 flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all text-xs cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-60 flex items-center gap-1.5"
             >
               {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSaving ? 'Saving Changes...' : 'Save Changes'}</span>

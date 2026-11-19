@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { hasSqlInjection, preventNonNumericKey, sanitizeDecimal, sanitizeDigits, sanitizeText } from '../../utils/validation';
 
@@ -195,17 +196,20 @@ export const TrainerCommissions = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">Trainer Commissions</h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">Trainer Commissions</h1>
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Track incentive bonuses, personal training commissions, and membership referral earnings for coaches.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {commissions?.length || 0} Commissions recorded
+              </div>
             </div>
           </div>
         </div>
@@ -214,21 +218,21 @@ export const TrainerCommissions = () => {
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Commission Report"
           >
-            <FileText className="w-3.5 h-3.5 text-emerald-600" />
+            <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span className="hidden sm:inline">Commission Report</span>
-            <span className="inline sm:hidden">Report</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">Log Commission</span>
-            <span className="inline sm:hidden">Log</span>
+            <span className="sm:hidden">Log</span>
           </button>
         </div>
       </div>
@@ -236,20 +240,20 @@ export const TrainerCommissions = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
         <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Paid Out</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">₹{paidCommissions.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Disbursed successfully</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Paid Out</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">₹{paidCommissions.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-emerald-700 font-medium hidden sm:block">Disbursed successfully</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Commissions</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">₹{totalCommissions.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">All-time incentives</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Total Commissions</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">₹{totalCommissions.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">All-time incentives</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Pending Payouts</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">₹{pendingCommissions.toLocaleString('en-IN')}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Due in upcoming cycle</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Pending Payouts</span>
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">₹{pendingCommissions.toLocaleString('en-IN')}</div>
+          <span className="text-2xs sm:text-2xs text-amber-700 font-medium hidden sm:block">Due in upcoming cycle</span>
         </div>
       </div>
 
@@ -257,36 +261,26 @@ export const TrainerCommissions = () => {
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search coach, member, or service type..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setIsSearchDropdownOpen(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setIsSearchDropdownOpen(false);
+            }}
+            placeholder="Search coach, member, or service type..."
+            mobilePlaceholder="Search commissions..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Suggestions */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                   Suggestions
                 </div>
                 {searchSuggestions.map((item, idx) => (
@@ -301,32 +295,33 @@ export const TrainerCommissions = () => {
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-800">{item.trainerName}</span>
-                      <span className="text-[10px] text-slate-400">(Client: {item.memberName})</span>
+                      <span className="text-2xs text-slate-400">(Client: {item.memberName})</span>
                     </div>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="text-2xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                       ₹{getCommissionEarned(item).toLocaleString('en-IN')}
                     </span>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold border shadow-2xs active:scale-95 transition-all cursor-pointer ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
+              <Filter className="w-3.5 h-3.5 shrink-0" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                   {activeFiltersCount}
                 </span>
               )}
@@ -336,7 +331,7 @@ export const TrainerCommissions = () => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {statusFilter !== 'ALL' && (
@@ -399,7 +394,7 @@ export const TrainerCommissions = () => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredCommissions.length} of {commissions.length} records
             </span>
           </div>
@@ -438,7 +433,7 @@ export const TrainerCommissions = () => {
                     <span className="font-bold text-slate-900 text-xs truncate">{com.trainerName}</span>
                   </div>
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold ${
                       isPaid
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -449,7 +444,7 @@ export const TrainerCommissions = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[10px]">
+                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-2xs">
                   <div>
                     <span className="text-slate-400 font-medium block">Member</span>
                     <span className="font-semibold text-slate-800 truncate block">{com.memberName}</span>
@@ -464,11 +459,11 @@ export const TrainerCommissions = () => {
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Commission ({com.commissionPct || com.ratePercent || 20}%)</span>
-                    <span className="font-black text-emerald-600 text-xs">₹{getCommissionEarned(com).toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-emerald-600 text-xs">₹{getCommissionEarned(com).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-2xs text-slate-400">
                   <span>Date: {com.date}</span>
                   {!isPaid ? (
                     <button
@@ -482,7 +477,7 @@ export const TrainerCommissions = () => {
                           setDisbursingId(null);
                         }
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-2xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 inline-flex items-center gap-1"
                     >
                       {disbursingId === com.id && <Loader2 className="w-3 h-3 animate-spin" />}
                       <span>{disbursingId === com.id ? 'Paying...' : 'Disburse Pay'}</span>
@@ -518,7 +513,7 @@ export const TrainerCommissions = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-4">Coach / Trainer</th>
                   <th className="py-3.5 px-4">Member / Client</th>
                   <th className="py-3.5 px-4">Service / PT Program</th>
@@ -540,7 +535,7 @@ export const TrainerCommissions = () => {
                         <Award className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>{com.trainerName}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">Date: {com.date}</div>
+                      <div className="text-2xs text-slate-400 mt-0.5">Date: {com.date}</div>
                     </td>
 
                     <td className="py-3.5 px-4 font-medium text-slate-800">
@@ -556,18 +551,18 @@ export const TrainerCommissions = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                         {com.commissionPct || com.ratePercent || 20}%
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 font-black text-emerald-600 text-sm">
+                    <td className="py-3.5 px-4 font-medium text-emerald-600 text-sm">
                       ₹{getCommissionEarned(com).toLocaleString('en-IN')}
                     </td>
 
                     <td className="py-3.5 px-4">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold ${
                           isPaid
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -591,13 +586,13 @@ export const TrainerCommissions = () => {
                               setDisbursingId(null);
                             }
                           }}
-                          className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+                          className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-2xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
                         >
                           {disbursingId === com.id && <Loader2 className="w-3 h-3 animate-spin" />}
                           <span>{disbursingId === com.id ? 'Paying...' : 'Disburse Pay'}</span>
                         </button>
                       ) : (
-                        <span className="text-[11px] text-slate-400 font-medium">Disbursed</span>
+                        <span className="text-2xs text-slate-400 font-medium">Disbursed</span>
                       )}
                     </td>
                   </tr>
@@ -618,7 +613,7 @@ export const TrainerCommissions = () => {
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Coach / Trainer *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Select Coach / Trainer *</label>
             <select
               value={formData.trainerId}
               onChange={(e) => handleTrainerChange(e.target.value)}
@@ -633,7 +628,7 @@ export const TrainerCommissions = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Member / Client *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Member / Client *</label>
             <select
               value={formData.memberId}
               onChange={(e) => handleMemberChange(e.target.value)}
@@ -648,7 +643,7 @@ export const TrainerCommissions = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Service / Program *</label>
+            <label className="block text-2xs font-bold text-slate-700 mb-1">Service / Program *</label>
             <input
               type="text"
               required
@@ -661,7 +656,7 @@ export const TrainerCommissions = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Service Fee (₹) *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Service Fee (₹) *</label>
               <input
                 type="number"
                 required
@@ -675,7 +670,7 @@ export const TrainerCommissions = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Commission % *</label>
+              <label className="block text-2xs font-bold text-slate-700 mb-1">Commission % *</label>
               <input
                 type="number"
                 required
@@ -691,7 +686,7 @@ export const TrainerCommissions = () => {
 
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-800">Calculated Payout:</span>
-            <span className="text-lg font-black text-slate-900">
+            <span className="text-lg font-bold text-slate-900">
               ₹{Math.round((Number(formData.amount) * Number(formData.commissionPct)) / 100).toLocaleString('en-IN')}
             </span>
           </div>
@@ -707,7 +702,7 @@ export const TrainerCommissions = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer inline-flex items-center gap-2"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmitting ? 'Recording...' : 'Record Commission'}</span>
@@ -727,10 +722,10 @@ export const TrainerCommissions = () => {
           {/* Report Header */}
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+              <div className="text-2xs font-semibold text-emerald-700 uppercase tracking-wider">
                 Monthly Audited Incentive Statement
               </div>
-              <h3 className="text-xl font-black text-slate-900 mt-0.5">
+              <h3 className="text-xl font-bold text-slate-900 mt-0.5">
                 PULSE FIT Athletic Club • Powai
               </h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -753,26 +748,26 @@ export const TrainerCommissions = () => {
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] uppercase font-bold text-slate-400">Total Volume</div>
-              <div className="text-lg font-black text-slate-900 mt-0.5">
+              <div className="text-2xs uppercase font-semibold text-slate-400">Total Volume</div>
+              <div className="text-lg font-bold text-slate-900 mt-0.5">
                 ₹{commissions.reduce((a, c) => a + (Number(c.packageAmount || c.amount) || 0), 0).toLocaleString('en-IN')}
               </div>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] uppercase font-bold text-slate-400">Commissions</div>
-              <div className="text-lg font-black text-emerald-600 mt-0.5">
+              <div className="text-2xs uppercase font-semibold text-slate-400">Commissions</div>
+              <div className="text-lg font-bold text-emerald-600 mt-0.5">
                 ₹{totalCommissions.toLocaleString('en-IN')}
               </div>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] uppercase font-bold text-slate-400">Paid Out</div>
-              <div className="text-lg font-black text-slate-700 mt-0.5">
+              <div className="text-2xs uppercase font-semibold text-slate-400">Paid Out</div>
+              <div className="text-lg font-bold text-slate-700 mt-0.5">
                 ₹{paidCommissions.toLocaleString('en-IN')}
               </div>
             </div>
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] uppercase font-bold text-slate-400">Pending Dues</div>
-              <div className="text-lg font-black text-amber-600 mt-0.5">
+              <div className="text-2xs uppercase font-semibold text-slate-400">Pending Dues</div>
+              <div className="text-lg font-bold text-amber-600 mt-0.5">
                 ₹{pendingCommissions.toLocaleString('en-IN')}
               </div>
             </div>
@@ -782,12 +777,12 @@ export const TrainerCommissions = () => {
           <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800">Coach Earnings Breakdown</span>
-              <span className="text-[11px] text-slate-500 font-medium">Auto-calculated from PT & Sales logs</span>
+              <span className="text-2xs text-slate-500 font-medium">Auto-calculated from PT & Sales logs</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                     <th className="py-2.5 px-4">Coach</th>
                     <th className="py-2.5 px-4">Package / Deal</th>
                     <th className="py-2.5 px-4">Client</th>
@@ -799,16 +794,16 @@ export const TrainerCommissions = () => {
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {commissions.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/60">
-                      <td className="py-2.5 px-4 font-bold text-slate-900">{c.trainerName}</td>
+                      <td className="py-2.5 px-4 font-medium text-slate-900">{c.trainerName}</td>
                       <td className="py-2.5 px-4 text-slate-600">{c.serviceType}</td>
                       <td className="py-2.5 px-4 text-slate-600">{c.memberName}</td>
                       <td className="py-2.5 px-4 font-semibold text-slate-800">{c.commissionPct}%</td>
-                      <td className="py-2.5 px-4 font-black text-emerald-700">
+                      <td className="py-2.5 px-4 font-medium text-emerald-700">
                         ₹{Number(c.commissionEarned).toLocaleString('en-IN')}
                       </td>
                       <td className="py-2.5 px-4 text-right">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`inline-block px-2 py-0.5 rounded text-2xs font-bold ${
                             c.status === 'Paid'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'

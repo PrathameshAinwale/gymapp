@@ -199,10 +199,10 @@ return new class extends Migration
                     'title' => 'Help and Support',
                     'content' => "Welcome to ARCHFIT Dedicated Support Center. Our team is committed to ensuring seamless 24/7 facility operations, hardware integrations, and billing workflows.\n\n### Quick Assistance Channels\nNeed help with turnstile setup, biometric sync, WhatsApp templates, or member billing? Reach out through any of our direct support desks listed below.",
                     'metadata' => json_encode([
-                        'support_email' => 'support@archfit.com',
-                        'support_phone' => '+91 98200 98200',
-                        'whatsapp_number' => '+91 98200 98200',
-                        'operating_hours' => 'Monday - Saturday: 8:00 AM - 10:00 PM IST',
+                        'support_email' => 'contact.arch360@gmail.com',
+                        'support_phone' => '+91 7219111596',
+                        'whatsapp_number' => '+91 7219111596',
+                        'operating_hours' => 'Monday - Saturday: 9:30 AM - 5:30 PM IST',
                         'faqs' => [
                             [
                                 'question' => 'How do I add a new member or issue a gym pass?',

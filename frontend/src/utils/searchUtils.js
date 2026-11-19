@@ -141,8 +141,14 @@ export const matchesMemberUniversal = (m, query, { plans = [], trainers = [], in
 
   // 4. IDs & Codes
   if (m.id !== undefined && m.id !== null) textPool.push(String(m.id));
+  if (m.memberNumber) textPool.push(String(m.memberNumber));
+  if (m.member_number) textPool.push(String(m.member_number));
+  if (m.legacyId) textPool.push(String(m.legacyId));
+  if (m.legacy_id) textPool.push(String(m.legacy_id));
   if (m.memberId) textPool.push(String(m.memberId));
   if (m.member_id) textPool.push(String(m.member_id));
+  if (m.convertedFromEnquiryNumber) textPool.push(String(m.convertedFromEnquiryNumber));
+  if (m.converted_from_enquiry_number) textPool.push(String(m.converted_from_enquiry_number));
   if (m.qrPassCode) textPool.push(String(m.qrPassCode));
   if (m.qrCode) textPool.push(String(m.qrCode));
   if (m.barcode) textPool.push(String(m.barcode));
@@ -242,6 +248,8 @@ export const matchesMemberUniversal = (m, query, { plans = [], trainers = [], in
     const memberInvoices = invoices.filter(inv => String(inv.memberId) === String(m.id));
     memberInvoices.forEach((inv) => {
       if (inv.invoiceNumber) textPool.push(inv.invoiceNumber);
+      if (inv.legacyId) textPool.push(inv.legacyId);
+      if (inv.legacy_id) textPool.push(inv.legacy_id);
       if (inv.receiptNumber) textPool.push(inv.receiptNumber);
       if (inv.paymentMethod) textPool.push(inv.paymentMethod);
     });
@@ -271,6 +279,12 @@ export const matchesEnquiryUniversal = (enq, query) => {
 
   const textPool = [];
   const phoneDigitsList = [];
+
+  if (enq.id !== undefined && enq.id !== null) textPool.push(String(enq.id));
+  if (enq.enquiryNumber) textPool.push(String(enq.enquiryNumber));
+  if (enq.enquiry_number) textPool.push(String(enq.enquiry_number));
+  if (enq.legacyId) textPool.push(String(enq.legacyId));
+  if (enq.legacy_id) textPool.push(String(enq.legacy_id));
 
   if (enq.name) textPool.push(enq.name);
   if (enq.fullName) textPool.push(enq.fullName);

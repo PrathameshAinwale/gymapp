@@ -212,7 +212,7 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => $isStaff ? "Shift Punch-In recorded for {$user->name} ({$roleLabel})." : "Access Granted! Welcome to PulseFit, {$user->name}.",
+            'message' => $isStaff ? "Shift Punch-In recorded for {$user->name} ({$roleLabel})." : "Access Granted! Welcome, {$user->name}.",
             'member'  => [
                 'id'     => ($isStaff ? 'stf-' : 'mem-') . $user->id,
                 'name'   => $user->name,

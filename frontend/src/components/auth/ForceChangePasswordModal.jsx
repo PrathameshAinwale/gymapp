@@ -66,7 +66,7 @@ export const ForceChangePasswordModal = () => {
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-500/10 mb-1">
             <KeyRound className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
-          <h2 className="text-lg sm:text-xl font-extrabold font-heading text-white tracking-wide">
+          <h2 className="text-lg sm:text-xl font-bold font-heading text-white tracking-wide">
             First-Time Security Setup
           </h2>
           <p className="text-xs text-slate-300">
@@ -86,7 +86,7 @@ export const ForceChangePasswordModal = () => {
           
           {/* User Email (Readonly) */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Your Login Username (Email)
             </label>
             <input
@@ -161,7 +161,7 @@ export const ForceChangePasswordModal = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm font-black tracking-wider uppercase shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all mt-2 active:scale-[0.98] cursor-pointer"
+            className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm font-semibold tracking-wider uppercase shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all mt-2 active:scale-[0.98] cursor-pointer"
           >
             {isSubmitting ? (
               <span className="animate-spin w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full" />
@@ -174,7 +174,7 @@ export const ForceChangePasswordModal = () => {
           </button>
         </form>
 
-        <p className="text-[11px] text-slate-500 text-center flex items-center justify-center gap-1.5">
+        <p className="text-2xs text-slate-500 text-center flex items-center justify-center gap-1.5">
           <Lock className="w-3 h-3 text-slate-400" />
           <span>Your password is encrypted and saved securely.</span>
         </p>

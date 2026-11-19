@@ -78,7 +78,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-3 mx-auto mb-3 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white">
             <ShieldCheck className="w-full h-full" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 font-heading">
+          <h1 className="app-page-title font-bold tracking-normal text-slate-900 font-heading">
             SUPER<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">ADMIN</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed font-medium">
@@ -99,7 +99,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-2xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                 Superadmin Email
               </label>
               <div className="relative">
@@ -119,7 +119,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-2xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -149,7 +149,7 @@ export const SuperadminLogin = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm tracking-wider uppercase transition-all shadow-[0_4px_20px_rgba(99,102,241,0.25)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-semibold text-xs sm:text-sm tracking-wider uppercase transition-all shadow-[0_4px_20px_rgba(99,102,241,0.25)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

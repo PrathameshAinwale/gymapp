@@ -52,7 +52,19 @@ export const PagesManager = () => {
     const page = pagesData[slug] || {};
     setTitle(page.title || (slug === 'privacy-policy' ? 'Privacy Policy' : slug === 'terms-conditions' ? 'Terms and Conditions' : 'Help and Support'));
     setContent(page.content || '');
-    setMetadata(page.metadata || {});
+    const meta = page.metadata || {};
+    if (slug === 'help-support') {
+      const isPlaceholder = (val, legacy) => !val || val === legacy;
+      setMetadata({
+        ...meta,
+        support_email: isPlaceholder(meta.support_email, 'support@archfit.com') ? 'contact.arch360@gmail.com' : meta.support_email,
+        support_phone: isPlaceholder(meta.support_phone, '+91 98200 98200') ? '+91 7219111596' : meta.support_phone,
+        whatsapp_number: isPlaceholder(meta.whatsapp_number, '+91 98200 98200') ? '+91 7219111596' : meta.whatsapp_number,
+        operating_hours: isPlaceholder(meta.operating_hours, 'Monday - Saturday: 8:00 AM - 10:00 PM IST') ? 'Monday - Saturday: 9:30 AM - 5:30 PM IST' : meta.operating_hours
+      });
+    } else {
+      setMetadata(meta);
+    }
   };
 
   const handleSelectPage = (slug) => {
@@ -163,7 +175,7 @@ export const PagesManager = () => {
         <form onSubmit={handleSave} className="p-4 sm:p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
             <div>
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
                 Editing: {activeSlug === 'privacy-policy' ? 'Privacy Policy' : activeSlug === 'terms-conditions' ? 'Terms & Conditions' : 'Help & Support'}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">Slug key: <code className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono font-semibold">{activeSlug}</code></p>
@@ -172,7 +184,7 @@ export const PagesManager = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50 self-start sm:self-auto"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Saving Changes...' : 'Save & Publish Live'}</span>
@@ -194,60 +206,60 @@ export const PagesManager = () => {
           {/* Extra Metadata Fields for Help & Support */}
           {activeSlug === 'help-support' && (
             <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-4">
-              <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-wide block">
+              <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide block">
                 Direct Contact Channels &amp; Working Hours
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                  <label className="block text-2xs font-bold text-slate-600 mb-1 flex items-center gap-1">
                     <Mail className="w-3 h-3 text-emerald-600" /> Support Email
                   </label>
                   <input
                     type="email"
                     value={metadata.support_email || ''}
                     onChange={(e) => setMetadata({ ...metadata, support_email: e.target.value })}
-                    placeholder="support@archfit.com"
+                    placeholder="contact.arch360@gmail.com"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                  <label className="block text-2xs font-bold text-slate-600 mb-1 flex items-center gap-1">
                     <Phone className="w-3 h-3 text-indigo-600" /> Support Phone
                   </label>
                   <input
                     type="text"
                     value={metadata.support_phone || ''}
                     onChange={(e) => setMetadata({ ...metadata, support_phone: e.target.value })}
-                    placeholder="+91 98200 98200"
+                    placeholder="+91 7219111596"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                  <label className="block text-2xs font-bold text-slate-600 mb-1 flex items-center gap-1">
                     <MessageSquare className="w-3 h-3 text-teal-600" /> WhatsApp Number
                   </label>
                   <input
                     type="text"
                     value={metadata.whatsapp_number || ''}
                     onChange={(e) => setMetadata({ ...metadata, whatsapp_number: e.target.value })}
-                    placeholder="+91 98200 98200"
+                    placeholder="+91 7219111596"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                <label className="block text-2xs font-bold text-slate-600 mb-1 flex items-center gap-1">
                   <Clock className="w-3 h-3 text-amber-600" /> Operating Support Hours
                 </label>
                 <input
                   type="text"
                   value={metadata.operating_hours || ''}
                   onChange={(e) => setMetadata({ ...metadata, operating_hours: e.target.value })}
-                  placeholder="Monday - Saturday: 8:00 AM - 10:00 PM IST"
+                  placeholder="Monday - Saturday: 9:30 AM - 5:30 PM IST"
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -262,7 +274,7 @@ export const PagesManager = () => {
                   <button
                     type="button"
                     onClick={handleAddFaq}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-black text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-black text-white text-2xs font-semibold cursor-pointer transition-colors shadow-2xs"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Add FAQ</span>
@@ -273,7 +285,7 @@ export const PagesManager = () => {
                   {faqs.map((faq, idx) => (
                     <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 relative">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-black text-emerald-700 uppercase">FAQ #{idx + 1}</span>
+                        <span className="text-2xs font-semibold text-emerald-700 uppercase">FAQ #{idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveFaq(idx)}
@@ -310,7 +322,7 @@ export const PagesManager = () => {
           {activeSlug !== 'help-support' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Last Updated Date</label>
+                <label className="block text-2xs font-bold text-slate-600 mb-1">Last Updated Date</label>
                 <input
                   type="date"
                   value={metadata.last_updated || ''}
@@ -319,7 +331,7 @@ export const PagesManager = () => {
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Document Version</label>
+                <label className="block text-2xs font-bold text-slate-600 mb-1">Document Version</label>
                 <input
                   type="text"
                   placeholder="e.g. 2.1"
@@ -342,7 +354,7 @@ export const PagesManager = () => {
               placeholder="Enter page text sections, terms, and policies..."
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-mono leading-relaxed focus:bg-white focus:outline-none focus:border-slate-900"
             />
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-2xs text-slate-500 mt-1">
               Supports markdown headers (### Section Title) and bullet lists (- Bullet Item).
             </p>
           </div>
@@ -351,7 +363,7 @@ export const PagesManager = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5 inline mr-1.5" />
               <span>{isSaving ? 'Saving Changes...' : 'Save & Publish Live'}</span>

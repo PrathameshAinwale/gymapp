@@ -460,50 +460,52 @@ export const AnalyticsPage = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                   Gym Analytics & Visual Insights
                 </h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline-flex">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline-flex shrink-0">
                   <Database className="w-2.5 h-2.5 text-emerald-600" />
                   Live
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Live visual charts and historical trends aggregated from your gym's database.
                 {lastSyncTime && <span className="ml-1.5 text-slate-400">Synced at {lastSyncTime}</span>}
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                Live Data Insights
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => fetchDbAnalytics(true)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh database metrics"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-500'}`} />
-            <span>{isRefreshing ? 'Syncing...' : 'Sync Data'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-500'}`} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync Data'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+            className="hidden sm:flex w-8.5 h-8.5 sm:w-9 sm:h-9 items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
             title="Print Summary"
           >
             <Printer className="w-4 h-4 text-slate-500" />
-            <span className="hidden sm:inline">Print</span>
           </button>
         </div>
       </div>
@@ -519,11 +521,11 @@ export const AnalyticsPage = () => {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-mono">
               ₹{financialData.totalInflow.toLocaleString('en-IN')}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+          <p className="text-2xs text-slate-400 mt-1 flex items-center gap-1">
             <span className="font-semibold text-emerald-600">{financialData.paidInvoicesCount}</span> paid invoices
           </p>
         </div>
@@ -537,11 +539,11 @@ export const AnalyticsPage = () => {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-mono">
               ₹{financialData.totalExpenses.toLocaleString('en-IN')}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-2xs text-slate-400 mt-1">
             Net: <span className={`font-semibold ${financialData.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
               ₹{financialData.netProfit.toLocaleString('en-IN')}
             </span>
@@ -557,11 +559,11 @@ export const AnalyticsPage = () => {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-mono">
               {memberData.active}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-2xs text-slate-400 mt-1">
             Total: <span className="font-semibold text-slate-700">{memberData.total}</span> registered
           </p>
         </div>
@@ -575,11 +577,11 @@ export const AnalyticsPage = () => {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-mono">
               {ptData.totalPackages}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-2xs text-slate-400 mt-1">
             <span className="font-semibold text-purple-600">{ptData.clients.length}</span> active client quota
           </p>
         </div>
@@ -707,7 +709,7 @@ export const AnalyticsPage = () => {
                   Members by Subscription Plan
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Live distribution of active athletes across registered plans in database.
+                  Live distribution of active members across registered plans in database.
                 </p>
               </div>
             </div>
@@ -749,7 +751,7 @@ export const AnalyticsPage = () => {
                   Live member turnstile punches recorded in attendances table.
                 </p>
               </div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+              <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
                 Peak: {attendanceData.busiestDay}
               </span>
             </div>
@@ -1148,7 +1150,7 @@ export const AnalyticsPage = () => {
             <Layers className="w-4 h-4 text-indigo-600" />
             Class Capacity & Bookings Volume
           </h2>
-          <p className="text-xs text-slate-500 mb-4">Enrolled athletes vs total available slots from gym_classes table in database.</p>
+          <p className="text-xs text-slate-500 mb-4">Enrolled members vs total available slots from gym_classes table in database.</p>
           <div className="h-80 w-full">
             {classData.classLoads.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">

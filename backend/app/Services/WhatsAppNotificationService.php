@@ -35,9 +35,13 @@ class WhatsAppNotificationService
      */
     public static function renderMessage(string $template, array $data): string
     {
+        $rawGymName = !empty($data['gym_name']) ? trim((string) $data['gym_name']) : '';
+        $genericNames = ['pulse fitness', 'pulsefit', 'pulse', 'gym', 'our gym', 'fitness club'];
+        $cleanGymName = (!empty($rawGymName) && !in_array(strtolower($rawGymName), $genericNames)) ? $rawGymName : '';
+
         $placeholders = [
             '{{name}}'          => $data['name'] ?? '',
-            '{{gym_name}}'      => $data['gym_name'] ?? 'Fitness Club',
+            '{{gym_name}}'      => $cleanGymName,
             '{{role}}'          => ucfirst($data['role'] ?? 'Member'),
             '{{phone}}'         => $data['phone'] ?? '',
             '{{plan_name}}'     => $data['plan_name'] ?? 'Membership',
@@ -66,6 +70,13 @@ class WhatsAppNotificationService
         ];
 
         $rendered = str_replace(array_keys($placeholders), array_values($placeholders), $template);
+        if (empty($cleanGymName)) {
+            $rendered = str_replace(
+                ['at **', 'from **', '— Team **', 'at *', 'from *', '— Team *', '  '],
+                ['', '', '', '', '', '', ' '],
+                $rendered
+            );
+        }
         return str_replace(['Coach Coach ', 'Coach Coach'], 'Coach ', $rendered);
     }
 
@@ -342,7 +353,7 @@ class WhatsAppNotificationService
 
         $gym = Gym::find($gymId);
         $gymSetting = GymSetting::first();
-        $gymName = $gym ? $gym->name : ($gymSetting?->name ?? 'Fitness Club');
+        $gymName = $gym?->name ?: ($gymSetting?->name ?: '');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         // Resolve Gym Address/Location & Operating Hours
@@ -513,7 +524,7 @@ class WhatsAppNotificationService
         }
 
         $gym = Gym::find($gymId);
-        $gymName = $gym ? $gym->name : (GymSetting::first()?->name ?? 'Fitness Club');
+        $gymName = $gym?->name ?: (GymSetting::first()?->name ?: '');
         $portalUrl = config('app.url', 'https://archfit.archenterprises.co.in');
 
         // Locate active birthday template

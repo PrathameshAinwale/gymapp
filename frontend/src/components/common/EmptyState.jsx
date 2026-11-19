@@ -81,13 +81,13 @@ export const EmptyState = ({
       )}
 
       {/* Title */}
-      <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight mb-1.5">
+      <h3 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight mb-1.5">
         {title}
       </h3>
 
       {/* Description */}
       {description && (
-        <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mb-5 sm:mb-6 leading-relaxed">
+        <p className="text-sm text-slate-500 max-w-md mx-auto mb-5 sm:mb-6 leading-relaxed">
           {description}
         </p>
       )}
@@ -98,7 +98,7 @@ export const EmptyState = ({
           <button
             type="button"
             onClick={onAction}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl ${colorStyles.btn} text-white text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer`}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl ${colorStyles.btn} text-white text-sm font-semibold shadow-md transition-all active:scale-95 cursor-pointer`}
           >
             <Plus className="w-4 h-4" />
             <span>{actionText}</span>
@@ -109,7 +109,7 @@ export const EmptyState = ({
           <button
             type="button"
             onClick={onSecondaryAction}
-            className="inline-flex items-center px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            className="inline-flex items-center px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-sm font-semibold transition-all active:scale-95 cursor-pointer"
           >
             {secondaryActionText}
           </button>

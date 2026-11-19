@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useGymData } from '../../context/GymDataContext';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { ShiftFormModal } from './ShiftFormModal';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
@@ -174,19 +175,22 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
   return (
     <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* 1. HEADER SECTION */}
-      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
                 <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+              <div className="min-w-0">
+                <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                   Staff Shift Management
                 </h1>
-                <p className="text-[11px] text-slate-500 hidden sm:block">
+                <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                   Create customized shifts with multiple timing options and slots dynamically selectable in staff accounts.
+                </p>
+                <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                  {totalShiftsCount} shifts • {activeShiftsCount} active
                 </p>
               </div>
             </div>
@@ -197,68 +201,67 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
               <button
                 type="button"
                 onClick={() => onNavigateTab('staff-accounts')}
-                className="px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Go to Staff Directory"
               >
                 <Users className="w-3.5 h-3.5 text-slate-500" />
                 <span className="hidden sm:inline">Go to Staff</span>
-                <span className="inline sm:hidden">Staff</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={openCreateModal}
-              className="px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4" />
-              <span>Create Shift</span>
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <span className="hidden sm:inline">Create Shift</span>
+              <span className="sm:hidden">Create</span>
             </button>
           </div>
         </div>
 
         {/* STATS STRIP */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100">
           <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Shift Profiles</span>
-            <div className="text-xl font-black text-slate-900 mt-0.5">{totalShiftsCount}</div>
-            <span className="text-[10px] text-slate-500 font-medium">Configured in gym</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400 block">Total Shift Profiles</span>
+            <div className="text-xl font-bold text-slate-900 mt-0.5">{totalShiftsCount}</div>
+            <span className="text-2xs text-slate-500 font-medium">Configured in gym</span>
           </div>
 
           <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Active Shifts</span>
-            <div className="text-xl font-black text-emerald-700 mt-0.5">{activeShiftsCount}</div>
-            <span className="text-[10px] text-emerald-600/80 font-medium">Ready for roster</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-emerald-600 block">Active Shifts</span>
+            <div className="text-xl font-bold text-emerald-700 mt-0.5">{activeShiftsCount}</div>
+            <span className="text-2xs text-emerald-600/80 font-medium">Ready for roster</span>
           </div>
 
           <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">Multi-Slot / Split Shifts</span>
-            <div className="text-xl font-black text-indigo-700 mt-0.5">{multiSlotShiftsCount}</div>
-            <span className="text-[10px] text-indigo-600/80 font-medium">Multiple time slots</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-indigo-600 block">Multi-Slot / Split Shifts</span>
+            <div className="text-xl font-bold text-indigo-700 mt-0.5">{multiSlotShiftsCount}</div>
+            <span className="text-2xs text-indigo-600/80 font-medium">Multiple time slots</span>
           </div>
 
           <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block">Staff on Duty</span>
-            <div className="text-xl font-black text-amber-700 mt-0.5">{totalAssignedStaffCount}</div>
-            <span className="text-[10px] text-amber-600/80 font-medium">Assigned employees</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-amber-600 block">Staff on Duty</span>
+            <div className="text-xl font-bold text-amber-700 mt-0.5">{totalAssignedStaffCount}</div>
+            <span className="text-2xs text-amber-600/80 font-medium">Assigned employees</span>
           </div>
         </div>
       </div>
 
       {/* 2. FILTER & SEARCH BAR */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-2.5 sm:p-4 shadow-sm flex items-center justify-between gap-2 sm:gap-3">
-        <div className="relative flex-1 min-w-0 sm:max-w-xs">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search shift name or timings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-slate-50 border border-slate-200 text-base sm:text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all truncate"
-          />
-        </div>
+        <SearchInput
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onClear={() => setSearchTerm('')}
+          placeholder="Search shift name or timings..."
+          mobilePlaceholder="Search shifts..."
+          containerClassName="flex-1 min-w-0 sm:max-w-xs"
+        />
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <label htmlFor="shift-status-filter" className="text-xs text-slate-500 font-bold shrink-0 hidden sm:inline">
+          <label htmlFor="shift-status-filter" className="text-xs text-slate-500 font-medium shrink-0 hidden sm:inline">
             Status:
           </label>
           <div className="relative w-32 sm:min-w-[160px]">
@@ -307,16 +310,16 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
                 <div>
                   {/* Top Bar with Color Indicator and Status */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-3 h-3 rounded-full ${colorMeta.bg} ring-2 ring-white shadow-xs`} />
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${colorMeta.light}`}>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`w-3 h-3 rounded-full ${colorMeta.bg} ring-2 ring-white shadow-xs shrink-0`} />
+                      <span className={`px-2 py-0.5 rounded-full text-2xs font-bold uppercase tracking-wider shrink-0 whitespace-nowrap ${colorMeta.light}`}>
                         {colorMeta.label}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`px-2 py-0.5 rounded-full text-2xs font-bold shrink-0 whitespace-nowrap ${
                           shift.is_active !== false
                             ? 'bg-emerald-100/70 text-emerald-700'
                             : 'bg-slate-100 text-slate-500'
@@ -328,23 +331,23 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
                   </div>
 
                   {/* Shift Title & Description */}
-                  <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate" title={shift.name}>
                     {shift.name}
                   </h3>
                   {shift.description && (
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed" title={shift.description}>
                       {shift.description}
                     </p>
                   )}
 
                   {/* Timing Slots Box */}
                   <div className="mt-4 pt-3.5 border-t border-slate-100 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 mb-1">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="flex items-center justify-between text-2xs font-bold text-slate-600 mb-1 gap-2">
+                      <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
+                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span>Timing Slots ({timings.length})</span>
                       </span>
-                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 font-extrabold text-[10px]">
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 font-bold text-2xs shrink-0 whitespace-nowrap">
                         Total {formatDurationDisplay(totalMinutes)}
                       </span>
                     </div>
@@ -355,20 +358,20 @@ export const ShiftManager = ({ onNavigateTab = null }) => {
                         return (
                           <div
                             key={sIdx}
-                            className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90 flex items-center justify-between text-xs"
+                            className="p-2.5 rounded-xl bg-slate-50 border border-slate-100/90 flex items-center justify-between text-xs gap-2"
                           >
-                            <div className="min-w-0">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400 block truncate" title={slot.label || `Slot ${sIdx + 1}`}>
                                 {slot.label || `Slot ${sIdx + 1}`}
                               </span>
-                              <div className="font-extrabold text-slate-900 text-xs mt-0.5 flex items-center gap-1.5">
+                              <div className="font-bold text-slate-900 text-xs mt-0.5 flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                                 <span>{slot.start_time}</span>
                                 <span className="text-slate-400 font-normal">→</span>
                                 <span>{slot.end_time}</span>
                               </div>
                             </div>
 
-                            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded-md border border-slate-200/80 shadow-2xs">
+                            <span className="text-2xs font-bold text-slate-500 bg-white px-2 py-1 rounded-md border border-slate-200/80 shadow-2xs shrink-0 whitespace-nowrap">
                               {formatDurationDisplay(slotMinutes)}
                             </span>
                           </div>

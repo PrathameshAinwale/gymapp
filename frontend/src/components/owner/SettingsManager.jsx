@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, FileText, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi } from 'lucide-react';
+import { Settings, Building, Clock, Mail, Phone, Save, ShieldCheck, Bell, Loader2, RotateCw, Upload, Image as ImageIcon, Trash2, Sparkles, Calendar, Crown, Award, Zap, CheckCircle2, Building2, Plus, X, Lock, Check, Eye, EyeOff, KeyRound, AlertCircle, Users, Dumbbell, Calculator, UserCheck, Sliders, Info, CheckSquare, Server, Radio, Cpu, Wifi, Crop } from 'lucide-react';
 import { getPlanByTier, resolveGymTier } from '../superadmin/packagePlans';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { getGymConsentForm, saveGymConsentForm, DEFAULT_CONSENT_FORM } from '../../utils/consentFormConfig';
@@ -16,6 +16,8 @@ import {
   sanitizeText
 } from '../../utils/validation';
 import { GymRolesManager } from '../superadmin/GymRolesManager';
+import { ImageCropperModal } from '../common/ImageCropperModal';
+import { withTitleCase } from '../../utils/textUtils';
 
 
 const calculateDaysRemaining = (expiryDate) => {
@@ -255,6 +257,11 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [cropModal, setCropModal] = useState({
+    isOpen: false,
+    imageSrc: '',
+    target: 'main' // 'main' | 'branch'
+  });
 
   // Purchased Plan & Subscription dates computed from real gymInfo and currentUser
   const currentTier = resolveGymTier(gymInfo, currentUser) || 'Platinum';
@@ -361,35 +368,27 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo file size must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo file size must be less than 5MB');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setFormData((prev) => ({ ...prev, logo: event.target.result }));
+      setCropModal({
+        isOpen: true,
+        imageSrc: event.target.result,
+        target: 'main'
+      });
     };
     reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
   };
 
   const handleRemoveLogo = () => {
     setFormData((prev) => ({ ...prev, logo: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-    }
-  };
-
-
-  const handleSwitchToBranch = async (targetGymId, targetGymName) => {
-    if (isSwitchingId) return;
-    setIsSwitchingId(targetGymId);
-    try {
-      addToast(`Switching active workspace to "${targetGymName}"...`, 'info');
-      await switchBranch(targetGymId);
-    } catch (err) {
-      alert('Failed to switch facility: ' + (err.message || 'Server error'));
-      setIsSwitchingId(null);
     }
   };
 
@@ -400,15 +399,29 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
       alert('Please select an image file (PNG, JPG, WebP)');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Logo file size must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo file size must be less than 5MB');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => {
-      setNewBranchData((prev) => ({ ...prev, logo: event.target.result }));
+      setCropModal({
+        isOpen: true,
+        imageSrc: event.target.result,
+        target: 'branch'
+      });
     };
     reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleCropComplete = (croppedDataUrl) => {
+    if (cropModal.target === 'branch') {
+      setNewBranchData((prev) => ({ ...prev, logo: croppedDataUrl }));
+    } else {
+      setFormData((prev) => ({ ...prev, logo: croppedDataUrl }));
+    }
+    setCropModal({ isOpen: false, imageSrc: '', target: 'main' });
   };
 
   const handleCreateBranchSubmit = async (e) => {
@@ -586,17 +599,17 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
   };
 
   return (
-    <div className="space-y-4 animate-fadeIn pb-12 w-full">
+    <div className="space-y-3 sm:space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 bg-white border border-slate-200/90 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl shadow-2xs">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
             <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                Settings & Branding
+              <h1 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate">
+                Settings &amp; Branding
               </h1>
             </div>
           </div>
@@ -604,165 +617,150 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
       </div>
 
       {/* Top Level Settings Tabs Switcher */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200/90 pb-2 overflow-x-auto no-scrollbar scroll-smooth">
         <button
           type="button"
           onClick={() => setActiveSettingsTab('general')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`h-8 sm:h-9 flex items-center gap-1.5 px-3 rounded-lg sm:rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeSettingsTab === 'general'
-              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
           }`}
         >
-          <Building className="w-4 h-4" />
-          <span>Facility Profile & Branding</span>
+          <Building className="w-3.5 h-3.5" />
+          <span className="sm:hidden">Branding</span>
+          <span className="hidden sm:inline">Facility Profile &amp; Branding</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSettingsTab('consent')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`h-8 sm:h-9 flex items-center gap-1.5 px-3 rounded-lg sm:rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeSettingsTab === 'consent'
-              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
           }`}
         >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Member Registration Consent Form</span>
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span className="sm:hidden">Consent Form</span>
+          <span className="hidden sm:inline">Member Consent Form</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSettingsTab('payroll_attendance')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`h-8 sm:h-9 flex items-center gap-1.5 px-3 rounded-lg sm:rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeSettingsTab === 'payroll_attendance'
-              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
           }`}
         >
-          <Clock className="w-4 h-4" />
-          <span>Payroll & Attendance</span>
+          <Clock className="w-3.5 h-3.5" />
+          <span className="sm:hidden">Payroll</span>
+          <span className="hidden sm:inline">Payroll &amp; Attendance</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSettingsTab('roles')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+          className={`h-8 sm:h-9 flex items-center gap-1.5 px-3 rounded-lg sm:rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeSettingsTab === 'roles'
-              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
           }`}
         >
-          <UserCheck className="w-4 h-4" />
-          <span>Staff Roles & Page Access</span>
+          <UserCheck className="w-3.5 h-3.5" />
+          <span className="sm:hidden">Roles &amp; Access</span>
+          <span className="hidden sm:inline">Staff Roles &amp; Page Access</span>
         </button>
       </div>
 
       {activeSettingsTab === 'general' ? (
-        <div className="space-y-4">
-          {/* SUBSCRIPTION PLAN & VALIDITY DETAILS (CLEAN & SIMPLE) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
-        {/* Top Header Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              isPlatinum
-                ? 'bg-purple-50 text-purple-600 border border-purple-200'
-                : currentTier.toLowerCase() === 'gold'
-                ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
-            }`}>
-              <Crown className="w-5 h-5" />
+        <div className="space-y-3 sm:space-y-4">
+          {/* SUBSCRIPTION PLAN & VALIDITY DETAILS (CLEAN & COMPACT) */}
+          <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+            {/* Top Header Row */}
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  isPlatinum
+                    ? 'bg-purple-50 text-purple-600 border border-purple-200'
+                    : currentTier.toLowerCase() === 'gold'
+                    ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                    : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                }`}>
+                  <Crown className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                    {gymInfo?.packageName || `${currentTier} Plan`}
+                  </h2>
+                  <div className="text-[10px] text-slate-400 font-medium">SaaS Subscription</div>
+                </div>
+              </div>
+
+              {daysRemaining !== null && (
+                <div className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] sm:text-xs font-bold shrink-0 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>{daysRemaining > 0 ? `${daysRemaining} Days Left` : 'Renew Today'}</span>
+                </div>
+              )}
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                  {gymInfo?.packageName || `${currentTier} Plan`}
-                </h2>
+
+            {/* 3 Metric Boxes (3-column on mobile & desktop) */}
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-100 min-w-0">
+                <div className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">
+                  Start Date
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 truncate">
+                  {startsAtDisplay || 'Active'}
+                </div>
+              </div>
+
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-100 min-w-0">
+                <div className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">
+                  Renewal
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 truncate">
+                  {expiresAtDisplay || '1 Year Term'}
+                </div>
+              </div>
+
+              <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-100 min-w-0">
+                <div className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">
+                  Quotas
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 truncate" title={gymInfo?.maxMembers ? `${gymInfo.maxMembers} Members` : 'Unlimited'}>
+                  {gymInfo?.maxMembers ? `${gymInfo.maxMembers} Members` : 'Unlimited'}
+                </div>
               </div>
             </div>
           </div>
 
-          {daysRemaining !== null && (
-            <div className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shrink-0 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{daysRemaining > 0 ? `${daysRemaining} Days Remaining` : 'Renew Today'}</span>
-            </div>
-          )}
-        </div>
-
-        {/* 3 Simple Metric Boxes */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                Plan Starting Date
-              </div>
-              <div className="text-sm font-bold text-slate-800 mt-0.5">
-                {startsAtDisplay || 'Active since signup'}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                Plan Ending / Renewal
-              </div>
-              <div className="text-sm font-bold text-slate-800 mt-0.5">
-                {expiresAtDisplay || '1 Year Term'}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                Facility Quotas
-              </div>
-              <div className="text-sm font-bold text-slate-800 mt-0.5">
-                {gymInfo?.maxMembers ? `${gymInfo.maxMembers} Athletes` : 'Unlimited Athletes'}
-                <span className="text-xs font-normal text-slate-500">
-                  {' '}• {gymInfo?.maxBranches && gymInfo.maxBranches > 1 ? `${gymInfo.maxBranches} Gyms` : (currentTier?.toLowerCase() === 'platinum' ? '3 Gyms' : '1 Gym')}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSave} className="space-y-3 sm:space-y-6">
+      <form onSubmit={handleSave} className="space-y-2.5 sm:space-y-3.5">
         {/* General Business Profile */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
-          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-            <Building className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Facility Profile & Branding Details</span>
+        <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-2.5 sm:space-y-3">
+          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+            <Building className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Facility Profile &amp; Branding Details</span>
           </h3>
 
           {/* Gym Logo & Navbar Appearance */}
-          <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-900 flex items-center gap-1.5">
+              <label className="block text-[11px] font-bold text-slate-900 flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Gym Brand Logo</span>
               </label>
-              <span className="text-[10px] text-slate-500 font-medium">Shown on Top Navbar & Reports</span>
+              <span className="text-[10px] text-slate-500 font-medium">Shown on Top Navbar &amp; Reports</span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               {/* Logo Preview */}
               <div className="relative group shrink-0">
                 {formData.logo ? (
-                  <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-emerald-500/40 p-1 flex items-center justify-center shadow-xs overflow-hidden">
+                  <div className="relative w-12 h-12 rounded-xl bg-white border border-emerald-500/40 p-1 flex items-center justify-center shadow-2xs overflow-hidden">
                     <img
                       src={formData.logo}
                       alt="Gym Logo"
@@ -770,7 +768,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                     />
                   </div>
                 ) : (
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-2xl shadow-sm border border-emerald-400/30">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-base shadow-2xs border border-emerald-400/30">
                     {(formData.name || 'A').charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -778,7 +776,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
 
               {/* Upload Controls */}
               <div className="flex-1 space-y-2 w-full">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -789,21 +787,32 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+                    className="flex-1 sm:flex-initial h-8.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Upload Logo Image</span>
                   </button>
 
                   {formData.logo && (
-                    <button
-                      type="button"
-                      onClick={handleRemoveLogo}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setCropModal({ isOpen: true, imageSrc: formData.logo, target: 'main' })}
+                        className="flex-1 sm:flex-initial h-8.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                        title="Crop or readjust current logo"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                        <span>Crop / Set</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="flex-1 sm:flex-initial h-8.5 px-2.5 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove</span>
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -814,21 +823,21 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                     placeholder="Or paste direct image URL (https://...)"
                     value={formData.logo.startsWith('data:') ? '' : formData.logo}
                     onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
+                    className="w-full h-8.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
                   />
-                  <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, WebP, or SVG (max 2MB)</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, WebP, or SVG (max 5MB)</span>
                 </div>
               </div>
             </div>
 
             {/* Live Top Navbar Preview */}
-            <div className="mt-2 pt-3 border-t border-slate-200/80">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+            <div className="mt-1.5 pt-2 border-t border-slate-200/80">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                 Top Navbar Preview
               </span>
-              <div className="inline-flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+              <div className="inline-flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
                 {formData.logo ? (
-                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                     <img
                       src={formData.logo}
                       alt="Logo preview"
@@ -836,12 +845,12 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                     />
                   </div>
                 ) : (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
                     {(formData.name || 'A').charAt(0).toUpperCase()}
                   </div>
                 )}
-                <div className="flex flex-col justify-center min-w-0 pr-2">
-                  <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate max-w-[200px] leading-tight">
+                <div className="flex flex-col justify-center min-w-0 pr-1.5">
+                  <span className="text-xs font-bold text-slate-900 tracking-tight truncate max-w-[180px] leading-tight">
                     {formData.name || 'YOUR GYM NAME'}
                   </span>
                   <div className="flex items-center gap-1 text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none mt-0.5">
@@ -855,53 +864,53 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Gym Name</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gym Name</label>
               <input
                 type="text"
                 placeholder="Enter gym name (e.g. FitZone Club)"
                 value={formData.name || ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
+                onChange={withTitleCase((e) => setFormData({ ...formData, name: e.target.value }))}
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Tagline</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tagline</label>
               <input
                 type="text"
                 placeholder="Enter tagline or motto"
                 value={formData.tagline || ''}
-                onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                onChange={withTitleCase((e) => setFormData({ ...formData, tagline: e.target.value }))}
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Physical Facility Address</label>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Physical Facility Address</label>
             <input
               type="text"
               placeholder="Enter physical facility address"
               value={formData.address || ''}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              onChange={withTitleCase((e) => setFormData({ ...formData, address: e.target.value }))}
+              className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Email</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contact Email</label>
               <input
                 type="email"
                 placeholder="contact@gym.com"
                 value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Contact Phone (10 Digits)</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contact Phone (10 Digits)</label>
               <input
                 type="tel"
                 maxLength={10}
@@ -909,49 +918,49 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 onKeyDown={preventNonPhoneKey}
                 value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: sanitizePhone(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
         </div>
 
         {/* Operating Hours */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
-          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Gym & Floor Operational Hours</span>
+        <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-2">
+          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Gym &amp; Floor Operational Hours</span>
           </h3>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Operating Hours Schedule</label>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Operating Hours Schedule</label>
             <input
               type="text"
               placeholder="e.g. Mon-Sat: 6:00 AM - 10:30 PM | Sun: 7:00 AM - 1:00 PM"
               value={formData.operatingHours || ''}
               onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+              className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
 
         {/* eSSL Biometric Hardware & Turnstile Integration Card */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
-                <Server className="w-5 h-5" />
+        <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                <Server className="w-4 h-4" />
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-sm sm:text-base text-slate-900">
-                    eSSL Biometric Hardware & Turnstile Integration
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="font-bold text-xs sm:text-sm text-slate-900">
+                    eSSL Biometric Hardware &amp; Turnstile Integration
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    Live Dynamic LAN
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Live LAN
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  Configure biometric terminal IP address on your gym's local network for automated turnstile access and punch sync.
+                <p className="text-[10px] text-slate-500 truncate">
+                  Local terminal IP for automated turnstile access and punch sync
                 </p>
               </div>
             </div>
@@ -960,32 +969,32 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               type="button"
               disabled={isTestingDevice}
               onClick={handleTestDeviceConnection}
-              className="self-start sm:self-auto px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 shadow-xs active:scale-95 shrink-0"
+              className="self-start sm:self-auto h-8 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-2xs active:scale-95 shrink-0"
             >
-              {isTestingDevice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5 text-emerald-400" />}
-              <span>{isTestingDevice ? 'Testing Connection...' : 'Test Device Ping'}</span>
+              {isTestingDevice ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3 text-emerald-400" />}
+              <span>{isTestingDevice ? 'Testing...' : 'Test Device Ping'}</span>
             </button>
           </div>
 
           {deviceTestResult && (
-            <div className={`p-3 rounded-xl border text-xs font-medium flex items-center gap-2 animate-fadeIn ${
+            <div className={`p-2.5 rounded-lg border text-xs font-medium flex items-center gap-2 animate-fadeIn ${
               deviceTestResult.connected
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : 'bg-rose-50 text-rose-800 border-rose-200'
             }`}>
               {deviceTestResult.connected ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
               )}
               <span>{deviceTestResult.message}</span>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-indigo-600" />
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Radio className="w-3 h-3 text-indigo-600" />
                 <span>eSSL Machine IP Address</span>
                 <span className="text-rose-500">*</span>
               </label>
@@ -995,16 +1004,16 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="192.168.1.201"
                 value={deviceIp}
                 onChange={(e) => setDeviceIp(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Static or reserved local LAN IPv4 of your biometric controller (e.g., 192.168.1.201).
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Static or reserved local LAN IPv4 of biometric controller
               </span>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5 text-indigo-600" />
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Cpu className="w-3 h-3 text-indigo-600" />
                 <span>Terminal Port</span>
               </label>
               <input
@@ -1012,228 +1021,114 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 placeholder="4370"
                 value={devicePort}
                 onChange={(e) => setDevicePort(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 font-mono font-bold focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Default communication port is 4370.
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Default port is 4370
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
-            <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+          <div className="p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-100 text-[10px] sm:text-[11px] text-indigo-900 flex items-start gap-1.5">
+            <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">Dynamic Hardware Integration: </span>
-              Saving automatically propagates this IP address to the member biometric sync engine, the background turnstile pulse daemons, and local Excel sync services.
+              <span className="font-bold">Hardware Sync: </span>
+              Saving automatically updates biometric sync daemons and background turnstile pulse loops.
             </div>
           </div>
         </div>
 
         {/* System & Currency Settings */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
-          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-            <Bell className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>System Localization & Currency</span>
+        <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-2.5 sm:space-y-3">
+          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+            <Bell className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>System Localization &amp; Currency</span>
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Billing Currency</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Billing Currency</label>
               <input
                 type="text"
                 readOnly
                 value="Indian Rupee (₹ / INR)"
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-600 font-bold"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-100 border border-slate-200 rounded-lg sm:rounded-xl text-xs text-slate-600 font-bold"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Timezone</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Timezone</label>
               <input
                 type="text"
                 readOnly
                 value="Asia/Kolkata (IST - UTC+05:30)"
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-600 font-bold"
+                className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-100 border border-slate-200 rounded-lg sm:rounded-xl text-xs text-slate-600 font-bold"
               />
             </div>
           </div>
         </div>
 
-        {/* Invoice, Tax & Payment Settings */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-3 sm:space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Invoice, Tax & Payment Configuration</span>
-            </h3>
-            <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
-              Printed on Member PDF Receipts & Official Invoices
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                GSTIN / Tax Number
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 27AAPCP1234F1Z8"
-                value={formData.gstNumber || ''}
-                onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                UPI ID (VPA for QR payments)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. gymname@okaxis"
-                value={formData.upiId || ''}
-                onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Default Tax Rate (%)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                placeholder="18"
-                value={formData.taxRate !== undefined ? formData.taxRate : 18}
-                onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Bank Transfer Details (NEFT/RTGS)
-              </label>
-              <textarea
-                rows="2"
-                placeholder="e.g. Bank: HDFC Bank, A/C: 50200012345678, IFSC: HDFC0001234, Branch: Bandra West"
-                value={formData.bankDetails || ''}
-                onChange={(e) => setFormData({ ...formData, bankDetails: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Authorized Signatory Text
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Authorised Signatory"
-                value={formData.signatoryText || ''}
-                onChange={(e) => setFormData({ ...formData, signatoryText: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Terms & Conditions Note
-              </label>
-              <textarea
-                rows="2"
-                placeholder="e.g. Fees once paid are non-refundable. Non-transferable under any circumstances."
-                value={formData.termsAndConditions || ''}
-                onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Invoice Footer / Thank You Message
-              </label>
-              <textarea
-                rows="2"
-                placeholder="e.g. Thank you for your business! Stay consistent & conquer your goals."
-                value={formData.footerText || ''}
-                onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end pt-0.5">
           <button
             type="submit"
             disabled={isSaving}
-            className="w-full sm:w-auto min-h-[48px] flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm sm:text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+            className="w-full sm:w-auto h-9 px-5 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
           >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             <span>{isSaving ? 'Saving Settings...' : 'Save Settings'}</span>
           </button>
         </div>
       </form>
 
-      {/* ══════════════════════════════════════════════════════════ */}
-      {/* OWNER ACCOUNT & PASSWORD SECURITY                         */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
-              <KeyRound className="w-5 h-5" />
+      {/* OWNER ACCOUNT & PASSWORD SECURITY */}
+      <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+              <KeyRound className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-sm sm:text-base text-slate-900">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
                   Owner Account &amp; Password Security
                 </h3>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-[10px] sm:text-2xs text-slate-500">
                 Change and set a new password for your gym owner portal account.
               </p>
             </div>
           </div>
 
           {(currentUser?.email || currentUser?.username) && (
-            <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 self-start sm:self-auto font-mono">
-              <Mail className="w-3.5 h-3.5 text-indigo-600" />
+            <div className="text-[10px] sm:text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 self-start sm:self-auto font-mono">
+              <Mail className="w-3 h-3 text-indigo-600" />
               <span>{currentUser.email || currentUser.username}</span>
             </div>
           )}
         </div>
 
         {passwordError && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-shake">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
             <span>{passwordError}</span>
           </div>
         )}
 
         {passwordSuccess && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
             <span>{passwordSuccess}</span>
           </div>
         )}
 
-        <form onSubmit={handleUpdateOwnerPassword} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        <form onSubmit={handleUpdateOwnerPassword} className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
             {/* Field 1: Current Password */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                 Current Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-3.5 h-3.5" />
                 </div>
                 <input
@@ -1242,26 +1137,26 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerCurrentPassword}
                   onChange={(e) => setOwnerCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
-                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full h-8.5 sm:h-9 pl-8 pr-8 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOwnerCurrent(!showOwnerCurrent)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showOwnerCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showOwnerCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
             {/* Field 2: New Password */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                 New Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                   <KeyRound className="w-3.5 h-3.5" />
                 </div>
                 <input
@@ -1270,26 +1165,26 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerNewPassword}
                   onChange={(e) => setOwnerNewPassword(e.target.value)}
                   placeholder="Min 6 characters"
-                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full h-8.5 sm:h-9 pl-8 pr-8 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOwnerNew(!showOwnerNew)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showOwnerNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showOwnerNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
             {/* Field 3: Confirm New Password */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                 Confirm New Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
                 <input
@@ -1298,35 +1193,34 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={ownerConfirmPassword}
                   onChange={(e) => setOwnerConfirmPassword(e.target.value)}
                   placeholder="Re-enter new password"
-                  className="w-full pl-9 pr-10 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  className="w-full h-8.5 sm:h-9 pl-8 pr-8 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOwnerConfirm(!showOwnerConfirm)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showOwnerConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showOwnerConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
               disabled={isChangingPassword || !ownerCurrentPassword || !ownerNewPassword || !ownerConfirmPassword}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0 min-h-[44px] w-full sm:w-auto"
+              className="flex items-center justify-center gap-1.5 h-8.5 sm:h-9 px-4 rounded-lg sm:rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0 w-full sm:w-auto"
             >
               {isChangingPassword ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Updating Password...</span>
                 </>
               ) : (
                 <>
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-3.5 h-3.5" />
                   <span>Update Owner Password</span>
                 </>
               )}
@@ -1335,19 +1229,19 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         </form>
       </div>
 
-      <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5" />
+      <div className="bg-white border border-slate-200/90 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-sm sm:text-base text-slate-900 tracking-tight">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight">
                   Multi-Gym Facility Workspaces
                 </h3>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-[10px] sm:text-2xs text-slate-500">
                 {isPlatinum
                   ? `Manage up to ${branchesData.max_branches || 3} independent gym facilities with completely isolated athletes, trainers, and finances.`
                   : 'Add and manage multiple gym facilities from one master account. Each branch gets independent members, staff & accounts.'}
@@ -1357,7 +1251,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
 
           <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             {isPlatinum && (
-              <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
                 {branches.length} / {branchesData.max_branches || 3} Gyms Added
               </span>
             )}
@@ -1365,9 +1259,9 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               <button
                 type="button"
                 onClick={() => setIsAddBranchModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-95"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add Another Gym</span>
               </button>
             )}
@@ -1376,23 +1270,23 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
 
         {/* If user is NOT on Platinum, show informative upgrade card */}
         {!isPlatinum ? (
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-50/80 via-indigo-50/60 to-purple-50/80 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Lock className="w-5 h-5" />
+          <div className="p-3 sm:p-3.5 rounded-xl bg-gradient-to-r from-purple-50/80 via-indigo-50/60 to-purple-50/80 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Lock className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900">
                   Unlock Multi-Gym Support with Platinum Plan
                 </h4>
-                <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
-                  Your current {currentTier} Plan supports 1 single gym facility. Upgrade to the Platinum Plan to create up to 3 separate gym locations with complete data isolation for members, revenue, staff, and workout schedules.
+                <p className="text-[11px] text-slate-600 mt-0.5 max-w-2xl">
+                  Your current {currentTier} Plan supports 1 single gym facility. Upgrade to Platinum to manage multiple branches with complete data isolation.
                 </p>
               </div>
             </div>
             <div className="shrink-0">
-              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-sm">
-                <Crown className="w-3.5 h-3.5" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[11px] font-bold shadow-2xs">
+                <Crown className="w-3 h-3" />
                 <span>Platinum Feature</span>
               </span>
             </div>
@@ -1457,7 +1351,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
 
                     <div className="flex items-center gap-2 pt-1 border-t border-slate-200/80 text-[11px]">
                       <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-bold text-slate-700">
-                         {b.member_count || 0} Athletes
+                         {b.member_count || 0} Members
                       </span>
                       <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-bold text-slate-700">
                          {b.staff_count || 0} Staff
@@ -1519,18 +1413,18 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         /* ══════════════════════════════════════════════════════════ */
         <div className="space-y-4 sm:space-y-6">
           {/* Top Info & Action Card */}
-          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
+          <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
                   Digital Consent & Liability Waiver Builder
                 </h2>
               </div>
-              <p className="text-xs text-slate-500">
-                Customize the legal clauses, club policies, and health declarations presented to new athletes during member enrollment.
+              <p className="text-[11px] sm:text-xs text-slate-500">
+                Customize the legal clauses, club policies, and health declarations presented to new members during member enrollment.
               </p>
             </div>
 
@@ -1538,7 +1432,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               <button
                 type="button"
                 onClick={handleResetConsentForm}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5 min-h-[42px] sm:min-h-0"
+                className="flex-1 sm:flex-initial justify-center h-8.5 sm:h-9 px-3 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5"
                 title="Reset to default legal waiver template"
               >
                 <RotateCw className="w-3.5 h-3.5" />
@@ -1548,21 +1442,21 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="button"
                 onClick={handleSaveConsentForm}
                 disabled={isSavingConsent}
-                className="flex-1 sm:flex-initial justify-center px-5 py-2.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50 min-h-[42px] sm:min-h-0"
+                className="flex-1 sm:flex-initial justify-center h-8.5 sm:h-9 px-4 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
               >
-                {isSavingConsent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSavingConsent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{isSavingConsent ? 'Saving...' : 'Save Consent Form'}</span>
               </button>
             </div>
           </div>
 
           {/* Form Configuration Card */}
-          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm space-y-4">
-            <h3 className="font-bold text-xs sm:text-sm text-slate-900 border-b border-slate-100 pb-2.5">
+          <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-xs space-y-3.5 sm:space-y-4">
+            <h3 className="font-bold text-xs sm:text-sm text-slate-900 border-b border-slate-100 pb-2">
               Document Header & Declaration
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
                   Document Title *
@@ -1572,7 +1466,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.title}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g. Gym Rules & Liability Waiver Consent Form"
-                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -1585,7 +1479,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.subtitle}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, subtitle: e.target.value }))}
                   placeholder="e.g. Review terms & physical activity declaration below before signing."
-                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -1598,7 +1492,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   value={consentFormConfig.declarationText}
                   onChange={(e) => setConsentFormConfig((prev) => ({ ...prev, declarationText: e.target.value }))}
                   placeholder="e.g. I have read, understood, and accept all terms of the Health Declaration, Liability Waiver & Gym Rules."
-                  className="w-full px-3 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full h-8.5 sm:h-9 px-2.5 sm:px-3 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -1646,7 +1540,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                   Consent Form Clauses & Rules ({consentFormConfig.clauses.length} Clauses)
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Add, edit, or remove clauses below. Each clause will be displayed clearly to athletes.
+                  Add, edit, or remove clauses below. Each clause will be displayed clearly to members.
                 </p>
               </div>
               <button
@@ -1726,7 +1620,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-emerald-600" />
                 <span className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Registration Live Preview (How Athletes & Staff See It)
+                  Registration Live Preview (How Memebers & Staff See It)
                 </span>
               </div>
               <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
@@ -1785,19 +1679,19 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         /* ══════════════════════════════════════════════════════════ */
         /* TAB 3: PAYROLL & ATTENDANCE POLICY RULES                   */
         /* ══════════════════════════════════════════════════════════ */
-        <div className="space-y-5 animate-fadeIn">
+        <div className="space-y-4 sm:space-y-5 animate-fadeIn">
           {/* Header Action Bar */}
-          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-                  <Clock className="w-5 h-5" />
+          <div className="bg-white border border-slate-200 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                     Payroll & Attendance Policy Rules
                   </h2>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-[11px] sm:text-xs text-slate-500">
                     Set role-specific late mark grace periods, auto check-out toggles, and work duration cutoffs.
                   </p>
                 </div>
@@ -1808,7 +1702,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
               <button
                 type="button"
                 onClick={handleResetPayrollConfig}
-                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer min-h-[42px] sm:min-h-0"
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 h-8.5 sm:h-9 px-3 rounded-lg sm:rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 <RotateCw className="w-3.5 h-3.5" />
                 <span>Reset Defaults</span>
@@ -1818,9 +1712,9 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                 type="button"
                 disabled={isSavingPayroll}
                 onClick={handleSavePayrollConfig}
-                className="flex-1 sm:flex-initial justify-center flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50 min-h-[42px] sm:min-h-0"
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 h-8.5 sm:h-9 px-4 rounded-lg sm:rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
               >
-                {isSavingPayroll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSavingPayroll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{isSavingPayroll ? 'Saving...' : 'Save All Policies'}</span>
               </button>
             </div>
@@ -2245,7 +2139,7 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Creates an isolated facility workspace with separate athletes, trainers, and accounts.
+                    Creates an isolated facility workspace with separate members, trainers, and accounts.
                   </p>
                 </div>
               </div>
@@ -2374,14 +2268,33 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
                     <button
                       type="button"
                       onClick={() => branchLogoInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-bold border border-white/[0.1] transition-colors cursor-pointer"
+                      className="h-9 px-3.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-semibold border border-white/[0.1] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      Choose Image...
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{newBranchData.logo ? 'Change Image...' : 'Choose Image...'}</span>
                     </button>
                     {newBranchData.logo && (
-                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Logo uploaded
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Logo set
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setCropModal({ isOpen: true, imageSrc: newBranchData.logo, target: 'branch' })}
+                          className="h-8 px-2.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition-colors cursor-pointer flex items-center gap-1"
+                          title="Crop and position branch logo"
+                        >
+                          <Crop className="w-3 h-3" />
+                          <span>Crop</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewBranchData(prev => ({ ...prev, logo: '' }))}
+                          className="h-8 px-2.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/20 transition-colors cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2416,6 +2329,15 @@ export const SettingsManager = ({ initialTab = 'general' }) => {
         </div>,
         document.body
       )}
+
+      {/* Reusable Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropModal.isOpen}
+        imageSrc={cropModal.imageSrc}
+        onClose={() => setCropModal({ isOpen: false, imageSrc: '', target: 'main' })}
+        onCropComplete={handleCropComplete}
+        title={cropModal.target === 'branch' ? 'Crop Branch Facility Logo' : 'Crop Gym Brand Logo'}
+      />
 
     </div>
   );

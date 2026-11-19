@@ -6,6 +6,54 @@
  */
 
 /**
+ * Resolves the active gym's real name dynamically from context or storage.
+ * Strictly guarantees ZERO hardcoded or generic placeholder names ('Pulse Fitness', 'Pulse', 'Gym', 'Our Gym').
+ * If no real name is found, returns an empty string so callers can fall back to neutral wording.
+ * 
+ * @param {string|null} [explicitGymName] - Optional gym name passed from component props/state
+ * @returns {string} The active gym's real name, or empty string '' if unknown
+ */
+export const getGymName = (explicitGymName = null) => {
+  const isGeneric = (name) => {
+    if (!name || typeof name !== 'string') return true;
+    const lower = name.trim().toLowerCase();
+    return !lower || ['pulse fitness', 'pulsefit', 'pulse', 'gym', 'our gym', 'fitness club', 'our fitness club'].includes(lower);
+  };
+
+  if (explicitGymName && typeof explicitGymName === 'string' && !isGeneric(explicitGymName)) {
+    return explicitGymName.trim();
+  }
+
+  try {
+    const rawGym = localStorage.getItem('pulsefit_gymInfo');
+    if (rawGym) {
+      const parsed = JSON.parse(rawGym);
+      const name = parsed?.name || parsed?.gym_name;
+      if (name && !isGeneric(name)) {
+        return name.trim();
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  try {
+    const rawUser = localStorage.getItem('pulsefit_currentUser_v2') || localStorage.getItem('pulsefit_user');
+    if (rawUser) {
+      const user = JSON.parse(rawUser);
+      const name = user?.gymName || user?.gym?.name;
+      if (name && !isGeneric(name)) {
+        return name.trim();
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  return '';
+};
+
+/**
  * Normalizes any raw phone number string to a valid international format for WhatsApp.
  * e.g. "8767227123" -> "918767227123"
  *      "+91 87672 27123" -> "918767227123"

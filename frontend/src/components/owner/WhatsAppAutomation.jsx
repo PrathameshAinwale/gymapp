@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGymData } from '../../context/GymDataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
@@ -50,7 +51,7 @@ import {
   sanitizePhone,
   sanitizeText
 } from '../../utils/validation';
-import { getWhatsAppUrl, openWhatsApp } from '../../utils/whatsapp';
+import { getWhatsAppUrl, openWhatsApp, getGymName } from '../../utils/whatsapp';
 
 const BirthdayAvatar = ({ src, alt, className = "w-10 h-10 rounded-full", iconClassName = "w-5 h-5 text-pink-500" }) => {
   const [hasError, setHasError] = useState(false);
@@ -320,14 +321,14 @@ export const WhatsAppAutomation = () => {
     switch (category) {
       case 'new_plan':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
             <Zap className="w-3 h-3 text-purple-600" />
             <span>New Plan / Offer</span>
           </span>
         );
       case 'birthday':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200 flex items-center gap-1">
             <Cake className="w-3 h-3 text-pink-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
@@ -335,35 +336,35 @@ export const WhatsAppAutomation = () => {
       case 'expiry_reminder':
       case 'membership_expired':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
             <Clock className="w-3 h-3 text-amber-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
         );
       case 'welcome':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-emerald-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
         );
       case 'fee_due':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
             <CreditCard className="w-3 h-3 text-rose-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
         );
       case 'absentee':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-200 flex items-center gap-1">
             <Flame className="w-3 h-3 text-orange-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
         );
       default:
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
+          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
             <MessageSquare className="w-3 h-3 text-sky-600" />
             <span className="capitalize">{category.replace('_', ' ')}</span>
           </span>
@@ -599,7 +600,7 @@ export const WhatsAppAutomation = () => {
 
   // ── Dynamic WhatsApp Preview Renderer ──────────────────────
   const renderPreviewText = (templateText, sampleOverrides = {}) => {
-    const gymName = gymInfo?.name || 'Our Gym';
+    const gymName = getGymName(gymInfo?.name) || '';
     const sample = {
       '{{name}}': sampleOverrides.name || 'Rahul Sharma',
       '{{gym_name}}': gymName,
@@ -631,6 +632,16 @@ export const WhatsAppAutomation = () => {
     Object.entries(sample).forEach(([tag, val]) => {
       result = result.split(tag).join(val);
     });
+    if (!gymName) {
+      result = result
+        .replace(/at \*\*/g, '')
+        .replace(/from \*\*/g, '')
+        .replace(/— Team \*\*/g, '')
+        .replace(/at \*/g, '')
+        .replace(/from \*/g, '')
+        .replace(/— Team \*/g, '')
+        .replace(/ {2,}/g, ' ');
+    }
     return result;
   };
 
@@ -658,18 +669,18 @@ export const WhatsAppAutomation = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* ── Top Header Banner ──────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                   WhatsApp & Templates
                 </h1>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border hidden sm:inline-flex ${
+                <span className={`text-2xs font-bold px-2 py-0.5 rounded-full border hidden sm:inline-flex ${
                   isPlatinum
                     ? 'bg-purple-50 text-purple-700 border-purple-200'
                     : 'bg-amber-50 text-amber-800 border-amber-300'
@@ -677,31 +688,38 @@ export const WhatsAppAutomation = () => {
                   {isPlatinum ? 'Automated' : 'Templates'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Member & trainer birthday greetings, expiry renewal alerts, and fee notices with 1-click dispatch.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {whatsappTemplates.length} templates • {birthdaysTodayCount} birthdays
               </p>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
+            type="button"
             onClick={handleRefreshAll}
             disabled={isRefreshing}
-            className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh triggers and templates"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-600'}`} />
-            <span>{isRefreshing ? 'Scanning...' : 'Sync Triggers'}</span>
+            <span className="hidden sm:inline">{isRefreshing ? 'Scanning...' : 'Sync Triggers'}</span>
           </button>
 
           <button
+            type="button"
             onClick={() => handleOpenCreateModal('birthday')}
-            className="min-h-[40px] flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer active:scale-95"
+            className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
+            title="Create Template"
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Template</span>
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+            <span className="hidden sm:inline">Create Template</span>
+            <span className="sm:hidden">Create</span>
           </button>
         </div>
       </div>
@@ -718,7 +736,7 @@ export const WhatsAppAutomation = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Today's Birthdays
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-pink-50 text-pink-600 border border-pink-200 flex items-center justify-center shrink-0">
@@ -726,8 +744,8 @@ export const WhatsAppAutomation = () => {
             </div>
           </div>
           <div className="mt-1 sm:mt-2 flex items-baseline gap-2">
-            <span className="text-lg sm:text-2xl font-black text-slate-900">{birthdaysTodayCount}</span>
-            <span className={`text-[11px] font-medium ${birthdaysTodayCount > 0 ? 'text-pink-600 font-bold' : 'text-slate-400'}`}>
+            <span className="text-lg sm:text-2xl font-bold text-slate-900">{birthdaysTodayCount}</span>
+            <span className={`text-2xs font-medium ${birthdaysTodayCount > 0 ? 'text-pink-600 font-bold' : 'text-slate-400'}`}>
               {birthdaysTodayCount > 0 ? 'Celebrants today!' : 'No birthdays today'}
             </span>
           </div>
@@ -739,7 +757,7 @@ export const WhatsAppAutomation = () => {
           className="cursor-pointer bg-white border border-slate-200 hover:border-amber-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 transition-all shadow-sm"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Expiring in 7 Days
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
@@ -747,8 +765,8 @@ export const WhatsAppAutomation = () => {
             </div>
           </div>
           <div className="mt-1 sm:mt-2 flex items-baseline gap-2">
-            <span className="text-lg sm:text-2xl font-black text-slate-900">{expiringSoonCount}</span>
-            <span className="text-[11px] text-amber-600 font-medium">Renewals pending</span>
+            <span className="text-lg sm:text-2xl font-bold text-slate-900">{expiringSoonCount}</span>
+            <span className="text-2xs text-amber-600 font-medium">Renewals pending</span>
           </div>
         </div>
 
@@ -758,7 +776,7 @@ export const WhatsAppAutomation = () => {
           className="cursor-pointer bg-white border border-slate-200 hover:border-emerald-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 transition-all shadow-sm"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Active Templates
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
@@ -766,10 +784,10 @@ export const WhatsAppAutomation = () => {
             </div>
           </div>
           <div className="mt-1 sm:mt-2 flex items-baseline gap-2">
-            <span className="text-lg sm:text-2xl font-black text-slate-900">
+            <span className="text-lg sm:text-2xl font-bold text-slate-900">
               {whatsappTemplates.filter((t) => t.is_active).length}
             </span>
-            <span className="text-[11px] text-emerald-700 font-medium">
+            <span className="text-2xs text-emerald-700 font-medium">
               of {whatsappTemplates.length} total
             </span>
           </div>
@@ -781,7 +799,7 @@ export const WhatsAppAutomation = () => {
           className="cursor-pointer bg-white border border-slate-200 hover:border-sky-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 transition-all shadow-sm"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Messages Sent
             </span>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
@@ -789,53 +807,56 @@ export const WhatsAppAutomation = () => {
             </div>
           </div>
           <div className="mt-1 sm:mt-2 flex items-baseline gap-2">
-            <span className="text-lg sm:text-2xl font-black text-slate-900">
+            <span className="text-lg sm:text-2xl font-bold text-slate-900">
               {whatsappStats?.total_sent ?? whatsappLogs.length}
             </span>
-            <span className="text-[11px] text-sky-700 font-medium">
+            <span className="text-2xs text-sky-700 font-medium">
               {whatsappStats?.sent_today ?? 0} sent today
             </span>
           </div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-        {[
-          { id: 'templates', label: 'Message Templates', icon: FileText, count: whatsappTemplates.length },
-          { id: 'triggers', label: "Today's Birthdays (Database Match)", icon: Cake, count: birthdaysTodayCount },
-          { id: 'broadcast', label: 'Instant Broadcaster', icon: Send },
-          { id: 'settings', label: 'Automation Preferences', icon: Settings },
-          { id: 'logs', label: 'Delivery Audit Logs', icon: History, count: whatsappLogs.length }
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          const TabIcon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`min-h-[40px] px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-                isActive
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold'
-              }`}
-            >
-              <TabIcon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`} />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    isActive
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      : 'bg-slate-100 text-slate-600 border border-slate-200'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* Navigation Tabs with Right Fade Hint */}
+      <div className="relative w-full">
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
+          {[
+            { id: 'templates', label: 'Message Templates', icon: FileText, count: whatsappTemplates.length },
+            { id: 'triggers', label: "Today's Birthdays (Database Match)", icon: Cake, count: birthdaysTodayCount },
+            { id: 'broadcast', label: 'Instant Broadcaster', icon: Send },
+            { id: 'settings', label: 'Automation Preferences', icon: Settings },
+            { id: 'logs', label: 'Delivery Audit Logs', icon: History, count: whatsappLogs.length }
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`min-h-[40px] px-3 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                  isActive
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                }`}
+              >
+                <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-2xs font-semibold ${
+                      isActive
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-50 to-transparent sm:hidden" />
       </div>
 
       {/* ── Main Tab Content ───────────────────────────────────── */}
@@ -858,7 +879,7 @@ export const WhatsAppAutomation = () => {
                         ? 'Automated Member Birthday & Daily Trigger Engine (Platinum Plan)'
                         : 'Manual WhatsApp Template Sending Mode (Gold Plan)'}
                     </h3>
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-2xs font-bold ${
                       isPlatinum
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-amber-100 text-amber-900 border border-amber-300'
@@ -886,14 +907,14 @@ export const WhatsAppAutomation = () => {
                   <button
                     onClick={handleRunAutoTriggers}
                     disabled={isRunningAutoTriggers}
-                    className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
                     title="Run auto-scan and greeting dispatch for today"
                   >
                     <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin text-emerald-600' : 'text-emerald-700'}`} />
                     <span>{isRunningAutoTriggers ? 'Executing Trigger...' : 'Run Auto-Trigger Check'}</span>
                   </button>
                 ) : (
-                  <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold flex items-center gap-1.5">
+                  <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-2xs font-bold flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                     <span>Upgrade to Platinum for 100% Auto-Send</span>
                   </div>
@@ -909,7 +930,7 @@ export const WhatsAppAutomation = () => {
               <div className="space-y-1">
                 <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <span>Single Master Birthday Template Architecture</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold border border-sky-200">
+                  <span className="text-2xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold border border-sky-200">
                     No Separate Triggers Needed
                   </span>
                 </h4>
@@ -974,9 +995,9 @@ export const WhatsAppAutomation = () => {
                               <h3 className="text-sm font-bold text-slate-900 group-hover:text-pink-600 transition-colors">
                                 {item.name}
                               </h3>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <div className="flex items-center gap-2 text-2xs text-slate-500">
                                 <span
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase ${
+                                  className={`px-1.5 py-0.2 rounded text-2xs font-semibold uppercase ${
                                     item.role === 'trainer'
                                       ? 'bg-purple-50 text-purple-700 border border-purple-200'
                                       : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -991,12 +1012,12 @@ export const WhatsAppAutomation = () => {
 
                           {/* Sent Status Badge */}
                           {item.is_sent ? (
-                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 font-medium">
+                            <span className="text-2xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 font-medium">
                               <CheckCircle2 className="w-3 h-3" />
                               Sent Today
                             </span>
                           ) : (
-                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200 font-medium">
+                            <span className="text-2xs px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200 font-medium">
                               Pending
                             </span>
                           )}
@@ -1009,17 +1030,17 @@ export const WhatsAppAutomation = () => {
                         </div>
 
                         {/* Message Preview Box */}
-                        <div className="mt-3 p-3 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 leading-relaxed font-sans line-clamp-3">
+                        <div className="mt-3 p-3 rounded-lg bg-white border border-slate-200 text-2xs text-slate-700 leading-relaxed font-sans line-clamp-3">
                           {item.message}
                         </div>
 
                         {/* Dynamic Substitution Indicator */}
-                        <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-pink-50/80 border border-pink-100 flex items-center justify-between text-[11px] text-pink-950 font-medium">
+                        <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-pink-50/80 border border-pink-100 flex items-center justify-between text-2xs text-pink-950 font-medium">
                           <span className="flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-pink-600 shrink-0" />
                             <span>Dynamic &#123;&#123;name&#125;&#125; → <strong>{item.name}</strong></span>
                           </span>
-                          <span className="text-slate-500 font-mono text-[10px]">DOB: {item.dob || 'Today'}</span>
+                          <span className="text-slate-500 font-mono text-2xs">DOB: {item.dob || 'Today'}</span>
                         </div>
                       </div>
 
@@ -1054,7 +1075,7 @@ export const WhatsAppAutomation = () => {
                 <div className="py-8 text-center text-slate-400 text-xs flex flex-col items-center">
                   <Cake className="w-8 h-8 text-slate-300 mb-2" />
                   <p className="font-semibold text-slate-700">No member or trainer birthdays today.</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-2xs text-slate-500 mt-0.5">
                     Birthdays are automatically scanned based on Date of Birth recorded in Member Directory.
                   </p>
                 </div>
@@ -1094,7 +1115,7 @@ export const WhatsAppAutomation = () => {
                           <h3 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
                             {item.name}
                           </h3>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                          <span className="text-2xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
                             Expires in {item.days_left}d
                           </span>
                         </div>
@@ -1105,7 +1126,7 @@ export const WhatsAppAutomation = () => {
                           <Phone className="w-3 h-3 text-slate-400" />
                           <span>{item.phone}</span>
                         </div>
-                        <div className="mt-3 p-2.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 line-clamp-3">
+                        <div className="mt-3 p-2.5 rounded-lg bg-white border border-slate-200 text-2xs text-slate-700 line-clamp-3">
                           {item.message}
                         </div>
                       </div>
@@ -1137,7 +1158,7 @@ export const WhatsAppAutomation = () => {
                   <CreditCard className="w-5 h-5 text-red-500" />
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Pending Fee Notices</h3>
-                    <p className="text-[11px] text-slate-500">Members with pending dues</p>
+                    <p className="text-2xs text-slate-500">Members with pending dues</p>
                   </div>
                 </div>
 
@@ -1150,7 +1171,7 @@ export const WhatsAppAutomation = () => {
                       >
                         <div>
                           <div className="text-xs font-bold text-slate-900">{item.name}</div>
-                          <div className="text-[11px] text-rose-600 font-bold">
+                          <div className="text-2xs text-rose-600 font-bold">
                             Due: ₹{Number(item.dues_amount).toLocaleString('en-IN')}
                           </div>
                         </div>
@@ -1175,7 +1196,7 @@ export const WhatsAppAutomation = () => {
                   <Flame className="w-5 h-5 text-orange-500" />
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Inactive Members (7+ Days)</h3>
-                    <p className="text-[11px] text-slate-500">Re-engage athletes who haven't visited recently</p>
+                    <p className="text-2xs text-slate-500">Re-engage members who haven't visited recently</p>
                   </div>
                 </div>
 
@@ -1188,7 +1209,7 @@ export const WhatsAppAutomation = () => {
                       >
                         <div>
                           <div className="text-xs font-bold text-slate-900">{item.name}</div>
-                          <div className="text-[11px] text-slate-500">Last visited: {item.last_seen}</div>
+                          <div className="text-2xs text-slate-500">Last visited: {item.last_seen}</div>
                         </div>
                         <button
                           onClick={() => handleSendWhatsApp(item, 'absentee')}
@@ -1247,16 +1268,14 @@ export const WhatsAppAutomation = () => {
 
               {/* Search & Audience */}
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search templates..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 w-48 md:w-56"
-                  />
-                </div>
+                <SearchInput
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onClear={() => setSearchTerm('')}
+                  placeholder="Search templates..."
+                  mobilePlaceholder="Search..."
+                  containerClassName="w-48 md:w-56"
+                />
 
                 <select
                   value={templateRoleFilter}
@@ -1291,17 +1310,17 @@ export const WhatsAppAutomation = () => {
                             </h3>
                             <div className="flex items-center gap-1.5 mt-1.5">
                               {renderCategoryBadge(tpl.category)}
-                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                              <span className="text-2xs uppercase font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                                 {tpl.target_role}
                               </span>
                               {tpl.category === 'birthday' ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
+                                <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-pink-600" />
                                   <span>1 Master Dynamic Template</span>
                                 </span>
                               ) : (
                                 tpl.is_auto_enabled && (
-                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
+                                  <span className="text-2xs font-semibold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
                                     <Zap className="w-3 h-3 text-sky-600" />
                                     <span>Auto Trigger</span>
                                   </span>
@@ -1339,20 +1358,20 @@ export const WhatsAppAutomation = () => {
                                 <Cake className="w-3.5 h-3.5 text-pink-600" />
                                 <span>1 Template Powers All Celebrants</span>
                               </span>
-                              <span className="text-[9px] px-2 py-0.5 rounded-full bg-pink-200 text-pink-800 font-bold uppercase tracking-wider">
+                              <span className="text-2xs px-2 py-0.5 rounded-full bg-pink-200 text-pink-800 font-semibold uppercase tracking-wider">
                                 Dynamic &#123;&#123;name&#125;&#125;
                               </span>
                             </div>
-                            <p className="text-[11px] text-pink-800 leading-snug">
+                            <p className="text-2xs text-pink-800 leading-snug">
                               No separate triggers or templates per person. The system queries the database daily for matching birthdays. When found, this single template sends to that user with <code className="bg-pink-100 text-pink-900 px-1 py-0.2 rounded font-mono font-bold">&#123;&#123;name&#125;&#125;</code> swapped dynamically.
                             </p>
                             {birthdayCelebrants.length > 0 && (
-                              <div className="pt-1.5 border-t border-pink-200/70 flex flex-wrap items-center justify-between gap-1 text-[11px] text-pink-900">
+                              <div className="pt-1.5 border-t border-pink-200/70 flex flex-wrap items-center justify-between gap-1 text-2xs text-pink-900">
                                 <span className="font-semibold flex items-center gap-1">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                   Today in Database: {birthdayCelebrants.map((b) => b.name).join(', ')}
                                 </span>
-                                <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-1.5 py-0.5 rounded">
+                                <span className="text-2xs font-bold text-pink-700 bg-pink-100 px-1.5 py-0.5 rounded">
                                   {birthdayCelebrants.length} Found Today
                                 </span>
                               </div>
@@ -1556,7 +1575,7 @@ export const WhatsAppAutomation = () => {
                           </div>
                           <div>
                             <div className="text-xs font-bold text-slate-900">{person.name}</div>
-                            <div className="text-[11px] text-slate-500">{person.phone || 'No phone'}</div>
+                            <div className="text-2xs text-slate-500">{person.phone || 'No phone'}</div>
                           </div>
                         </div>
 
@@ -1618,23 +1637,23 @@ export const WhatsAppAutomation = () => {
                   {whatsappLogs.map((log) => (
                     <div key={log.id} className="p-3.5 space-y-2 hover:bg-slate-50/60 transition-colors">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="font-bold text-xs text-slate-900 truncate">{log.recipient_name}</div>
-                          <div className="text-[11px] text-slate-500 font-mono">{log.recipient_phone}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-xs text-slate-900 truncate" title={log.recipient_name}>{log.recipient_name}</div>
+                          <div className="text-2xs text-slate-500 font-mono whitespace-nowrap shrink-0">{log.recipient_phone}</div>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0 whitespace-nowrap">
                           Dispatched
                         </span>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="px-2 py-0.5 rounded-full text-2xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                           {log.category}
                         </span>
-                        <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
+                        <span className="text-2xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
                           {log.trigger_type}
                         </span>
-                        <span className="text-[10px] text-slate-400 ml-auto whitespace-nowrap">
+                        <span className="text-2xs text-slate-400 ml-auto whitespace-nowrap shrink-0">
                           {log.sent_at
                             ? new Date(log.sent_at).toLocaleString('en-IN', {
                                 day: '2-digit',
@@ -1646,7 +1665,7 @@ export const WhatsAppAutomation = () => {
                         </span>
                       </div>
 
-                      <div className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 line-clamp-3">
+                      <div className="text-2xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 line-clamp-2" title={log.message}>
                         {log.message}
                       </div>
                     </div>
@@ -1656,7 +1675,7 @@ export const WhatsAppAutomation = () => {
                 {/* Desktop View: Table */}
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase text-[10px] font-bold tracking-wider">
+                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase text-2xs font-semibold tracking-wider">
                       <tr>
                         <th className="px-4 py-3">Recipient</th>
                         <th className="px-4 py-3">Category</th>
@@ -1669,22 +1688,22 @@ export const WhatsAppAutomation = () => {
                     <tbody className="divide-y divide-slate-100">
                       {whatsappLogs.map((log) => (
                         <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-slate-900">{log.recipient_name}</div>
-                            <div className="text-[11px] text-slate-500">{log.recipient_phone}</div>
+                          <td className="px-4 py-3 max-w-[180px] min-w-0">
+                            <div className="font-bold text-slate-900 truncate" title={log.recipient_name}>{log.recipient_name}</div>
+                            <div className="text-2xs text-slate-500 whitespace-nowrap shrink-0">{log.recipient_phone}</div>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <td className="px-4 py-3 whitespace-nowrap shrink-0">
+                            <span className="px-2 py-0.5 rounded-full text-2xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                               {log.category}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="text-[11px] text-slate-500 font-medium">{log.trigger_type}</span>
+                          <td className="px-4 py-3 whitespace-nowrap shrink-0">
+                            <span className="text-2xs text-slate-500 font-medium whitespace-nowrap">{log.trigger_type}</span>
                           </td>
-                          <td className="px-4 py-3 max-w-xs truncate text-[11px] text-slate-700">
+                          <td className="px-4 py-3 max-w-xs truncate text-2xs text-slate-700" title={log.message}>
                             {log.message}
                           </td>
-                          <td className="px-4 py-3 text-[11px] text-slate-500 whitespace-nowrap">
+                          <td className="px-4 py-3 text-2xs text-slate-500 whitespace-nowrap shrink-0">
                             {log.sent_at
                               ? new Date(log.sent_at).toLocaleString('en-IN', {
                                   day: '2-digit',
@@ -1694,8 +1713,8 @@ export const WhatsAppAutomation = () => {
                                 })
                               : 'Just now'}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <td className="px-4 py-3 text-right whitespace-nowrap shrink-0">
+                            <span className="px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                               Dispatched
                             </span>
                           </td>
@@ -1729,7 +1748,7 @@ export const WhatsAppAutomation = () => {
                     <h3 className="text-sm sm:text-base font-bold text-slate-900">
                       WhatsApp Background Dispatch Engine
                     </h3>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                       AUTO-DISPATCH ENABLED
                     </span>
@@ -1745,7 +1764,7 @@ export const WhatsAppAutomation = () => {
                   type="button"
                   onClick={handleRunAutoTriggers}
                   disabled={isRunningAutoTriggers}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
                 >
                   <RotateCw className={`w-3.5 h-3.5 ${isRunningAutoTriggers ? 'animate-spin' : ''}`} />
                   <span>{isRunningAutoTriggers ? 'Running Engine...' : 'Scan & Run Today’s Triggers'}</span>
@@ -1765,7 +1784,7 @@ export const WhatsAppAutomation = () => {
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">Automated Notification Rules</h4>
-                        <p className="text-[11px] text-slate-500">Enable or disable hands-free background triggers</p>
+                        <p className="text-2xs text-slate-500">Enable or disable hands-free background triggers</p>
                       </div>
                     </div>
                   </div>
@@ -1776,9 +1795,9 @@ export const WhatsAppAutomation = () => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-xs text-slate-900">New Member Welcome Notification</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">Instant</span>
+                          <span className="text-2xs font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">Instant</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                        <p className="text-2xs text-slate-500 leading-relaxed">
                           When a new member registers, instantly sends their personalized Welcome Pack, membership plan details, turnstile QR access pass, and operating hours.
                         </p>
                       </div>
@@ -1798,9 +1817,9 @@ export const WhatsAppAutomation = () => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-xs text-slate-900">Daily Member Birthday Wishes</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-pink-100 text-pink-800">Daily 9:00 AM</span>
+                          <span className="text-2xs font-bold px-1.5 py-0.2 rounded bg-pink-100 text-pink-800">Daily 9:00 AM</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                        <p className="text-2xs text-slate-500 leading-relaxed">
                           Automatically checks the database every morning. When a member or trainer celebrates a birthday today, their greeting with custom gym perk is dispatched without human intervention.
                         </p>
                       </div>
@@ -1820,9 +1839,9 @@ export const WhatsAppAutomation = () => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-xs text-slate-900">Membership Expiry Notices</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">7 & 3 Days Before</span>
+                          <span className="text-2xs font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">7 & 3 Days Before</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                        <p className="text-2xs text-slate-500 leading-relaxed">
                           Sends renewal reminders before turnstile deactivation so members can renew without friction.
                         </p>
                       </div>
@@ -1842,9 +1861,9 @@ export const WhatsAppAutomation = () => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-xs text-slate-900">Outstanding Balance & Fee Reminders</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800">On Dues Pending</span>
+                          <span className="text-2xs font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800">On Dues Pending</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                        <p className="text-2xs text-slate-500 leading-relaxed">
                           Notifies members with outstanding balances to clear dues via UPI or front desk.
                         </p>
                       </div>
@@ -1869,7 +1888,7 @@ export const WhatsAppAutomation = () => {
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Send Test WhatsApp Message</h4>
-                      <p className="text-[11px] text-slate-500">Test live delivery to your own phone number in real-time</p>
+                      <p className="text-2xs text-slate-500">Test live delivery to your own phone number in real-time</p>
                     </div>
                   </div>
 
@@ -1887,7 +1906,7 @@ export const WhatsAppAutomation = () => {
                     <button
                       type="submit"
                       disabled={isSendingTest || !testNumber}
-                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
                     >
                       {isSendingTest ? (
                         <>
@@ -1915,10 +1934,10 @@ export const WhatsAppAutomation = () => {
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">Platform Gateway Status</h4>
-                        <p className="text-[11px] text-slate-500">Centralized Superadmin Gateway</p>
+                        <p className="text-2xs text-slate-500">Centralized Superadmin Gateway</p>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                       CONNECTED
                     </span>
@@ -1953,7 +1972,7 @@ export const WhatsAppAutomation = () => {
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-2xs text-slate-600 leading-relaxed">
                     <strong>Note:</strong> Delivery credentials and API keys are maintained centrally by your system administrator. Your facility’s automated welcome messages and birthday wishes are routed automatically without requiring any manual setup.
                   </div>
 
@@ -1961,7 +1980,7 @@ export const WhatsAppAutomation = () => {
                     <button
                       type="submit"
                       disabled={isSavingSettings}
-                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-sm"
                     >
                       {isSavingSettings ? (
                         <>
@@ -2055,7 +2074,7 @@ export const WhatsAppAutomation = () => {
                 <Cake className="w-4 h-4 text-pink-600 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-pink-900">Single Master Birthday Template:</span>
-                  <p className="text-[11px] text-pink-800 mt-0.5 leading-snug">
+                  <p className="text-2xs text-pink-800 mt-0.5 leading-snug">
                     You only write <strong>one</strong> template for all members. Simply click the <strong className="text-pink-900 font-semibold">+ 👤 Member Name</strong> button below. When it is any member's birthday, the message is sent automatically with their real name.
                   </p>
                 </div>
@@ -2087,7 +2106,7 @@ export const WhatsAppAutomation = () => {
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Click to Insert Member or Gym Details into Message</span>
                 </label>
-                <span className="text-[11px] text-emerald-700 font-medium">
+                <span className="text-2xs text-emerald-700 font-medium">
                   👆 Click any button below to insert it at your cursor
                 </span>
               </div>
@@ -2123,7 +2142,7 @@ export const WhatsAppAutomation = () => {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">
+              <p className="text-2xs text-slate-500 mt-2">
                 When sending to a member, each button you added will automatically be filled with their real details.
               </p>
             </div>
@@ -2179,7 +2198,7 @@ export const WhatsAppAutomation = () => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? 'Saving...' : editingTemplate ? 'Update Template' : 'Save Template'}
                 </button>
@@ -2188,7 +2207,7 @@ export const WhatsAppAutomation = () => {
                   type="button"
                   disabled={isSaving}
                   onClick={handleSaveAndBroadcastNow}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-sm shadow-emerald-600/25 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                   title="Save template and immediately broadcast to intended recipients with 1 click"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -2284,23 +2303,23 @@ export const WhatsAppAutomation = () => {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+                    <h4 className="text-xs font-semibold text-emerald-950 uppercase tracking-wide">
                       {oneClickModal.targetRole === 'all' ? 'All Users (Members & Coaches)' : oneClickModal.targetRole + 's'}
                     </h4>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                       1-Click Delivery
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                  <p className="text-2xs text-emerald-800 mt-0.5">
                     Messages are automatically generated, personalized, and dispatched to all intended recipients' WhatsApp numbers.
                   </p>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-lg font-black text-slate-900">
+                <div className="text-lg font-bold text-slate-900">
                   {getRecipientCountForRole(oneClickModal.targetRole)}
                 </div>
-                <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Recipients</div>
+                <div className="text-2xs text-slate-500 font-semibold uppercase tracking-wider">Recipients</div>
               </div>
             </div>
 
@@ -2337,23 +2356,23 @@ export const WhatsAppAutomation = () => {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>Successfully dispatched to all {oneClickModal.results.length} intended user(s)!</span>
                   </div>
-                  <span className="text-[10px] text-emerald-800 font-semibold">Logged in Database Audit Trail</span>
+                  <span className="text-2xs text-emerald-800 font-semibold">Logged in Database Audit Trail</span>
                 </div>
 
                 <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-slate-50">
                   {oneClickModal.results.map((rec) => (
                     <div key={rec.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white transition-colors">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[11px] border border-emerald-200">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-2xs border border-emerald-200">
                           {rec.name?.[0] || 'U'}
                         </div>
                         <div>
                           <div className="font-bold text-slate-900">{rec.name}</div>
-                          <div className="text-[10px] text-slate-500">{rec.phone} • {rec.role}</div>
+                          <div className="text-2xs text-slate-500">{rec.phone} • {rec.role}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center gap-1">
+                        <span className="text-2xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center gap-1">
                           <Check className="w-3 h-3 text-emerald-600" />
                           Dispatched
                         </span>
@@ -2387,15 +2406,15 @@ export const WhatsAppAutomation = () => {
                   ).slice(0, 10).map((u) => (
                     <div key={u.id} className="p-2 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-2xs">
                           {u.name?.[0] || 'U'}
                         </div>
                         <div>
                           <span className="font-semibold text-slate-800">{u.name}</span>
-                          <span className="text-[10px] text-slate-500 ml-2">({u.phone || 'No phone'})</span>
+                          <span className="text-2xs text-slate-500 ml-2">({u.phone || 'No phone'})</span>
                         </div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className="text-2xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                         {u.role || (u.planName ? 'Member' : 'User')}
                       </span>
                     </div>
@@ -2420,7 +2439,7 @@ export const WhatsAppAutomation = () => {
                   type="button"
                   onClick={handleExecuteOneClickBroadcast}
                   disabled={oneClickModal.isBroadcasting}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-600/25 active:scale-95 disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 shadow-sm shadow-emerald-600/25 active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Send className={`w-3.5 h-3.5 ${oneClickModal.isBroadcasting ? 'animate-pulse' : ''}`} />
                   <span>

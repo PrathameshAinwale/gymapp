@@ -30,7 +30,7 @@ export const ActionBar = ({
               type="button"
               onClick={sec.onClick}
               disabled={sec.disabled}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-2xs ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer active:scale-95 shadow-2xs whitespace-nowrap shrink-0 ${
                 sec.variant === 'danger'
                   ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
                   : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
@@ -47,7 +47,7 @@ export const ActionBar = ({
             type="button"
             onClick={primaryAction.onClick}
             disabled={primaryAction.disabled || primaryAction.loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
           >
             {primaryAction.loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -66,7 +66,7 @@ export const ActionBar = ({
             type="button"
             onClick={primaryAction.onClick}
             disabled={primaryAction.disabled || primaryAction.loading}
-            className="w-full h-12 min-h-[48px] rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-all disabled:opacity-50"
+            className="w-full h-12 min-h-[48px] rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white text-xs font-semibold shadow-sm shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-all disabled:opacity-50"
           >
             {primaryAction.loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

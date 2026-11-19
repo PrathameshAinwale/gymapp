@@ -31,6 +31,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { MemberSearchSelect } from '../common/MemberSearchSelect';
 import { api } from '../../services/api';
@@ -938,18 +939,21 @@ export const MembershipFreezeManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Freeze, Extension & Transfers
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Manage membership holds, complimentary/paid validity extensions, and transfer memberships between members.
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
+                Manage membership holds, validity extensions, and transfer memberships between members.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {membershipFreezes.length} holds • {transfers.length} transfers
               </p>
             </div>
           </div>
@@ -959,7 +963,7 @@ export const MembershipFreezeManager = () => {
           <button
             type="button"
             onClick={() => setIsSettingsModalOpen(true)}
-            className={`min-h-[38px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+            className={`w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 cursor-pointer shadow-2xs ${
               !isPolicyConfigured && !isLoadingPolicy
                 ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -967,9 +971,9 @@ export const MembershipFreezeManager = () => {
             title="Configure Gym Eligibility Policy for Freeze, Extension & Transfer"
           >
             <Settings className={`w-3.5 h-3.5 ${!isPolicyConfigured && !isLoadingPolicy ? 'text-white' : 'text-slate-600'}`} />
-            <span><span className="hidden sm:inline">Policy </span>Settings</span>
+            <span className="hidden sm:inline">Policy Settings</span>
             {!isPolicyConfigured && !isLoadingPolicy && (
-              <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-0.5" />
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-0.5 sm:hidden" />
             )}
           </button>
 
@@ -978,7 +982,8 @@ export const MembershipFreezeManager = () => {
               <button
                 type="button"
                 onClick={handleOpenExtendModal}
-                className="min-h-[38px] flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
+                className="h-8.5 sm:h-9 px-2.5 sm:px-3 flex items-center justify-center gap-1 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                title="Extend Member Plan"
               >
                 <CalendarPlus className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Extend</span>
@@ -987,7 +992,8 @@ export const MembershipFreezeManager = () => {
               <button
                 type="button"
                 onClick={handleOpenFreezeModal}
-                className="min-h-[38px] flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Freeze Member Plan"
               >
                 <PauseCircle className="w-3.5 h-3.5" />
                 <span>Freeze</span>
@@ -997,10 +1003,12 @@ export const MembershipFreezeManager = () => {
             <button
               type="button"
               onClick={handleOpenTransferModal}
-              className="min-h-[38px] flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
+              className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Transfer Member Plan"
             >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span>+ Transfer</span>
+              <ArrowRightLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden sm:inline">Transfer Plan</span>
+              <span className="sm:hidden">Transfer</span>
             </button>
           )}
         </div>
@@ -1015,7 +1023,7 @@ export const MembershipFreezeManager = () => {
             </div>
             <div>
               <h3 className="text-xs sm:text-sm font-bold text-amber-950">Gym Eligibility Policy Required</h3>
-              <p className="text-[11px] sm:text-xs text-amber-800 mt-0.5">
+              <p className="text-2xs sm:text-xs text-amber-800 mt-0.5">
                 Before performing any Freeze, Plan Extension, or Membership Transfer, you must configure the minimum plan duration eligibility period for your gym.
               </p>
             </div>
@@ -1033,7 +1041,7 @@ export const MembershipFreezeManager = () => {
 
       {/* Configured Policy Summary Bar */}
       {!isLoadingPolicy && isPolicyConfigured && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-2xs text-slate-600">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
             <span className="font-semibold text-slate-700">Gym Eligibility Policy:</span>
@@ -1052,7 +1060,7 @@ export const MembershipFreezeManager = () => {
           <button
             type="button"
             onClick={() => setIsSettingsModalOpen(true)}
-            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+            className="text-2xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
           >
             Edit Policy
           </button>
@@ -1060,19 +1068,19 @@ export const MembershipFreezeManager = () => {
       )}
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab('freezes')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`h-9 sm:h-9.5 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'freezes'
-              ? 'bg-emerald-600 text-white shadow-sm'
+              ? 'bg-emerald-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
           <PauseCircle className="w-4 h-4" />
           <span>Freezes & Extensions</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'freezes' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+          <span className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeTab === 'freezes' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
             {membershipFreezes.length}
           </span>
         </button>
@@ -1080,15 +1088,15 @@ export const MembershipFreezeManager = () => {
         <button
           type="button"
           onClick={() => setActiveTab('transfers')}
-          className={`min-h-[40px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`h-9 sm:h-9.5 flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'transfers'
-              ? 'bg-violet-600 text-white shadow-sm'
+              ? 'bg-violet-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
           <ArrowRightLeft className="w-4 h-4" />
           <span>Transfers</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'transfers' ? 'bg-violet-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+          <span className={`px-1.5 py-0.2 rounded-full text-2xs font-bold ${activeTab === 'transfers' ? 'bg-violet-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
             {transfers.length}
           </span>
         </button>
@@ -1099,24 +1107,24 @@ export const MembershipFreezeManager = () => {
           {/* Freezes KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Preserved Days</span>
-              <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5">{totalDaysFrozen} Days</div>
-              <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium block truncate">Added to expirations</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Preserved Days</span>
+              <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5">{totalDaysFrozen} Days</div>
+              <span className="text-2xs sm:text-2xs text-emerald-700 font-medium block truncate">Added to expirations</span>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Active Freezes</span>
-              <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5">{activeFreezes.length}</div>
-              <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium block truncate">Paused validity</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Active Freezes</span>
+              <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5">{activeFreezes.length}</div>
+              <span className="text-2xs sm:text-2xs text-amber-700 font-medium block truncate">Paused validity</span>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Freeze / Ext. Fees</span>
-              <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5">₹{totalFreezeFees.toLocaleString('en-IN')}</div>
-              <span className="text-[10px] sm:text-[11px] text-emerald-600 font-medium block truncate">Total fees charged</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Freeze / Ext. Fees</span>
+              <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5">₹{totalFreezeFees.toLocaleString('en-IN')}</div>
+              <span className="text-2xs sm:text-2xs text-emerald-600 font-medium block truncate">Total fees charged</span>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Records</span>
-              <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5">{membershipFreezes.length}</div>
-              <span className="text-[10px] sm:text-[11px] text-slate-500 block truncate">Holds & extensions</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Total Records</span>
+              <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5">{membershipFreezes.length}</div>
+              <span className="text-2xs sm:text-2xs text-slate-500 block truncate">Holds & extensions</span>
             </div>
           </div>
 
@@ -1126,36 +1134,26 @@ export const MembershipFreezeManager = () => {
           <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
             <div className="flex items-center justify-between gap-2 sm:gap-3">
               {/* Autocomplete Search Bar */}
-              <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onFocus={() => setIsSearchDropdownOpen(true)}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setIsSearchDropdownOpen(true);
-                  }}
-                  placeholder="Search member, plan name, or reason..."
-                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-                />
-                {searchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setIsSearchDropdownOpen(false);
-                    }}
-                    className="p-1 min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-600 absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
+              <SearchInput
+                containerRef={searchContainerRef}
+                value={searchTerm}
+                onFocus={() => setIsSearchDropdownOpen(true)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setIsSearchDropdownOpen(true);
+                }}
+                onClear={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                placeholder="Search member, plan name, or reason..."
+                mobilePlaceholder="Search freezes..."
+                containerClassName="flex-1 min-w-0"
+              >
                 {/* Autocomplete Suggestions */}
                 {isSearchDropdownOpen && searchSuggestions.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                       Suggestions
                     </div>
                     {searchSuggestions.map((item, idx) => (
@@ -1170,16 +1168,16 @@ export const MembershipFreezeManager = () => {
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-slate-800">{item.memberName || item.fromMemberName}</span>
-                          <span className="text-[10px] text-slate-400">({item.planName || 'Plan'})</span>
+                          <span className="text-2xs text-slate-400">({item.planName || 'Plan'})</span>
                         </div>
-                        <span className="text-[10px] text-emerald-600 font-medium">
+                        <span className="text-2xs text-emerald-600 font-medium">
                           {item.daysFrozen ? `${item.daysFrozen} Days` : ''}
                         </span>
                       </button>
                     ))}
                   </div>
                 )}
-              </div>
+              </SearchInput>
 
               {/* Action Buttons: Filter */}
               <div className="flex items-center gap-2 shrink-0">
@@ -1195,7 +1193,7 @@ export const MembershipFreezeManager = () => {
                   <Filter className="w-3.5 h-3.5" />
                   <span>Filters</span>
                   {activeFiltersCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                       {activeFiltersCount}
                     </span>
                   )}
@@ -1205,7 +1203,7 @@ export const MembershipFreezeManager = () => {
 
             {/* Active Chips */}
             {(activeFiltersCount > 0 || searchTerm) && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
                 <span className="text-slate-400 font-medium">Active:</span>
 
                 {typeFilter !== 'ALL' && (
@@ -1252,7 +1250,7 @@ export const MembershipFreezeManager = () => {
                   Reset all
                 </button>
 
-                <span className="ml-auto text-[11px] text-slate-400">
+                <span className="ml-auto text-2xs text-slate-400">
                   Showing {filteredFreezes.length} of {membershipFreezes.length} records
                 </span>
               </div>
@@ -1276,7 +1274,7 @@ export const MembershipFreezeManager = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                         <th className="py-3.5 px-4">Member Name</th>
                         <th className="py-3.5 px-4">Plan</th>
                         <th className="py-3.5 px-4">Type</th>
@@ -1296,19 +1294,19 @@ export const MembershipFreezeManager = () => {
 
                         return (
                           <tr key={f.id} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="py-3.5 px-4">
-                              <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5 text-slate-400" />
-                                <span>{f.memberName}</span>
+                            <td className="py-3.5 px-4 max-w-[180px]">
+                              <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5 min-w-0">
+                                <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate" title={f.memberName}>{f.memberName}</span>
                               </div>
                             </td>
 
-                            <td className="py-3.5 px-4 text-slate-600 font-medium">
-                              {f.planName}
+                            <td className="py-3.5 px-4 text-slate-600 font-medium max-w-[160px]">
+                              <span className="truncate block" title={f.planName}>{f.planName}</span>
                             </td>
 
-                            <td className="py-3.5 px-4">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-2xs font-bold ${
                                 isExtension
                                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                   : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -1317,27 +1315,27 @@ export const MembershipFreezeManager = () => {
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4 text-slate-700">
-                              <div className="flex items-center gap-1 text-[11px]">
-                                <Calendar className="w-3 h-3 text-slate-400" />
+                            <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap shrink-0">
+                              <div className="flex items-center gap-1 text-2xs">
+                                <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span>{f.freezeStartDate} → {f.freezeEndDate}</span>
                               </div>
                             </td>
 
-                            <td className="py-3.5 px-4">
-                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800">
+                            <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                              <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-800">
                                 {f.daysFrozen} Days
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4">
+                            <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                               <span className="font-bold text-slate-900 text-xs">
                                 ₹{Number(f.fee || 0).toLocaleString('en-IN')}
                               </span>
                             </td>
 
                             <td className="py-3.5 px-4">
-                              <span className="text-[11px] text-slate-600 font-medium">
+                              <span className="text-2xs text-slate-600 font-medium">
                                 {f.paymentMethod || 'Cash'}
                               </span>
                             </td>
@@ -1348,7 +1346,7 @@ export const MembershipFreezeManager = () => {
 
                             <td className="py-3.5 px-4">
                               <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold ${
                                   isActive
                                     ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                     : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1372,13 +1370,13 @@ export const MembershipFreezeManager = () => {
                                       setUnfreezingId(null);
                                     }
                                   }}
-                                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ml-auto active:scale-95"
+                                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-2xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ml-auto active:scale-95"
                                 >
                                   {unfreezingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
                                   <span>{unfreezingId === f.id ? 'Resuming...' : 'Unfreeze'}</span>
                                 </button>
                               ) : (
-                                <span className="text-[11px] text-slate-400">Completed</span>
+                                <span className="text-2xs text-slate-400">Completed</span>
                               )}
                             </td>
                           </tr>
@@ -1395,25 +1393,25 @@ export const MembershipFreezeManager = () => {
               {filteredFreezes.map((f) => (
                 <div key={f.id} className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5 truncate">
                         <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{f.memberName}</span>
+                        <span className="truncate" title={f.memberName}>{f.memberName}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">{f.planName}</div>
+                      <div className="text-2xs text-slate-500 mt-0.5 truncate" title={f.planName}>{f.planName}</div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                       ₹{Number(f.fee || 0).toLocaleString('en-IN')}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[11px]">
+                  <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-2xs">
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold block uppercase">Period</span>
+                      <span className="text-2xs text-slate-400 font-medium block uppercase">Period</span>
                       <span className="text-slate-800 font-medium">{f.freezeStartDate} → {f.freezeEndDate}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold block uppercase">Days / Mode</span>
+                      <span className="text-2xs text-slate-400 font-medium block uppercase">Days / Mode</span>
                       <span className="text-slate-800 font-medium">{f.daysFrozen} Days • {f.paymentMethod || 'Cash'}</span>
                     </div>
                   </div>
@@ -1447,21 +1445,21 @@ export const MembershipFreezeManager = () => {
           {/* Transfers KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Transfers</span>
-              <div className="text-xl sm:text-2xl font-black text-violet-600 mt-1">{transfers.length}</div>
-              <span className="text-[11px] text-slate-500 block">Memberships reassigned</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">Total Transfers</span>
+              <div className="text-xl sm:text-2xl font-bold text-violet-600 mt-1">{transfers.length}</div>
+              <span className="text-2xs text-slate-500 block">Memberships reassigned</span>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Transfer Fees Collected</span>
-              <div className="text-xl sm:text-2xl font-black text-emerald-600 mt-1">₹{totalTransferFees.toLocaleString('en-IN')}</div>
-              <span className="text-[11px] text-emerald-700 font-medium block">Revenue from transfer charges</span>
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">Transfer Fees Collected</span>
+              <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-1">₹{totalTransferFees.toLocaleString('en-IN')}</div>
+              <span className="text-2xs text-emerald-700 font-medium block">Revenue from transfer charges</span>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 shadow-sm">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Avg Transfer Charge</span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">Avg Transfer Charge</span>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 ₹{transfers.length > 0 ? Math.round(totalTransferFees / transfers.length).toLocaleString('en-IN') : 0}
               </div>
-              <span className="text-[11px] text-slate-500 block">Per transfer processing</span>
+              <span className="text-2xs text-slate-500 block">Per transfer processing</span>
             </div>
           </div>
 
@@ -1469,16 +1467,14 @@ export const MembershipFreezeManager = () => {
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <h2 className="text-xs sm:text-sm font-bold text-slate-900">Membership Transfer Log</h2>
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search transfers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs min-h-[44px] sm:min-h-0 text-slate-900 focus:bg-white focus:outline-none focus:border-violet-500"
-                />
-              </div>
+              <SearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onClear={() => setSearchTerm('')}
+                placeholder="Search transfers..."
+                mobilePlaceholder="Search transfers..."
+                containerClassName="w-full sm:w-64"
+              />
             </div>
 
             {filteredTransfers.length === 0 ? (
@@ -1503,12 +1499,12 @@ export const MembershipFreezeManager = () => {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">From</div>
+                          <div className="text-2xs text-slate-400 font-medium uppercase tracking-wider">From</div>
                           <div className="font-bold text-slate-900 text-xs truncate">{t.fromMemberName}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">To Transferee</div>
+                          <div className="text-2xs text-slate-400 font-medium uppercase tracking-wider mt-1">To Transferee</div>
                           <div className="font-bold text-violet-700 text-xs truncate">{t.toMemberName}</div>
                           {t.toMemberPhone && (
-                            <div className="text-[10px] text-slate-400">{t.toMemberPhone}</div>
+                            <div className="text-2xs text-slate-400">{t.toMemberPhone}</div>
                           )}
                         </div>
 
@@ -1516,28 +1512,28 @@ export const MembershipFreezeManager = () => {
                           <span className="font-bold text-emerald-700 text-xs block">
                             ₹{Number(t.transferFee || 0).toLocaleString('en-IN')}
                           </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
                             <Check className="w-2.5 h-2.5" />
                             <span>{t.status || 'Completed'}</span>
                           </span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[11px]">
+                      <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-2xs">
                         <div>
-                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Plan & Days</span>
+                          <span className="text-2xs text-slate-400 font-medium block uppercase">Plan & Days</span>
                           <span className="font-semibold text-slate-800 block truncate">{t.planName}</span>
-                          <span className="text-[10px] text-violet-700 font-bold">{t.daysRemaining} Days</span>
+                          <span className="text-2xs text-violet-700 font-bold">{t.daysRemaining} Days</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Date / Mode</span>
+                          <span className="text-2xs text-slate-400 font-medium block uppercase">Date / Mode</span>
                           <span className="text-slate-800 font-medium block">{t.transferDate}</span>
-                          <span className="text-[10px] text-slate-500 font-medium">{t.paymentMethod || 'UPI'}</span>
+                          <span className="text-2xs text-slate-500 font-medium">{t.paymentMethod || 'UPI'}</span>
                         </div>
                       </div>
 
                       {t.reason && (
-                        <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 italic">
+                        <div className="text-2xs text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 italic">
                           "{t.reason}"
                         </div>
                       )}
@@ -1549,7 +1545,7 @@ export const MembershipFreezeManager = () => {
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                         <th className="py-3.5 px-4">From Member</th>
                         <th className="py-3.5 px-4">To Transferee</th>
                         <th className="py-3.5 px-4">Plan Name</th>
@@ -1570,18 +1566,18 @@ export const MembershipFreezeManager = () => {
                           <td className="py-3.5 px-4">
                             <div>
                               <span className="font-bold text-violet-700">{t.toMemberName}</span>
-                              {t.toMemberPhone && <span className="block text-[10px] text-slate-400">{t.toMemberPhone}</span>}
+                              {t.toMemberPhone && <span className="block text-2xs text-slate-400">{t.toMemberPhone}</span>}
                             </div>
                           </td>
                           <td className="py-3.5 px-4 text-slate-600 font-medium">
                             {t.planName}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-50 text-violet-800 border border-violet-200">
+                            <span className="px-2 py-0.5 rounded text-2xs font-bold bg-violet-50 text-violet-800 border border-violet-200">
                               {t.daysRemaining} Days
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 font-bold text-emerald-600">
+                          <td className="py-3.5 px-4 font-medium text-emerald-600">
                             ₹{Number(t.transferFee || 0).toLocaleString('en-IN')}
                           </td>
                           <td className="py-3.5 px-4 text-slate-600">
@@ -1590,14 +1586,14 @@ export const MembershipFreezeManager = () => {
                           <td className="py-3.5 px-4">
                             <span className="font-semibold text-slate-800 block">{t.transferDate}</span>
                             {t.membershipStartDate && (
-                              <span className="text-[10px] text-violet-600 font-medium block">Starts: {t.membershipStartDate}</span>
+                              <span className="text-2xs text-violet-600 font-medium block">Starts: {t.membershipStartDate}</span>
                             )}
                           </td>
                           <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={t.reason}>
                             {t.reason || '—'}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <Check className="w-3 h-3" />
                               <span>{t.status || 'Completed'}</span>
                             </span>
@@ -1624,7 +1620,7 @@ export const MembershipFreezeManager = () => {
           {/* Eligibility Policy Notice */}
           <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 text-[11px] leading-relaxed">
+            <div className="space-y-0.5 text-2xs leading-relaxed">
               <span className="font-bold block text-blue-950">Gym Eligibility Policy</span>
               <p className="text-blue-800">
                 {freezeMinMonths > 0
@@ -1638,7 +1634,7 @@ export const MembershipFreezeManager = () => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">Select Member *</label>
-              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-2xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 {eligibleFreezeMembers.length} Eligible Members
               </span>
             </div>
@@ -1657,11 +1653,11 @@ export const MembershipFreezeManager = () => {
               />
             )}
             {selectedFreezeMember && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-600">
+              <div className="mt-1.5 flex items-center gap-1.5 text-2xs text-slate-600">
                 <span className="text-slate-400">Current Plan:</span>
                 <span className="font-bold text-slate-800">{selectedFreezeMember.planName}</span>
                 {freezeMemberPlanMonths > 0 && (
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-emerald-100 text-emerald-800">
                     {freezeMemberPlanMonths} Months Plan
                   </span>
                 )}
@@ -1680,7 +1676,7 @@ export const MembershipFreezeManager = () => {
                 onChange={(e) => handleStartDateChange(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Cannot be earlier than today ({todayIso})</span>
+              <span className="text-2xs text-slate-400 mt-0.5 block">Cannot be earlier than today ({todayIso})</span>
             </div>
 
             <div>
@@ -1702,13 +1698,13 @@ export const MembershipFreezeManager = () => {
           {/* Validity Increase Preview */}
           {selectedFreezeMember && (
             <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-2xs">
                 <span className="text-slate-600 font-medium">Current Plan Expiry:</span>
                 <span className="font-bold text-slate-800">
                   {formatDateReadable(selectedFreezeMember.expiryDate)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-2xs">
                 <span className="text-emerald-700 font-medium">Freeze Days Added to Plan:</span>
                 <span className="font-bold text-emerald-700">+{freezeData.daysFrozen} Days</span>
               </div>
@@ -1717,7 +1713,7 @@ export const MembershipFreezeManager = () => {
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>New Extended Plan Validity:</span>
                 </span>
-                <span className="font-black text-emerald-700 bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-xs">
+                <span className="font-bold text-emerald-700 bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-xs">
                   {formatDateReadable(calculateNewPlanExpiry(selectedFreezeMember.expiryDate, freezeData.daysFrozen))}
                 </span>
               </div>
@@ -1725,11 +1721,11 @@ export const MembershipFreezeManager = () => {
           )}
 
           <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
-            <div className="font-bold flex items-center gap-1.5 text-[11px]">
+            <div className="font-bold flex items-center gap-1.5 text-2xs">
               <Clock className="w-3.5 h-3.5 shrink-0" />
               <span>Resume Date: {freezeData.freezeEndDate}</span>
             </div>
-            <p className="text-[10px] text-amber-700">
+            <p className="text-2xs text-amber-700">
               The member's expiry date will be automatically pushed forward by {freezeData.daysFrozen} days.
             </p>
           </div>
@@ -1743,7 +1739,7 @@ export const MembershipFreezeManager = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Freeze Fee (₹)
                 </label>
                 <input
@@ -1759,7 +1755,7 @@ export const MembershipFreezeManager = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Payment Mode
                 </label>
                 <select
@@ -1784,7 +1780,7 @@ export const MembershipFreezeManager = () => {
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Cash (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Cash (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -1794,7 +1790,7 @@ export const MembershipFreezeManager = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Online (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Online (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -1816,7 +1812,7 @@ export const MembershipFreezeManager = () => {
                             key={provider.id}
                             type="button"
                             onClick={() => setFreezeData({ ...freezeData, splitOnlineProvider: provider.id })}
-                            className={`py-0.5 px-1 rounded text-[9px] font-bold border transition-all text-center cursor-pointer ${
+                            className={`py-0.5 px-1 rounded text-2xs font-bold border transition-all text-center cursor-pointer ${
                               freezeData.splitOnlineProvider === provider.id
                                 ? 'bg-emerald-600 text-white border-emerald-600'
                                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1833,7 +1829,7 @@ export const MembershipFreezeManager = () => {
                           value={freezeData.splitOnlineProviderOther}
                           onChange={(e) => setFreezeData({ ...freezeData, splitOnlineProviderOther: e.target.value })}
                           placeholder="Type provider..."
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-[11px] font-semibold text-slate-900"
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-2xs font-semibold text-slate-900"
                         />
                       )}
                     </div>
@@ -1866,7 +1862,7 @@ export const MembershipFreezeManager = () => {
             <button
               type="submit"
               disabled={isSubmittingFreeze || eligibleFreezeMembers.length === 0}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingFreeze && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingFreeze ? 'Freezing...' : 'Confirm Freeze'}</span>
@@ -1886,7 +1882,7 @@ export const MembershipFreezeManager = () => {
           {/* Eligibility Policy Notice */}
           <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 text-[11px] leading-relaxed">
+            <div className="space-y-0.5 text-2xs leading-relaxed">
               <span className="font-bold block text-blue-950">Gym Eligibility Policy</span>
               <p className="text-blue-800">
                 {extensionMinMonths > 0
@@ -1900,7 +1896,7 @@ export const MembershipFreezeManager = () => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">Select Member *</label>
-              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-2xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 {eligibleExtendMembers.length} Eligible Members
               </span>
             </div>
@@ -1919,11 +1915,11 @@ export const MembershipFreezeManager = () => {
               />
             )}
             {selectedExtendMember && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-600">
+              <div className="mt-1.5 flex items-center gap-1.5 text-2xs text-slate-600">
                 <span className="text-slate-400">Current Plan:</span>
                 <span className="font-bold text-slate-800">{selectedExtendMember.planName}</span>
                 {extendMemberPlanMonths > 0 && (
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  <span className="px-1.5 py-0.2 rounded text-2xs font-bold bg-emerald-100 text-emerald-800">
                     {extendMemberPlanMonths} Months Plan
                   </span>
                 )}
@@ -1949,13 +1945,13 @@ export const MembershipFreezeManager = () => {
           {/* Validity Increase Preview */}
           {selectedExtendMember && (
             <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-xs space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-2xs">
                 <span className="text-slate-600 font-medium">Current Plan Expiry:</span>
                 <span className="font-bold text-slate-800">
                   {formatDateReadable(selectedExtendMember.expiryDate)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center justify-between text-2xs">
                 <span className="text-blue-700 font-medium">Extension Days Added:</span>
                 <span className="font-bold text-blue-700">+{extendData.extensionDays || 0} Days</span>
               </div>
@@ -1964,7 +1960,7 @@ export const MembershipFreezeManager = () => {
                   <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
                   <span>New Extended Plan Validity:</span>
                 </span>
-                <span className="font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-lg border border-blue-300 shadow-xs">
+                <span className="font-bold text-blue-700 bg-white px-2.5 py-0.5 rounded-lg border border-blue-300 shadow-xs">
                   {formatDateReadable(calculateNewPlanExpiry(selectedExtendMember.expiryDate, extendData.extensionDays))}
                 </span>
               </div>
@@ -1980,7 +1976,7 @@ export const MembershipFreezeManager = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Extension Fee (₹)
                 </label>
                 <input
@@ -1996,7 +1992,7 @@ export const MembershipFreezeManager = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Payment Mode
                 </label>
                 <select
@@ -2021,7 +2017,7 @@ export const MembershipFreezeManager = () => {
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Cash (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Cash (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -2031,7 +2027,7 @@ export const MembershipFreezeManager = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Online (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Online (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -2053,7 +2049,7 @@ export const MembershipFreezeManager = () => {
                             key={provider.id}
                             type="button"
                             onClick={() => setExtendData({ ...extendData, splitOnlineProvider: provider.id })}
-                            className={`py-0.5 px-1 rounded text-[9px] font-bold border transition-all text-center cursor-pointer ${
+                            className={`py-0.5 px-1 rounded text-2xs font-bold border transition-all text-center cursor-pointer ${
                               extendData.splitOnlineProvider === provider.id
                                 ? 'bg-emerald-600 text-white border-emerald-600'
                                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -2070,7 +2066,7 @@ export const MembershipFreezeManager = () => {
                           value={extendData.splitOnlineProviderOther}
                           onChange={(e) => setExtendData({ ...extendData, splitOnlineProviderOther: e.target.value })}
                           placeholder="Type provider..."
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-[11px] font-semibold text-slate-900"
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-2xs font-semibold text-slate-900"
                         />
                       )}
                     </div>
@@ -2103,7 +2099,7 @@ export const MembershipFreezeManager = () => {
             <button
               type="submit"
               disabled={isSubmittingExtend || eligibleExtendMembers.length === 0}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingExtend && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingExtend ? 'Applying Extension...' : 'Apply Extension'}</span>
@@ -2123,7 +2119,7 @@ export const MembershipFreezeManager = () => {
           {/* Eligibility Policy Notice */}
           <div className="p-3 rounded-xl bg-violet-50/80 border border-violet-200/80 text-xs text-violet-900 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-violet-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 text-[11px] leading-relaxed">
+            <div className="space-y-0.5 text-2xs leading-relaxed">
               <span className="font-bold block text-violet-950">Gym Eligibility Policy</span>
               <p className="text-violet-800">
                 {transferMinMonths > 0
@@ -2140,11 +2136,11 @@ export const MembershipFreezeManager = () => {
                 Source Member (Transfer From) *
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
+                <span className="text-2xs font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
                   {eligibleTransferMembers.length} Eligible
                 </span>
                 {selectedSourceMember && (
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${
                     remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800 border border-violet-200' : 'bg-red-100 text-red-700 border border-red-200'
                   }`}>
                     {remainingDaysSource > 0 ? `${remainingDaysSource} Days Remaining` : '0 Days (Expired)'}
@@ -2171,11 +2167,11 @@ export const MembershipFreezeManager = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-bold text-violet-950 block">{selectedSourceMember.planName || 'Plan'}</span>
-                    <span className="text-[11px] text-violet-700">Expires: {formatDateReadable(selectedSourceMember.expiryDate)}</span>
+                    <span className="text-2xs text-violet-700">Expires: {formatDateReadable(selectedSourceMember.expiryDate)}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-violet-600 uppercase font-bold block">Remaining Days Left</span>
-                    <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                    <span className="text-2xs text-violet-600 uppercase font-semibold block">Remaining Days Left</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
                       remainingDaysSource > 0 ? 'bg-violet-600 text-white' : 'bg-red-100 text-red-700 border border-red-200'
                     }`}>
                       {remainingDaysSource} Days Left
@@ -2183,7 +2179,7 @@ export const MembershipFreezeManager = () => {
                   </div>
                 </div>
                 {remainingDaysSource <= 0 && (
-                  <div className="pt-1.5 border-t border-red-200/80 text-[11px] text-red-700 font-semibold flex items-center gap-1.5">
+                  <div className="pt-1.5 border-t border-red-200/80 text-2xs text-red-700 font-semibold flex items-center gap-1.5">
                     <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
                     <span>This member's plan has expired (0 days left). Only members with active remaining days can transfer.</span>
                   </div>
@@ -2202,7 +2198,7 @@ export const MembershipFreezeManager = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleTargetType(true)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-2xs font-bold cursor-pointer ${
                     transferData.isExistingTarget
                       ? 'bg-violet-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2213,7 +2209,7 @@ export const MembershipFreezeManager = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleTargetType(false)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-2xs font-bold cursor-pointer ${
                     !transferData.isExistingTarget
                       ? 'bg-violet-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2236,16 +2232,16 @@ export const MembershipFreezeManager = () => {
                   <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
                     <div>
                       <span className="font-bold text-slate-800 block">{selectedDestinationMember.planName || 'No Active Plan'}</span>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-2xs text-slate-500">
                         Current Expiry: {formatDateReadable(selectedDestinationMember.expiryDate)}
                       </span>
                     </div>
                     {selectedDestinationMember.expiryDate && String(selectedDestinationMember.expiryDate).split('T')[0] >= todayIso ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      <span className="px-2 py-0.5 rounded text-2xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                         Current Plan Expires: {formatDateReadable(selectedDestinationMember.expiryDate)}
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                         Expired / No Active Plan
                       </span>
                     )}
@@ -2255,7 +2251,7 @@ export const MembershipFreezeManager = () => {
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Transferee Full Name *
                   </label>
                   <input
@@ -2268,7 +2264,7 @@ export const MembershipFreezeManager = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Mobile Number *
                   </label>
                   <input
@@ -2296,7 +2292,7 @@ export const MembershipFreezeManager = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Transfer Date *
                 </label>
                 <input
@@ -2309,7 +2305,7 @@ export const MembershipFreezeManager = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Membership Start Date *
                 </label>
                 <input
@@ -2327,7 +2323,7 @@ export const MembershipFreezeManager = () => {
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-violet-500 font-semibold cursor-pointer"
                 />
-                <span className="text-[10px] text-violet-700 mt-0.5 block font-medium">
+                <span className="text-2xs text-violet-700 mt-0.5 block font-medium">
                   {minMembershipStartDate > todayIso
                     ? `Cannot be earlier than transferee's current plan expiry (${formatDateReadable(minMembershipStartDate)})`
                     : `Cannot be earlier than today (${formatDateReadable(todayIso)})`}
@@ -2338,17 +2334,17 @@ export const MembershipFreezeManager = () => {
             {/* Transfer Impact & Validity Calculation Banner */}
             <div className="p-3 rounded-lg bg-white border border-violet-100 text-xs space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-violet-900 flex items-center gap-1.5">
+                <span className="text-2xs font-bold text-violet-900 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
                   Transferred Validity Calculation:
                 </span>
-                <span className={`text-[11px] font-black px-2 py-0.5 rounded ${
+                <span className={`text-2xs font-bold px-2 py-0.5 rounded ${
                   remainingDaysSource > 0 ? 'bg-violet-100 text-violet-800' : 'bg-red-100 text-red-700'
                 }`}>
                   +{remainingDaysSource} Days Added
                 </span>
               </div>
-              <div className="text-[11px] text-slate-700 space-y-1">
+              <div className="text-2xs text-slate-700 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">Source Plan Days Remaining:</span>
                   <span className="font-bold text-violet-950">
@@ -2369,15 +2365,15 @@ export const MembershipFreezeManager = () => {
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <span className="font-bold text-violet-950">Transferee New Expiry Date:</span>
-                  <span className="font-black text-violet-700 bg-violet-50 px-2.5 py-0.5 rounded-lg border border-violet-200">
+                  <span className="font-bold text-violet-700 bg-violet-50 px-2.5 py-0.5 rounded-lg border border-violet-200">
                     {formatDateReadable(calcRecipientExpiry)}
                   </span>
                 </div>
               </div>
-              <p className="text-[10px] text-violet-700 leading-relaxed">
+              <p className="text-2xs text-violet-700 leading-relaxed">
                 Exactly <strong>{remainingDaysSource} days</strong> remaining from <strong>{selectedSourceMember?.name || 'source'}</strong> will be added to {selectedDestinationMember ? <strong>{selectedDestinationMember.name}</strong> : 'the destination member'}'s plan starting from <strong>{formatDateReadable(transferData.membershipStartDate)}</strong> to <strong>{formatDateReadable(calcRecipientExpiry)}</strong>.
               </p>
-              <div className="pt-1 border-t border-slate-100 text-[10px] text-amber-700 flex items-center gap-1 font-medium">
+              <div className="pt-1 border-t border-slate-100 text-2xs text-amber-700 flex items-center gap-1 font-medium">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 <span>Source member will be marked as <strong className="text-amber-900">Expired</strong> immediately upon transfer.</span>
               </div>
@@ -2393,7 +2389,7 @@ export const MembershipFreezeManager = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Transfer Charge Amount (₹) *
                 </label>
                 <input
@@ -2410,7 +2406,7 @@ export const MembershipFreezeManager = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                <label className="block text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Payment Mode
                 </label>
                 <select
@@ -2435,7 +2431,7 @@ export const MembershipFreezeManager = () => {
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Cash (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Cash (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -2445,7 +2441,7 @@ export const MembershipFreezeManager = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Online (₹)</label>
+                    <label className="block text-2xs font-bold text-slate-500 mb-0.5">Online (₹)</label>
                     <input
                       type="number"
                       min="0"
@@ -2467,7 +2463,7 @@ export const MembershipFreezeManager = () => {
                             key={provider.id}
                             type="button"
                             onClick={() => setTransferData({ ...transferData, splitOnlineProvider: provider.id })}
-                            className={`py-0.5 px-1 rounded text-[9px] font-bold border transition-all text-center cursor-pointer ${
+                            className={`py-0.5 px-1 rounded text-2xs font-bold border transition-all text-center cursor-pointer ${
                               transferData.splitOnlineProvider === provider.id
                                 ? 'bg-violet-600 text-white border-violet-600'
                                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -2484,7 +2480,7 @@ export const MembershipFreezeManager = () => {
                           value={transferData.splitOnlineProviderOther}
                           onChange={(e) => setTransferData({ ...transferData, splitOnlineProviderOther: e.target.value })}
                           placeholder="Type provider..."
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-[11px] font-semibold text-slate-900"
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-2xs font-semibold text-slate-900"
                         />
                       )}
                     </div>
@@ -2517,7 +2513,7 @@ export const MembershipFreezeManager = () => {
             <button
               type="submit"
               disabled={isSubmittingTransfer}
-              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-semibold shadow-md shadow-violet-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSubmittingTransfer && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSubmittingTransfer ? 'Transferring...' : 'Confirm Transfer'}</span>
@@ -2544,7 +2540,7 @@ export const MembershipFreezeManager = () => {
               <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
               <span>Configure Minimum Plan Duration</span>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className="text-2xs text-slate-500 leading-relaxed">
               Define the minimum plan duration (in months) a member must hold to be eligible for Freeze, Plan Extension, or Membership Transfer.
               Set to <strong>0</strong> to allow any plan with no minimum duration restriction.
             </p>
@@ -2554,7 +2550,7 @@ export const MembershipFreezeManager = () => {
           <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
             <div>
               <span className="text-xs font-bold text-emerald-950 block">Same duration for all</span>
-              <span className="text-[10px] text-emerald-700">Keep freeze, extension, and transfer periods synchronized</span>
+              <span className="text-2xs text-emerald-700">Keep freeze, extension, and transfer periods synchronized</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -2581,7 +2577,7 @@ export const MembershipFreezeManager = () => {
               <label className="text-xs font-bold text-slate-800">
                 Minimum Plan Duration for Freeze *
               </label>
-              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+              <span className="text-2xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                 {policyForm.freeze_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.freeze_min_months} Months`}
               </span>
             </div>
@@ -2612,7 +2608,7 @@ export const MembershipFreezeManager = () => {
               <label className="text-xs font-bold text-slate-800">
                 Minimum Plan Duration for Extension *
               </label>
-              <span className="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+              <span className="text-2xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
                 {policyForm.extension_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.extension_min_months} Months`}
               </span>
             </div>
@@ -2639,7 +2635,7 @@ export const MembershipFreezeManager = () => {
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
             {policyForm.syncAll && (
-              <p className="text-[10px] text-slate-400 italic">Synchronized with Freeze duration setting</p>
+              <p className="text-2xs text-slate-400 italic">Synchronized with Freeze duration setting</p>
             )}
           </div>
 
@@ -2649,7 +2645,7 @@ export const MembershipFreezeManager = () => {
               <label className="text-xs font-bold text-slate-800">
                 Minimum Plan Duration for Transfer *
               </label>
-              <span className="text-[11px] font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">
+              <span className="text-2xs font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">
                 {policyForm.transfer_min_months === 0 ? 'Any Plan (No limit)' : `≥ ${policyForm.transfer_min_months} Months`}
               </span>
             </div>
@@ -2676,7 +2672,7 @@ export const MembershipFreezeManager = () => {
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
             {policyForm.syncAll && (
-              <p className="text-[10px] text-slate-400 italic">Synchronized with Freeze duration setting</p>
+              <p className="text-2xs text-slate-400 italic">Synchronized with Freeze duration setting</p>
             )}
           </div>
 
@@ -2692,7 +2688,7 @@ export const MembershipFreezeManager = () => {
             <button
               type="submit"
               disabled={isSavingPolicy}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 inline-flex items-center gap-2"
             >
               {isSavingPolicy && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{isSavingPolicy ? 'Saving Policy...' : 'Save Policy Settings'}</span>

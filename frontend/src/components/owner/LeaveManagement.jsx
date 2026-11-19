@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
+import { SearchInput } from '../common/SearchInput';
 import { preventNonNumericKey, sanitizeDecimal } from '../../utils/validation';
 const StaffAvatar = ({ src, alt, className = "w-9 h-9 rounded-full", iconClassName = "w-4 h-4 text-indigo-600" }) => {
   const [hasError, setHasError] = useState(false);
@@ -347,28 +348,31 @@ export const LeaveManagement = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-16 w-full">
       {/* 1. Top Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Staff & Trainer Leave Management
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Review leave applications, inspect staff leave balances, and set annual quotas for trainers and staff.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {pendingCount} Pending approvals
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={handleRefreshData}
             disabled={isRefreshing}
-            className="p-2 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-xs font-semibold flex items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0"
             title="Refresh leave requests & balances"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
@@ -381,14 +385,14 @@ export const LeaveManagement = () => {
         {/* Pending Requests */}
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm hover:border-amber-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Pending Approvals
             </span>
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
               <Clock className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">
             {pendingCount}
           </div>
         </div>
@@ -396,14 +400,14 @@ export const LeaveManagement = () => {
         {/* Staff On Leave Today */}
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm hover:border-sky-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Staff on Leave Today
             </span>
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0">
               <CalendarDays className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-lg sm:text-2xl font-black text-sky-600 mt-0.5 sm:mt-1">
+          <div className="text-lg sm:text-2xl font-bold text-sky-600 mt-0.5 sm:mt-1">
             {leaveSummary.staff_on_leave_today || 0}
           </div>
         </div>
@@ -411,14 +415,14 @@ export const LeaveManagement = () => {
         {/* Total Approved This Month */}
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm hover:border-emerald-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Approved This Month
             </span>
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">
             {leaveSummary.approved_this_month || 0} <span className="text-xs font-semibold text-slate-400">days</span>
           </div>
         </div>
@@ -426,61 +430,64 @@ export const LeaveManagement = () => {
         {/* Total Staff in Roster */}
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm hover:border-purple-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+            <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Staff & Coaches
             </span>
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
               <Users className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-lg sm:text-2xl font-black text-purple-600 mt-0.5 sm:mt-1">
+          <div className="text-lg sm:text-2xl font-bold text-purple-600 mt-0.5 sm:mt-1">
             {staffOnlyBalances.length || leaveSummary.total_employees || 0}
           </div>
         </div>
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto gap-2 text-sm font-semibold text-slate-600">
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={`pb-3 px-3.5 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'requests'
-              ? 'border-indigo-600 text-indigo-600 font-bold'
-              : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          <CalendarDays className="w-4 h-4" />
-          <span>Leave Requests & Approvals</span>
-          {pendingCount > 0 && (
-            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white">
-              {pendingCount}
-            </span>
-          )}
-        </button>
+      <div className="relative w-full">
+        <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none gap-2 text-xs sm:text-sm font-semibold text-slate-600">
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`pb-3 px-3 py-2 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'requests'
+                ? 'border-indigo-600 text-indigo-600 font-semibold'
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            <span>Leave Requests & Approvals</span>
+            {pendingCount > 0 && (
+              <span className="px-1.5 py-0.5 text-2xs font-semibold rounded-full bg-amber-500 text-white">
+                {pendingCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab('ledger')}
-          className={`pb-3 px-3.5 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'ledger'
-              ? 'border-indigo-600 text-indigo-600 font-bold'
-              : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Employee Leave Ledger & Remaining Balances</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('ledger')}
+            className={`pb-3 px-3 py-2 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'ledger'
+                ? 'border-indigo-600 text-indigo-600 font-semibold'
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-4 h-4 shrink-0" />
+            <span>Employee Leave Ledger & Remaining Balances</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('quotas')}
-          className={`pb-3 px-3.5 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'quotas'
-              ? 'border-indigo-600 text-indigo-600 font-bold'
-              : 'border-transparent hover:text-slate-900'
-          }`}
-        >
-          <Sliders className="w-4 h-4" />
-          <span>Create Paid Leaves</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('quotas')}
+            className={`pb-3 px-3 py-2 flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'quotas'
+                ? 'border-indigo-600 text-indigo-600 font-semibold'
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <Sliders className="w-4 h-4 shrink-0" />
+            <span>Create Paid Leaves</span>
+          </button>
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-50 to-transparent sm:hidden" />
       </div>
 
       {/* 4. TAB 1: Leave Requests & Accept/Reject Actions */}
@@ -490,36 +497,26 @@ export const LeaveManagement = () => {
           <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
             <div className="flex items-center justify-between gap-2 sm:gap-3">
               {/* Autocomplete Search Bar */}
-              <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onFocus={() => setIsSearchDropdownOpen(true)}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setIsSearchDropdownOpen(true);
-                  }}
-                  placeholder="Search staff name, role, reason, or leave type..."
-                  className="w-full pl-9 pr-8 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 shadow-2xs transition-all truncate"
-                />
-                {searchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setIsSearchDropdownOpen(false);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
+              <SearchInput
+                containerRef={searchContainerRef}
+                value={searchTerm}
+                onFocus={() => setIsSearchDropdownOpen(true)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setIsSearchDropdownOpen(true);
+                }}
+                onClear={() => {
+                  setSearchTerm('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                placeholder="Search staff name, role, reason, or leave type..."
+                mobilePlaceholder="Search leave requests..."
+                containerClassName="flex-1 min-w-0"
+              >
                 {/* Autocomplete Suggestions Dropdown */}
                 {isSearchDropdownOpen && searchSuggestions.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                       Suggestions
                     </div>
                     {searchSuggestions.map((item, idx) => (
@@ -534,10 +531,10 @@ export const LeaveManagement = () => {
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-slate-800">{item.userName || item.user_name}</span>
-                          <span className="text-[10px] text-slate-400">({item.role || 'Staff'})</span>
+                          <span className="text-2xs text-slate-400">({item.role || 'Staff'})</span>
                         </div>
                         {item.leaveType && (
-                          <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+                          <span className="text-2xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
                             {item.leaveType}
                           </span>
                         )}
@@ -545,23 +542,23 @@ export const LeaveManagement = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </SearchInput>
 
               {/* Action Buttons: Filter */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowFilterModal(true)}
-                  className={`px-3.5 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold border shadow-2xs active:scale-95 transition-all cursor-pointer ${
                     activeFiltersCount > 0
                       ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <Filter className="w-3.5 h-3.5" />
+                  <Filter className="w-3.5 h-3.5 shrink-0" />
                   <span>Filters</span>
                   {activeFiltersCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-600 text-white">
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-indigo-600 text-white">
                       {activeFiltersCount}
                     </span>
                   )}
@@ -571,7 +568,7 @@ export const LeaveManagement = () => {
 
             {/* Active Filter Chips & Clear Action */}
             {(activeFiltersCount > 0 || searchTerm) && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
                 <span className="text-slate-400 font-medium">Active:</span>
 
                 {filterStatus !== 'ALL' && (
@@ -634,7 +631,7 @@ export const LeaveManagement = () => {
                   Reset all
                 </button>
 
-                <span className="ml-auto text-[11px] text-slate-400">
+                <span className="ml-auto text-2xs text-slate-400">
                   Showing {filteredRequests.length} of {leaveRequests.length} requests
                 </span>
               </div>
@@ -676,45 +673,46 @@ export const LeaveManagement = () => {
                             className="w-9 h-9 rounded-full"
                             iconClassName="w-4 h-4 text-indigo-600"
                           />
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <button
                               type="button"
                               onClick={() => handleOpenEmployeeDetails(req.userId, req.userName)}
-                              className="font-bold text-indigo-600 hover:text-indigo-800 text-xs truncate flex items-center gap-1 text-left"
+                              className="font-bold text-indigo-600 hover:text-indigo-800 text-xs truncate flex items-center gap-1 text-left min-w-0 max-w-full"
+                              title={req.userName}
                             >
                               <span className="truncate">{req.userName}</span>
                               <Info className="w-3 h-3 text-indigo-400 shrink-0" />
                             </button>
-                            <span className="text-[10px] text-slate-500 capitalize block truncate">
+                            <span className="text-2xs text-slate-500 capitalize block truncate" title={req.role || 'Staff'}>
                               {req.role || 'Staff'}
                             </span>
                           </div>
                         </div>
 
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 shrink-0 ${statusBadge.bg}`}>
-                          <StatusIcon className="w-2.5 h-2.5" />
+                        <span className={`px-2 py-0.5 rounded-full text-2xs font-bold border flex items-center gap-1 shrink-0 whitespace-nowrap ${statusBadge.bg}`}>
+                          <StatusIcon className="w-2.5 h-2.5 shrink-0" />
                           <span>{statusBadge.text}</span>
                         </span>
                       </div>
 
                       {/* Leave Info & Dates */}
-                      <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
+                      <div className="grid grid-cols-2 gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-2xs">
                         <div>
-                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Leave Type</span>
-                          <span className="font-bold text-slate-800">{req.leaveType}</span>
+                          <span className="text-2xs text-slate-400 uppercase font-medium block">Leave Type</span>
+                          <span className="font-bold text-slate-800 truncate block" title={req.leaveType}>{req.leaveType}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Duration</span>
-                          <span className="font-bold text-indigo-700">{req.daysCount} {req.daysCount === 1 ? 'day' : 'days'}</span>
+                          <span className="text-2xs text-slate-400 uppercase font-medium block">Duration</span>
+                          <span className="font-bold text-indigo-700 whitespace-nowrap shrink-0">{req.daysCount} {req.daysCount === 1 ? 'day' : 'days'}</span>
                         </div>
-                        <div className="col-span-2 pt-1 border-t border-slate-200/60 text-slate-600 font-medium">
+                        <div className="col-span-2 pt-1 border-t border-slate-200/60 text-slate-600 font-medium truncate" title={req.displayRange || `${req.startDate} to ${req.endDate}`}>
                           {req.displayRange || `${req.startDate} to ${req.endDate}`}
                         </div>
                       </div>
 
                       {/* Reason */}
                       {req.reason && (
-                        <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 italic">
+                        <p className="text-2xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 italic line-clamp-2" title={req.reason}>
                           "{req.reason}"
                         </p>
                       )}
@@ -762,7 +760,7 @@ export const LeaveManagement = () => {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider">
                       <th className="py-3.5 px-4">Trainer / Staff Member</th>
                       <th className="py-3.5 px-4">Leave Type</th>
                       <th className="py-3.5 px-4">Duration & Dates</th>
@@ -779,25 +777,25 @@ export const LeaveManagement = () => {
                       return (
                         <tr key={req.id} className="hover:bg-slate-50/60 transition-colors">
                           {/* Staff Column - Clickable Name to view remaining leaves */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-3">
+                          <td className="py-3.5 px-4 max-w-[180px] min-w-0">
+                            <div className="flex items-center gap-3 min-w-0">
                               <StaffAvatar
                                 src={req.userAvatar}
                                 alt={req.userName}
-                                className="w-9 h-9 rounded-full"
+                                className="w-9 h-9 rounded-full shrink-0"
                                 iconClassName="w-4 h-4 text-indigo-600"
                               />
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEmployeeDetails(req.userId, req.userName)}
-                                  className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 text-left cursor-pointer group"
+                                  className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 text-left cursor-pointer group min-w-0 max-w-full"
                                   title="Click to view remaining leaves for this staff member"
                                 >
-                                  <span>{req.userName}</span>
-                                  <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600" />
+                                  <span className="truncate block" title={req.userName}>{req.userName}</span>
+                                  <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 shrink-0" />
                                 </button>
-                                <span className="text-[11px] text-slate-500 capitalize block">
+                                <span className="text-2xs text-slate-500 capitalize block truncate" title={req.role || 'Trainer / Staff'}>
                                   {req.role || 'Trainer / Staff'}
                                 </span>
                               </div>
@@ -805,9 +803,9 @@ export const LeaveManagement = () => {
                           </td>
 
                           {/* Leave Type */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                             <span
-                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${
+                              className={`px-2.5 py-1 rounded-md text-2xs font-bold border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                                 req.leaveType === 'Privilege Leave'
                                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                   : req.leaveType === 'Sick Leave'
@@ -815,24 +813,24 @@ export const LeaveManagement = () => {
                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               }`}
                             >
-                              {req.leaveType === 'Privilege Leave' && <ShieldCheck className="w-3 h-3" />}
-                              {req.leaveType === 'Sick Leave' && <HeartPulse className="w-3 h-3" />}
-                              {req.leaveType === 'Casual Leave' && <Sun className="w-3 h-3" />}
-                              <span>{req.leaveType}</span>
+                              {req.leaveType === 'Privilege Leave' && <ShieldCheck className="w-3 h-3 shrink-0" />}
+                              {req.leaveType === 'Sick Leave' && <HeartPulse className="w-3 h-3 shrink-0" />}
+                              {req.leaveType === 'Casual Leave' && <Sun className="w-3 h-3 shrink-0" />}
+                              <span className="whitespace-nowrap">{req.leaveType}</span>
                             </span>
                             {req.remainingBalanceForType !== null && (
-                              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                              <span className="text-2xs text-slate-400 font-medium block mt-0.5 whitespace-nowrap">
                                 {req.remainingBalanceForType} days left in balance
                               </span>
                             )}
                           </td>
 
                           {/* Duration & Dates */}
-                          <td className="py-3.5 px-4">
-                            <div className="font-semibold text-slate-900">
+                          <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
+                            <div className="font-semibold text-slate-900 whitespace-nowrap">
                               {req.daysCount} {req.daysCount === 1 ? 'Day' : 'Days'}
                             </div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <div className="text-2xs text-slate-500 flex items-center gap-1 mt-0.5 whitespace-nowrap">
                               <span>{req.startDate}</span>
                               <span className="text-slate-300">→</span>
                               <span>{req.endDate}</span>
@@ -840,27 +838,27 @@ export const LeaveManagement = () => {
                           </td>
 
                           {/* Reason */}
-                          <td className="py-3.5 px-4 max-w-xs">
+                          <td className="py-3.5 px-4 max-w-xs min-w-0">
                             <p className="text-slate-700 text-xs line-clamp-2" title={req.reason}>
                               "{req.reason || 'No reason provided'}"
                             </p>
                             {req.actionNotes && (
-                              <div className="mt-1 text-[11px] text-slate-500 italic bg-slate-50 p-1 rounded border border-slate-100">
+                              <div className="mt-1 text-2xs text-slate-500 italic bg-slate-50 p-1 rounded border border-slate-100 truncate" title={req.actionNotes}>
                                 Note: {req.actionNotes}
                               </div>
                             )}
                           </td>
 
                           {/* Status */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                             <span
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border flex items-center gap-1.5 w-max ${statusBadge.bg}`}
+                              className={`px-2.5 py-1 rounded-full text-2xs font-bold border flex items-center gap-1.5 w-max whitespace-nowrap shrink-0 ${statusBadge.bg}`}
                             >
-                              <StatusIcon className="w-3.5 h-3.5" />
+                              <StatusIcon className="w-3.5 h-3.5 shrink-0" />
                               <span>{statusBadge.text}</span>
                             </span>
                             {req.actionBy && (
-                              <span className="text-[10px] text-slate-400 block mt-1">
+                              <span className="text-2xs text-slate-400 block mt-1 whitespace-nowrap truncate max-w-[120px]" title={`By ${req.actionBy}`}>
                                 By {req.actionBy}
                               </span>
                             )}
@@ -903,7 +901,7 @@ export const LeaveManagement = () => {
                               <button
                                 type="button"
                                 onClick={() => handleOpenEmployeeDetails(req.userId, req.userName)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-semibold text-[11px] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-semibold text-2xs inline-flex items-center gap-1 transition-colors cursor-pointer"
                               >
                                 <span>View Balances</span>
                                 <ChevronRight className="w-3 h-3" />
@@ -935,16 +933,14 @@ export const LeaveManagement = () => {
               </p>
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search staff, trainer name..."
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:bg-white focus:outline-indigo-500 transition-all"
-              />
-            </div>
+            <SearchInput
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onClear={() => setSearchTerm('')}
+              placeholder="Search staff, trainer name..."
+              mobilePlaceholder="Search staff..."
+              containerClassName="w-full sm:w-64"
+            />
           </div>
 
           {filteredLedger.length === 0 ? (
@@ -993,13 +989,13 @@ export const LeaveManagement = () => {
                               <span className="truncate">{emp.user_name}</span>
                               <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                             </button>
-                            <span className="text-[11px] text-slate-500 capitalize block truncate">
+                            <span className="text-2xs text-slate-500 capitalize block truncate">
                               {emp.role || 'Fitness Staff'}
                             </span>
                           </div>
                         </div>
 
-                        <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                           {totalLeft}d Left
                         </span>
                       </div>
@@ -1007,23 +1003,23 @@ export const LeaveManagement = () => {
                       {/* 3 Leave Categories Grid */}
                       <div className="grid grid-cols-3 gap-1.5 pt-1">
                         <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-100 text-center">
-                          <span className="text-[10px] font-bold text-emerald-700 block uppercase">Casual</span>
-                          <span className="text-sm font-black text-slate-900">{cl.remaining}</span>
-                          <span className="text-[9px] text-slate-400 block">/ {cl.allocated}</span>
+                          <span className="text-2xs font-semibold text-emerald-700 block uppercase">Casual</span>
+                          <span className="text-sm font-bold text-slate-900">{cl.remaining}</span>
+                          <span className="text-2xs text-slate-400 block">/ {cl.allocated}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-100 text-center">
-                          <span className="text-[10px] font-bold text-amber-700 block uppercase">Sick</span>
-                          <span className="text-sm font-black text-slate-900">{sl.remaining}</span>
-                          <span className="text-[9px] text-slate-400 block">/ {sl.allocated}</span>
+                          <span className="text-2xs font-semibold text-amber-700 block uppercase">Sick</span>
+                          <span className="text-sm font-bold text-slate-900">{sl.remaining}</span>
+                          <span className="text-2xs text-slate-400 block">/ {sl.allocated}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-indigo-50/60 border border-indigo-100 text-center">
-                          <span className="text-[10px] font-bold text-indigo-700 block uppercase">Privilege</span>
-                          <span className="text-sm font-black text-slate-900">{pl.remaining}</span>
-                          <span className="text-[9px] text-slate-400 block">/ {pl.allocated}</span>
+                          <span className="text-2xs font-semibold text-indigo-700 block uppercase">Privilege</span>
+                          <span className="text-sm font-bold text-slate-900">{pl.remaining}</span>
+                          <span className="text-2xs text-slate-400 block">/ {pl.allocated}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-500">
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-2xs text-slate-500">
                         <span>Used: <strong className="text-slate-700">{totalUsed}</strong> of {totalAllocated}</span>
                         <button
                           type="button"
@@ -1043,7 +1039,7 @@ export const LeaveManagement = () => {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider">
                       <th className="py-3.5 px-4">Trainer / Staff Name</th>
                       <th className="py-3.5 px-4">Casual Leave (CL)</th>
                       <th className="py-3.5 px-4">Sick Leave (SL)</th>
@@ -1079,7 +1075,7 @@ export const LeaveManagement = () => {
                                   <span>{emp.user_name}</span>
                                   <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600" />
                                 </button>
-                                <span className="text-[11px] text-slate-500 capitalize block">
+                                <span className="text-2xs text-slate-500 capitalize block">
                                   {emp.role || 'Fitness Staff'}
                                 </span>
                               </div>
@@ -1094,9 +1090,9 @@ export const LeaveManagement = () => {
                               </div>
                               <div>
                                 <div className="font-bold text-slate-900 text-sm">
-                                  {cl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
+                                  {cl.remaining} <span className="text-2xs font-normal text-slate-400">Left</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-2xs text-slate-400 block">
                                   Quota: {cl.allocated} • Used: {cl.used}
                                 </span>
                               </div>
@@ -1111,9 +1107,9 @@ export const LeaveManagement = () => {
                               </div>
                               <div>
                                 <div className="font-bold text-slate-900 text-sm">
-                                  {sl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
+                                  {sl.remaining} <span className="text-2xs font-normal text-slate-400">Left</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-2xs text-slate-400 block">
                                   Quota: {sl.allocated} • Used: {sl.used}
                                 </span>
                               </div>
@@ -1128,9 +1124,9 @@ export const LeaveManagement = () => {
                               </div>
                               <div>
                                 <div className="font-bold text-slate-900 text-sm">
-                                  {pl.remaining} <span className="text-[11px] font-normal text-slate-400">Left</span>
+                                  {pl.remaining} <span className="text-2xs font-normal text-slate-400">Left</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-2xs text-slate-400 block">
                                   Quota: {pl.allocated} • Used: {pl.used}
                                 </span>
                               </div>
@@ -1149,10 +1145,10 @@ export const LeaveManagement = () => {
 
                               return (
                                 <>
-                                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
+                                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
                                     {totalLeft} Days Left
                                   </span>
-                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  <span className="text-2xs text-slate-400 block mt-0.5">
                                     Used: {totalUsed} / {totalAllocated}
                                   </span>
                                 </>
@@ -1165,7 +1161,7 @@ export const LeaveManagement = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEmployeeDetails(emp.user_id, emp.user_name)}
-                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 font-bold text-[11px] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 font-bold text-2xs inline-flex items-center gap-1 transition-colors cursor-pointer"
                             >
                               <span>View Details</span>
                               <ChevronRight className="w-3.5 h-3.5" />
@@ -1192,7 +1188,7 @@ export const LeaveManagement = () => {
                 <Sliders className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
                   Set Paid Leaves (Trainers & Staff)
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1204,7 +1200,7 @@ export const LeaveManagement = () => {
             <form onSubmit={handleSaveSimpleQuotas} className="space-y-5">
               {/* Step 1: Target Selection */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                   Select Who to Assign Leaves To *
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1220,7 +1216,7 @@ export const LeaveManagement = () => {
                     <Users className="w-4 h-4 text-indigo-600" />
                     <div className="text-left">
                       <div>All Trainers & Staff</div>
-                      <div className="text-[10px] font-normal text-slate-500">Apply gym-wide leave policy</div>
+                      <div className="text-2xs font-normal text-slate-500">Apply gym-wide leave policy</div>
                     </div>
                   </button>
 
@@ -1236,7 +1232,7 @@ export const LeaveManagement = () => {
                     <User className="w-4 h-4 text-indigo-600" />
                     <div className="text-left">
                       <div>Single Trainer or Staff</div>
-                      <div className="text-[10px] font-normal text-slate-500">Custom quota for 1 person</div>
+                      <div className="text-2xs font-normal text-slate-500">Custom quota for 1 person</div>
                     </div>
                   </button>
                 </div>
@@ -1245,7 +1241,7 @@ export const LeaveManagement = () => {
               {/* Step 1b: Specific Employee Dropdown */}
               {simpleQuotaForm.targetMode === 'INDIVIDUAL' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Select Trainer / Staff Member *
                   </label>
                   <select
@@ -1278,7 +1274,7 @@ export const LeaveManagement = () => {
                     </div>
                     <div>
                       <span className="font-bold text-xs text-slate-900 block">Casual Leaves (CL)</span>
-                      <span className="text-[10px] text-slate-500">For personal events and short breaks</span>
+                      <span className="text-2xs text-slate-500">For personal events and short breaks</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1293,7 +1289,7 @@ export const LeaveManagement = () => {
                       onChange={(e) =>
                         setSimpleQuotaForm((prev) => ({ ...prev, casualDays: sanitizeDecimal(e.target.value) }))
                       }
-                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
+                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-bold text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
                     <span className="text-xs text-slate-500 font-semibold">Days</span>
                   </div>
@@ -1307,7 +1303,7 @@ export const LeaveManagement = () => {
                     </div>
                     <div>
                       <span className="font-bold text-xs text-slate-900 block">Sick Leaves (SL)</span>
-                      <span className="text-[10px] text-slate-500">For illness and medical recovery</span>
+                      <span className="text-2xs text-slate-500">For illness and medical recovery</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1322,7 +1318,7 @@ export const LeaveManagement = () => {
                       onChange={(e) =>
                         setSimpleQuotaForm((prev) => ({ ...prev, sickDays: sanitizeDecimal(e.target.value) }))
                       }
-                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
+                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-bold text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
                     <span className="text-xs text-slate-500 font-semibold">Days</span>
                   </div>
@@ -1336,7 +1332,7 @@ export const LeaveManagement = () => {
                     </div>
                     <div>
                       <span className="font-bold text-xs text-slate-900 block">Privilege Leaves (PL)</span>
-                      <span className="text-[10px] text-slate-500">Annual earned / privilege leave</span>
+                      <span className="text-2xs text-slate-500">Annual earned / privilege leave</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1351,7 +1347,7 @@ export const LeaveManagement = () => {
                       onChange={(e) =>
                         setSimpleQuotaForm((prev) => ({ ...prev, privilegeDays: sanitizeDecimal(e.target.value) }))
                       }
-                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-black text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
+                      className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-base sm:text-xs min-h-[44px] sm:min-h-0 font-bold text-center text-slate-900 focus:bg-white focus:outline-indigo-500"
                     />
                     <span className="text-xs text-slate-500 font-semibold">Days</span>
                   </div>
@@ -1363,7 +1359,7 @@ export const LeaveManagement = () => {
                 <button
                   type="submit"
                   disabled={simpleQuotaForm.isSubmitting}
-                  className="w-full min-h-[48px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm sm:text-xs shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full min-h-[48px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm sm:text-xs shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Check className="w-4 h-4" />
                   <span>
@@ -1410,16 +1406,16 @@ export const LeaveManagement = () => {
                   {selectedEmployeeBalance.user?.role || 'Fitness Staff'} • {selectedEmployeeBalance.user?.email}
                 </span>
                 {selectedEmployeeBalance.user?.phone && (
-                  <span className="text-[11px] text-slate-400 block">
+                  <span className="text-2xs text-slate-400 block">
                     Phone: {selectedEmployeeBalance.user?.phone}
                   </span>
                 )}
               </div>
               <div className="text-right">
-                <span className="text-2xl font-black text-emerald-600 block">
+                <span className="text-2xl font-bold text-emerald-600 block">
                   {selectedEmployeeBalance.total_remaining}
                 </span>
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                <span className="text-2xs text-slate-500 uppercase font-medium tracking-wider">
                   Total Leaves Left
                 </span>
               </div>
@@ -1427,7 +1423,7 @@ export const LeaveManagement = () => {
 
             {/* Visual Leaves Left Breakdown Cards */}
             <div>
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
+              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2.5">
                 Remaining Leaves Left in Balance ({selectedEmployeeBalance.year || 2026})
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -1442,11 +1438,11 @@ export const LeaveManagement = () => {
                       {item.leave_type === 'Privilege Leave' && <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />}
                       <span className="truncate">{item.leave_type}</span>
                     </div>
-                    <div className="text-xl font-black text-slate-900 mt-1">
+                    <div className="text-xl font-bold text-slate-900 mt-1">
                       {item.remaining_days}{' '}
                       <span className="text-xs font-normal text-slate-400">Days Left</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
+                    <div className="text-2xs text-slate-500 mt-1 flex justify-between">
                       <span>Used: {item.used_days}</span>
                       <span>Quota: {item.allocated_days}</span>
                     </div>
@@ -1457,7 +1453,7 @@ export const LeaveManagement = () => {
 
             {/* Leave History for this employee */}
             <div>
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                 Leave Request History
               </h4>
               {selectedEmployeeBalance.history && selectedEmployeeBalance.history.length > 0 ? (
@@ -1473,20 +1469,20 @@ export const LeaveManagement = () => {
                               ({h.days_count || h.daysCount} {h.days_count === 1 ? 'day' : 'days'})
                             </span>
                           </div>
-                          <span className="text-[11px] text-slate-500 block">
+                          <span className="text-2xs text-slate-500 block">
                             {h.start_date || h.startDate} → {h.end_date || h.endDate}
                           </span>
-                          <span className="text-[11px] text-slate-600 italic block mt-0.5">
+                          <span className="text-2xs text-slate-600 italic block mt-0.5">
                             "{h.reason}"
                           </span>
                         </div>
 
                         <div className="text-right">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusBadge.bg}`}>
+                          <span className={`px-2 py-0.5 rounded text-2xs font-bold border ${statusBadge.bg}`}>
                             {h.status}
                           </span>
                           {h.action_notes && (
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                            <span className="text-2xs text-slate-400 block mt-0.5">
                               {h.action_notes}
                             </span>
                           )}

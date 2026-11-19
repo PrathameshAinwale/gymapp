@@ -9,6 +9,7 @@ use App\Models\MemberProfile;
 use App\Models\Plan;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
@@ -44,6 +45,8 @@ class EnquiryController extends Controller
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('interested_plan', 'like', "%{$search}%")
+                  ->orWhere('enquiry_number', 'like', "%{$search}%")
+                  ->orWhere('legacy_id', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%");
             });
         }
@@ -121,31 +124,41 @@ class EnquiryController extends Controller
 
         $gymId = $this->resolveGymId($request);
 
+        $name = \App\Services\TextSanitizerService::toTitleCase($request->name);
+        $source = $request->source ? \App\Services\TextSanitizerService::toTitleCase($request->source) : 'Walk-in';
+        $goal = \App\Services\TextSanitizerService::toTitleCase($request->goal ?? $request->fitness_goal ?? 'General Fitness');
+        $staffName = \App\Services\TextSanitizerService::toTitleCase($request->staffName ?? $request->staff_name ?? 'Coach Rohan');
+        $notes = $request->filled('notes') ? \App\Services\TextSanitizerService::toTitleCase($request->notes) : null;
+
         $comments = [];
-        if ($request->filled('notes')) {
+        if ($notes) {
             $comments[] = [
                 'id' => 1,
-                'text' => $request->notes,
-                'author' => $request->staffName ?? $request->staff_name ?? 'Staff Admin',
+                'text' => $notes,
+                'author' => $staffName,
                 'createdAt' => now()->format('Y-m-d H:i')
             ];
         }
 
-        $enquiry = Enquiry::create([
-            'gym_id' => $gymId,
-            'name' => $request->name,
-            'phone' => $request->phone,
-            'email' => $request->email,
-            'source' => $request->source ?? 'Walk-in',
-            'interested_plan' => $request->interestedPlan ?? $request->interested_plan,
-            'fitness_goal' => $request->goal ?? $request->fitness_goal ?? 'General Fitness',
-            'priority' => $request->priority ?? 'Warm',
-            'status' => $request->status ?? 'New',
-            'follow_up_date' => $request->followUpDate ?? $request->follow_up_date ?? now()->addDays(2)->toDateString(),
-            'staff_name' => $request->staffName ?? $request->staff_name ?? 'Coach Rohan',
-            'notes' => $request->notes,
-            'comments' => $comments,
-        ]);
+        $enquiry = DB::transaction(function () use ($gymId, $name, $request, $source, $goal, $staffName, $notes, $comments) {
+            $enquiryNo = \App\Services\SequentialIdService::generateEnquiryNumber($gymId);
+            return Enquiry::create([
+                'gym_id' => $gymId,
+                'enquiry_number' => $enquiryNo,
+                'name' => $name,
+                'phone' => $request->phone,
+                'email' => $request->email,
+                'source' => $source,
+                'interested_plan' => $request->interestedPlan ?? $request->interested_plan,
+                'fitness_goal' => $goal,
+                'priority' => $request->priority ?? 'Warm',
+                'status' => $request->status ?? 'New',
+                'follow_up_date' => $request->followUpDate ?? $request->follow_up_date ?? now()->addDays(2)->toDateString(),
+                'staff_name' => $staffName,
+                'notes' => $notes,
+                'comments' => $comments,
+            ]);
+        });
 
         return response()->json([
             'success' => true,
@@ -155,12 +168,34 @@ class EnquiryController extends Controller
     }
 
     /**
+     * Resolve enquiry by enquiry_number or primary ID.
+     */
+    protected function findEnquiryById($id): Enquiry
+    {
+        $cleanId = preg_replace('/^enq-/i', '', (string)$id);
+        $enquiry = Enquiry::where(function ($q) use ($id, $cleanId) {
+            if (is_numeric($cleanId)) {
+                $q->where('id', (int)$cleanId);
+            }
+            $q->orWhere('enquiry_number', $id)
+              ->orWhere('enquiry_number', $cleanId)
+              ->orWhere('legacy_id', $id)
+              ->orWhere('legacy_id', $cleanId);
+        })->first();
+
+        if (!$enquiry) {
+            abort(404, "Enquiry lead '{$id}' not found.");
+        }
+
+        return $enquiry;
+    }
+
+    /**
      * Display the specified lead.
      */
     public function show($id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::findOrFail($numericId);
+        $enquiry = $this->findEnquiryById($id);
 
         return response()->json([
             'success' => true,
@@ -173,8 +208,7 @@ class EnquiryController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::findOrFail($numericId);
+        $enquiry = $this->findEnquiryById($id);
 
         $validator = Validator::make($request->all(), [
             'name' => ['sometimes', 'required', 'string', 'min:2', 'max:100', 'regex:/^[\p{L}\s\'-]+$/u'],
@@ -260,8 +294,7 @@ class EnquiryController extends Controller
      */
     public function updatePriority(Request $request, $id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::findOrFail($numericId);
+        $enquiry = $this->findEnquiryById($id);
 
         $validator = Validator::make($request->all(), [
             'priority' => 'required|in:Hot,Warm,Cold',
@@ -299,8 +332,7 @@ class EnquiryController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::findOrFail($numericId);
+        $enquiry = $this->findEnquiryById($id);
 
         $validator = Validator::make($request->all(), [
             'follow_up_date' => 'required_without:followUpDate|date',
@@ -338,8 +370,7 @@ class EnquiryController extends Controller
      */
     public function addComment(Request $request, $id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::findOrFail($numericId);
+        $enquiry = $this->findEnquiryById($id);
 
         $validator = Validator::make($request->all(), [
             'text' => 'required|string|max:1000',
@@ -370,19 +401,11 @@ class EnquiryController extends Controller
     }
 
     /**
-     * Convert an enquiry / lead into an active gym member and remove lead from enquiries.
+     * Convert an enquiry / lead into an active gym member and link records.
      */
     public function convertToMember(Request $request, $id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::find($numericId);
-
-        if (!$enquiry) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Enquiry lead not found or already converted/removed.',
-            ], 404);
-        }
+        $enquiry = $this->findEnquiryById($id);
 
         $gymId = $this->resolveGymId($request) ?? $enquiry->gym_id;
 
@@ -407,7 +430,7 @@ class EnquiryController extends Controller
         }
 
         // Credentials & details
-        $name = $request->input('name', $enquiry->name);
+        $name = \App\Services\TextSanitizerService::toTitleCase($request->input('name', $enquiry->name));
         $email = $request->input('email', $enquiry->email);
         if (!$email) {
             $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $name));
@@ -438,32 +461,6 @@ class EnquiryController extends Controller
         }
         $plainPassword = $request->input('password', 'fit' . rand(1000, 9999));
 
-        // Find or create User
-        $user = User::where('email', $email)->first();
-        if ($user) {
-            $user->name = $name;
-            $user->phone = $phone;
-            $user->password = Hash::make($plainPassword);
-            $user->initial_password = Hash::make($plainPassword);
-            $user->must_change_password = true;
-            if ($request->filled('avatar')) {
-                $user->avatar = $request->avatar;
-            }
-            $user->save();
-        } else {
-            $user = User::create([
-                'name' => $name,
-                'email' => $email,
-                'phone' => $phone,
-                'password' => Hash::make($plainPassword),
-                'initial_password' => Hash::make($plainPassword),
-                'must_change_password' => true,
-                'role' => 'member',
-                'gym_id' => $gymId,
-                'avatar' => $request->input('avatar', null),
-            ]);
-        }
-
         // Expiry calculation: 30 days per month, inclusive of start date
         $durationMonths = (int)($plan?->duration_months ?? 1);
         $offerDays = (int)($plan?->offer_days ?? 0);
@@ -477,55 +474,109 @@ class EnquiryController extends Controller
             $plan->increment('active_subscribers');
         }
 
-        // Create or update MemberProfile
-        $profile = MemberProfile::firstOrNew(['user_id' => $user->id]);
-        $profile->fill([
-            'plan_id' => $plan?->id,
-            'trainer_id' => $trainerId,
-            'status' => 'Active',
-            'join_date' => $profile->join_date ?? now()->toDateString(),
-            'expiry_date' => $expiryDate,
-            'gender' => $request->input('gender', $profile->gender ?? 'Male'),
-            'age' => $request->input('age', $profile->age ?? 25),
-            'weight' => $request->input('weight', $profile->weight ?? 70),
-            'target_weight' => $request->input('target_weight', $request->input('targetWeight', $profile->target_weight ?? 65)),
-            'height' => $request->input('height', $profile->height ?? 175),
-            'goal' => $request->input('goal', $request->input('fitness_goal', $enquiry->fitness_goal ?? 'Fitness & Conditioning')),
-            'medical_notes' => $request->input('medical_notes', $request->input('medicalNotes', $profile->medical_notes ?? null)),
-            'emergency_contact' => $request->input('emergency_contact', $request->input('emergencyContact', null)),
-            'qr_pass_code' => $profile->qr_pass_code ?? ('PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5))),
-            'dues_amount' => 0,
-        ]);
-        $profile->save();
+        $sanitizedGoal = \App\Services\TextSanitizerService::toTitleCase($request->input('goal', $request->input('fitness_goal', $enquiry->fitness_goal ?? 'Fitness & Conditioning')));
+        $sanitizedMedicalNotes = \App\Services\TextSanitizerService::toTitleCase($request->input('medical_notes', $request->input('medicalNotes', null)));
+        $sanitizedEmergencyContact = \App\Services\TextSanitizerService::toTitleCase($request->input('emergency_contact', $request->input('emergencyContact', null)));
 
-        if ($plan && $plan->price > 0) {
-            $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
-            $authCreator = $request->user() ?: auth('sanctum')->user();
-            $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
-            $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('staff_name', $request->input('executive', $authCreator?->name ?: $enquiry->staff_name))));
+        [$user, $profile, $createdInvoice] = DB::transaction(function () use (
+            $gymId, $enquiry, $name, $email, $phone, $plainPassword, $plan, $trainerId,
+            $expiryDate, $request, $sanitizedGoal, $sanitizedMedicalNotes, $sanitizedEmergencyContact
+        ) {
+            // Find or create User
+            $user = User::where('email', $email)->first();
+            if ($user) {
+                $user->name = $name;
+                $user->phone = $phone;
+                $user->password = Hash::make($plainPassword);
+                $user->initial_password = Hash::make($plainPassword);
+                $user->must_change_password = true;
+                if ($request->filled('avatar')) {
+                    $user->avatar = $request->avatar;
+                }
+                if (empty($user->member_number)) {
+                    $user->member_number = \App\Services\SequentialIdService::generateMemberNumber($gymId, now());
+                }
+                $user->save();
+            } else {
+                $memberNo = \App\Services\SequentialIdService::generateMemberNumber($gymId, now());
+                $user = User::create([
+                    'name' => $name,
+                    'email' => $email,
+                    'phone' => $phone,
+                    'password' => Hash::make($plainPassword),
+                    'initial_password' => Hash::make($plainPassword),
+                    'must_change_password' => true,
+                    'role' => 'member',
+                    'gym_id' => $gymId,
+                    'avatar' => $request->input('avatar', null),
+                    'member_number' => $memberNo,
+                ]);
+            }
 
-            Invoice::create([
-                'gym_id' => $gymId,
-                'invoice_number' => 'INV-' . strtoupper(substr(uniqid(), -6)),
-                'user_id' => $user->id,
-                'plan_id' => $plan->id,
-                'amount' => $plan->price,
-                'date' => now()->toDateString(),
-                'payment_method' => $paymentMethod,
-                'status' => 'Paid',
-                'created_by' => $creatorId,
-                'created_by_name' => $creatorName ?: 'Staff / Admin',
+            // Create or update MemberProfile
+            $profile = MemberProfile::firstOrNew(['user_id' => $user->id]);
+            $enqNo = $enquiry->enquiry_number ?: ('ENQ' . \App\Services\SequentialIdService::getFinancialYearCode($enquiry->created_at) . str_pad((string)$enquiry->id, 4, '0', STR_PAD_LEFT));
+
+            $profile->fill([
+                'member_number' => $user->member_number,
+                'converted_from_enquiry_number' => $enqNo,
+                'plan_id' => $plan?->id,
+                'trainer_id' => $trainerId,
+                'status' => 'Active',
+                'join_date' => $profile->join_date ?? now()->toDateString(),
+                'expiry_date' => $expiryDate,
+                'gender' => $request->input('gender', $profile->gender ?? 'Male'),
+                'age' => $request->input('age', $profile->age ?? 25),
+                'weight' => $request->input('weight', $profile->weight ?? 70),
+                'target_weight' => $request->input('target_weight', $request->input('targetWeight', $profile->target_weight ?? 65)),
+                'height' => $request->input('height', $profile->height ?? 175),
+                'goal' => $sanitizedGoal,
+                'medical_notes' => $sanitizedMedicalNotes ?? ($profile->medical_notes ?? null),
+                'emergency_contact' => $sanitizedEmergencyContact ?? ($profile->emergency_contact ?? null),
+                'qr_pass_code' => $profile->qr_pass_code ?? ('PF-M-' . $user->id . '-' . strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $user->name), 0, 5))),
+                'dues_amount' => 0,
             ]);
-        }
+            $profile->save();
 
-        // Delete enquiry lead from database so it is removed from enquiry page
-        $enquiry->delete();
+            $createdInvoice = null;
+            if ($plan && $plan->price > 0) {
+                $paymentMethod = $request->input('payment_method', $request->input('paymentMethod', 'UPI'));
+                $authCreator = $request->user() ?: auth('sanctum')->user();
+                $creatorId = $request->input('created_by', $request->input('createdBy', $authCreator?->id));
+                $creatorName = $request->input('created_by_name', $request->input('createdByName', $request->input('staff_name', $request->input('executive', $authCreator?->name ?: $enquiry->staff_name))));
+                $creatorName = \App\Services\TextSanitizerService::toTitleCase($creatorName ?: 'Staff / Admin');
+
+                $invoiceNo = \App\Services\SequentialIdService::generateInvoiceNumber($gymId, now());
+                $createdInvoice = Invoice::create([
+                    'gym_id' => $gymId,
+                    'invoice_number' => $invoiceNo,
+                    'user_id' => $user->id,
+                    'plan_id' => $plan->id,
+                    'amount' => $plan->price,
+                    'date' => now()->toDateString(),
+                    'payment_method' => $paymentMethod,
+                    'status' => 'Paid',
+                    'created_by' => $creatorId,
+                    'created_by_name' => $creatorName,
+                ]);
+            }
+
+            // Update enquiry status to Converted and link converted member ID
+            $enquiry->update([
+                'status' => 'Converted',
+                'converted_member_id' => $user->id,
+            ]);
+
+            return [$user, $profile, $createdInvoice];
+        });
 
         // Load relations and format member matching MemberController output
         $user->load(['memberProfile.plan', 'memberProfile.trainer']);
         $p = $user->memberProfile;
         $formattedMember = [
-            'id' => 'mem-' . $user->id,
+            'id' => $user->member_number ?: ('mem-' . $user->id),
+            'memberNumber' => $user->member_number ?: ('mem-' . $user->id),
+            'memberId' => $user->member_number ?: ('mem-' . $user->id),
             'userId' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
@@ -549,15 +600,17 @@ class EnquiryController extends Controller
             'attendanceStreak' => $p?->attendance_streak ?? 0,
             'qrPassCode' => $p?->qr_pass_code ?? ('PF-M-' . $user->id),
             'duesAmount' => $p?->dues_amount ?? 0,
+            'convertedFromEnquiryNumber' => $p?->converted_from_enquiry_number,
             'lastCheckIn' => 'Just Joined',
         ];
 
         return response()->json([
             'success' => true,
-            'message' => "Congratulations! {$name} has been enrolled as an Active Member and lead removed from Enquiries.",
+            'message' => "Congratulations! {$name} has been enrolled as an Active Member.",
             'data' => $formattedMember,
             'credentials' => [
-                'id' => 'mem-' . $user->id,
+                'id' => $user->member_number ?: ('mem-' . $user->id),
+                'memberNumber' => $user->member_number ?: ('mem-' . $user->id),
                 'name' => $user->name,
                 'email' => $user->email,
                 'password' => $plainPassword,
@@ -572,8 +625,17 @@ class EnquiryController extends Controller
      */
     public function destroy($id)
     {
-        $numericId = (int)str_replace('enq-', '', $id);
-        $enquiry = Enquiry::find($numericId);
+        $cleanId = preg_replace('/^enq-/i', '', (string)$id);
+        $enquiry = Enquiry::where(function ($q) use ($id, $cleanId) {
+            if (is_numeric($cleanId)) {
+                $q->where('id', (int)$cleanId);
+            }
+            $q->orWhere('enquiry_number', $id)
+              ->orWhere('enquiry_number', $cleanId)
+              ->orWhere('legacy_id', $id)
+              ->orWhere('legacy_id', $cleanId);
+        })->first();
+
         if ($enquiry) {
             $enquiry->delete();
         }
@@ -629,7 +691,9 @@ class EnquiryController extends Controller
     protected function formatEnquiry(Enquiry $enq): array
     {
         return [
-            'id' => 'enq-' . $enq->id,
+            'id' => $enq->enquiry_number ?: ('enq-' . $enq->id),
+            'enquiryNumber' => $enq->enquiry_number ?: ('enq-' . $enq->id),
+            'legacyId' => $enq->legacy_id,
             'numericId' => $enq->id,
             'gymId' => $enq->gym_id,
             'name' => $enq->name,

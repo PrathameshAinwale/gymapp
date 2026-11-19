@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import {
   hasSqlInjection,
@@ -166,19 +167,22 @@ export const ConsentFormsManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-10 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Consent Forms & Waivers
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Ensure safety and legal compliance with digital liability waivers, PAR-Q, and health clearances.
               </p>
+              <div className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {totalForms || 0} Total forms
+              </div>
             </div>
           </div>
         </div>
@@ -202,31 +206,31 @@ export const ConsentFormsManager = () => {
             }
             setIsCreateModalOpen(true);
           }}
-          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
+          className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           <span className="hidden sm:inline">New Consent Form</span>
-          <span className="inline sm:hidden">New Form</span>
+          <span className="sm:hidden">New Form</span>
         </button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
         <div className="col-span-2 sm:col-span-1 bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Pending Signatures</span>
-          <div className="text-lg sm:text-2xl font-black text-amber-600 mt-0.5 sm:mt-1">{pendingCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-amber-700 font-medium hidden sm:block">Awaiting member sign-off</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Pending Signatures</span>
+          <div className="text-lg sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">{pendingCount}</div>
+          <span className="text-2xs sm:text-2xs text-amber-700 font-medium hidden sm:block">Awaiting member sign-off</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Forms</span>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">{totalForms}</div>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">Compliance records</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Total Forms</span>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 sm:mt-1">{totalForms}</div>
+          <span className="text-2xs sm:text-2xs text-slate-400 hidden sm:block">Compliance records</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm">
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Signed</span>
-          <div className="text-lg sm:text-2xl font-black text-emerald-600 mt-0.5 sm:mt-1">{signedCount}</div>
-          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-medium hidden sm:block">Verified signatures</span>
+          <span className="text-2xs sm:text-2xs font-semibold text-slate-500 uppercase tracking-wider block truncate">Signed</span>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mt-0.5 sm:mt-1">{signedCount}</div>
+          <span className="text-2xs sm:text-2xs text-emerald-700 font-medium hidden sm:block">Verified signatures</span>
         </div>
       </div>
 
@@ -234,36 +238,26 @@ export const ConsentFormsManager = () => {
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Autocomplete Search Bar */}
-          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search member, agreement title, or emergency contact..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setIsSearchDropdownOpen(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setIsSearchDropdownOpen(false);
+            }}
+            placeholder="Search member, agreement title, or emergency contact..."
+            mobilePlaceholder="Search consent forms..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Suggestions */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="px-3 py-1.5 bg-slate-50 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
                   Suggestions
                 </div>
                 {searchSuggestions.map((item, idx) => (
@@ -278,9 +272,9 @@ export const ConsentFormsManager = () => {
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-800">{item.memberName}</span>
-                      <span className="text-[10px] text-slate-400">({item.formType})</span>
+                      <span className="text-2xs text-slate-400">({item.formType})</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${
                       item.status === 'Signed' ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'
                     }`}>
                       {item.status}
@@ -289,23 +283,24 @@ export const ConsentFormsManager = () => {
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
           {/* Action Buttons: Filter */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold border shadow-2xs active:scale-95 transition-all cursor-pointer ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
+              <Filter className="w-3.5 h-3.5 shrink-0" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-2xs font-bold bg-emerald-600 text-white">
                   {activeFiltersCount}
                 </span>
               )}
@@ -315,7 +310,7 @@ export const ConsentFormsManager = () => {
 
         {/* Active Filter Chips & Clear Action */}
         {(activeFiltersCount > 0 || searchTerm) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-2xs">
             <span className="text-slate-400 font-medium">Active:</span>
 
             {statusFilter !== 'ALL' && (
@@ -365,7 +360,7 @@ export const ConsentFormsManager = () => {
               Reset all
             </button>
 
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-2xs text-slate-400">
               Showing {filteredForms.length} of {consentForms.length} records
             </span>
           </div>
@@ -415,33 +410,33 @@ export const ConsentFormsManager = () => {
                 className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="font-bold text-slate-900 text-xs truncate">{f.memberName}</span>
+                    <span className="font-bold text-slate-900 text-xs truncate" title={f.memberName}>{f.memberName}</span>
                   </div>
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold shrink-0 whitespace-nowrap ${
                       isSigned
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border border-amber-200'
                     }`}
                   >
-                    {isSigned ? <CheckCircle2 className="w-2.5 h-2.5" /> : <AlertCircle className="w-2.5 h-2.5" />}
+                    {isSigned ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0" /> : <AlertCircle className="w-2.5 h-2.5 shrink-0" />}
                     <span>{f.status}</span>
                   </span>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-slate-50 text-[10px] space-y-1">
-                  <div className="font-semibold text-slate-900">{f.formType}</div>
-                  <div className="text-slate-500">Emergency: {f.emergencyContact || '—'}</div>
-                  {f.signedDate && <div className="text-emerald-700 font-semibold">Signed: {f.signedDate}</div>}
+                <div className="p-2.5 rounded-lg bg-slate-50 text-2xs space-y-1">
+                  <div className="font-semibold text-slate-900 truncate" title={f.formType}>{f.formType}</div>
+                  <div className="text-slate-500 truncate" title={`Emergency: ${f.emergencyContact || '—'}`}>Emergency: {f.emergencyContact || '—'}</div>
+                  {f.signedDate && <div className="text-emerald-700 font-semibold whitespace-nowrap">Signed: {f.signedDate}</div>}
                 </div>
 
                 <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setViewingForm(f)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-2xs font-bold flex items-center gap-1 cursor-pointer active:scale-95"
                   >
                     <Eye className="w-3 h-3" />
                     <span>View</span>
@@ -452,7 +447,7 @@ export const ConsentFormsManager = () => {
                       <button
                         type="button"
                         onClick={() => handleSendReminder(f)}
-                        className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                        className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-2xs font-bold flex items-center gap-1 cursor-pointer active:scale-95"
                       >
                         <Send className="w-3 h-3" />
                         <span>Remind</span>
@@ -460,7 +455,7 @@ export const ConsentFormsManager = () => {
                       <button
                         type="button"
                         onClick={() => updateConsentStatus(f.id, 'Signed')}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow-sm cursor-pointer active:scale-95"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-bold shadow-sm cursor-pointer active:scale-95"
                       >
                         Sign Off
                       </button>
@@ -512,7 +507,7 @@ export const ConsentFormsManager = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-4">Member Name</th>
                   <th className="py-3.5 px-4">Agreement / Form Title</th>
                   <th className="py-3.5 px-4">Emergency Contact</th>
@@ -528,19 +523,19 @@ export const ConsentFormsManager = () => {
 
                 return (
                   <tr key={f.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{f.memberName}</span>
+                    <td className="py-3.5 px-4 max-w-[180px] min-w-0">
+                      <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5 min-w-0">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate" title={f.memberName}>{f.memberName}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">ID: {f.memberId}</div>
+                      <div className="text-2xs text-slate-400 mt-0.5 whitespace-nowrap shrink-0">ID: {f.memberId}</div>
                     </td>
 
-                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-xs">
+                    <td className="py-3.5 px-4 font-medium text-slate-900 max-w-xs truncate" title={f.formType}>
                       {f.formType}
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-600">
+                    <td className="py-3.5 px-4 text-slate-600 truncate max-w-[150px]" title={f.emergencyContact || '—'}>
                       {f.emergencyContact || '—'}
                     </td>
 
@@ -548,36 +543,36 @@ export const ConsentFormsManager = () => {
                       {f.medicalNotes || 'None'}
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-700">
+                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap shrink-0">
                       {f.signedDate ? (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                        <div className="flex items-center gap-1 whitespace-nowrap">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           <span>{f.signedDate}</span>
                         </div>
                       ) : (
-                        <span className="text-amber-600 text-[11px] font-medium">Pending</span>
+                        <span className="text-amber-600 text-2xs font-medium whitespace-nowrap">Pending</span>
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap shrink-0">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold whitespace-nowrap shrink-0 ${
                           isSigned
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}
                       >
-                        {isSigned ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                        {isSigned ? <CheckCircle2 className="w-3 h-3 shrink-0" /> : <AlertCircle className="w-3 h-3 shrink-0" />}
                         <span>{f.status}</span>
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap shrink-0">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => setViewingForm(f)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-2xs font-bold flex items-center gap-1 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>View</span>
@@ -588,7 +583,7 @@ export const ConsentFormsManager = () => {
                             <button
                               type="button"
                               onClick={() => handleSendReminder(f)}
-                              className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-2xs font-bold flex items-center gap-1 cursor-pointer"
                               title="Send reminder to member"
                             >
                               <Send className="w-3 h-3" />
@@ -597,7 +592,7 @@ export const ConsentFormsManager = () => {
                             <button
                               type="button"
                               onClick={() => updateConsentStatus(f.id, 'Signed')}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow-sm cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-2xs font-bold shadow-sm cursor-pointer"
                             >
                               Sign Off
                             </button>
@@ -624,7 +619,7 @@ export const ConsentFormsManager = () => {
         <form onSubmit={handleCreateSubmit} className="space-y-2.5">
           {/* Member Selector - STRICTLY FROM GYM MEMBERS */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Gym Member <span className="text-rose-500">*</span>
             </label>
             <select
@@ -651,14 +646,14 @@ export const ConsentFormsManager = () => {
                 </option>
               ))}
             </select>
-            <p className="text-[9px] text-slate-400 mt-0.5">
-              Only athletes registered in the Gym Member Directory are selectable.
+            <p className="text-2xs text-slate-400 mt-0.5">
+              Only memebrs registered in the Gym Member Directory are selectable.
             </p>
           </div>
 
           {/* Agreement / Waiver Type */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Agreement / Form Type <span className="text-rose-500">*</span>
             </label>
             <select
@@ -678,7 +673,7 @@ export const ConsentFormsManager = () => {
           {/* Emergency Contact Information */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">
                 Emergency Contact Name & Relation
               </label>
               <input
@@ -690,7 +685,7 @@ export const ConsentFormsManager = () => {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+              <label className="block text-2xs font-bold text-slate-700 mb-0.5">
                 Emergency Contact Phone
               </label>
               <input
@@ -708,7 +703,7 @@ export const ConsentFormsManager = () => {
 
           {/* Medical Notes */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Medical Conditions & Health Clearance Notes
             </label>
             <textarea
@@ -722,7 +717,7 @@ export const ConsentFormsManager = () => {
 
           {/* Initial Status */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+            <label className="block text-2xs font-bold text-slate-700 mb-0.5">
               Form Status <span className="text-rose-500">*</span>
             </label>
             <select
@@ -747,7 +742,7 @@ export const ConsentFormsManager = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
             >
               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>{isSubmitting ? 'Saving...' : 'Save Consent Form'}</span>
@@ -767,22 +762,22 @@ export const ConsentFormsManager = () => {
           <div className="space-y-3 text-xs">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-slate-500 font-bold">Member Name:</span>
+                <span className="text-slate-500 font-medium">Member Name:</span>
                 <span className="font-bold text-slate-900">{viewingForm.memberName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-bold">Emergency Contact:</span>
+                <span className="text-slate-500 font-medium">Emergency Contact:</span>
                 <span className="text-slate-900">{viewingForm.emergencyContact || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-bold">Signed Status:</span>
+                <span className="text-slate-500 font-medium">Signed Status:</span>
                 <span className={`font-bold ${viewingForm.status === 'Signed' ? 'text-emerald-600' : 'text-amber-600'}`}>
                   {viewingForm.status}
                 </span>
               </div>
               {viewingForm.signedDate && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">Date of Signature:</span>
+                  <span className="text-slate-500 font-medium">Date of Signature:</span>
                   <span className="text-slate-900">{viewingForm.signedDate}</span>
                 </div>
               )}
@@ -790,18 +785,18 @@ export const ConsentFormsManager = () => {
 
             <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 text-slate-600">
               <h4 className="font-bold text-slate-900 text-xs">Declaration & Terms:</h4>
-              <p className="text-[11px] leading-relaxed">
+              <p className="text-2xs leading-relaxed">
                 1. I understand that physical fitness training, weightlifting, and group exercises involve potential risk of injury.
               </p>
-              <p className="text-[11px] leading-relaxed">
+              <p className="text-2xs leading-relaxed">
                 2. I affirm that I am in good physical condition and do not suffer from any known disability or condition which would prevent or limit my participation in sports or gym activities.
               </p>
-              <p className="text-[11px] leading-relaxed">
+              <p className="text-2xs leading-relaxed">
                 3. I voluntarily agree to assume all risks and release PULSE FIT Athletic Club and its trainers from any liability.
               </p>
               <div className="pt-1.5 border-t border-slate-100">
-                <span className="font-bold text-slate-900 text-[11px] block">Medical / Health Notes:</span>
-                <p className="text-slate-500 text-[10px] mt-0.5">{viewingForm.medicalNotes || 'None recorded'}</p>
+                <span className="font-bold text-slate-900 text-2xs block">Medical / Health Notes:</span>
+                <p className="text-slate-500 text-2xs mt-0.5">{viewingForm.medicalNotes || 'None recorded'}</p>
               </div>
             </div>
 

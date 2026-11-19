@@ -21,6 +21,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { SearchInput } from '../common/SearchInput';
 import { EmptyState } from '../common/EmptyState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import {
@@ -426,18 +427,21 @@ export const ClassAdminManager = () => {
   return (
     <div className="space-y-4 animate-fadeIn pb-12 w-full">
       {/* Header Banner */}
-      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-xs">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200/90 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0 shadow-2xs">
               <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                Group Classes & Batch Scheduling
+            <div className="min-w-0">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
+                Group Classes & Batches
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
                 Create group workout batches, allocate certified coaches, set hall capacity, and monitor member enrollment.
+              </p>
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {filteredClasses.length} {filteredClasses.length === 1 ? 'class batch' : 'class batches'}
               </p>
             </div>
           </div>
@@ -446,11 +450,12 @@ export const ClassAdminManager = () => {
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 min-h-[40px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+          className="h-8.5 sm:h-9 px-2.5 sm:px-3.5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          title="Schedule New Class"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
           <span className="hidden sm:inline">Schedule Class</span>
-          <span className="inline sm:hidden">Schedule</span>
+          <span className="sm:hidden">Schedule</span>
         </button>
       </div>
 
@@ -458,34 +463,23 @@ export const ClassAdminManager = () => {
       <div className="bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search group class batch by name, coach, category, room..."
-              className="w-full pl-8 sm:pl-9 pr-7 py-2 min-h-[44px] sm:min-h-0 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium truncate"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-[10px] font-bold cursor-pointer"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search group class batch..."
+            mobilePlaceholder="Search classes..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100">
-                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="p-2 bg-slate-50 text-2xs font-semibold text-slate-500 uppercase tracking-wider">
                   Matching Classes ({searchSuggestions.length})
                 </div>
                 {searchSuggestions.map((cls, idx) => (
@@ -498,20 +492,20 @@ export const ClassAdminManager = () => {
                     className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-200">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-2xs flex items-center justify-center border border-emerald-200">
                         {(cls.name || 'C').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700">
                           {cls.name || cls.title}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-2xs text-slate-400">
                           {cls.category} • Coach: {cls.trainerName || 'Coach'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-2xs font-semibold">
                         {cls.time}
                       </span>
                     </div>
@@ -519,14 +513,15 @@ export const ClassAdminManager = () => {
                 ))}
               </div>
             )}
-          </div>
+          
+          </SearchInput>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated Filter Button */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              className={`flex items-center justify-center gap-1.5 px-3 h-9.5 sm:h-9 sm:px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
                 activeFiltersCount > 0
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -535,7 +530,7 @@ export const ClassAdminManager = () => {
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -546,7 +541,7 @@ export const ClassAdminManager = () => {
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {categoryFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
                 Category: {categoryFilter}
@@ -574,7 +569,7 @@ export const ClassAdminManager = () => {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -588,7 +583,7 @@ export const ClassAdminManager = () => {
           Showing <strong className="text-emerald-700">{filteredClasses.length}</strong> of {classes.length} Scheduled Classes
         </span>
         {searchTerm && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-2xs text-slate-400">
             Filtered by "{searchTerm}"
           </span>
         )}
@@ -622,19 +617,19 @@ export const ClassAdminManager = () => {
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-2xs font-semibold text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                         {cls.category || 'Fitness Batch'}
                       </span>
-                      <h3 className="font-bold text-slate-900 text-sm mt-1.5">{cls.name || cls.title}</h3>
+                      <h3 className="font-bold text-slate-900 text-sm mt-1.5 truncate" title={cls.name || cls.title}>{cls.name || cls.title}</h3>
                     </div>
 
                     {canEditDelete && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(cls)}
-                          className="p-2 min-h-[36px] min-w-[36px] rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 border border-slate-200 transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                          className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs"
                           title="Edit Class Schedule"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -642,7 +637,7 @@ export const ClassAdminManager = () => {
                         <button
                           type="button"
                           onClick={() => setClassToDelete(cls)}
-                          className="p-2 min-h-[36px] min-w-[36px] rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                          className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs"
                           title="Remove Class"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -662,18 +657,18 @@ export const ClassAdminManager = () => {
                     </div>
                     <div className="flex items-center gap-1.5 pt-1">
                       {(cls.days || ['Mon', 'Wed', 'Fri']).map((d) => (
-                        <span key={d} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded text-[10px]">
+                        <span key={d} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded text-2xs">
                           {d}
                         </span>
                       ))}
-                      <span className="text-[10px] text-slate-400 ml-auto">{cls.room || 'Studio A'}</span>
+                      <span className="text-2xs text-slate-400 ml-auto">{cls.room || 'Studio A'}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Progress & Capacity */}
                 <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                  <div className="flex justify-between text-[11px]">
+                  <div className="flex justify-between text-2xs">
                     <span className="text-slate-500 font-medium">Batch Roster:</span>
                     <span className="font-bold text-slate-900">{enrolled} / {cls.capacity || 25} Enrolled</span>
                   </div>
@@ -690,7 +685,7 @@ export const ClassAdminManager = () => {
                   <button
                     type="button"
                     onClick={() => handleOpenEnrollModal(cls)}
-                    className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 border border-teal-200"
+                    className="w-full h-8.5 sm:h-9 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 border border-teal-200"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Enroll Members</span>
@@ -777,7 +772,7 @@ export const ClassAdminManager = () => {
                     key={day}
                     type="button"
                     onClick={() => handleDayToggle(day)}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    className={`px-2.5 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -838,7 +833,7 @@ export const ClassAdminManager = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
             >
               Schedule Batch
             </button>
@@ -1053,7 +1048,7 @@ export const ClassAdminManager = () => {
                         const nextDays = exists ? editForm.days.filter((d) => d !== day) : [...editForm.days, day];
                         setEditForm({ ...editForm, days: nextDays });
                       }}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2.5 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -1106,7 +1101,7 @@ export const ClassAdminManager = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                className="px-5 py-2 min-h-[44px] sm:min-h-0 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
               >
                 Save Changes
               </button>
@@ -1131,7 +1126,7 @@ export const ClassAdminManager = () => {
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
             <div className="space-y-0.5">
               <div className="font-bold text-slate-800">{enrollingClass?.name || enrollingClass?.title}</div>
-              <div className="text-[11px] text-slate-500">
+              <div className="text-2xs text-slate-500">
                 {enrollingClass?.time} • {Array.isArray(enrollingClass?.days) ? enrollingClass.days.join(', ') : enrollingClass?.days}
               </div>
             </div>
@@ -1139,7 +1134,7 @@ export const ClassAdminManager = () => {
               <span className="font-bold text-slate-900">
                 {classEnrollments.length} / {enrollingClass?.capacity || 25}
               </span>
-              <span className="text-[10px] text-slate-500 block">Enrolled Members</span>
+              <span className="text-2xs text-slate-500 block">Enrolled Members</span>
             </div>
           </div>
 
@@ -1203,7 +1198,7 @@ export const ClassAdminManager = () => {
               {isEnrollingMember ? 'Issuing Invoice & Enrolling...' : 'Enroll & Generate Official Invoice'}
             </button>
             {classEnrollments.length >= (enrollingClass?.capacity || 25) && (
-              <p className="text-[11px] text-amber-600 font-medium">Class capacity reached. No further enrollments allowed.</p>
+              <p className="text-2xs text-amber-600 font-medium">Class capacity reached. No further enrollments allowed.</p>
             )}
           </form>
 
@@ -1211,7 +1206,7 @@ export const ClassAdminManager = () => {
           <div className="pt-2">
             <h4 className="font-bold text-slate-800 mb-2 flex items-center justify-between">
               <span>Enrolled Members ({classEnrollments.length})</span>
-              {isLoadingEnrollments && <span className="text-[11px] font-normal text-slate-400">Loading...</span>}
+              {isLoadingEnrollments && <span className="text-2xs font-normal text-slate-400">Loading...</span>}
             </h4>
 
             {isLoadingEnrollments ? (
@@ -1228,19 +1223,19 @@ export const ClassAdminManager = () => {
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-800">{enr.name || 'Member'}</span>
                         {enr.invoiceNumber && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
+                          <span className="text-2xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
                             {enr.invoiceNumber}
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="text-2xs text-slate-400">
                         {enr.phone ? `${enr.phone} • ` : ''}Enrolled: {enr.enrolledDate || 'Recent'}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setEnrollmentToRemove(enr)}
-                      className="px-2 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer transition-colors"
+                      className="px-2 py-1 text-2xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer transition-colors"
                     >
                       Remove
                     </button>

@@ -17,8 +17,8 @@ export const PageHeader = ({
   return (
     <div className={`bg-white border border-slate-200 p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs ${className}`}>
       <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-3">
-        <div className="min-w-0 flex items-center gap-2">
-          <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+        <div className="min-w-0 flex-1 flex items-center gap-2">
+          <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate" title={typeof title === 'string' ? title : undefined}>
             {title}
           </h1>
           {badge && (
@@ -36,7 +36,7 @@ export const PageHeader = ({
       </div>
 
       {subtitle && (
-        <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
+        <p className="text-2xs text-slate-500 hidden sm:block mt-0.5 max-w-[70ch] truncate" title={typeof subtitle === 'string' ? subtitle : undefined}>
           {subtitle}
         </p>
       )}

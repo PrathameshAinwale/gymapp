@@ -249,8 +249,8 @@ export const TrainerProfile = () => {
             <span>Back to Profile</span>
           </button>
           <div className="text-right">
-            <h1 className="text-sm sm:text-base font-bold text-slate-900">Edit Profile</h1>
-            <p className="text-[11px] text-slate-500">Update coach information</p>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900">Edit Profile</h2>
+            <p className="text-2xs text-slate-500">Update coach information</p>
           </div>
         </div>
 
@@ -259,7 +259,7 @@ export const TrainerProfile = () => {
           
           {/* Section 1: Basic & Contact Details */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <User className="w-4 h-4 text-emerald-600" />
               Personal & Contact Details
             </h2>
@@ -313,7 +313,7 @@ export const TrainerProfile = () => {
 
           {/* Section 2: Coaching Credentials & Philosophy */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <Award className="w-4 h-4 text-emerald-600" />
               Coaching Specialization & Philosophy
             </h2>
@@ -351,7 +351,7 @@ export const TrainerProfile = () => {
                 placeholder="e.g. ACE-CPT, CSCS, CrossFit L1"
                 className="w-full h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">Separate multiple accreditations with commas.</span>
+              <span className="text-2xs text-slate-400 mt-1 block">Separate multiple accreditations with commas.</span>
             </div>
 
             <div>
@@ -370,7 +370,7 @@ export const TrainerProfile = () => {
 
           {/* Section 3: Demographics & Blood Group */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <Heart className="w-4 h-4 text-rose-500" />
               Demographics & Address
             </h2>
@@ -436,18 +436,18 @@ export const TrainerProfile = () => {
           {/* Section 4: Employment & Compensation (LOCKED / READ-ONLY) */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-amber-500" />
                 Employment & Compensation
               </h2>
-              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              <span className="text-2xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                 Locked
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/60 flex items-start gap-2.5">
               <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-amber-900 leading-snug">
+              <p className="text-2xs text-amber-900 leading-snug">
                 Salary, shift allocations, and joining date are locked for coaches and can only be modified by gym management.
               </p>
             </div>
@@ -455,7 +455,7 @@ export const TrainerProfile = () => {
             <div className="space-y-2">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Monthly Salary</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Monthly Salary</span>
                   <span className="text-xs font-bold text-slate-800">
                     ₹{Number(editForm.salary).toLocaleString('en-IN')}
                   </span>
@@ -465,7 +465,7 @@ export const TrainerProfile = () => {
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Assigned Shift</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Assigned Shift</span>
                   <span className="text-xs font-bold text-slate-800">
                     {editForm.shifts || 'Regular Shift'}
                   </span>
@@ -475,7 +475,7 @@ export const TrainerProfile = () => {
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Joining Date</span>
+                  <span className="text-2xs uppercase font-semibold text-slate-400 block">Joining Date</span>
                   <span className="text-xs font-bold text-slate-800">
                     {editForm.joining_date || 'N/A'}
                   </span>
@@ -498,7 +498,7 @@ export const TrainerProfile = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs transition-all shadow-md shadow-emerald-600/25 active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-600/25 active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSaving ? (
                 <>
@@ -554,7 +554,7 @@ export const TrainerProfile = () => {
         </div>
 
         <div>
-          <h1 className="text-xl sm:text-2xl font-black font-heading text-slate-900 tracking-tight">
+          <h1 className="app-page-title font-bold font-heading text-slate-900 tracking-normal">
             {displayName}
           </h1>
           <p className="text-xs sm:text-sm text-emerald-700 font-semibold mt-0.5">
@@ -566,22 +566,22 @@ export const TrainerProfile = () => {
       {/* Career & Compensation Metrics */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
         <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 text-center shadow-xs">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">Experience</span>
+          <span className="text-2xs uppercase font-semibold text-slate-400 block truncate">Experience</span>
           <div className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
             {displayExperience}
           </div>
-          <span className="text-[10px] text-slate-500">Career Background</span>
+          <span className="text-2xs text-slate-500">Career Background</span>
         </div>
 
         <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 text-center shadow-xs relative">
-          <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-bold text-slate-400">
+          <div className="flex items-center justify-center gap-1 text-2xs uppercase font-semibold text-slate-400">
             <span>Monthly Salary</span>
             <Lock className="w-2.5 h-2.5 text-slate-400" title="Managed by gym administration" />
           </div>
           <div className="text-base sm:text-lg font-bold text-emerald-700 mt-0.5">
             ₹{displaySalary.toLocaleString('en-IN')}
           </div>
-          <span className="text-[10px] text-slate-500">Base Compensation</span>
+          <span className="text-2xs text-slate-500">Base Compensation</span>
         </div>
       </div>
 
@@ -592,7 +592,7 @@ export const TrainerProfile = () => {
             <Clock className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold text-slate-400 block truncate">Working Shift</span>
+            <span className="text-2xs uppercase font-semibold text-slate-400 block truncate">Working Shift</span>
             <span className="text-xs font-semibold text-slate-800 truncate block">
               {displayShift}
             </span>
@@ -604,7 +604,7 @@ export const TrainerProfile = () => {
             <Calendar className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold text-slate-400 block truncate">Joined On</span>
+            <span className="text-2xs uppercase font-semibold text-slate-400 block truncate">Joined On</span>
             <span className="text-xs font-semibold text-slate-800 truncate block">
               {displayJoiningDate}
             </span>
@@ -616,7 +616,7 @@ export const TrainerProfile = () => {
       <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-xs">
         <div className="flex items-center gap-2">
           <Award className="w-4 h-4 text-emerald-600" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Certifications & Accreditations
           </h2>
         </div>
@@ -642,27 +642,27 @@ export const TrainerProfile = () => {
       <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-xs">
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-emerald-600" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Personal Information
           </h2>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold uppercase">Age</span>
-            <span className="font-semibold text-slate-800 text-[11px] sm:text-xs">
+            <span className="text-2xs sm:text-2xs text-slate-400 block font-medium uppercase">Age</span>
+            <span className="font-semibold text-slate-800 text-2xs sm:text-xs">
               {displayAge}
             </span>
           </div>
           <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold uppercase">Gender</span>
-            <span className="font-semibold text-slate-800 text-[11px] sm:text-xs">
+            <span className="text-2xs sm:text-2xs text-slate-400 block font-medium uppercase">Gender</span>
+            <span className="font-semibold text-slate-800 text-2xs sm:text-xs">
               {displayGender}
             </span>
           </div>
           <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold uppercase">Blood Group</span>
-            <span className="font-semibold text-rose-600 text-[11px] sm:text-xs">
+            <span className="text-2xs sm:text-2xs text-slate-400 block font-medium uppercase">Blood Group</span>
+            <span className="font-semibold text-rose-600 text-2xs sm:text-xs">
               {displayBlood}
             </span>
           </div>
@@ -671,8 +671,8 @@ export const TrainerProfile = () => {
         <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
           <MapPin className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           <div>
-            <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold uppercase">Residential Address</span>
-            <span className="font-semibold text-slate-800 text-[11px] sm:text-xs">
+            <span className="text-2xs sm:text-2xs text-slate-400 block font-medium uppercase">Residential Address</span>
+            <span className="font-semibold text-slate-800 text-2xs sm:text-xs">
               {displayAddress}
             </span>
           </div>
@@ -681,7 +681,7 @@ export const TrainerProfile = () => {
 
       {/* Bio & Credentials */}
       <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 space-y-1.5 shadow-xs">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Bio & Profile Summary
         </h2>
         <p className="text-xs text-slate-600 leading-relaxed italic">
@@ -691,7 +691,7 @@ export const TrainerProfile = () => {
 
       {/* Contact Details */}
       <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200 space-y-2.5 shadow-xs">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Contact Details
         </h2>
 
@@ -699,8 +699,8 @@ export const TrainerProfile = () => {
           <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
             <div className="min-w-0">
-              <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold">Email Address (Login)</span>
-              <span className="font-semibold text-slate-900 truncate block text-[11px] sm:text-xs">
+              <span className="text-2xs sm:text-2xs text-slate-400 block font-medium">Email Address (Login)</span>
+              <span className="font-semibold text-slate-900 truncate block text-2xs sm:text-xs">
                 {displayEmail}
               </span>
             </div>
@@ -709,8 +709,8 @@ export const TrainerProfile = () => {
           <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <Phone className="w-4 h-4 text-teal-600 shrink-0" />
             <div className="min-w-0">
-              <span className="text-[9px] sm:text-[10px] text-slate-400 block font-bold">Mobile Phone</span>
-              <span className="font-semibold text-slate-900 block text-[11px] sm:text-xs">
+              <span className="text-2xs sm:text-2xs text-slate-400 block font-medium">Mobile Phone</span>
+              <span className="font-semibold text-slate-900 block text-2xs sm:text-xs">
                 {displayPhone}
               </span>
             </div>

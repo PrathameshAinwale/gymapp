@@ -55,7 +55,8 @@ import {
 } from '../../utils/validation';
 import { EmptyState } from '../common/EmptyState';
 import { generateInvoicePdf, shareInvoicePdfToMobile, downloadPdfBlob } from '../../utils/invoicePdfGenerator';
-import { getWhatsAppUrl } from '../../utils/whatsapp';
+import { getWhatsAppUrl, getGymName } from '../../utils/whatsapp';
+import { SearchInput } from '../common/SearchInput';
 import { getPlanByTier, resolveGymTier } from '../superadmin/packagePlans';
 import { matchesMemberUniversal, compareInvoicesDesc } from '../../utils/searchUtils';
 import { api } from '../../services/api';
@@ -242,12 +243,22 @@ export const MemberList = ({
 
     // 2. Cross-reference invoices for this member
     if (Array.isArray(invoices) && invoices.length > 0) {
-      const cleanMemberId = String(m?.id || m?.userId || '').replace(/\D/g, '');
+      const cleanMemberId = String(m?.userId || (m?.id && !String(m.id).toUpperCase().startsWith('MEM') ? m.id : '')).replace(/\D/g, '');
       const cleanMemberPhone = String(m?.phone || '').replace(/\D/g, '').slice(-10);
       const memberInvoices = invoices.filter((inv) => {
         // Skip invoices already marked Paid
         if (String(inv.status).toLowerCase() === 'paid') return false;
-        const invMemId = String(inv.memberId || inv.userId || inv.user_id || inv.member_id || '').replace(/\D/g, '');
+
+        if (m.userId && (inv.userId || inv.user_id) && String(m.userId) === String(inv.userId || inv.user_id)) {
+          return true;
+        }
+        if ((m.memberNumber || m.id) && (inv.memberNumber || inv.memberId)) {
+          const mNum = String(m.memberNumber || m.id);
+          const invNum = String(inv.memberNumber || inv.memberId);
+          if (mNum === invNum) return true;
+        }
+
+        const invMemId = String(inv.userId || inv.user_id || (inv.memberId && !String(inv.memberId).toUpperCase().startsWith('MEM') ? inv.memberId : '')).replace(/\D/g, '');
         const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
 
         if (cleanMemberId && invMemId) return cleanMemberId === invMemId;
@@ -632,14 +643,14 @@ export const MemberList = ({
               <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+              <h1 className="app-page-title font-bold text-slate-900 tracking-normal truncate">
                 Member Directory
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block truncate">
-                Manage athletes, track subscription validity, and issue instant login credentials.
+              <p className="text-2xs text-slate-500 hidden sm:block truncate max-w-[70ch]">
+                Manage members, track subscription validity, and issue instant login credentials.
               </p>
-              <p className="text-[10px] text-slate-400 font-medium sm:hidden truncate">
-                {filteredMembers.length} {filteredMembers.length === 1 ? 'athlete' : 'athletes'}
+              <p className="text-2xs text-slate-400 font-medium sm:hidden truncate">
+                {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
               </p>
             </div>
           </div>
@@ -650,7 +661,7 @@ export const MemberList = ({
             type="button"
             onClick={handleRefreshMembers}
             disabled={isRefreshing}
-            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            className="w-8.5 h-8.5 sm:w-auto sm:h-9 sm:px-3 sm:py-2 flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh members list from database"
             aria-label="Refresh members"
           >
@@ -706,13 +717,13 @@ export const MemberList = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs sm:text-sm font-extrabold tracking-tight">
+                <span className="text-xs sm:text-sm font-bold tracking-tight">
                   {notificationFilter.type === 'payment_due'
                     ? 'Payments due within 3 days or overdue'
                     : 'Plans expiring within 5 days'}
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  className={`px-2 py-0.5 rounded-full text-2xs font-bold uppercase tracking-wider ${
                     notificationFilter.type === 'payment_due'
                       ? 'bg-rose-200/80 text-rose-900'
                       : 'bg-amber-200/80 text-amber-900'
@@ -721,7 +732,7 @@ export const MemberList = ({
                   Notification Filter Active
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 leading-snug">
+              <p className="text-2xs sm:text-xs text-slate-600 mt-0.5 leading-snug">
                 {isNotificationLoading ? (
                   <span className="flex items-center gap-1.5 text-slate-500">
                     <Loader2 className="w-3 h-3 animate-spin" /> Fetching matching members from database...
@@ -779,36 +790,24 @@ export const MemberList = ({
         <div className="flex items-center justify-between gap-2 sm:gap-3">
 
           {/* Search Input with Autocomplete */}
-          <div className="relative flex-1 min-w-0" ref={searchContainerRef}>
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchDropdownOpen(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Search members, phone..."
-              className="w-full pl-9 pr-8 h-9.5 sm:h-9 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 font-medium transition-colors"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
-                title="Clear search"
-                aria-label="Clear search"
-              >
-                ✕
-              </button>
-            )}
-
+          <SearchInput
+            containerRef={searchContainerRef}
+            value={searchTerm}
+            onFocus={() => setIsSearchDropdownOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchDropdownOpen(true);
+            }}
+            onClear={() => setSearchTerm('')}
+            placeholder="Search members, phone..."
+            mobilePlaceholder="Search members..."
+            containerClassName="flex-1 min-w-0"
+          >
             {/* Autocomplete Dropdown */}
             {isSearchDropdownOpen && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0">
-                  Matching Athletes ({searchSuggestions.length})
+                <div className="p-2 bg-slate-50 text-2xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0">
+                  Matching Members ({searchSuggestions.length})
                 </div>
                 {searchSuggestions.map((m) => (
                   <div
@@ -820,23 +819,23 @@ export const MemberList = ({
                     className="p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center border border-emerald-200 shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-2xs flex items-center justify-center border border-emerald-200 shrink-0">
                         {(m.name || 'M').charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 truncate">
                           {m.name}
                         </div>
-                        <div className="text-[10px] text-slate-400 truncate">
+                        <div className="text-2xs text-slate-400 truncate">
                           {m.phone || m.email || m.planName}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold hidden xs:inline">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-2xs font-semibold hidden xs:inline">
                         {m.planName || 'General Plan'}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {getMemberEffectiveStatus(m)}
                       </span>
                     </div>
@@ -844,7 +843,7 @@ export const MemberList = ({
                 ))}
               </div>
             )}
-          </div>
+          </SearchInput>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated Filter Button */}
@@ -859,7 +858,7 @@ export const MemberList = ({
               <Filter className={`w-3.5 h-3.5 ${activeFiltersCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-[10px] font-black">
+                <span className="px-1.5 py-0.2 bg-white text-emerald-700 rounded-full text-2xs font-bold">
                   {activeFiltersCount}
                 </span>
               )}
@@ -870,7 +869,7 @@ export const MemberList = ({
         {/* Active Filter Chips */}
         {activeFiltersCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
+            <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Active Filters:</span>
             {selectedMonth && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-medium">
                 <Calendar className="w-3 h-3 text-emerald-600" />
@@ -942,7 +941,7 @@ export const MemberList = ({
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer ml-auto"
             >
               Reset All
             </button>
@@ -956,7 +955,7 @@ export const MemberList = ({
           Showing <strong className="text-emerald-700">{filteredMembers.length}</strong> / {members.length}
         </span>
         {searchTerm && (
-          <span className="text-[11px] text-slate-400">
+          <span className="text-2xs text-slate-400">
             Filtered by "{searchTerm}"
           </span>
         )}
@@ -987,32 +986,32 @@ export const MemberList = ({
             const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
             let statusBadge = (
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
+              <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
                 <CheckCircle className="w-2.5 h-2.5" /> Active
               </span>
             );
 
             if (isFrozen) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
                   <PauseCircle className="w-2.5 h-2.5" /> Frozen
                 </span>
               );
             } else if (isUnassigned) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
                   <Clock className="w-2.5 h-2.5" /> Unassigned
                 </span>
               );
             } else if (isExpiring) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
                   <AlertCircle className="w-2.5 h-2.5" /> Expiring {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : 'Soon'}
                 </span>
               );
             } else if (isExpired) {
               statusBadge = (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
                   <ShieldAlert className="w-2.5 h-2.5" /> Expired
                 </span>
               );
@@ -1033,7 +1032,7 @@ export const MemberList = ({
                         setSelectedMember(member);
                       }
                     }}
-                    className="flex items-center gap-2.5 min-w-0 text-left focus:outline-none cursor-pointer"
+                    className="flex items-center gap-2.5 min-w-0 flex-1 text-left focus:outline-none cursor-pointer"
                   >
                     <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
                       {member.avatar ? (
@@ -1049,11 +1048,11 @@ export const MemberList = ({
                         </span>
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-xs truncate" title={member.name}>
                         {member.name}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">
+                      <div className="text-2xs text-slate-400 font-mono truncate" title={member.email}>
                         {member.email}
                       </div>
                     </div>
@@ -1061,54 +1060,54 @@ export const MemberList = ({
                   <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end">
                     {statusBadge}
                     {getMemberDues(member) > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-normal sm:tracking-wide bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1 whitespace-nowrap shrink-0">
                         <IndianRupee className="w-2.5 h-2.5" /> Due
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-[10px]">
+                <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-50 text-2xs">
                   {isExpired ? (
                     <div className="col-span-2">
                       <span className="text-slate-400 font-medium block">Plan & Validity</span>
-                      <span className="font-bold text-slate-500 text-xs block mt-0.5">
+                      <span className="font-bold text-slate-500 text-xs block mt-0.5 whitespace-nowrap">
                         Expired
                       </span>
                     </div>
                   ) : isUnassigned ? (
                     <div className="col-span-2">
                       <span className="text-slate-400 font-medium block">Plan & Validity</span>
-                      <span className="font-semibold text-slate-500 text-xs block mt-0.5">
+                      <span className="font-semibold text-slate-500 text-xs block mt-0.5 whitespace-nowrap">
                         No Active Plan
                       </span>
                     </div>
                   ) : (
                     <>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-slate-400 font-medium block">Plan</span>
-                        <span className="font-bold text-slate-800 truncate block">{member.planName}</span>
+                        <span className="font-bold text-slate-800 truncate block" title={member.planName}>{member.planName}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-slate-400 font-medium block">Expires</span>
-                        <span className="font-bold text-slate-700 flex items-center gap-1">
-                          <Calendar className="w-2.5 h-2.5 text-amber-500" /> {member.expiryDate}
+                        <span className="font-bold text-slate-700 flex items-center gap-1 whitespace-nowrap shrink-0">
+                          <Calendar className="w-2.5 h-2.5 text-amber-500 shrink-0" /> {member.expiryDate}
                         </span>
                       </div>
                     </>
                   )}
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-400 font-medium block">Coach</span>
-                    <span className="font-semibold text-emerald-700 truncate block">{member.trainerName || 'None'}</span>
+                    <span className="font-semibold text-emerald-700 truncate block" title={member.trainerName || 'None'}>{member.trainerName || 'None'}</span>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-400 font-medium block">Balance Due</span>
                     {getMemberDues(member) > 0 ? (
-                      <span className="font-bold text-rose-600 truncate block">
+                      <span className="font-bold text-rose-600 whitespace-nowrap shrink-0 block">
                         ₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due
                       </span>
                     ) : (
-                      <span className="font-semibold text-emerald-700 truncate block">
+                      <span className="font-semibold text-emerald-700 whitespace-nowrap shrink-0 block">
                         ₹0 (Clear)
                       </span>
                     )}
@@ -1118,15 +1117,23 @@ export const MemberList = ({
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-1.5">
                     {member.phone && (
-                      <a
-                        href={getWhatsAppUrl(member.phone, `Hi ${member.name}, greetings from Pulse Fitness!`)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="h-8.5 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-2xs"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Chat</span>
-                      </a>
+                      (() => {
+                        const activeGym = getGymName(gymInfo?.name);
+                        const chatMsg = activeGym
+                          ? `Hi ${member.name}, greetings from ${activeGym}!`
+                          : `Hi ${member.name}, reach out anytime for assistance!`;
+                        return (
+                          <a
+                            href={getWhatsAppUrl(member.phone, chatMsg)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all shadow-2xs"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Chat</span>
+                          </a>
+                        );
+                      })()
                     )}
                   </div>
 
@@ -1166,7 +1173,7 @@ export const MemberList = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-2xs">
                 <th className="py-3 px-4">Member Name</th>
                 <th className="py-3 px-4">Plan & Validity</th>
                 <th className="py-3 px-4">Assigned Coach</th>
@@ -1211,32 +1218,32 @@ export const MemberList = ({
                   const diffDays = getExpiryDaysDiff ? getExpiryDaysDiff(member.expiryDate) : null;
 
                   let statusBadge = (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
+                    <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" /> Active
                     </span>
                   );
 
                   if (isFrozen) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
+                      <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-sky-500/10 text-sky-600 border border-sky-500/20 inline-flex items-center gap-1">
                         <PauseCircle className="w-3 h-3" /> Frozen
                       </span>
                     );
                   } else if (isUnassigned) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
+                      <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-slate-500/10 text-slate-600 border border-slate-500/20 inline-flex items-center gap-1">
                         <Clock className="w-3 h-3" /> Unassigned
                       </span>
                     );
                   } else if (isExpiring) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expires in ${diffDays} days` : 'Expiring soon'}>
+                      <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1" title={diffDays !== null ? `Expires in ${diffDays} days` : 'Expiring soon'}>
                         <AlertCircle className="w-3 h-3" /> Expiring Soon {diffDays !== null ? `(${diffDays === 0 ? 'Today' : `${diffDays}d`})` : ''}
                       </span>
                     );
                   } else if (isExpired) {
                     statusBadge = (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
+                      <span className="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20 inline-flex items-center gap-1">
                         <ShieldAlert className="w-3 h-3" /> Expired
                       </span>
                     );
@@ -1248,7 +1255,7 @@ export const MemberList = ({
                       className="hover:bg-slate-50/70 transition-colors group"
                     >
                       {/* Clickable Member Avatar & Name */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 max-w-[200px]">
                         <button
                           type="button"
                           onClick={() => {
@@ -1258,7 +1265,7 @@ export const MemberList = ({
                               setSelectedMember(member);
                             }
                           }}
-                          className="text-left group/name focus:outline-none flex items-center gap-3 cursor-pointer"
+                          className="text-left group/name focus:outline-none flex items-center gap-3 cursor-pointer min-w-0"
                         >
                           <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center shadow-sm">
                             {member.avatar ? (
@@ -1276,27 +1283,39 @@ export const MemberList = ({
                               </span>
                             )}
                           </div>
-                          <div>
-                            <div className="font-bold text-slate-900 text-xs group-hover/name:text-emerald-600 transition-colors">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 text-xs group-hover/name:text-emerald-600 transition-colors truncate" title={member.name}>
                               {member.name}
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                            <div className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                               {member.phone && (
                                 <>
-                                  <span>{member.phone}</span>
+                                  <span className="whitespace-nowrap shrink-0">{member.phone}</span>
                                 </>
                               )}
                               {member.phone && (
-                                <a
-                                  href={getWhatsAppUrl(member.phone, member.expiryDate ? `Hi ${member.name}, greetings from Pulse Fitness! Your ${member.planName || 'membership'} plan is active until ${member.expiryDate}. Reach out anytime for assistance!` : `Hi ${member.name}, greetings from Pulse Fitness! Welcome to the gym. Reach out anytime for assistance!`)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold"
-                                  title="1-Click WhatsApp"
-                                >
-                                  <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
-                                </a>
+                                (() => {
+                                  const activeGym = getGymName(gymInfo?.name);
+                                  const tableMsg = activeGym
+                                    ? (member.expiryDate
+                                        ? `Hi ${member.name}, greetings from ${activeGym}! Your ${member.planName || 'membership'} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`
+                                        : `Hi ${member.name}, greetings from ${activeGym}! Welcome to our fitness family. Reach out anytime for assistance!`)
+                                    : (member.expiryDate
+                                        ? `Hi ${member.name}, your ${member.planName || 'membership'} plan is active until ${member.expiryDate}. Reach out anytime for assistance!`
+                                        : `Hi ${member.name}, welcome to our fitness family. Reach out anytime for assistance!`);
+                                  return (
+                                    <a
+                                      href={getWhatsAppUrl(member.phone, tableMsg)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-2xs font-semibold shrink-0"
+                                      title="1-Click WhatsApp"
+                                    >
+                                      <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                    </a>
+                                  );
+                                })()
                               )}
                             </div>
                           </div>
@@ -1304,48 +1323,48 @@ export const MemberList = ({
                       </td>
 
                       {/* Plan & Validity */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 max-w-[180px]">
                         {isExpired ? (
                           <div>
-                            <span className="font-bold text-slate-500 text-xs block">
+                            <span className="font-bold text-slate-500 text-xs block whitespace-nowrap">
                               Expired
                             </span>
                           </div>
                         ) : isUnassigned ? (
                           <div>
-                            <span className="font-bold text-slate-900 text-xs block">
+                            <span className="font-bold text-slate-900 text-xs block truncate" title={member.planName || 'No Active Plan'}>
                               {member.planName || 'No Active Plan'}
                             </span>
-                            <span className="text-[11px] text-slate-400 italic flex items-center gap-1.5 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
+                            <span className="text-2xs text-slate-400 italic flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                               Unassigned (No expiry)
                             </span>
                           </div>
                         ) : (
                           <div>
-                            <span className="font-bold text-slate-900 text-xs block">
+                            <span className="font-bold text-slate-900 text-xs block truncate" title={member.planName}>
                               {member.planName}
                             </span>
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <Calendar className="w-3 h-3 text-amber-500" />
-                              Valid until: <strong className="text-slate-700">{member.expiryDate}</strong>
+                            <span className="text-2xs text-slate-500 flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+                              <Calendar className="w-3 h-3 text-amber-500 shrink-0" />
+                              Valid until: <strong className="text-slate-700 whitespace-nowrap">{member.expiryDate}</strong>
                             </span>
                           </div>
                         )}
                       </td>
 
                       {/* Assigned Coach */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
+                      <td className="py-3 px-4 max-w-[150px]">
+                        <div className="flex items-center gap-2 min-w-0">
                           <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span className="font-semibold text-slate-700 text-xs">
+                          <span className="font-semibold text-slate-700 text-xs truncate" title={member.trainerName || 'Unassigned'}>
                             {member.trainerName || 'Unassigned'}
                           </span>
                         </div>
                       </td>
 
                       {/* Balance Due */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap shrink-0">
                         {getMemberDues(member) > 0 ? (
                           <div className="flex flex-col gap-1 items-start">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
@@ -1353,14 +1372,14 @@ export const MemberList = ({
                               <span>₹{Number(getMemberDues(member)).toLocaleString('en-IN')} Due</span>
                             </span>
                             {member.dueDate && (
-                              <span className="text-[10px] text-slate-500 flex items-center gap-1 font-medium">
+                              <span className="text-2xs text-slate-500 flex items-center gap-1 font-medium">
                                 <Calendar className="w-2.5 h-2.5 text-amber-500" />
                                 <span>Due: <strong>{member.dueDate}</strong></span>
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-2xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>₹0 (Clear)</span>
                           </span>
@@ -1431,12 +1450,21 @@ export const MemberList = ({
         maxWidth="max-w-3xl"
       >
         {selectedMember && (() => {
-          const cleanMemberId = String(selectedMember.id || selectedMember.userId || '').replace(/\D/g, '');
+          const cleanMemberId = String(selectedMember.userId || (selectedMember.id && !String(selectedMember.id).toUpperCase().startsWith('MEM') ? selectedMember.id : '')).replace(/\D/g, '');
           const cleanMemberPhone = String(selectedMember.phone || '').replace(/\D/g, '').slice(-10);
           const memberNameClean = (selectedMember.name || '').toLowerCase().trim();
 
           const memberInvoices = (invoices || []).filter((inv) => {
-            const cleanInvMemberId = String(inv.memberId || inv.userId || inv.user_id || '').replace(/\D/g, '');
+            if (selectedMember.userId && (inv.userId || inv.user_id) && String(selectedMember.userId) === String(inv.userId || inv.user_id)) {
+              return true;
+            }
+            if ((selectedMember.memberNumber || selectedMember.id) && (inv.memberNumber || inv.memberId)) {
+              const mNum = String(selectedMember.memberNumber || selectedMember.id);
+              const invNum = String(inv.memberNumber || inv.memberId);
+              if (mNum === invNum) return true;
+            }
+
+            const cleanInvMemberId = String(inv.userId || inv.user_id || (inv.memberId && !String(inv.memberId).toUpperCase().startsWith('MEM') ? inv.memberId : '')).replace(/\D/g, '');
             const cleanInvPhone = String(inv.memberPhone || inv.phone || '').replace(/\D/g, '').slice(-10);
 
             if (cleanMemberId && cleanInvMemberId) return cleanMemberId === cleanInvMemberId;
@@ -1488,28 +1516,28 @@ export const MemberList = ({
               {/* 2. Membership & Joining History */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Membership & Joining History</span>
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-2xs font-semibold text-slate-500">
                     Coach: <strong className="text-slate-800">{selectedMember.trainerName || 'None / Self Guided'}</strong>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Date Joined</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Date Joined</div>
                     <div className="font-bold text-slate-900 mt-0.5 text-sm">
                       {formatDate(selectedMember.joinDate || selectedMember.createdAt || selectedMember.created_at)}
                     </div>
-                    <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                    <div className="text-2xs text-emerald-700 font-medium mt-0.5">
                       Enrolled
                     </div>
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Valid Until</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Valid Until</div>
                     {(() => {
                       const drawerEffectiveStatus = getMemberEffectiveStatus(selectedMember);
                       const drawerDiffDays = getExpiryDaysDiff ? getExpiryDaysDiff(selectedMember.expiryDate) : null;
@@ -1518,7 +1546,7 @@ export const MemberList = ({
                           <div className={`font-bold mt-0.5 text-sm ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'text-slate-500' : 'text-slate-900'}`}>
                             {drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'No Active Plan' : formatDate(selectedMember.expiryDate)}
                           </div>
-                          <div className={`text-[10px] font-medium mt-0.5 ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
+                          <div className={`text-2xs font-medium mt-0.5 ${drawerEffectiveStatus === 'Expired' ? 'text-rose-600' : drawerEffectiveStatus === 'Expiring Soon' ? 'text-amber-600' : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'text-slate-400' : 'text-emerald-700'}`}>
                             {drawerEffectiveStatus === 'Expired' ? (drawerDiffDays !== null ? `Expired ${Math.abs(drawerDiffDays)}d ago` : 'Plan Expired') : drawerEffectiveStatus === 'Expiring Soon' ? (drawerDiffDays !== null ? `Expires in ${drawerDiffDays}d` : 'Expiring Soon') : drawerEffectiveStatus === 'Unassigned' || !selectedMember.expiryDate ? 'Unassigned' : 'Plan Active'}
                           </div>
                         </>
@@ -1527,12 +1555,12 @@ export const MemberList = ({
                   </div>
 
                   <div className={`p-3 bg-white rounded-xl border shadow-2xs ${Number(getMemberDues(selectedMember) || 0) > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200/80'}`}>
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Total Dues</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Total Dues</div>
                     <div className={`font-bold mt-0.5 text-sm flex items-center justify-between ${Number(getMemberDues(selectedMember) || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
                       <span>₹{Number(getMemberDues(selectedMember) || 0).toLocaleString('en-IN')}</span>
 
                     </div>
-                    <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    <div className="text-2xs text-slate-500 font-medium mt-0.5">
                       {Number(getMemberDues(selectedMember) || 0) === 0 ? 'All Clear' : (
                         selectedMember.dueDate
                           ? `Promised Date: ${selectedMember.dueDate}`
@@ -1546,12 +1574,12 @@ export const MemberList = ({
               {/* 3. Invoices Created Till Date */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Receipt className="w-4 h-4 text-emerald-600" />
                     <span>Invoices Created Till Date ({memberInvoices.length})</span>
                   </span>
                   {memberInvoices.length > 0 && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                    <span className="text-2xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
                       Total Paid: ₹{totalPaidTillDate.toLocaleString('en-IN')}
                     </span>
                   )}
@@ -1561,7 +1589,7 @@ export const MemberList = ({
                   <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
                     <div className="max-h-56 overflow-y-auto">
                       <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider sticky top-0">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-2xs uppercase font-semibold text-slate-500 tracking-wider sticky top-0">
                           <tr>
                             <th className="py-2.5 px-3">Invoice #</th>
                             <th className="py-2.5 px-3">Date</th>
@@ -1580,7 +1608,7 @@ export const MemberList = ({
                               className="hover:bg-emerald-50/70 transition-colors cursor-pointer group"
                               title="Click to view and download full tax invoice"
                             >
-                              <td className="py-2.5 px-3 font-mono font-bold text-emerald-700 group-hover:text-emerald-800">
+                              <td className="py-2.5 px-3 font-mono font-medium text-emerald-700 group-hover:text-emerald-800">
                                 <span className="inline-flex items-center gap-1.5 underline decoration-emerald-300 underline-offset-2">
                                   <Receipt className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                                   {inv.id}
@@ -1589,15 +1617,15 @@ export const MemberList = ({
                               <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{formatDate(inv.date)}</td>
                               <td className="py-2.5 px-3 font-semibold text-slate-800">{inv.planName}</td>
                               <td className="py-2.5 px-3">
-                                <span className="inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-700">
+                                <span className="inline-block px-2 py-0.5 text-2xs font-semibold rounded bg-slate-100 text-slate-700">
                                   {inv.paymentMethod || 'UPI'}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                              <td className="py-2.5 px-3 text-right font-mono font-medium text-emerald-700">
                                 ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
                               </td>
                               <td className="py-2.5 px-3 text-center">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   <CheckCircle2 className="w-3 h-3" /> {inv.status || 'Paid'}
                                 </span>
                               </td>
@@ -1608,7 +1636,7 @@ export const MemberList = ({
                                     e.stopPropagation();
                                     setSelectedInvoice(inv);
                                   }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-2xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
                                 >
                                   <Eye className="w-3 h-3" />
                                   <span>View</span>
@@ -1624,7 +1652,7 @@ export const MemberList = ({
                   <div className="p-5 text-center bg-slate-50 border border-slate-200 rounded-2xl text-slate-500 text-xs">
                     <Receipt className="w-8 h-8 mx-auto text-slate-400 mb-1" />
                     <p className="font-semibold text-slate-700">No invoices recorded yet</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Billing receipts issued for this member will automatically show here.</p>
+                    <p className="text-2xs text-slate-400 mt-0.5">Billing receipts issued for this member will automatically show here.</p>
                   </div>
                 )}
               </div>
@@ -1632,34 +1660,42 @@ export const MemberList = ({
               {/* 4. Contact Information */}
               <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                     <Mail className="w-3.5 h-3.5 text-emerald-600" /> Contact Information
                   </span>
                   {selectedMember.phone && (
-                    <a
-                      href={getWhatsAppUrl(selectedMember.phone, `Hi ${selectedMember.name}, greetings from Pulse Fitness!`)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 transition-colors"
-                    >
-                      <MessageCircle className="w-3 h-3" /> WhatsApp
-                    </a>
+                    (() => {
+                      const activeGym = getGymName(gymInfo?.name);
+                      const contactMsg = activeGym
+                        ? `Hi ${selectedMember.name}, greetings from ${activeGym}!`
+                        : `Hi ${selectedMember.name}, reach out anytime for assistance!`;
+                      return (
+                        <a
+                          href={getWhatsAppUrl(selectedMember.phone, contactMsg)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors"
+                        >
+                          <MessageCircle className="w-3 h-3 text-emerald-600" /> WhatsApp
+                        </a>
+                      );
+                    })()
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Email Address</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Email Address</span>
                     <strong className="text-slate-900 font-medium text-xs break-all">{selectedMember.email}</strong>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Phone Number</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Phone Number</span>
                     <strong className="text-slate-900 font-medium text-xs">{selectedMember.phone || 'Not provided'}</strong>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Emergency Contact</span>
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block mb-0.5">Emergency Contact</span>
                     <strong className="text-slate-900 font-medium text-xs">{selectedMember.emergencyContact || 'None reported'}</strong>
                   </div>
                 </div>
@@ -1667,27 +1703,27 @@ export const MemberList = ({
 
               {/* 5. Physical Profile & Health */}
               <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-slate-500">
                   Physical Profile & Health
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-xs">
                   <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Current Weight</div>
-                    <div className="text-base font-black text-slate-900 mt-1">{selectedMember.weight || '--'} kg</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Current Weight</div>
+                    <div className="text-base font-bold text-slate-900 mt-1">{selectedMember.weight || '--'} kg</div>
                   </div>
                   <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Target Weight</div>
-                    <div className="text-base font-black text-emerald-600 mt-1">{selectedMember.targetWeight || '--'} kg</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Target Weight</div>
+                    <div className="text-base font-bold text-emerald-600 mt-1">{selectedMember.targetWeight || '--'} kg</div>
                   </div>
                   <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Height</div>
-                    <div className="text-base font-black text-slate-900 mt-1">{selectedMember.height || '--'} cm</div>
+                    <div className="text-2xs uppercase font-semibold text-slate-400">Height</div>
+                    <div className="text-base font-bold text-slate-900 mt-1">{selectedMember.height || '--'} cm</div>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs text-xs space-y-2">
                   <div>
-                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-2xs">
                       Fitness Objective:
                     </span>
                     <p className="text-slate-900 font-semibold mt-0.5 flex items-center gap-1.5">
@@ -1697,7 +1733,7 @@ export const MemberList = ({
                   </div>
                   {selectedMember.medicalNotes && selectedMember.medicalNotes !== 'None' && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                      <span className="font-semibold text-slate-500 uppercase tracking-wider text-2xs">
                         Medical Notes & Health Considerations:
                       </span>
                       <p className="text-amber-800 mt-0.5">{selectedMember.medicalNotes}</p>
@@ -1764,7 +1800,7 @@ export const MemberList = ({
                   <div className="text-xs font-bold text-slate-800 truncate">
                     Tax Invoice & Receipt
                   </div>
-                  <div className="text-[11px] text-slate-500 truncate">
+                  <div className="text-2xs text-slate-500 truncate">
                     Official gym payment voucher & tax summary
                   </div>
                 </div>
@@ -1810,7 +1846,7 @@ export const MemberList = ({
                 {/* Gym Header Branding & Receipt Pill */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
                       {(gymInfo?.name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '★'}
                     </div>
                     <div>
@@ -1823,7 +1859,7 @@ export const MemberList = ({
                         </p>
                       )}
                       {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number || gymInfo?.phone) && (
-                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400 mt-1">
+                        <div className="flex flex-wrap items-center gap-x-2 text-2xs text-slate-400 mt-1">
                           {(gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number) && (
                             <span>GSTIN: <strong className="text-slate-600 font-mono">{gymInfo?.gstin || gymInfo?.gstNumber || gymInfo?.gst_number}</strong></span>
                           )}
@@ -1839,14 +1875,14 @@ export const MemberList = ({
                   </div>
 
                   <div className="text-left sm:text-right shrink-0">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                       Payment Verified
                     </span>
                     <div className="text-xs font-mono font-bold text-slate-700 mt-1.5">
                       Receipt #{selectedInvoice.id?.toUpperCase()}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
+                    <div className="text-2xs text-slate-400 mt-0.5">
                       Issued: {formatDate(selectedInvoice.date)}
                     </div>
                   </div>
@@ -1856,7 +1892,7 @@ export const MemberList = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {/* Billed To Customer */}
                   <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">
                       Member Information
                     </span>
                     <div className="font-bold text-slate-900 text-sm">
@@ -1880,7 +1916,7 @@ export const MemberList = ({
 
                   {/* Payment Details */}
                   <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    <span className="text-2xs uppercase font-semibold text-slate-400 tracking-wider block">
                       Payment Verification
                     </span>
                     <div className="flex justify-between">
@@ -1909,7 +1945,7 @@ export const MemberList = ({
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-emerald-50 text-emerald-700 uppercase tracking-wider">
                         Active Membership Subscription
                       </span>
                       <h3 className="font-bold text-sm sm:text-base text-slate-900 mt-1">
@@ -1917,8 +1953,8 @@ export const MemberList = ({
                       </h3>
                     </div>
                     <div className="text-right">
-                      <span className="text-[11px] text-slate-400 block">Total Subscription Fee</span>
-                      <span className="text-lg sm:text-xl font-black text-slate-900">
+                      <span className="text-2xs text-slate-400 block">Total Subscription Fee</span>
+                      <span className="text-lg sm:text-xl font-bold text-slate-900">
                         ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -1949,13 +1985,13 @@ export const MemberList = ({
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start text-xs">
                   {/* Left: Notes and Words */}
                   <div className="sm:col-span-7 bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    <span className="text-2xs uppercase font-semibold text-slate-400 block">
                       Amount In Words
                     </span>
                     <div className="font-bold text-slate-900 text-xs">
                       Rupees {Math.round(Number(selectedInvoice.amount || 0)).toLocaleString('en-IN')} Only
                     </div>
-                    <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                    <p className="text-2xs text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
                       Official tax invoice receipt generated under the Indian Information Technology Act 2000. Valid for corporate wellness reimbursement.
                     </p>
                   </div>
@@ -1978,11 +2014,11 @@ export const MemberList = ({
                                 ₹{taxable.toLocaleString('en-IN')}
                               </span>
                             </div>
-                            <div className="flex justify-between text-slate-500 text-[11px]">
+                            <div className="flex justify-between text-slate-500 text-2xs">
                               <span>CGST ({invHalfTax}%):</span>
                               <span>₹{cgst.toLocaleString('en-IN')}</span>
                             </div>
-                            <div className="flex justify-between text-slate-500 text-[11px]">
+                            <div className="flex justify-between text-slate-500 text-2xs">
                               <span>SGST ({invHalfTax}%):</span>
                               <span>₹{sgst.toLocaleString('en-IN')}</span>
                             </div>
@@ -1992,7 +2028,7 @@ export const MemberList = ({
                       return (
                         <div className="flex justify-between py-1">
                           <span className="text-slate-500">Tax Type:</span>
-                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-2xs">
                             Non-GST Payment (No Tax Bifurcation)
                           </span>
                         </div>
@@ -2000,7 +2036,7 @@ export const MemberList = ({
                     })()}
                     <div className="border-t border-slate-200 pt-1.5 flex justify-between items-baseline">
                       <span className="font-bold text-slate-900 text-sm">Total Paid:</span>
-                      <span className="text-xl font-black text-emerald-600 font-mono">
+                      <span className="text-xl font-bold text-emerald-600 font-mono">
                         ₹{Number(selectedInvoice.amount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -2008,18 +2044,18 @@ export const MemberList = ({
                 </div>
 
                 {/* Terms & Official Seal Signature */}
-                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500">
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-2xs text-slate-500">
                   <div className="space-y-1">
                     <p>• Membership passes are non-transferable & non-refundable once activated.</p>
                     <p>• Turnstile QR Pass is required for gym floor access.</p>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center shrink-0 min-w-[170px]">
-                    <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center justify-center gap-1">
+                    <div className="text-emerald-700 font-semibold uppercase text-2xs flex items-center justify-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Digitally Verified</span>
                     </div>
                     <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
-                    <div className="text-[10px] text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                    <div className="text-2xs text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
                   </div>
                 </div>
               </div>
@@ -2125,7 +2161,7 @@ export const MemberList = ({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Month Selection</span>
-                  <span className="text-[11px] font-normal text-slate-400">Select specific month</span>
+                  <span className="text-2xs font-normal text-slate-400">Select specific month</span>
                 </label>
                 <input
                   type="month"
@@ -2157,7 +2193,7 @@ export const MemberList = ({
                         const lastDay = new Date(yr, mo, 0).getDate();
                         setEndDate(`${mPreset.value}-${String(lastDay).padStart(2, '0')}`);
                       }}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${selectedMonth === mPreset.value
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
@@ -2175,7 +2211,7 @@ export const MemberList = ({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">Start Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">Start Date</span>
                     <input
                       type="date"
                       value={startDate}
@@ -2184,7 +2220,7 @@ export const MemberList = ({
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">End Date</span>
+                    <span className="text-2xs font-semibold text-slate-500 block mb-1">End Date</span>
                     <input
                       type="date"
                       value={endDate}
@@ -2214,7 +2250,7 @@ export const MemberList = ({
                       key={st.id}
                       type="button"
                       onClick={() => setStatusFilter(st.id)}
-                      className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${statusFilter === st.id
+                      className={`text-2xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors cursor-pointer text-center ${statusFilter === st.id
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
@@ -2230,7 +2266,7 @@ export const MemberList = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                   <span>Membership Plan</span>
                   {planFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                    <button type="button" onClick={() => setPlanFilter('ALL')} className="text-2xs text-emerald-600 font-bold hover:underline">
                       Reset
                     </button>
                   )}
@@ -2254,7 +2290,7 @@ export const MemberList = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                   <span>Assigned Coach / Trainer</span>
                   {trainerFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setTrainerFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                    <button type="button" onClick={() => setTrainerFilter('ALL')} className="text-2xs text-emerald-600 font-bold hover:underline">
                       Reset
                     </button>
                   )}
@@ -2280,7 +2316,7 @@ export const MemberList = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                     <span>Payment Balance</span>
                     {balanceFilter !== 'ALL' && (
-                      <button type="button" onClick={() => setBalanceFilter('ALL')} className="text-[10px] text-emerald-600 font-bold hover:underline">
+                      <button type="button" onClick={() => setBalanceFilter('ALL')} className="text-2xs text-emerald-600 font-bold hover:underline">
                         Reset
                       </button>
                     )}
@@ -2295,7 +2331,7 @@ export const MemberList = ({
                         key={b.id}
                         type="button"
                         onClick={() => setBalanceFilter(b.id)}
-                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${balanceFilter === b.id
+                        className={`text-2xs py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${balanceFilter === b.id
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
@@ -2320,7 +2356,7 @@ export const MemberList = ({
                         key={g.id}
                         type="button"
                         onClick={() => setGenderFilter(g.id)}
-                        className={`text-[10px] py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${genderFilter === g.id
+                        className={`text-2xs py-1.5 rounded-lg border font-semibold text-center transition-colors cursor-pointer ${genderFilter === g.id
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
@@ -2338,7 +2374,7 @@ export const MemberList = ({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer py-1"
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer py-1"
               >
                 Reset All Filters
               </button>
