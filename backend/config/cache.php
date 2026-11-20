@@ -15,7 +15,20 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    'default' => env('CACHE_STORE', 'file'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiter Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | This option controls the cache store that will be used by the framework's
+    | rate limiter. Using the 'file' driver prevents MySQL InnoDB deadlocks (1213)
+    | caused by concurrent 'insert ignore into cache' operations.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER_STORE', 'file'),
 
     /*
     |--------------------------------------------------------------------------

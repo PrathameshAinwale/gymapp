@@ -38,8 +38,36 @@ class RetryDatabaseConnection
                 }
             }
 
+            if ($this->isDeadlockError($e)) {
+                Log::warning('Transient DB deadlock (1213 / 40001) detected. Retrying request with backoff...');
+                try {
+                    usleep(random_int(40000, 100000)); // 40-100ms jitter backoff before retry
+                    return $next($request);
+                } catch (\Throwable $retryException) {
+                    throw $retryException;
+                }
+            }
+
             throw $e;
         }
+    }
+
+    /**
+     * Determine if the exception is a deadlock serialization failure (such as 1213 / 40001).
+     */
+    protected function isDeadlockError(\Throwable $e): bool
+    {
+        $code = (int) $e->getCode();
+        $message = $e->getMessage();
+        $prev = $e->getPrevious();
+
+        if ($code === 40001 || ($prev instanceof \PDOException && ((int)$prev->getCode() === 40001 || (string)$prev->getCode() === '40001'))) {
+            return true;
+        }
+
+        return str_contains($message, 'Deadlock found')
+            || str_contains($message, '1213')
+            || str_contains($message, 'Serialization failure');
     }
 
     /**
