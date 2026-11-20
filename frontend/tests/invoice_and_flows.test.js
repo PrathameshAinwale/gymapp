@@ -1693,4 +1693,65 @@ test('34. generateInvoicePdf embeds gym logo image and falls back gracefully whe
   assert.ok(resBrokenLogo.doc, 'Must generate valid PDF even with invalid logo without crashing');
 });
 
+test('35. Due payment user ID resolution prioritizes database primary key userId and avoids foreign key violations', () => {
+  // Helper mimicking PayDueModal & RecordPaymentModal user ID resolution
+  const resolveCleanUser = (member) => {
+    const cleanUserId = member?.userId
+      ? Number(member.userId)
+      : (member?.numericId
+          ? Number(member.numericId)
+          : (typeof member?.id === 'string' && member.id.startsWith('mem-')
+              ? parseInt(member.id.replace(/\D/g, ''), 10)
+              : (Number(member?.id) || null)));
+    const targetMemberId = member?.memberNumber || member?.memberId || member?.id || (cleanUserId ? `mem-${cleanUserId}` : '');
+    return { cleanUserId, targetMemberId };
+  };
+
+  // Case A: Member with sequential member number as id ('260002') and real users.id primary key (14)
+  const memberWithSeq = {
+    id: '260002',
+    memberNumber: '260002',
+    userId: 14,
+    name: 'Ananya M'
+  };
+  const resolvedA = resolveCleanUser(memberWithSeq);
+  assert.equal(resolvedA.cleanUserId, 14, 'Must prioritize canonical users.id (14) instead of member_number (260002)');
+  assert.equal(resolvedA.targetMemberId, '260002');
+
+  // Case B: Legacy member format with 'mem-25'
+  const memberLegacy = {
+    id: 'mem-25',
+    name: 'Rohan'
+  };
+  const resolvedB = resolveCleanUser(memberLegacy);
+  assert.equal(resolvedB.cleanUserId, 25);
+  assert.equal(resolvedB.targetMemberId, 'mem-25');
+
+  // Case C: Member with sequential member number ('260003') where userId is missing
+  // Even if 260003 is passed to backend, backend resolveMemberUser resolves by member_number or sets null
+  const resolveBackendUser = (rawUserId, mockDb) => {
+    const rawStr = isNaN(rawUserId) ? String(rawUserId).trim() : String(rawUserId);
+    const num = parseInt(rawStr, 10);
+    // 1. Direct PK check in users
+    const byPk = mockDb.find(u => u.id === num);
+    if (byPk) return byPk.id;
+    // 2. Member number check
+    const byMemNo = mockDb.find(u => u.member_number === rawStr || u.member_number === 'MEM' + rawStr);
+    if (byMemNo) return byMemNo.id;
+    // 3. Fallback null (safe for foreign key ON DELETE SET NULL)
+    return null;
+  };
+
+  const mockUsers = [
+    { id: 14, member_number: '260002', name: 'Ananya M' },
+    { id: 15, member_number: '260003', name: 'Karan S' }
+  ];
+
+  // If frontend accidentally sent 260002:
+  assert.equal(resolveBackendUser('260002', mockUsers), 14, 'Backend must map member_number 260002 to users.id 14');
+  // If user does not exist in users table:
+  assert.equal(resolveBackendUser('999999', mockUsers), null, 'Backend must return null instead of invalid ID, preventing 1452 FK error');
+});
+
+
 

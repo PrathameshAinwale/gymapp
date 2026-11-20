@@ -792,9 +792,14 @@ export const RecordPaymentModal = ({
     setIsSubmitting(true);
     try {
       const memberName = currentMember?.name || 'Valued Member';
-      const cleanUserId = typeof currentMember?.id === 'string'
-        ? parseInt(currentMember.id.replace(/\D/g, ''), 10) || 1
-        : Number(currentMember?.id) || 1;
+      const cleanUserId = currentMember?.userId
+        ? Number(currentMember.userId)
+        : (currentMember?.numericId
+            ? Number(currentMember.numericId)
+            : (typeof currentMember?.id === 'string' && currentMember.id.startsWith('mem-')
+                ? parseInt(currentMember.id.replace(/\D/g, ''), 10)
+                : (Number(currentMember?.id) || null)));
+      const targetMemberId = currentMember?.memberNumber || currentMember?.memberId || currentMember?.id || (cleanUserId ? `mem-${cleanUserId}` : '');
 
       const invoiceTitle = currentInvoiceTitle;
       const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt') && r.packageId;
@@ -824,8 +829,9 @@ export const RecordPaymentModal = ({
       try {
         if (api.revenueBilling?.addInflow) {
           const inflowRes = await api.revenueBilling.addInflow({
-            user_id: cleanUserId,
-            memberId: currentMember?.id,
+            user_id: cleanUserId || undefined,
+            memberId: targetMemberId,
+            member_id: targetMemberId,
             member_name: memberName,
             plan_id: membershipPlanObj?.id || ptPlanObj?.id || recoveryPlanObj?.id || null,
             plan_name: invoiceTitle,

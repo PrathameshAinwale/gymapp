@@ -33,9 +33,14 @@ class RevenueBillingController extends Controller
 
         $memberIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
         if ($memberIdInput) {
-            $numericMemberId = (int)preg_replace('/[^0-9]/', '', (string)$memberIdInput);
-            if ($numericMemberId > 0) {
-                $query->where('user_id', $numericMemberId);
+            $user = $this->resolveMemberUser($memberIdInput, $gymId);
+            if ($user) {
+                $query->where('user_id', $user->id);
+            } else {
+                $numericMemberId = (int)preg_replace('/[^0-9]/', '', (string)$memberIdInput);
+                if ($numericMemberId > 0) {
+                    $query->where('user_id', $numericMemberId);
+                }
             }
         }
 
@@ -229,31 +234,43 @@ class RevenueBillingController extends Controller
             ], 422);
         }
 
-        $rawUserId = $request->user_id ?? $request->memberId ?? $request->member_id;
-        $userId = $rawUserId ? (int)str_replace('mem-', '', $rawUserId) : null;
-
+        $rawUserId = $request->user_id ?? $request->userId ?? $request->memberId ?? $request->member_id;
         $gymId = $this->resolveGymId($request);
-        if (!$gymId && $userId) {
-            $user = User::find($userId);
-            $gymId = $user?->gym_id;
+
+        $userObj = null;
+        $userId = null;
+        $memberName = $request->member_name ?? $request->memberName;
+
+        if ($rawUserId || $memberName) {
+            $userObj = $this->resolveMemberUser($rawUserId, $gymId, $memberName);
+            if ($userObj) {
+                $userId = $userObj->id;
+                if (!$gymId) {
+                    $gymId = $userObj->gym_id;
+                }
+                if (!$memberName) {
+                    $memberName = $userObj->name;
+                }
+            }
         }
+
         if (!$gymId) {
             return response()->json(['success' => false, 'message' => 'Gym ID is required to record inflow.'], 422);
         }
 
         $rawPlanId = $request->plan_id ?? $request->planId;
         $planId = $rawPlanId ? (int)str_replace('plan-', '', $rawPlanId) : null;
-
-        $memberName = $request->member_name ?? $request->memberName;
-        if (!$memberName && $userId) {
-            $user = User::find($userId);
-            $memberName = $user?->name;
+        $planObj = null;
+        if ($planId) {
+            $planObj = Plan::find($planId);
+            if (!$planObj) {
+                $planId = null;
+            }
         }
 
         $planName = $request->plan_name ?? $request->planName;
-        if (!$planName && $planId) {
-            $plan = Plan::find($planId);
-            $planName = $plan?->name;
+        if (!$planName && $planObj) {
+            $planName = $planObj->name;
         }
 
         $duesAmount = (float)($request->input('dues_amount', $request->input('duesAmount', $request->input('pending_amount', 0))));
@@ -279,9 +296,9 @@ class RevenueBillingController extends Controller
         $inflowTotalAmount = (float)($request->total_amount ?? $request->totalAmount ?? ($inflowAmount + $duesAmount));
 
         // Validate promise date if remaining dues are pending
-        if ($duesAmount > 0 && $userId) {
-            $userObj = User::with('memberProfile')->find($userId);
-            $profile = $userObj?->memberProfile;
+        if ($duesAmount > 0 && $userObj) {
+            $userObj->loadMissing('memberProfile');
+            $profile = $userObj->memberProfile;
             $checkStart = $request->input('start_date', $request->input('startDate', $profile?->join_date ? $profile->join_date->format('Y-m-d') : $inflowDate));
             $checkExpiry = $request->input('expiry_date', $request->input('expiryDate', $request->input('end_date', $request->input('endDate', $profile?->expiry_date ? $profile->expiry_date->format('Y-m-d') : null))));
             $dueError = \App\Http\Controllers\Api\MemberController::validatePromiseDate($dueDate, $checkStart, $checkExpiry);
@@ -298,9 +315,9 @@ class RevenueBillingController extends Controller
         // If invoice date is different -> allowed.
         // If invoice date is same, but other contents differ -> allowed.
         // If invoice date is same AND all contents/amounts are identical for the active plan -> blocked.
-        if ($userId) {
-            $userObj = $userObj ?? User::with('memberProfile')->find($userId);
-            $profile = $userObj?->memberProfile;
+        if ($userId && $userObj) {
+            $userObj->loadMissing('memberProfile');
+            $profile = $userObj->memberProfile;
             $todayStr = now()->toDateString();
             $expiryStr = $profile?->expiry_date ? $profile->expiry_date->format('Y-m-d') : null;
             $isMemberActive = $profile && ($profile->status === 'Active' || ($expiryStr && $expiryStr >= $todayStr));
@@ -352,7 +369,7 @@ class RevenueBillingController extends Controller
 
         // Mirror to invoices for backward compatibility & sync member profile
         try {
-            if ($userId && $userObj = User::find($userId)) {
+            if ($userId && ($userObj = ($userObj ?: User::find($userId)))) {
                 $planObj = $planId ? \App\Models\Plan::find($planId) : null;
                 $rawPkg = $request->package_type ?? $request->packageType ?? $request->category ?? $planObj?->package_type;
                 if (!$rawPkg && ($request->title || $planName)) {
@@ -727,5 +744,87 @@ class RevenueBillingController extends Controller
             'notes' => $item->notes,
             'createdAt' => $item->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Safely resolve a Member User record from user ID, member number, legacy ID, biometric ID, or name.
+     */
+    protected function resolveMemberUser($rawId, ?int $gymId = null, ?string $name = null): ?User
+    {
+        $rawStr = is_string($rawId) ? trim($rawId) : (string)$rawId;
+
+        // 1. If numeric string or int, check if it's an existing users.id
+        if (is_numeric($rawStr) && (int)$rawStr > 0) {
+            $num = (int)$rawStr;
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->find($num);
+            if ($user) {
+                return $user;
+            }
+        }
+
+        // 2. Prefixed 'mem-123' format
+        if (is_string($rawId) && preg_match('/^mem-(\d+)$/i', $rawId, $m)) {
+            $num = (int)$m[1];
+            if ($num > 0) {
+                $user = User::query()
+                    ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                    ->find($num);
+                if ($user) {
+                    return $user;
+                }
+            }
+        }
+
+        // 3. Sequential member number (e.g. 260002, MEM260002, MEM-260002), legacy ID, or biometric ID
+        if (!empty($rawStr) && strtolower($rawStr) !== 'null' && strtolower($rawStr) !== 'undefined') {
+            $cleanMemNo = preg_replace('/^mem-/i', '', $rawStr);
+            $numericOnly = preg_replace('/[^0-9]/', '', $rawStr);
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->where(function ($q) use ($rawStr, $cleanMemNo, $numericOnly) {
+                    $q->where('member_number', $cleanMemNo)
+                      ->orWhere('member_number', $rawStr)
+                      ->orWhere('legacy_id', $rawStr)
+                      ->orWhere('biometric_user_id', $rawStr);
+                    if (!empty($numericOnly)) {
+                        $q->orWhere('member_number', 'MEM' . $numericOnly)
+                          ->orWhere('member_number', $numericOnly);
+                    }
+                })
+                ->first();
+
+            if ($user) {
+                return $user;
+            }
+        }
+
+        // 4. Try global search if gymId was restricting and not found
+        if ($gymId && is_numeric($rawStr) && (int)$rawStr > 0) {
+            $user = User::find((int)$rawStr);
+            if ($user) {
+                return $user;
+            }
+        }
+
+        // 5. Lookup by member name within gym
+        if (!empty($name)) {
+            $cleanName = trim($name);
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->where('role', 'member')
+                ->where(function ($q) use ($cleanName) {
+                    $q->where('name', $cleanName)
+                      ->orWhere('name', 'like', "%{$cleanName}%");
+                })
+                ->first();
+
+            if ($user) {
+                return $user;
+            }
+        }
+
+        return null;
     }
 }

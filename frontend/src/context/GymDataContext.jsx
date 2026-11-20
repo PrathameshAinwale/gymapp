@@ -1907,14 +1907,16 @@ export const GymDataProvider = ({ children }) => {
       });
 
       if (api.revenueBilling?.addInflow) {
-        const rawMemberId = member?.numericId || memberId;
-        const cleanUserId = typeof rawMemberId === 'string'
-          ? parseInt(rawMemberId.replace(/\D/g, ''), 10)
-          : Number(rawMemberId);
+        const rawMemberId = member?.userId || member?.numericId || (typeof memberId === 'string' && memberId.startsWith('mem-') ? memberId : null);
+        const cleanUserId = rawMemberId
+          ? (typeof rawMemberId === 'string' ? parseInt(rawMemberId.replace(/\D/g, ''), 10) : Number(rawMemberId))
+          : null;
+        const targetMemberId = member?.memberNumber || member?.memberId || memberId || (cleanUserId ? `mem-${cleanUserId}` : '');
 
         await api.revenueBilling.addInflow({
-          user_id: cleanUserId || 1,
-          memberId: memberId,
+          user_id: cleanUserId || undefined,
+          memberId: targetMemberId,
+          member_id: targetMemberId,
           member_name: member?.name || 'Member',
           plan_id: selectedPlan?.id,
           plan_name: selectedPlan.name,

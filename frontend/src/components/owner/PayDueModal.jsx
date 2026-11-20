@@ -249,11 +249,15 @@ export const PayDueModal = ({
 
     setIsSubmitting(true);
     try {
-      const rawId = member?.id || member?.userId || member?.memberId || member?.memberKey;
-      const cleanUserId = typeof rawId === 'string'
-        ? parseInt(rawId.replace(/\D/g, ''), 10) || 1
-        : Number(rawId) || 1;
-      const targetMemberId = member?.id || member?.memberId || `mem-${cleanUserId}`;
+      // Prioritize canonical primary key userId so we don't pass member_number (e.g. 260002) as user_id
+      const cleanUserId = member?.userId
+        ? Number(member.userId)
+        : (member?.numericId
+            ? Number(member.numericId)
+            : (typeof member?.id === 'string' && member.id.startsWith('mem-')
+                ? parseInt(member.id.replace(/\D/g, ''), 10)
+                : (Number(member?.id) || null)));
+      const targetMemberId = member?.memberNumber || member?.memberId || member?.id || (cleanUserId ? `mem-${cleanUserId}` : '');
 
       const invoiceTitle = `Balance Due Payment - ${member.planName || 'Gym Membership'}`;
       const resolvedPaymentMethodString = getResolvedPaymentMethod();
@@ -261,8 +265,9 @@ export const PayDueModal = ({
       // 1. Record Inflow in Revenue & Invoices
       if (api.revenueBilling?.addInflow) {
         await api.revenueBilling.addInflow({
-          user_id: cleanUserId,
+          user_id: cleanUserId || undefined,
           memberId: targetMemberId,
+          member_id: targetMemberId,
           member_name: member.name,
           plan_name: invoiceTitle,
           title: `${member.name} - ${invoiceTitle}`,
