@@ -711,13 +711,19 @@ export const EditInvoiceModal = ({
       // Background sync: Ensure updated PDF blob is uploaded to backend invoice storage
       try {
         const invTarget = updated?.invoiceNumber || updated?.id || invoice.id || invoice.invoiceNumber;
-        const mergedForPdf = { ...invoice, ...payload, ...updated };
+        const mergedForPdf = {
+          ...invoice,
+          ...payload,
+          ...updated,
+          gymName: gymInfo?.name || invoice?.gymName,
+          gymLogo: gymInfo?.logo || invoice?.gymLogo
+        };
         const memberObj = members?.find(m => String(m.id) === String(mergedForPdf.memberId || mergedForPdf.userId)) || { name: mergedForPdf.memberName, phone: mergedForPdf.memberPhone };
         const { blob, fileName } = generateInvoicePdf({ invoice: mergedForPdf, member: memberObj, gymInfo });
         if (blob && invTarget && api.invoices?.uploadPdf) {
           const pdfFormData = new FormData();
           pdfFormData.append('pdf', blob, fileName || `Invoice_${invTarget}.pdf`);
-          api.invoices.uploadPdf(invTarget, pdfFormData).catch(() => {});
+          await api.invoices.uploadPdf(invTarget, pdfFormData);
         }
       } catch (pdfErr) {
         console.warn('PDF re-upload after edit note:', pdfErr);

@@ -514,4 +514,55 @@ class CreateInvoicePersistenceTest extends TestCase
         // Earlier invoice still in database
         $this->assertDatabaseHas('invoices', ['id' => $firstInv->id]);
     }
+
+    public function test_update_invoice_with_sequential_member_number_or_numeric_serial_does_not_fail_foreign_key(): void
+    {
+        $this->member->update(['member_number' => 'MEM260001']);
+
+        $inv = Invoice::create([
+            'gym_id' => 1,
+            'invoice_number' => 'INV-26-27-0001',
+            'user_id' => $this->member->id,
+            'plan_id' => $this->plan->id,
+            'package_type' => 'Gym-Cardio',
+            'amount' => 4500,
+            'total_amount' => 4500,
+            'pending_amount' => 0,
+            'date' => now()->toDateString(),
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
+            'status' => 'Paid',
+            'payment_method' => 'Cash',
+            'created_by' => $this->owner->id,
+            'created_by_name' => $this->owner->name,
+        ]);
+
+        // Client sends user_id as 260001 (numeric part of MEM260001) or memberId: 'MEM260001'
+        $payload = [
+            'user_id' => 260001,
+            'member_id' => 'MEM260001',
+            'member_name' => 'Rahul Verma',
+            'amount' => 4800,
+            'total_amount' => 4800,
+            'dues_amount' => 0,
+            'due_date' => '',
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
+            'payment_method' => 'Cash',
+            'created_by_name' => 'Prathamesh Gym',
+        ];
+
+        $res = $this->actingAs($this->owner, 'sanctum')
+            ->putJson('/api/v1/invoices/' . $inv->invoice_number, $payload);
+
+        $res->assertStatus(200);
+        $res->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('invoices', [
+            'id' => $inv->id,
+            'user_id' => $this->member->id,
+            'amount' => 4800,
+            'created_by_name' => 'Prathamesh Gym',
+        ]);
+    }
 }

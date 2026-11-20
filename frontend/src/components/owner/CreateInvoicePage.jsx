@@ -84,9 +84,7 @@ export const CreateInvoicePage = ({
   // Selected Member & Member Name (Editable)
   const [selectedMemberId, setSelectedMemberId] = useState(() => {
     if (editingInvoice) {
-      const mId = editingInvoice.memberId || editingInvoice.userId || editingInvoice.user_id || editingInvoice.member_id;
-      const cleanNum = mId ? String(mId).replace(/\D/g, '') : '';
-      return (cleanNum ? `mem-${cleanNum}` : mId) || '';
+      return editingInvoice.memberId || editingInvoice.memberNumber || (editingInvoice.userId ? `mem-${editingInvoice.userId}` : '') || '';
     }
     return initialMember?.id || initialMemberId || '';
   });
@@ -307,7 +305,7 @@ export const CreateInvoicePage = ({
       (editingInvoice.memberPhone && m.phone && m.phone.slice(-10) === editingInvoice.memberPhone.slice(-10))
     ) : null);
 
-    const resolvedMemberId = matchedMember?.id || (cleanNumId ? `mem-${cleanNumId}` : (mId || ''));
+    const resolvedMemberId = matchedMember?.id || editingInvoice?.memberId || editingInvoice?.memberNumber || (cleanNumId ? `mem-${cleanNumId}` : (mId || ''));
     if (resolvedMemberId) {
       setSelectedMemberId(resolvedMemberId);
     }
@@ -1407,9 +1405,12 @@ export const CreateInvoicePage = ({
     setIsSubmitting(true);
     try {
       const finalMemberName = (memberName || currentMember?.name || 'Valued Member').trim();
-      const cleanUserId = typeof currentMember?.id === 'string'
-        ? parseInt(currentMember.id.replace(/\D/g, ''), 10) || 1
-        : Number(currentMember?.id) || (editingInvoice?.userId || editingInvoice?.user_id || 1);
+      const cleanUserId = currentMember?.userId
+        || editingInvoice?.userId
+        || editingInvoice?.user_id
+        || (typeof currentMember?.id === 'number' ? currentMember.id : null)
+        || (typeof currentMember?.id === 'string' && currentMember.id.startsWith('mem-') ? (parseInt(currentMember.id.replace(/\D/g, ''), 10) || null) : null)
+        || (editingInvoice?.userId || editingInvoice?.user_id || 1);
 
       const invoiceTitle = currentInvoiceTitle;
       const isPtRow = (r) => (r.packageType === 'Personal Training' || r.packageType === 'pt') && r.packageId;
@@ -1674,40 +1675,40 @@ export const CreateInvoicePage = ({
       }
 
       // 5. Set receipt state for immediate download/WhatsApp share
-      const mappedReceipt = savedInvoiceResponse
-        ? mapInvoiceRecord(savedInvoiceResponse)
-        : mapInvoiceRecord({
-          id: backendInvoiceRef,
-          invoiceNumber: backendInvoiceRef,
-          gymName: gymInfo?.name || '',
-          gymLogo: gymInfo?.logo || '',
-          memberName: memberName,
-          phone: currentMember?.phone || '',
-          email: currentMember?.email || '',
-          planName: invoiceTitle,
-          amount: effectivePaidAmount,
-          totalAmount: totalCalculatedAmount,
-          duesAmount: calculatedBalanceDue,
-          dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
-          date: paymentDate || getTodayDateStr(),
-          paymentMethod: resolvedPaymentMethodString,
-          isGstIncluded,
-          status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
-          startDate: targetStartDate,
-          endDate: targetExpiryDate,
-          packages: selectedPackages.map((pkg) => {
-            const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
-            return {
-              name: pkgObj?.name || pkg.packageType,
-              packageType: pkg.packageType,
-              price: Number(pkg.price) || 0,
-              startDate: pkg.startDate || targetStartDate,
-              endDate: pkg.expiryDate || targetExpiryDate
-            };
-          }),
-          createdByName: handledByStaffName?.trim() || defaultHandledBy || currentUser?.name || 'Staff'
-        });
+      const freshData = {
+        ...(savedInvoiceResponse || {}),
+        id: backendInvoiceRef,
+        invoiceNumber: backendInvoiceRef,
+        gymName: gymInfo?.name || savedInvoiceResponse?.gymName || '',
+        gymLogo: gymInfo?.logo || savedInvoiceResponse?.gymLogo || '',
+        memberName: finalMemberName || savedInvoiceResponse?.memberName || memberName,
+        memberPhone: currentMember?.phone || savedInvoiceResponse?.memberPhone || '',
+        memberEmail: currentMember?.email || savedInvoiceResponse?.memberEmail || '',
+        planName: invoiceTitle,
+        amount: effectivePaidAmount,
+        totalAmount: totalCalculatedAmount,
+        duesAmount: calculatedBalanceDue,
+        dueDate: calculatedBalanceDue > 0 ? balanceDueDate : null,
+        date: paymentDate || getTodayDateStr(),
+        paymentMethod: resolvedPaymentMethodString,
+        isGstIncluded,
+        status: calculatedBalanceDue > 0 ? 'Pending' : 'Paid',
+        startDate: targetStartDate,
+        endDate: targetExpiryDate,
+        packages: selectedPackages.map((pkg) => {
+          const pkgObj = getPackageObject(pkg.packageType, pkg.packageId);
+          return {
+            name: pkgObj?.name || pkg.packageType,
+            packageType: pkg.packageType,
+            price: Number(pkg.price) || 0,
+            startDate: pkg.startDate || targetStartDate,
+            endDate: pkg.expiryDate || targetExpiryDate
+          };
+        }),
+        createdByName: handledByStaffName?.trim() || savedInvoiceResponse?.createdByName || defaultHandledBy || currentUser?.name || 'Staff'
+      };
 
+      const mappedReceipt = mapInvoiceRecord(freshData);
       setCompletedInvoiceData(mappedReceipt);
 
       // Background sync: Ensure rendered PDF blob is uploaded to backend invoice storage
@@ -1718,7 +1719,7 @@ export const CreateInvoicePage = ({
           if (blob) {
             const pdfFormData = new FormData();
             pdfFormData.append('pdf', blob, fileName || `Invoice_${invTarget}.pdf`);
-            api.invoices.uploadPdf(invTarget, pdfFormData).catch(() => {});
+            await api.invoices.uploadPdf(invTarget, pdfFormData);
           }
         }
       } catch (pdfErr) {

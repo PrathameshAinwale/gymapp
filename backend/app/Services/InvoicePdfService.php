@@ -147,7 +147,7 @@ class InvoicePdfService
         if ($fileExists && $invoice->updated_at) {
             try {
                 $fileTime = $disk->lastModified($fileName);
-                if ($fileTime < $invoice->updated_at->timestamp) {
+                if ($fileTime <= $invoice->updated_at->timestamp) {
                     $isOutdated = true;
                 }
             } catch (\Throwable $e) {}

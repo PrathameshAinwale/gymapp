@@ -614,7 +614,7 @@ export const InvoicesPage = ({
       setPdfPreviewUrl(null);
       setPdfGeneratedData(null);
     }
-  }, [selectedInvoice?.id, selectedInvoice?.amount, selectedInvoice?.status, selectedInvoiceMember?.id, selectedInvoiceMember?.phone, gymInfo?.logo]);
+  }, [selectedInvoice, selectedInvoiceMember, gymInfo]);
 
   // Overall KPIs
   const totalBilledRevenue = useMemo(() => {
@@ -2595,7 +2595,15 @@ export const InvoicesPage = ({
         invoice={editingInvoice}
         onClose={() => setEditingInvoice(null)}
         onUpdated={(updated) => {
-          if (selectedInvoice && (selectedInvoice.id === updated.id || selectedInvoice.numericId === updated.numericId)) {
+          if (selectedInvoice && (
+            selectedInvoice.id === updated.id ||
+            selectedInvoice.numericId === updated.numericId ||
+            selectedInvoice.invoiceNumber === updated.invoiceNumber ||
+            selectedInvoice.id === updated.invoiceNumber ||
+            selectedInvoice.invoiceNumber === updated.id ||
+            String(selectedInvoice.numericId) === String(updated.id) ||
+            String(selectedInvoice.id) === String(updated.numericId)
+          )) {
             setSelectedInvoice((prev) => ({ ...prev, ...updated }));
           }
         }}

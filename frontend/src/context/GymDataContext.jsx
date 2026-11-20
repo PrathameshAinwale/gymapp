@@ -898,9 +898,9 @@ export const GymDataProvider = ({ children }) => {
   const fetchInvoices = useCallback(async () => {
     try {
       const activeGym = (typeof window !== 'undefined' ? localStorage.getItem('pulsefit_gym_id') : null) || currentUser?.gymId || currentUser?.gym_id;
-      const res = api.revenueBilling?.getInflows
-        ? await api.revenueBilling.getInflows({ gym_id: activeGym })
-        : await api.invoices.getAll({ gym_id: activeGym });
+      const res = api.invoices?.getAll
+        ? await api.invoices.getAll({ gym_id: activeGym })
+        : (api.revenueBilling?.getInflows ? await api.revenueBilling.getInflows({ gym_id: activeGym }) : { data: [] });
       if (Array.isArray(res?.data)) {
         const sorted = res.data.map(mapInvoiceRecord).filter(Boolean).sort(compareInvoicesDesc);
         setInvoices(sorted);
@@ -3004,11 +3004,12 @@ export const GymDataProvider = ({ children }) => {
       const cleanId = invoiceId || updatedFields.id || updatedFields.invoiceNumber;
       const res = await api.invoices.update(cleanId, updatedFields);
       const savedInvoice = res?.data || updatedFields;
+      const mappedSaved = mapInvoiceRecord(savedInvoice) || { ...updatedFields, id: cleanId };
 
       setInvoices((prev) =>
         prev.map((inv) =>
-          (inv.id === cleanId || inv.numericId === cleanId || inv.invoiceNumber === cleanId || (savedInvoice.id && inv.id === savedInvoice.id))
-            ? { ...inv, ...savedInvoice, ...updatedFields }
+          (inv.id === cleanId || inv.numericId === cleanId || inv.invoiceNumber === cleanId || (mappedSaved.id && inv.id === mappedSaved.id) || (mappedSaved.numericId && inv.numericId === mappedSaved.numericId) || (savedInvoice.id && inv.id === savedInvoice.id))
+            ? { ...inv, ...mappedSaved, ...updatedFields }
             : inv
         )
       );
@@ -3022,7 +3023,7 @@ export const GymDataProvider = ({ children }) => {
       ]);
 
       addToast('Invoice and revenue billing updated successfully!', 'success');
-      return savedInvoice;
+      return mappedSaved;
     } catch (err) {
       console.error('Invoice update error:', err);
       addToast(`Failed to update invoice: ${err.message}`, 'error');

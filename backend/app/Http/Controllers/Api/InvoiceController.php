@@ -146,6 +146,14 @@ class InvoiceController extends Controller
             if ($numericId > 0) {
                 $user = User::find($numericId);
             }
+            if (!$user) {
+                $cleanInput = trim((string)$userIdInput);
+                $user = User::where('member_number', $cleanInput)
+                    ->orWhere('member_number', 'MEM' . $numericId)
+                    ->orWhere('legacy_id', $cleanInput)
+                    ->orWhere('biometric_user_id', $cleanInput)
+                    ->first();
+            }
         }
         if (!$user && ($request->member_name || $request->memberName)) {
             $name = $request->member_name ?? $request->memberName;
@@ -535,7 +543,7 @@ class InvoiceController extends Controller
             'dueDate' => $inv->due_date instanceof \DateTimeInterface ? $inv->due_date->format('Y-m-d') : ($inv->due_date ? (string)$inv->due_date : ($userProfile?->due_date ? $userProfile->due_date->format('Y-m-d') : null)),
             'paymentMethod' => $inv->payment_method ?: 'UPI',
             'status' => $status,
-            'invoiceUrl' => $inv->invoice_url ?? '#',
+            'invoiceUrl' => $inv->invoice_url ? ($inv->invoice_url . '?v=' . ($inv->updated_at?->timestamp ?? time())) : '#',
             'createdBy' => $inv->created_by ?: $matchingInflow?->created_by,
             'createdByName' => $createdByName,
             'creatorRole' => $creatorRole,
@@ -631,17 +639,19 @@ class InvoiceController extends Controller
         ];
 
         if ($request->has('start_date') || $request->has('startDate')) {
-            $invoiceUpdate['start_date'] = $startDateInput;
+            $invoiceUpdate['start_date'] = !empty($startDateInput) ? $startDateInput : null;
         }
         if ($request->has('expiry_date') || $request->has('expiryDate') || $request->has('end_date') || $request->has('endDate')) {
-            $invoiceUpdate['end_date'] = $endDateInput;
+            $invoiceUpdate['end_date'] = !empty($endDateInput) ? $endDateInput : null;
         }
 
         if ($request->has('date') || $request->has('payment_date') || $request->has('paymentDate')) {
-            $invoiceUpdate['date'] = $request->date ?? $request->payment_date ?? $request->paymentDate;
+            $rawDate = $request->date ?? $request->payment_date ?? $request->paymentDate;
+            $invoiceUpdate['date'] = !empty($rawDate) ? $rawDate : now()->toDateString();
         }
         if ($request->has('due_date') || $request->has('dueDate')) {
             $upDueDate = $request->due_date ?? $request->dueDate;
+            $upDueDate = (!empty($upDueDate) && $duesAmount > 0) ? $upDueDate : null;
             if ($duesAmount > 0 && $upDueDate) {
                 $checkStart = $invoice->start_date ? ($invoice->start_date instanceof \DateTimeInterface ? $invoice->start_date->format('Y-m-d') : substr((string)$invoice->start_date, 0, 10)) : null;
                 $checkEnd = $invoice->end_date ? ($invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : substr((string)$invoice->end_date, 0, 10)) : null;
@@ -655,6 +665,8 @@ class InvoiceController extends Controller
                 }
             }
             $invoiceUpdate['due_date'] = $upDueDate;
+        } elseif ($duesAmount == 0) {
+            $invoiceUpdate['due_date'] = null;
         }
         if ($request->has('payment_method') || $request->has('paymentMethod')) {
             $invoiceUpdate['payment_method'] = $request->payment_method ?? $request->paymentMethod;
@@ -684,15 +696,34 @@ class InvoiceController extends Controller
 
         if ($request->filled('plan_id') || $request->filled('planId')) {
             $numericPlan = (int)preg_replace('/[^0-9]/', '', (string)($request->plan_id ?? $request->planId));
-            if ($numericPlan > 0) {
+            if ($numericPlan > 0 && Plan::where('id', $numericPlan)->exists()) {
                 $invoiceUpdate['plan_id'] = $numericPlan;
             }
         }
 
-        if ($request->filled('user_id') || $request->filled('userId')) {
-            $numericUser = (int)preg_replace('/[^0-9]/', '', (string)($request->user_id ?? $request->userId));
+        $userIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
+        if ($userIdInput) {
+            $targetUser = null;
+            $numericUser = (int)preg_replace('/[^0-9]/', '', (string)$userIdInput);
             if ($numericUser > 0) {
-                $invoiceUpdate['user_id'] = $numericUser;
+                $targetUser = User::find($numericUser);
+            }
+            if (!$targetUser) {
+                $cleanInput = trim((string)$userIdInput);
+                $targetUser = User::where('member_number', $cleanInput)
+                    ->orWhere('member_number', 'MEM' . $numericUser)
+                    ->orWhere('legacy_id', $cleanInput)
+                    ->orWhere('biometric_user_id', $cleanInput)
+                    ->first();
+            }
+            if (!$targetUser && ($request->filled('member_name') || $request->filled('memberName'))) {
+                $mName = trim((string)($request->member_name ?? $request->memberName));
+                if ($mName) {
+                    $targetUser = User::where('name', 'like', "%{$mName}%")->first();
+                }
+            }
+            if ($targetUser) {
+                $invoiceUpdate['user_id'] = $targetUser->id;
             }
         }
 
@@ -739,6 +770,12 @@ class InvoiceController extends Controller
             ];
             if (isset($invoiceUpdate['user_id'])) {
                 $inflowData['user_id'] = $invoiceUpdate['user_id'];
+            }
+            if (isset($invoiceUpdate['created_by_name'])) {
+                $inflowData['created_by_name'] = $invoiceUpdate['created_by_name'];
+            }
+            if (isset($invoiceUpdate['package_type'])) {
+                $inflowData['category'] = $invoiceUpdate['package_type'];
             }
             if ($request->filled('notes')) {
                 $inflowData['notes'] = $request->notes;
@@ -809,7 +846,10 @@ class InvoiceController extends Controller
                         $profileUpdate['plan_id'] = $invoiceUpdate['plan_id'];
                     }
                     if ($request->filled('start_date') || $request->filled('startDate')) {
-                        $profileUpdate['join_date'] = $request->start_date ?? $request->startDate;
+                        $newJoin = $request->start_date ?? $request->startDate;
+                        if (!empty($newJoin)) {
+                            $profileUpdate['join_date'] = $newJoin;
+                        }
                     }
                     if (!empty($profileUpdate)) {
                         $user->memberProfile->update($profileUpdate);
@@ -907,6 +947,9 @@ class InvoiceController extends Controller
         return response()->file($filePath, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="Invoice_' . $cleanNo . '.pdf"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
@@ -990,6 +1033,9 @@ class InvoiceController extends Controller
         return response()->file($filePath, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="Invoice_' . $cleanNo . '.pdf"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 
