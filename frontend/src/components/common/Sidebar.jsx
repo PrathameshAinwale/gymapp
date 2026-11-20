@@ -234,7 +234,22 @@ export const getNavSectionsForMember = () => [
 ];
 
 export const getNavSectionsForRole = (role, assignedPages = null) => {
-  if (Array.isArray(assignedPages) && assignedPages.length > 0 && role !== 'superadmin' && role !== 'owner') {
+  const normRole = (role || '').toLowerCase().trim();
+  const isSuperadmin = normRole === 'superadmin' || normRole === 'owner';
+  const isAccounts =
+    normRole === 'accounts' ||
+    normRole === 'accountant' ||
+    normRole.includes('account') ||
+    normRole.includes('finance') ||
+    normRole.includes('billing');
+  const isManager =
+    normRole === 'manager' ||
+    normRole.includes('operation') ||
+    normRole.includes('manager');
+  const isTrainer = normRole === 'trainer' || normRole === 'coach';
+  const isMember = normRole === 'member';
+
+  if (Array.isArray(assignedPages) && assignedPages.length > 0 && !isSuperadmin) {
     const superSections = getNavSectionsForSuperadmin();
     const trainerSections = getNavSectionsForTrainer();
     const combined = [...superSections];
@@ -247,15 +262,15 @@ export const getNavSectionsForRole = (role, assignedPages = null) => {
     return combined
       .map((sec) => ({
         ...sec,
-        items: sec.items.filter((item) => assignedPages.includes(item.id))
+        items: sec.items.filter((item) => assignedPages.includes(item.id) || item.id === 'dashboard')
       }))
       .filter((sec) => sec.items.length > 0);
   }
 
-  if (role === 'trainer') return getNavSectionsForTrainer();
-  if (role === 'member') return getNavSectionsForMember();
-  if (role === 'manager') return getNavSectionsForManager();
-  if (role === 'accounts') return getNavSectionsForAccounts();
+  if (isTrainer) return getNavSectionsForTrainer();
+  if (isMember) return getNavSectionsForMember();
+  if (isManager) return getNavSectionsForManager();
+  if (isAccounts) return getNavSectionsForAccounts();
   return getNavSectionsForSuperadmin();
 };
 
@@ -374,7 +389,8 @@ export const Sidebar = ({ activeTab, setActiveTab, isMobileOpen = false, setIsMo
         label: 'Manager Operations'
       };
     }
-    if (currentRole === 'accounts') {
+    const roleLower = String(currentRole || '').toLowerCase();
+    if (roleLower === 'accounts' || roleLower === 'accountant' || roleLower.includes('account') || roleLower.includes('finance')) {
       return {
         bg: 'from-amber-500 to-orange-500',
         text: 'text-amber-600',

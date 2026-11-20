@@ -123,7 +123,7 @@ const getStaffRoleDisplayName = (stf, rolesList = []) => {
   if (stf.roleLabel && stf.roleLabel !== 'Senior Finance Officer' && stf.roleLabel !== 'Operations Manager') {
     return stf.roleLabel;
   }
-  if (roleSlug === 'accounts') return 'Accounts';
+  if (roleSlug === 'accounts' || roleSlug === 'accountant') return 'Accounts';
   if (roleSlug === 'manager') return 'Manager';
   if (roleSlug === 'trainer') return 'Trainer';
   if (roleSlug === 'owner' || roleSlug === 'superadmin') return 'Owner';
@@ -134,7 +134,7 @@ const getStaffRoleDisplayName = (stf, rolesList = []) => {
 // Helper for consistent role badge color styling
 const getStaffRoleBadgeClass = (stf) => {
   const roleSlug = (stf?.role || '').toLowerCase();
-  if (roleSlug === 'accounts') return 'bg-amber-50 text-amber-800 border-amber-300';
+  if (roleSlug === 'accounts' || roleSlug === 'accountant') return 'bg-amber-50 text-amber-800 border-amber-300';
   if (roleSlug === 'manager') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
   if (roleSlug === 'trainer') return 'bg-purple-50 text-purple-700 border-purple-200';
   if (roleSlug === 'owner' || roleSlug === 'superadmin') return 'bg-emerald-50 text-emerald-700 border-emerald-200';

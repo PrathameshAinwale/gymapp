@@ -18,30 +18,42 @@ class GymRoleController extends Controller
      */
     public static function getDefaultPagesForRole(string $role): array
     {
-        switch ($role) {
+        $r = strtolower(trim($role));
+        switch ($r) {
             case 'manager':
+            case 'operations':
+            case 'frontdesk':
+            case 'receptionist':
+            case 'staff':
+            case 'admin':
                 return [
                     'dashboard', 'whatsapp-automation', 'analytics', 'members',
                     'classes', 'pt-sessions', 'enquiries', 'attendance',
                     'plans', 'membership-freeze', 'products', 'equipment',
+                    'member-profile', 'add-member', 'create-invoice',
                     'privacy-policy', 'terms-conditions', 'help-support'
                 ];
             case 'accounts':
+            case 'accountant':
+            case 'finance':
+            case 'billing':
                 return [
                     'dashboard', 'members', 'classes', 'pt-sessions', 'enquiries', 'attendance',
                     'whatsapp-automation', 'plans', 'membership-freeze', 'staff-accounts', 'shifts',
                     'leaves', 'advance-pay', 'payroll', 'commissions', 'analytics', 'reports',
                     'financials', 'invoices', 'products', 'equipment', 'settings',
+                    'member-profile', 'add-member', 'create-invoice',
                     'privacy-policy', 'terms-conditions', 'help-support'
                 ];
             case 'trainer':
+            case 'coach':
                 return [
                     'dashboard', 'sessions', 'clients', 'workout-builder', 'diet-builder',
                     'advance-request', 'trainer-leaves', 'commissions', 'profile',
                     'privacy-policy', 'terms-conditions', 'help-support'
                 ];
             default:
-                return ['dashboard', 'members', 'attendance'];
+                return ['dashboard', 'members', 'attendance', 'member-profile', 'add-member', 'create-invoice'];
         }
     }
 

@@ -374,26 +374,39 @@ function MainApp() {
       );
     }
 
-    // Security Guard: Manager has no access to financial, revenue, payroll, or staff provisioning pages
-    if (currentRole === 'manager' && !canAccessFinancials) {
-      const restrictedTabs = ['financials', 'invoices', 'advance-pay', 'payroll', 'reports', 'staff-accounts'];
-      if (restrictedTabs.includes(activeTab)) {
-        return (
-          <OwnerDashboard
-            setActiveTab={handleNavigateTab}
-            onOpenMemberProfile={(memberId) => {
-              setSelectedMemberProfileId(memberId);
-              handleNavigateTab('member-profile');
-            }}
-          />
-        );
-      }
-    }
+    // Helper to check if a tab/action is permitted for this role and its assigned pages
+    const isTabPermittedForUser = (tab, role, assignedPages) => {
+      const normRole = (role || '').toLowerCase().trim();
+      if (normRole === 'superadmin' || normRole === 'owner') return true;
+      if (!tab || tab === 'dashboard') return true;
 
-    // Security Guard: Enforce superadmin-configured assigned pages for custom staff roles
+      // Restrict managers from financial tabs only if they lack financial permissions
+      if (normRole === 'manager' && !canAccessFinancials) {
+        const restrictedTabs = ['financials', 'invoices', 'advance-pay', 'payroll', 'reports', 'staff-accounts'];
+        if (restrictedTabs.includes(tab)) return false;
+      }
+
+      if (!Array.isArray(assignedPages) || assignedPages.length === 0) {
+        return true;
+      }
+
+      if (assignedPages.includes(tab)) return true;
+
+      // Sub-pages & nested workflow actions mapping to parent permissions
+      if (tab === 'add-member' && (assignedPages.includes('members') || assignedPages.includes('enquiries'))) return true;
+      if (tab === 'member-profile' && assignedPages.includes('members')) return true;
+      if (tab === 'create-invoice' && (assignedPages.includes('invoices') || assignedPages.includes('financials') || assignedPages.includes('members'))) return true;
+      if (tab === 'trainers' && assignedPages.includes('staff-accounts')) return true;
+      if (tab === 'consent-forms' && (assignedPages.includes('membership-freeze') || assignedPages.includes('plans') || assignedPages.includes('members'))) return true;
+      if (tab === 'privacy-policy' || tab === 'terms-conditions' || tab === 'help-support') return true;
+
+      return false;
+    };
+
+    // Security Guard: Enforce permitted pages and sub-workflows for staff roles
     const userAssignedPages = currentUser?.assigned_pages || currentUser?.assignedPages;
-    if (Array.isArray(userAssignedPages) && userAssignedPages.length > 0 && currentRole !== 'superadmin' && currentRole !== 'owner') {
-      if (activeTab !== 'dashboard' && !userAssignedPages.includes(activeTab)) {
+    if (currentRole !== 'superadmin' && currentRole !== 'owner') {
+      if (!isTabPermittedForUser(activeTab, currentRole, userAssignedPages)) {
         return (
           <OwnerDashboard
             setActiveTab={handleNavigateTab}

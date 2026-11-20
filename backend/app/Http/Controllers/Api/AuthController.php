@@ -154,11 +154,28 @@ class AuthController extends Controller
                         ->where('slug', $user->role)
                         ->first();
 
+                    if (!$roleRecord) {
+                        $aliasSlug = match(strtolower($user->role)) {
+                            'accountant', 'finance', 'billing' => 'accounts',
+                            'frontdesk', 'receptionist', 'admin', 'staff', 'operations' => 'manager',
+                            default => null
+                        };
+                        if ($aliasSlug) {
+                            $roleRecord = \App\Models\GymRole::where('gym_id', $user->gym_id)
+                                ->where('slug', $aliasSlug)
+                                ->first();
+                        }
+                    }
+
                     if ($roleRecord) {
                         $user->setRelation('gymRole', $roleRecord);
                         $user->assigned_pages = $roleRecord->assigned_pages ?? [];
                         $user->role_label = $roleRecord->name;
                         $user->role_color = $roleRecord->color ?? 'indigo';
+                    } else {
+                        $user->assigned_pages = \App\Http\Controllers\Api\GymRoleController::getDefaultPagesForRole($user->role);
+                        $user->role_label = ucfirst($user->role);
+                        $user->role_color = 'indigo';
                     }
                 }
             } catch (\Throwable $e) {
@@ -314,6 +331,43 @@ class AuthController extends Controller
             $user->load(['memberProfile.plan', 'memberProfile.trainer']);
         } elseif ($user->role === 'trainer') {
             $user->load('trainerProfile');
+        }
+
+        // Only staff roles (non-owner, non-admin, non-member) have custom gym roles
+        if (!in_array($user->role, ['member', 'owner', 'superadmin', 'admin']) && !empty($user->gym_id)) {
+            try {
+                if (Schema::hasTable('gym_roles')) {
+                    $roleRecord = \App\Models\GymRole::where('gym_id', $user->gym_id)
+                        ->where('slug', $user->role)
+                        ->first();
+
+                    if (!$roleRecord) {
+                        $aliasSlug = match(strtolower($user->role)) {
+                            'accountant', 'finance', 'billing' => 'accounts',
+                            'frontdesk', 'receptionist', 'admin', 'staff', 'operations' => 'manager',
+                            default => null
+                        };
+                        if ($aliasSlug) {
+                            $roleRecord = \App\Models\GymRole::where('gym_id', $user->gym_id)
+                                ->where('slug', $aliasSlug)
+                                ->first();
+                        }
+                    }
+
+                    if ($roleRecord) {
+                        $user->setRelation('gymRole', $roleRecord);
+                        $user->assigned_pages = $roleRecord->assigned_pages ?? [];
+                        $user->role_label = $roleRecord->name;
+                        $user->role_color = $roleRecord->color ?? 'indigo';
+                    } else {
+                        $user->assigned_pages = \App\Http\Controllers\Api\GymRoleController::getDefaultPagesForRole($user->role);
+                        $user->role_label = ucfirst($user->role);
+                        $user->role_color = 'indigo';
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore missing table gracefully during me
+            }
         }
 
         return response()->json([

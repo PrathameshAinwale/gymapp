@@ -47,42 +47,43 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
   const gymLogo = gymInfo?.logo || '';
 
   const getRoleBadge = () => {
-    if (currentRole === 'owner') {
+    const norm = (currentRole || '').toLowerCase().trim();
+    if (norm === 'owner') {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
           <ShieldCheck className="w-3 h-3 text-emerald-600" /> Owner
         </span>
       );
     }
-    if (currentRole === 'superadmin') {
+    if (norm === 'superadmin') {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
           <ShieldCheck className="w-3 h-3 text-purple-600" /> Superadmin
         </span>
       );
     }
-    if (currentRole === 'accounts') {
+    if (norm === 'accounts' || norm === 'accountant' || norm.includes('account') || norm.includes('finance')) {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1 whitespace-nowrap shadow-xs">
-          <ShieldCheck className="w-3 h-3 text-amber-600" /> Accounts
+          <ShieldCheck className="w-3 h-3 text-amber-600" /> {currentUser?.roleLabel || currentUser?.role_label || 'Accounts'}
         </span>
       );
     }
-    if (currentRole === 'manager') {
+    if (norm === 'manager') {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
-          <ShieldCheck className="w-3 h-3 text-indigo-600" /> Manager
+          <ShieldCheck className="w-3 h-3 text-indigo-600" /> {currentUser?.roleLabel || currentUser?.role_label || 'Manager'}
         </span>
       );
     }
-    if (currentRole === 'trainer') {
+    if (norm === 'trainer' || norm === 'coach') {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
           <Award className="w-3 h-3 text-teal-600" /> Coach
         </span>
       );
     }
-    if (currentRole === 'member') {
+    if (norm === 'member') {
       return (
         <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-cyan-50 text-cyan-700 border border-cyan-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
           <Flame className="w-3 h-3 text-cyan-600" /> Athlete
@@ -91,7 +92,7 @@ export const Navbar = ({ activeTab, setActiveTab, onToggleMobileMenu, onNavigate
     }
     return (
       <span className="px-2 py-0.5 text-2xs font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1 whitespace-nowrap shadow-xs">
-        <UserCheck className="w-3 h-3 text-slate-600" /> Staff
+        <UserCheck className="w-3 h-3 text-slate-600" /> {currentUser?.roleLabel || currentUser?.role_label || (norm ? (norm.charAt(0).toUpperCase() + norm.slice(1)) : 'Staff')}
       </span>
     );
   };

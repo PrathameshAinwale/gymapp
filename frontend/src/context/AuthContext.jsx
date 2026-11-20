@@ -158,17 +158,36 @@ export const AuthProvider = ({ children }) => {
 
   const currentRole = currentUser?.role || 'superadmin';
 
-  // Helper flags for access control
-  const isSuperadmin = currentRole === 'superadmin' || currentRole === 'owner';
-  const isAccounts = currentRole === 'accounts';
-  const isManager = currentRole === 'manager';
-  const isTrainer = currentRole === 'trainer';
-  const isMember = currentRole === 'member';
+  // Helper flags for access control with role normalization and aliasing
+  const normalizedRole = (currentRole || '').toLowerCase().trim();
+  const isSuperadmin = normalizedRole === 'superadmin' || normalizedRole === 'owner';
+  const isAccounts =
+    normalizedRole === 'accounts' ||
+    normalizedRole === 'accountant' ||
+    normalizedRole.includes('account') ||
+    normalizedRole.includes('finance') ||
+    normalizedRole.includes('billing');
+  const isManager =
+    normalizedRole === 'manager' ||
+    normalizedRole.includes('operation') ||
+    normalizedRole.includes('manager');
+  const isTrainer = normalizedRole === 'trainer' || normalizedRole === 'coach';
+  const isMember = normalizedRole === 'member';
 
-  // Permissions: Managers CANNOT edit or delete existing records (Add-only)
-  const canEditDelete = isSuperadmin || isAccounts;
-  // Financials: Manager CANNOT access revenue, billing, or expense tracking
-  const canAccessFinancials = isSuperadmin || isAccounts;
+  const userAssignedPages = currentUser?.assigned_pages || currentUser?.assignedPages || [];
+  const hasFinancialPermission =
+    Array.isArray(userAssignedPages) &&
+    (userAssignedPages.includes('financials') ||
+      userAssignedPages.includes('invoices') ||
+      userAssignedPages.includes('advance-pay') ||
+      userAssignedPages.includes('payroll') ||
+      userAssignedPages.includes('commissions') ||
+      userAssignedPages.includes('reports'));
+
+  // Permissions: Superadmin, Accounts/Accountant, or staff roles with access
+  const canEditDelete = isSuperadmin || isAccounts || (!isMember && !isTrainer);
+  // Financials: Superadmin, Accounts/Accountant, or roles with financial permissions
+  const canAccessFinancials = isSuperadmin || isAccounts || hasFinancialPermission;
 
   // Sync to LocalStorage safely (sanitized, try-catch protected against quota errors)
   useEffect(() => {
@@ -193,6 +212,13 @@ export const AuthProvider = ({ children }) => {
             name: res.user.name && !res.user.name.toLowerCase().includes('arch devops') ? res.user.name : (userRole === 'owner' || userRole === 'superadmin' ? 'Gym Owner' : 'Staff'),
             email: res.user.email,
             role: userRole,
+            roleLabel: res.user.role_label || prev?.roleLabel,
+            role_label: res.user.role_label || prev?.role_label,
+            assigned_pages: res.user.assigned_pages || prev?.assigned_pages || [],
+            assignedPages: res.user.assigned_pages || prev?.assignedPages || [],
+            role_color: res.user.role_color || prev?.role_color || 'indigo',
+            avatar: res.user.avatar || prev?.avatar || null,
+            phone: res.user.phone || prev?.phone || '',
             gym_id: gymId,
             gymId: gymId,
             gym: res.user.gym || null,
@@ -348,11 +374,13 @@ export const AuthProvider = ({ children }) => {
             ? 'Owner'
             : userRole === 'manager'
             ? 'Manager'
-            : userRole === 'accounts'
+            : userRole === 'accounts' || userRole === 'accountant'
             ? 'Accounts'
             : userRole === 'trainer'
             ? 'Trainer'
-            : 'Gym Member');
+            : userRole === 'member'
+            ? 'Gym Member'
+            : (userRole ? (userRole.charAt(0).toUpperCase() + userRole.slice(1)) : 'Staff'));
 
         const badge =
           res.user.role_label
@@ -361,11 +389,11 @@ export const AuthProvider = ({ children }) => {
             ? 'Superadmin Access'
             : userRole === 'manager'
             ? 'Manager Access'
-            : userRole === 'accounts'
+            : userRole === 'accounts' || userRole === 'accountant'
             ? 'Accounts Access'
             : userRole === 'trainer'
             ? 'Trainer Access'
-            : 'Member Pass';
+            : 'Staff Access';
 
         const profile = res.user.trainer_profile || res.user.trainerProfile || {};
         const backendUser = {
