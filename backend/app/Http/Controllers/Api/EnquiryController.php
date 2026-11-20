@@ -515,7 +515,7 @@ class EnquiryController extends Controller
 
             // Create or update MemberProfile
             $profile = MemberProfile::firstOrNew(['user_id' => $user->id]);
-            $enqNo = $enquiry->enquiry_number ?: ('ENQ' . \App\Services\SequentialIdService::getFinancialYearCode($enquiry->created_at) . str_pad((string)$enquiry->id, 4, '0', STR_PAD_LEFT));
+            $enqNo = $enquiry->enquiry_number ?: ('ENQ' . str_pad((string)$enquiry->id, 4, '0', STR_PAD_LEFT));
 
             $profile->fill([
                 'member_number' => $user->member_number,

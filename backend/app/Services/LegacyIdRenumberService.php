@@ -19,8 +19,8 @@ class LegacyIdRenumberService
      * Invoice supports 2 to 4 digit FY with optional hyphens (e.g. INV-26-27-0001, INV26270001, or INV260001). Member/Enquiry use 2-digit FY.
      */
     public const PATTERN_INVOICE = '/^INV-?(\d{2})-?(\d{2})?-?(\d{4,})$/i';
-    public const PATTERN_MEMBER  = '/^MEM(\d{2})(\d{4,})$/i';
-    public const PATTERN_ENQUIRY = '/^ENQ(\d{2})(\d{4,})$/i';
+    public const PATTERN_MEMBER  = '/^MEM(?:(\d{2}))?(\d{4,})$/i';
+    public const PATTERN_ENQUIRY = '/^ENQ(?:(\d{2}))?(\d{4,})$/i';
 
     /**
      * Check if a given string matches the sequential format for an entity.

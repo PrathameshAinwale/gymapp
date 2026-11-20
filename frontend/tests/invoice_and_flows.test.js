@@ -1727,6 +1727,17 @@ test('35. Due payment user ID resolution prioritizes database primary key userId
   assert.equal(resolvedB.cleanUserId, 25);
   assert.equal(resolvedB.targetMemberId, 'mem-25');
 
+  // Case D: Perpetual member format 'MEM0001' with userId 14
+  const memberPerpetual = {
+    id: 'MEM0001',
+    memberNumber: 'MEM0001',
+    userId: 14,
+    name: 'Pooja R'
+  };
+  const resolvedD = resolveCleanUser(memberPerpetual);
+  assert.equal(resolvedD.cleanUserId, 14);
+  assert.equal(resolvedD.targetMemberId, 'MEM0001');
+
   // Case C: Member with sequential member number ('260003') where userId is missing
   // Even if 260003 is passed to backend, backend resolveMemberUser resolves by member_number or sets null
   const resolveBackendUser = (rawUserId, mockDb) => {
@@ -1752,6 +1763,54 @@ test('35. Due payment user ID resolution prioritizes database primary key userId
   // If user does not exist in users table:
   assert.equal(resolveBackendUser('999999', mockUsers), null, 'Backend must return null instead of invalid ID, preventing 1452 FK error');
 });
+
+test('36. Edit invoice modal payload resolution protects user_id and prioritizes canonical userId', () => {
+  // Helper mimicking EditInvoiceModal payload generation
+  const buildEditInvoicePayload = (currentMember, invoice) => {
+    const safeUserId = (typeof currentMember?.userId === 'number' ? currentMember.userId : null)
+      || (typeof invoice?.userId === 'number' ? invoice.userId : null)
+      || (typeof invoice?.user_id === 'number' ? invoice.user_id : null)
+      || (typeof currentMember?.id === 'number' ? currentMember.id : null)
+      || (typeof currentMember?.id === 'string' && currentMember.id.startsWith('mem-') ? (parseInt(currentMember.id.replace(/\D/g, ''), 10) || null) : null)
+      || (typeof invoice?.memberId === 'string' && invoice.memberId.startsWith('mem-') ? (parseInt(invoice.memberId.replace(/\D/g, ''), 10) || null) : null);
+
+    const payload = {
+      ...(safeUserId ? { user_id: safeUserId, userId: safeUserId } : {}),
+      member_id: currentMember?.id || currentMember?.memberNumber || invoice?.memberId || invoice?.memberNumber,
+      memberId: currentMember?.id || currentMember?.memberNumber || invoice?.memberId || invoice?.memberNumber,
+    };
+    return payload;
+  };
+
+  // Case A: Member with perpetual ID 'MEM0001' and real userId 82
+  const memberA = { id: 'MEM0001', memberNumber: 'MEM0001', userId: 82, name: 'Dipesh C' };
+  const invoiceA = { id: 'INV-26-27-0001', memberId: 'MEM0001', userId: 82 };
+  const payloadA = buildEditInvoicePayload(memberA, invoiceA);
+  assert.equal(payloadA.user_id, 82, 'user_id must be canonical user ID 82, NOT 1 or 0001');
+  assert.equal(payloadA.member_id, 'MEM0001');
+
+  // Case B: Member with older FY ID 'MEM260001' where userId is 112
+  const memberB = { id: 'MEM260001', memberNumber: 'MEM260001', userId: 112, name: 'Ananya M' };
+  const invoiceB = { id: 'INV-26-27-0002', memberId: 'MEM260001', userId: 112 };
+  const payloadB = buildEditInvoicePayload(memberB, invoiceB);
+  assert.equal(payloadB.user_id, 112, 'user_id must be canonical user ID 112, NEVER 260001');
+  assert.equal(payloadB.member_id, 'MEM260001');
+
+  // Case C: Member record where currentMember has no userId, but invoice has userId: 45
+  const memberC = { id: 'MEM0005', memberNumber: 'MEM0005', name: 'Rohan P' };
+  const invoiceC = { id: 'INV-26-27-0003', memberId: 'MEM0005', userId: 45 };
+  const payloadC = buildEditInvoicePayload(memberC, invoiceC);
+  assert.equal(payloadC.user_id, 45, 'user_id must fall back safely to invoice.userId 45 and not string numbers');
+  assert.equal(payloadC.member_id, 'MEM0005');
+
+  // Case D: Member with string ID and no userId anywhere
+  const memberD = { id: 'MEM0010', memberNumber: 'MEM0010' };
+  const invoiceD = { id: 'INV-26-27-0004', memberId: 'MEM0010' };
+  const payloadD = buildEditInvoicePayload(memberD, invoiceD);
+  assert.equal(payloadD.user_id, undefined, 'user_id must be omitted if no valid numeric ID is known, never sending invalid string digits');
+  assert.equal(payloadD.member_id, 'MEM0010');
+});
+
 
 
 

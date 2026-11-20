@@ -660,12 +660,17 @@ export const EditInvoiceModal = ({
       });
 
       const lineTitles = packageItems.map((p) => p.name).join(' + ') || 'Gym Services';
-      const cleanUserId = currentMember?.userId || currentMember?.id || invoice.userId || invoice.user_id;
-      const numericUserId = cleanUserId ? (Number(String(cleanUserId).replace(/\D/g, '')) || null) : null;
+      const safeUserId = (typeof currentMember?.userId === 'number' ? currentMember.userId : null)
+        || (typeof invoice?.userId === 'number' ? invoice.userId : null)
+        || (typeof invoice?.user_id === 'number' ? invoice.user_id : null)
+        || (typeof currentMember?.id === 'number' ? currentMember.id : null)
+        || (typeof currentMember?.id === 'string' && currentMember.id.startsWith('mem-') ? (parseInt(currentMember.id.replace(/\D/g, ''), 10) || null) : null)
+        || (typeof invoice?.memberId === 'string' && invoice.memberId.startsWith('mem-') ? (parseInt(invoice.memberId.replace(/\D/g, ''), 10) || null) : null);
 
       const payload = {
-        user_id: numericUserId,
-        userId: numericUserId,
+        ...(safeUserId ? { user_id: safeUserId, userId: safeUserId } : {}),
+        member_id: currentMember?.id || currentMember?.memberNumber || invoice.memberId || invoice.memberNumber,
+        memberId: currentMember?.id || currentMember?.memberNumber || invoice.memberId || invoice.memberNumber,
         member_name: memberName.trim(),
         memberName: memberName.trim(),
         member_phone: memberPhone?.trim() || null,

@@ -78,19 +78,19 @@ class SequentialIdEnterpriseTest extends TestCase
         $this->assertEquals("INV-{$start2}-{$end2}-0002", $inv2);
         $this->assertEquals("INV-{$start2}-{$end2}-0003", $inv3);
 
-        // Members (uses 2-digit FY e.g. MEM260001)
+        // Members (perpetual format e.g. MEM0001)
         $mem1 = SequentialIdService::generateMemberNumber($this->gymA->id);
         $mem2 = SequentialIdService::generateMemberNumber($this->gymA->id);
 
-        $this->assertEquals("MEM{$currentFy}0001", $mem1);
-        $this->assertEquals("MEM{$currentFy}0002", $mem2);
+        $this->assertEquals("MEM0001", $mem1);
+        $this->assertEquals("MEM0002", $mem2);
 
-        // Enquiries
+        // Enquiries (perpetual format e.g. ENQ0001)
         $enq1 = SequentialIdService::generateEnquiryNumber($this->gymA->id);
         $enq2 = SequentialIdService::generateEnquiryNumber($this->gymA->id);
 
-        $this->assertEquals("ENQ{$currentFy}0001", $enq1);
-        $this->assertEquals("ENQ{$currentFy}0002", $enq2);
+        $this->assertEquals("ENQ0001", $enq1);
+        $this->assertEquals("ENQ0002", $enq2);
     }
 
     /**
@@ -137,17 +137,17 @@ class SequentialIdEnterpriseTest extends TestCase
         $gymAMem2 = SequentialIdService::generateMemberNumber($this->gymA->id);
         $gymAMem3 = SequentialIdService::generateMemberNumber($this->gymA->id);
 
-        $this->assertEquals("MEM{$currentFy}0001", $gymAMem1);
-        $this->assertEquals("MEM{$currentFy}0002", $gymAMem2);
-        $this->assertEquals("MEM{$currentFy}0003", $gymAMem3);
+        $this->assertEquals("MEM0001", $gymAMem1);
+        $this->assertEquals("MEM0002", $gymAMem2);
+        $this->assertEquals("MEM0003", $gymAMem3);
 
         // Gym B starts its own independent sequence from 0001
         $gymBMem1 = SequentialIdService::generateMemberNumber($this->gymB->id);
-        $this->assertEquals("MEM{$currentFy}0001", $gymBMem1);
+        $this->assertEquals("MEM0001", $gymBMem1);
 
         // Gym A continues at 0004
         $gymAMem4 = SequentialIdService::generateMemberNumber($this->gymA->id);
-        $this->assertEquals("MEM{$currentFy}0004", $gymAMem4);
+        $this->assertEquals("MEM0004", $gymAMem4);
 
         // Invoices isolation (uses 4-digit FY span with hyphens e.g. INV-26-27-0001)
         $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
@@ -195,9 +195,9 @@ class SequentialIdEnterpriseTest extends TestCase
             'goal' => 'advanced body toning',
         ])->assertStatus(200);
 
-        // Converted member must get the NEXT member number (MEMxx0002)
+        // Converted member must get the NEXT member number (MEM0002)
         $memberNumber = $convRes->json('data.memberNumber');
-        $this->assertEquals("MEM{$currentFy}0002", $memberNumber);
+        $this->assertEquals("MEM0002", $memberNumber);
 
         // Linked enquiry number must be preserved on the member profile
         $linkedEnquiryNo = $convRes->json('data.convertedFromEnquiryNumber');
@@ -264,13 +264,13 @@ class SequentialIdEnterpriseTest extends TestCase
         $this->assertEquals('INV-26-27-0002', $invFY26_2);
 
         // Cross FY Conversion:
-        // Enquiry created on 15 Feb 2027 (FY26) -> ENQ260001
+        // Enquiry created on 15 Feb 2027 (FY26) -> ENQ0001 (perpetual, does not refresh with FY)
         $enqFY26 = SequentialIdService::generateEnquiryNumber($this->gymA->id, '2027-02-15 10:00:00');
-        $this->assertEquals('ENQ260001', $enqFY26);
+        $this->assertEquals('ENQ0001', $enqFY26);
 
-        // Converted on 5 Apr 2027 (FY27) as gym's first member in FY27 -> MEM270001
+        // Converted on 5 Apr 2027 (FY27) -> MEM0001 (perpetual, does not refresh with FY)
         $memFY27 = SequentialIdService::generateMemberNumber($this->gymA->id, '2027-04-05 14:00:00');
-        $this->assertEquals('MEM270001', $memFY27);
+        $this->assertEquals('MEM0001', $memFY27);
     }
 
     /**
@@ -358,7 +358,7 @@ class SequentialIdEnterpriseTest extends TestCase
         ])->assertStatus(201);
 
         $memberNumber = $res1->json('data.memberNumber');
-        $this->assertEquals("MEM{$currentFy}0001", $memberNumber);
+        $this->assertEquals("MEM0001", $memberNumber);
         $this->assertEquals('Kabir Khan', $res1->json('data.name'));
         $this->assertEquals('Alex Coach', $res1->json('data.executive'));
 
@@ -374,14 +374,14 @@ class SequentialIdEnterpriseTest extends TestCase
         // Delete Member 1
         $this->deleteJson("/api/v1/members/{$memberNumber}")->assertStatus(200);
 
-        // Create Member 2 -> Must be MEMxx0002
+        // Create Member 2 -> Must be MEM0002
         $res2 = $this->postJson('/api/v1/members', [
             'name' => 'rohit deshmukh',
             'phone' => '9988776656',
             'email' => 'rohit@test.com',
         ])->assertStatus(201);
 
-        $this->assertEquals("MEM{$currentFy}0002", $res2->json('data.memberNumber'));
+        $this->assertEquals("MEM0002", $res2->json('data.memberNumber'));
         $this->assertEquals('Rohit Deshmukh', $res2->json('data.name'));
     }
 }

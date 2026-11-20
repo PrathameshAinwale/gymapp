@@ -90,7 +90,10 @@ class SequentialIdService
         $gymId = max(1, $gymId);
         $entityType = strtolower(trim($entityType));
         $isInvoice = in_array($entityType, ['invoice', 'inv'], true);
-        $fyCode = self::getFinancialYearCode($date, $isInvoice);
+
+        // For invoices: financial year scoped (e.g. FY 26-27 -> '2627'), resets on 1st April
+        // For members and enquiries: perpetual sequence (no FY code, no FY reset, increments continuously)
+        $fyCode = $isInvoice ? self::getFinancialYearCode($date, true) : 'GLOBAL';
 
         $prefix = match ($entityType) {
             'invoice', 'inv' => 'INV',
@@ -106,7 +109,7 @@ class SequentialIdService
             default => $entityType,
         };
 
-        return DB::transaction(function () use ($gymId, $normalizedType, $fyCode, $prefix) {
+        return DB::transaction(function () use ($gymId, $normalizedType, $fyCode, $prefix, $isInvoice) {
             // 1. Ensure counter row exists (atomic upsert / insertOrIgnore)
             DB::table('entity_sequences')->insertOrIgnore([
                 'gym_id' => $gymId,
@@ -125,7 +128,21 @@ class SequentialIdService
                 ->lockForUpdate()
                 ->first();
 
-            $nextNum = ($row ? (int)$row->last_number : 0) + 1;
+            $currentLast = $row ? (int)$row->last_number : 0;
+
+            // If perpetual counter was at 0, continue seamlessly from any existing FY sequence or table records
+            if (!$isInvoice && $currentLast === 0) {
+                $maxFy = (int)DB::table('entity_sequences')
+                    ->where('gym_id', $gymId)
+                    ->where('entity_type', $normalizedType)
+                    ->where('fy_code', '!=', 'GLOBAL')
+                    ->max('last_number');
+                if ($maxFy > $currentLast) {
+                    $currentLast = $maxFy;
+                }
+            }
+
+            $nextNum = $currentLast + 1;
 
             // 3. Update counter atomically
             DB::table('entity_sequences')
@@ -137,7 +154,7 @@ class SequentialIdService
                     'updated_at' => now(),
                 ]);
 
-            // 4. Format zero-padded to 4 digits (e.g. INV-26-27-0001; 10000+ grows to 5 digits naturally)
+            // 4. Format zero-padded to 4 digits (e.g. INV-26-27-0001; MEM0001; ENQ0001; 10000+ grows to 5 digits naturally)
             $paddedSeq = str_pad((string)$nextNum, 4, '0', STR_PAD_LEFT);
 
             if ($normalizedType === 'invoice') {
@@ -146,7 +163,8 @@ class SequentialIdService
                 return "{$prefix}-{$start2}-{$end2}-{$paddedSeq}";
             }
 
-            return "{$prefix}{$fyCode}{$paddedSeq}";
+            // Member & Enquiry: Format is PREFIX + 4 digits (e.g. MEM0001, ENQ0001) - no FY code, no FY reset
+            return "{$prefix}{$paddedSeq}";
         });
     }
 
@@ -159,7 +177,7 @@ class SequentialIdService
     }
 
     /**
-     * Generate next sequential Member Number (e.g. MEM260001).
+     * Generate next sequential Member Number (e.g. MEM0001).
      */
     public static function generateMemberNumber(int $gymId, $date = null): string
     {
@@ -167,7 +185,7 @@ class SequentialIdService
     }
 
     /**
-     * Generate next sequential Enquiry Number (e.g. ENQ260001).
+     * Generate next sequential Enquiry Number (e.g. ENQ0001).
      */
     public static function generateEnquiryNumber(int $gymId, $date = null): string
     {
@@ -186,15 +204,14 @@ class SequentialIdService
             $gymIds = [1];
         }
 
-        $currentFy = self::getFinancialYearCode();
         $currentInvoiceFy = self::getFinancialYearCode(null, true);
         $summary = [];
 
         foreach ($gymIds as $gymId) {
             $summary[$gymId] = [
                 'invoice' => self::seedEntityCounter($gymId, 'invoice', 'invoices', 'invoice_number', 'INV', $currentInvoiceFy),
-                'member' => self::seedEntityCounter($gymId, 'member', 'users', 'member_number', 'MEM', $currentFy),
-                'enquiry' => self::seedEntityCounter($gymId, 'enquiry', 'enquiries', 'enquiry_number', 'ENQ', $currentFy),
+                'member'  => self::seedEntityCounter($gymId, 'member', 'users', 'member_number', 'MEM', 'GLOBAL'),
+                'enquiry' => self::seedEntityCounter($gymId, 'enquiry', 'enquiries', 'enquiry_number', 'ENQ', 'GLOBAL'),
             ];
         }
 
@@ -206,23 +223,41 @@ class SequentialIdService
         $maxSeq = 0;
 
         try {
-            // Find records matching pattern: PREFIX + optional hyphens + FY + sequence (supports INV-26-27-0001, INV26270001, MEM260001)
+            // Find records matching pattern: PREFIX + optional hyphens + optional FY + sequence
             $records = DB::table($table)
                 ->where('gym_id', $gymId)
                 ->whereNotNull($column)
                 ->pluck($column);
 
-            $pattern = '/^' . preg_quote($prefix, '/') . '-?(\d{2})-?(\d{2})?-?(\d{4,})$/i';
+            $patternDirect = '/^' . preg_quote($prefix, '/') . '-?(\d{4,})$/i';
+            $patternWithFy = '/^' . preg_quote($prefix, '/') . '-?(\d{2})-?(\d{2})?-?(\d{4,})$/i';
 
             foreach ($records as $val) {
-                if (preg_match($pattern, trim((string)$val), $matches)) {
-                    $recordFy = !empty($matches[2]) ? ($matches[1] . $matches[2]) : $matches[1];
-                    $seqVal = (int)$matches[3];
-
-                    if ($recordFy === $currentFy && $seqVal > $maxSeq) {
+                $valStr = trim((string)$val);
+                if (preg_match($patternDirect, $valStr, $mDirect)) {
+                    $seqVal = (int)$mDirect[1];
+                    if ($seqVal > $maxSeq) {
                         $maxSeq = $seqVal;
                     }
+                } elseif (preg_match($patternWithFy, $valStr, $mFy)) {
+                    $recordFy = !empty($mFy[2]) ? ($mFy[1] . $mFy[2]) : $mFy[1];
+                    $seqVal = (int)$mFy[3];
+
+                    if ($currentFy === 'GLOBAL' || $recordFy === $currentFy) {
+                        if ($seqVal > $maxSeq) {
+                            $maxSeq = $seqVal;
+                        }
+                    }
                 }
+            }
+
+            // Also check existing entity_sequences rows
+            $maxDbSeq = (int)DB::table('entity_sequences')
+                ->where('gym_id', $gymId)
+                ->where('entity_type', $entityType)
+                ->max('last_number');
+            if ($maxDbSeq > $maxSeq) {
+                $maxSeq = $maxDbSeq;
             }
         } catch (\Throwable $e) {}
 

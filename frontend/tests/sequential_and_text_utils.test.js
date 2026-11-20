@@ -52,7 +52,10 @@ describe('Part 1: Indian Financial Year (FY) Code & Sequential ID Validation', (
     assert.equal(isSequentialId('INV26270001'), true);
     assert.equal(isSequentialId('INV27280001'), true);
     assert.equal(isSequentialId('INV260001'), true);
+    assert.equal(isSequentialId('MEM0001'), true);
+    assert.equal(isSequentialId('MEM0002'), true);
     assert.equal(isSequentialId('MEM260005'), true);
+    assert.equal(isSequentialId('ENQ0001'), true);
     assert.equal(isSequentialId('ENQ260012'), true);
     assert.equal(isSequentialId('INV2710000'), true); // 5 digits > 9999
     assert.equal(isSequentialId('INV-26-27-10000'), true);

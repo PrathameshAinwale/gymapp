@@ -29,12 +29,13 @@ class InvoiceController extends Controller
         $memberIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
         if ($memberIdInput) {
             $numericMemberId = (int)preg_replace('/[^0-9]/', '', (string)$memberIdInput);
-            if ($numericMemberId > 0 && !preg_match('/^MEM\d{2}/i', (string)$memberIdInput)) {
+            if ($numericMemberId > 0 && !preg_match('/^MEM/i', (string)$memberIdInput)) {
                 $query->where('user_id', $numericMemberId);
             } else {
                 $matchedUserId = User::where('gym_id', $gymId)
                     ->where(function ($q) use ($memberIdInput, $numericMemberId) {
                         $q->where('member_number', $memberIdInput)
+                          ->orWhere('member_number', 'MEM' . str_pad((string)$numericMemberId, 4, '0', STR_PAD_LEFT))
                           ->orWhere('legacy_id', $memberIdInput);
                         if ($numericMemberId > 0) {
                             $q->orWhere('id', $numericMemberId);
@@ -83,8 +84,8 @@ class InvoiceController extends Controller
             ], 422);
         }
 
-        $numericId = (int)preg_replace('/[^0-9]/', '', (string)$userIdInput);
-        $user = User::find($numericId);
+        $gymId = $this->resolveGymId($request);
+        $user = $this->resolveMemberUser($userIdInput, $gymId, $request->member_name ?? $request->memberName);
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -93,9 +94,9 @@ class InvoiceController extends Controller
         }
 
         $packageType = $request->package_type ?? $request->packageType ?? $request->category ?? 'Gym-Cardio';
-        $gymId = $this->resolveGymId($request) ?? $user->gym_id;
+        $resolvedGymId = $gymId ?? $user->gym_id;
 
-        $chainingData = \App\Services\PlanChainingService::calculatePlanDates($user->id, $packageType, $gymId);
+        $chainingData = \App\Services\PlanChainingService::calculatePlanDates($user->id, $packageType, $resolvedGymId);
 
         return response()->json([
             'success' => true,
@@ -139,26 +140,8 @@ class InvoiceController extends Controller
         $userIdInput = $request->user_id ?? $request->member_id ?? $request->memberId;
         $planIdInput = $request->plan_id ?? $request->planId;
 
-        // Clean and resolve user
-        $user = null;
-        if ($userIdInput) {
-            $numericId = (int)preg_replace('/[^0-9]/', '', (string)$userIdInput);
-            if ($numericId > 0) {
-                $user = User::find($numericId);
-            }
-            if (!$user) {
-                $cleanInput = trim((string)$userIdInput);
-                $user = User::where('member_number', $cleanInput)
-                    ->orWhere('member_number', 'MEM' . $numericId)
-                    ->orWhere('legacy_id', $cleanInput)
-                    ->orWhere('biometric_user_id', $cleanInput)
-                    ->first();
-            }
-        }
-        if (!$user && ($request->member_name || $request->memberName)) {
-            $name = $request->member_name ?? $request->memberName;
-            $user = User::where('name', 'like', "%{$name}%")->first();
-        }
+        // Clean and resolve user safely
+        $user = $this->resolveMemberUser($userIdInput, $gymId, $request->member_name ?? $request->memberName);
 
         if (!$user) {
             return response()->json([
@@ -698,33 +681,28 @@ class InvoiceController extends Controller
             $numericPlan = (int)preg_replace('/[^0-9]/', '', (string)($request->plan_id ?? $request->planId));
             if ($numericPlan > 0 && Plan::where('id', $numericPlan)->exists()) {
                 $invoiceUpdate['plan_id'] = $numericPlan;
+            } else {
+                $invoiceUpdate['plan_id'] = null;
             }
         }
 
         $userIdInput = $request->user_id ?? $request->userId ?? $request->member_id ?? $request->memberId;
-        if ($userIdInput) {
-            $targetUser = null;
-            $numericUser = (int)preg_replace('/[^0-9]/', '', (string)$userIdInput);
-            if ($numericUser > 0) {
-                $targetUser = User::find($numericUser);
-            }
-            if (!$targetUser) {
-                $cleanInput = trim((string)$userIdInput);
-                $targetUser = User::where('member_number', $cleanInput)
-                    ->orWhere('member_number', 'MEM' . $numericUser)
-                    ->orWhere('legacy_id', $cleanInput)
-                    ->orWhere('biometric_user_id', $cleanInput)
-                    ->first();
-            }
-            if (!$targetUser && ($request->filled('member_name') || $request->filled('memberName'))) {
-                $mName = trim((string)($request->member_name ?? $request->memberName));
-                if ($mName) {
-                    $targetUser = User::where('name', 'like', "%{$mName}%")->first();
-                }
-            }
+        $mName = trim((string)($request->member_name ?? $request->memberName));
+        if ($userIdInput || $mName) {
+            $targetUser = $this->resolveMemberUser($userIdInput, $invoice->gym_id, $mName);
             if ($targetUser) {
                 $invoiceUpdate['user_id'] = $targetUser->id;
             }
+        }
+
+        // Foreign Key Integrity Protection: Ensure the target user_id strictly exists in users table
+        $finalUserId = $invoiceUpdate['user_id'] ?? $invoice->user_id;
+        if (!$finalUserId || !User::where('id', $finalUserId)->exists()) {
+            $finalUserId = User::where('gym_id', $invoice->gym_id)->where('role', 'owner')->value('id')
+                ?? User::where('gym_id', $invoice->gym_id)->value('id')
+                ?? User::first()?->id
+                ?? 1;
+            $invoiceUpdate['user_id'] = $finalUserId;
         }
 
         if ($request->has('packages') || $request->has('items')) {
@@ -751,7 +729,7 @@ class InvoiceController extends Controller
         $planName = \App\Services\TextSanitizerService::toTitleCase($request->plan_name ?? $request->planName ?? ($invoice->plan?->name ?? 'Membership Fee'));
         $memberName = \App\Services\TextSanitizerService::toTitleCase($request->member_name ?? $request->memberName ?? ($invoice->user?->name ?? 'Member'));
 
-        DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount, $planName, $memberName) {
+        DB::transaction(function () use ($invoice, $invoiceUpdate, $amount, $request, $duesAmount, $planName, $memberName, $finalUserId) {
             $invoice->update($invoiceUpdate);
 
             // ══════════════════════════════════════════════════════════════
@@ -769,7 +747,7 @@ class InvoiceController extends Controller
                 'title' => "{$memberName} - {$planName}",
             ];
             if (isset($invoiceUpdate['user_id'])) {
-                $inflowData['user_id'] = $invoiceUpdate['user_id'];
+                $inflowData['user_id'] = $finalUserId;
             }
             if (isset($invoiceUpdate['created_by_name'])) {
                 $inflowData['created_by_name'] = $invoiceUpdate['created_by_name'];
@@ -788,7 +766,7 @@ class InvoiceController extends Controller
                     'gym_id' => $invoice->gym_id,
                     'type' => 'inflow',
                     'reference_no' => $invoice->invoice_number,
-                    'user_id' => $invoiceUpdate['user_id'] ?? $invoice->user_id,
+                    'user_id' => $finalUserId,
                     'category' => $invoiceUpdate['package_type'] ?? 'Membership Fee',
                     'created_by' => $invoice->created_by,
                     'created_by_name' => $invoice->created_by_name,
@@ -806,7 +784,7 @@ class InvoiceController extends Controller
             }
 
             // Update member user name and member profile dues if applicable
-            $targetUserId = $invoiceUpdate['user_id'] ?? $invoice->user_id;
+            $targetUserId = $finalUserId;
             $user = $invoice->user ?: \App\Models\User::find($targetUserId);
             if ($user) {
                 $userUpdates = [];

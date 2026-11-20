@@ -56,10 +56,10 @@ export function getFinancialYearCode(dateVal = null, fourDigitSpan = false) {
 
 /**
  * Checks if a string conforms to the sequential ID pattern for invoices, members, or enquiries.
- * Pattern: (INV|MEM|ENQ) + optional hyphens + 2 or 4 digit FY + 4+ digit sequence.
- * Examples: INV-26-27-0001, INV26270001, INV260001, MEM260005, ENQ260012
+ * Invoices use FY span format: INV-26-27-0001 (or legacy INV26270001).
+ * Members and enquiries use perpetual 4-digit sequence format: MEM0001, ENQ0001 (or legacy MEM260005, ENQ260012).
  */
 export function isSequentialId(idStr) {
   if (typeof idStr !== 'string') return false;
-  return /^(INV|MEM|ENQ)-?(\d{2})-?(\d{2})?-?(\d{4,})$/i.test(idStr.trim());
+  return /^(INV|MEM|ENQ)-?(\d{2})?-?(\d{2})?-?(\d{4,})$/i.test(idStr.trim());
 }
