@@ -137,12 +137,24 @@ class InvoicePdfService
     /**
      * Ensure an invoice has a valid stored PDF file and return its public URL.
      */
-    public static function ensurePdf(Invoice $invoice): string
+    public static function ensurePdf(Invoice $invoice, bool $force = false): string
     {
         $fileName = 'invoices/' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->invoice_number) . '.pdf';
+        $disk = Storage::disk('public');
         
-        // If file already exists and is non-empty, return existing public URL
-        if (Storage::disk('public')->exists($fileName) && Storage::disk('public')->size($fileName) > 200) {
+        $fileExists = $disk->exists($fileName) && $disk->size($fileName) > 200;
+        $isOutdated = false;
+        if ($fileExists && $invoice->updated_at) {
+            try {
+                $fileTime = $disk->lastModified($fileName);
+                if ($fileTime < $invoice->updated_at->timestamp) {
+                    $isOutdated = true;
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        // If file already exists, is non-empty, and has not been updated prior to invoice changes
+        if (!$force && $fileExists && !$isOutdated) {
             $url = asset('storage/' . $fileName);
             if ($invoice->invoice_url !== $url) {
                 $invoice->invoice_url = $url;
@@ -509,6 +521,14 @@ class InvoicePdfService
             $addText($tl, 40, $ty, 'F1', 7.5, 0.45, 0.45, 0.45);
             $ty -= 12;
         }
+
+        // Digital Seal Box (Shows Gym Name and Authorized Signatory; no individual person name)
+        $signatoryTitle = $gym?->signatory_text ?: 'Authorized Signatory';
+        $sealBoxY = $summaryBoxY + 2;
+        $drawRect(40, $sealBoxY, 240, 32, 0.97, 0.98, 0.98, true);
+        $drawRect(40, $sealBoxY, 240, 32, 0.85, 0.88, 0.88, false);
+        $addText($gymName, 48, $sealBoxY + 19, 'F2', 8.5, 0.02, 0.45, 0.25);
+        $addText($signatoryTitle, 48, $sealBoxY + 8, 'F1', 7.5, 0.4, 0.4, 0.4);
 
         // Push final page stream
         $pages[] = $currentPageStream;

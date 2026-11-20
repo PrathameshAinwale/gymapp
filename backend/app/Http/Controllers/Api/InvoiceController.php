@@ -826,37 +826,19 @@ class InvoiceController extends Controller
         } catch (\Throwable $e) {}
 
         $invoice->refresh();
-        $invoice->load(['user.memberProfile', 'plan', 'creator']);
+        $invoice->load(['gym', 'user.memberProfile', 'plan', 'creator']);
+
+        // Auto-regenerate official stored PDF binary with updated invoice fields
+        try {
+            \App\Services\InvoicePdfService::saveToFile($invoice);
+        } catch (\Throwable $pdfError) {
+            \Illuminate\Support\Facades\Log::warning("Failed to auto-regenerate PDF for invoice #{$invoice->invoice_number}: " . $pdfError->getMessage());
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Invoice and revenue billing updated successfully.',
-            'data' => [
-                'id' => $invoice->invoice_number,
-                'numericId' => $invoice->id,
-                'memberId' => $invoice->user_id ? ('mem-' . $invoice->user_id) : null,
-                'memberName' => $invoice->user?->name ?? $memberName,
-                'memberPhone' => $invoice->user?->phone,
-                'memberEmail' => $invoice->user?->email,
-                'planId' => $invoice->plan_id ? ('plan-' . $invoice->plan_id) : ($invoice->plan?->id ? ('plan-' . $invoice->plan->id) : null),
-                'planName' => $planName,
-                'packageType' => $invoice->package_type,
-                'startDate' => $invoice->start_date instanceof \DateTimeInterface ? $invoice->start_date->format('Y-m-d') : ($invoice->start_date ? (string)$invoice->start_date : null),
-                'expiryDate' => $invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : ($invoice->end_date ? (string)$invoice->end_date : null),
-                'endDate' => $invoice->end_date instanceof \DateTimeInterface ? $invoice->end_date->format('Y-m-d') : ($invoice->end_date ? (string)$invoice->end_date : null),
-                'amount' => (float)$invoice->amount,
-                'totalAmount' => (float)($invoice->total_amount ?? ($amount + $duesAmount)),
-                'pendingAmount' => $duesAmount,
-                'duesAmount' => $duesAmount,
-                'date' => $invoice->date instanceof \DateTimeInterface ? $invoice->date->format('Y-m-d') : (string)$invoice->date,
-                'dueDate' => $invoice->due_date instanceof \DateTimeInterface ? $invoice->due_date->format('Y-m-d') : ($invoice->due_date ? (string)$invoice->due_date : null),
-                'paymentMethod' => $invoice->payment_method,
-                'status' => $invoice->status,
-                'invoiceUrl' => $invoice->invoice_url ?? '#',
-                'createdBy' => $invoice->created_by,
-                'createdByName' => $invoice->created_by_name ?: ($invoice->creator?->name ?? 'Staff'),
-                'creatorRole' => $invoice->creator?->role ? ucfirst($invoice->creator->role) : 'Owner',
-            ],
+            'data' => self::formatInvoiceRecord($invoice),
         ]);
     }
 

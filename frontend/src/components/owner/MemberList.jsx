@@ -2054,8 +2054,8 @@ export const MemberList = ({
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Digitally Verified</span>
                     </div>
-                    <div className="font-bold text-slate-800 text-xs mt-0.5">Authorized Signatory</div>
-                    <div className="text-2xs text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                    <div className="font-bold text-slate-800 text-xs mt-0.5">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                    <div className="text-2xs text-slate-500 font-medium">Authorized Signatory</div>
                   </div>
                 </div>
               </div>

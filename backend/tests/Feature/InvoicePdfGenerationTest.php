@@ -123,5 +123,52 @@ class InvoicePdfGenerationTest extends TestCase
             $this->assertLessThanOrEqual(100.0, $width);
         }
     }
+
+    public function test_signature_box_shows_gym_name_and_authorized_signatory_without_person_name(): void
+    {
+        $this->invoice->created_by_name = 'Staff Person Prathamesh';
+        $this->invoice->saveQuietly();
+
+        $pdf = InvoicePdfService::generate($this->invoice);
+
+        // Assert Gym Name and Authorized Signatory are in PDF
+        $this->assertStringContainsString('ARCHFIT FLAGSHIP', $pdf);
+        $this->assertStringContainsString('Authorized Signatory', $pdf);
+
+        // Assert individual person's name is NOT in the digital seal signature area
+        $this->assertStringNotContainsString('Staff Person Prathamesh', $pdf);
+    }
+
+    public function test_editing_invoice_regenerates_pdf_with_updated_data(): void
+    {
+        $owner = User::factory()->create([
+            'role' => 'owner',
+            'gym_id' => 1,
+            'name' => 'Gym Owner',
+            'email' => 'owner@example.test',
+        ]);
+
+        // 1. Initial PDF generation
+        InvoicePdfService::saveToFile($this->invoice);
+        $cleanNo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $this->invoice->invoice_number);
+        $initialPdf = \Illuminate\Support\Facades\Storage::disk('public')->get("invoices/{$cleanNo}.pdf");
+        $this->assertStringContainsString('INR 5,000.00', $initialPdf);
+
+        // 2. Edit invoice via API
+        $response = $this->actingAs($owner, 'sanctum')->putJson("/api/v1/invoices/{$this->invoice->invoice_number}", [
+            'amount' => 8500,
+            'total_amount' => 8500,
+            'pending_amount' => 0,
+            'package_type' => 'Platinum Annual Fitness',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.amount', 8500);
+
+        // 3. Verify PDF file on disk is automatically regenerated with updated data
+        $updatedPdf = \Illuminate\Support\Facades\Storage::disk('public')->get("invoices/{$cleanNo}.pdf");
+        $this->assertStringContainsString('INR 8,500.00', $updatedPdf);
+        $this->assertStringNotContainsString('INR 5,000.00', $updatedPdf);
+    }
 }
 

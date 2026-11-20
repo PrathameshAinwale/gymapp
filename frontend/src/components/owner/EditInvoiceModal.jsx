@@ -24,6 +24,8 @@ import {
   preventNonNumericKey
 } from '../../utils/validation';
 import { withTitleCase } from '../../utils/textUtils';
+import { api } from '../../services/api';
+import { generateInvoicePdf } from '../../utils/invoicePdfGenerator';
 import {
   IndianRupee,
   Calendar,
@@ -705,6 +707,22 @@ export const EditInvoiceModal = ({
       };
 
       const updated = await updateInvoice(invoice.id || invoice.numericId || invoice.invoiceNumber, payload);
+
+      // Background sync: Ensure updated PDF blob is uploaded to backend invoice storage
+      try {
+        const invTarget = updated?.invoiceNumber || updated?.id || invoice.id || invoice.invoiceNumber;
+        const mergedForPdf = { ...invoice, ...payload, ...updated };
+        const memberObj = members?.find(m => String(m.id) === String(mergedForPdf.memberId || mergedForPdf.userId)) || { name: mergedForPdf.memberName, phone: mergedForPdf.memberPhone };
+        const { blob, fileName } = generateInvoicePdf({ invoice: mergedForPdf, member: memberObj, gymInfo });
+        if (blob && invTarget && api.invoices?.uploadPdf) {
+          const pdfFormData = new FormData();
+          pdfFormData.append('pdf', blob, fileName || `Invoice_${invTarget}.pdf`);
+          api.invoices.uploadPdf(invTarget, pdfFormData).catch(() => {});
+        }
+      } catch (pdfErr) {
+        console.warn('PDF re-upload after edit note:', pdfErr);
+      }
+
       onUpdated?.(updated);
       onClose();
     } catch (err) {

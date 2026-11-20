@@ -2545,9 +2545,9 @@ export const InvoicesPage = ({
                     <span>Digitally Verified</span>
                   </div>
                   <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {resolveCreatorName(selectedInvoice.createdByName || selectedInvoice.created_by_name, selectedInvoice)}
+                    {gymInfo?.name || 'Authorized Fitness Center'}
                   </div>
-                  <div className="text-2xs text-slate-400">{gymInfo?.name || 'Authorized Fitness Center'}</div>
+                  <div className="text-2xs text-slate-500 font-medium">Authorized Signatory</div>
                 </div>
               </div>
             </div>

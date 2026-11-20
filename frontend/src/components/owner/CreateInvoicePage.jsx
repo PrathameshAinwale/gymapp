@@ -1707,6 +1707,21 @@ export const CreateInvoicePage = ({
         });
 
       setCompletedInvoiceData(mappedReceipt);
+
+      // Background sync: Ensure rendered PDF blob is uploaded to backend invoice storage
+      try {
+        const invTarget = backendInvoiceRef || mappedReceipt?.invoiceNumber;
+        if (invTarget && api.invoices?.uploadPdf) {
+          const { blob, fileName } = generateInvoicePdf({ invoice: mappedReceipt, member: currentMember, gymInfo });
+          if (blob) {
+            const pdfFormData = new FormData();
+            pdfFormData.append('pdf', blob, fileName || `Invoice_${invTarget}.pdf`);
+            api.invoices.uploadPdf(invTarget, pdfFormData).catch(() => {});
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('Background PDF sync note:', pdfErr);
+      }
     } catch (err) {
       console.error('Create invoice error:', err);
       addToast(`Failed to create invoice: ${err.message}`, 'error');

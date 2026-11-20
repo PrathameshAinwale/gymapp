@@ -1103,27 +1103,21 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const wrappedPolicies = policyParagraphs.map((p) => wrapAndBreakText(doc, p, policyColW));
   const policyTextH = wrappedPolicies.reduce((sum, lines) => sum + lines.length * 3.5 + 1, 0) + 6;
 
-  // Right Digital Seal Lines
+  // Right Digital Seal Lines (Shows Gym Name & Authorized Signatory; no individual person name)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   const sealGymTitle = wrapAndBreakText(doc, (gymName || 'AUTHORIZED GYM').toUpperCase(), sealW - 6);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  const sealCreatorLines = wrapAndBreakText(doc, createdByName, sealW - 6);
-
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
+  doc.setFontSize(7);
   const signatoryTitle = gymInfo?.signatory_text || gymInfo?.signatoryText || 'Authorized Signatory';
   const signatoryLines = wrapAndBreakText(doc, signatoryTitle, sealW - 6);
 
   const sealH = Math.max(
-    6 +
-    sealGymTitle.length * 3.5 +
-    4 + // 'Verified Digital Receipt'
-    sealCreatorLines.length * 3.5 +
-    signatoryLines.length * 3 +
-    5,
+    8 +
+    sealGymTitle.length * 4.2 +
+    signatoryLines.length * 3.8 +
+    6,
     22
   );
 
@@ -1154,33 +1148,21 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
     pY += lines.length * 3.5 + 1;
   });
 
-  // Render Digital Seal Box on Right (Grows dynamically to show all lines)
+  // Render Digital Seal Box on Right (Grows dynamically to show Gym Name and Authorized Signatory)
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
   doc.roundedRect(sealX, curY - 2, sealW, sealH, 2, 2, 'FD');
 
-  let sY = curY + 3.5;
+  let sY = curY + 4.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(5, 150, 105);
   doc.text(sealGymTitle, sealX + sealW / 2, sY, { align: 'center' });
-  sY += sealGymTitle.length * 3.5;
-
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Verified Digital Receipt', sealX + sealW / 2, sY, { align: 'center' });
-  sY += 4;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(15, 23, 42);
-  doc.text(sealCreatorLines, sealX + sealW / 2, sY, { align: 'center' });
-  sY += sealCreatorLines.length * 3.5;
+  sY += sealGymTitle.length * 4.2 + 2;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(7);
+  doc.setTextColor(71, 85, 105);
   doc.text(signatoryLines, sealX + sealW / 2, sY, { align: 'center' });
 
   // 6. Running Document Footer & Page Numbers stamped across all pages
