@@ -156,10 +156,10 @@ class LegacyIdRenumberTest extends TestCase
             'date' => Carbon::create(2026, 6, 10, 10, 0, 0, 'Asia/Kolkata'),
         ]);
 
-        // 2. Already Sequential Invoice 2 created on July 1 (INV260001)
+        // 2. Already Sequential Invoice 2 created on July 1 (INV26270001)
         $inv2 = $this->createInvoice([
             'gym_id' => $this->gym1->id,
-            'invoice_number' => 'INV260001',
+            'invoice_number' => 'INV26270001',
             'amount' => 2000,
             'total_amount' => 2000,
             'paid_amount' => 2000,
@@ -210,7 +210,7 @@ class LegacyIdRenumberTest extends TestCase
 
         // Initial counter was 1 (from already sequential records)
         DB::table('entity_sequences')->insert([
-            ['gym_id' => $this->gym1->id, 'entity_type' => 'invoice', 'fy_code' => '26', 'last_number' => 1, 'created_at' => now(), 'updated_at' => now()],
+            ['gym_id' => $this->gym1->id, 'entity_type' => 'invoice', 'fy_code' => '2627', 'last_number' => 1, 'created_at' => now(), 'updated_at' => now()],
             ['gym_id' => $this->gym1->id, 'entity_type' => 'member', 'fy_code' => '26', 'last_number' => 1, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
@@ -219,16 +219,16 @@ class LegacyIdRenumberTest extends TestCase
         $this->assertEquals(0, $exitCode);
 
         // Verification assertions:
-        // 1. Inv 2 (INV260001) was preserved and NOT renumbered
-        $this->assertEquals('INV260001', $inv2->fresh()->invoice_number);
+        // 1. Inv 2 (INV26270001) was preserved and NOT renumbered
+        $this->assertEquals('INV26270001', $inv2->fresh()->invoice_number);
 
-        // 2. Inv 1 avoided collision with INV260001 and received INV260002
+        // 2. Inv 1 avoided collision with INV26270001 and received INV26270002
         $freshInv1 = $inv1->fresh();
-        $this->assertEquals('INV260002', $freshInv1->invoice_number);
+        $this->assertEquals('INV26270002', $freshInv1->invoice_number);
         $this->assertEquals('INV-OLD-111', $freshInv1->legacy_id);
 
         // 3. Revenue billing reference updated in sync
-        $this->assertEquals('INV260002', $rev1->fresh()->reference_no);
+        $this->assertEquals('INV26270002', $rev1->fresh()->reference_no);
 
         // 4. Member 1 received MEM260003 (avoiding collision with MEM260001 and following memberGym1)
         $this->assertEquals('MEM260003', $member1->fresh()->member_number);
@@ -244,7 +244,7 @@ class LegacyIdRenumberTest extends TestCase
         $this->assertEquals('ENQ260001', $convertedProfile->fresh()->converted_from_enquiry_number);
 
         // 7. Counter store updated to 2 (never lowered)
-        $invSeq = DB::table('entity_sequences')->where('gym_id', $this->gym1->id)->where('entity_type', 'invoice')->where('fy_code', '26')->first();
+        $invSeq = DB::table('entity_sequences')->where('gym_id', $this->gym1->id)->where('entity_type', 'invoice')->where('fy_code', '2627')->first();
         $this->assertGreaterThanOrEqual(2, $invSeq->last_number);
 
         $memSeq = DB::table('entity_sequences')->where('gym_id', $this->gym1->id)->where('entity_type', 'member')->where('fy_code', '26')->first();
@@ -281,9 +281,9 @@ class LegacyIdRenumberTest extends TestCase
 
         Artisan::call('gym:renumber-legacy-ids', ['--apply' => true]);
 
-        // Both gyms start from INV260001 independently
-        $this->assertEquals('INV260001', $invGym1->fresh()->invoice_number);
-        $this->assertEquals('INV260001', $invGym2->fresh()->invoice_number);
+        // Both gyms start from INV26270001 independently
+        $this->assertEquals('INV26270001', $invGym1->fresh()->invoice_number);
+        $this->assertEquals('INV26270001', $invGym2->fresh()->invoice_number);
     }
 
     /**
@@ -321,7 +321,7 @@ class LegacyIdRenumberTest extends TestCase
         Artisan::call('gym:renumber-legacy-ids', ['--apply' => true, '--gym' => $this->gym1->id]);
 
         $newInvId = $inv->fresh()->invoice_number;
-        $this->assertEquals('INV260001', $newInvId);
+        $this->assertEquals('INV26270001', $newInvId);
         $this->assertEquals('INV-ORIG-987', $inv->fresh()->legacy_id);
 
         $newMemId = $mem->fresh()->member_number;
@@ -366,7 +366,7 @@ class LegacyIdRenumberTest extends TestCase
         Artisan::call('gym:renumber-legacy-ids', ['--apply' => true, '--gym' => $this->gym1->id]);
         $firstInv = Invoice::first();
         $firstLogCount = IdMigrationLog::count();
-        $this->assertEquals('INV260001', $firstInv->invoice_number);
+        $this->assertEquals('INV26270001', $firstInv->invoice_number);
         $this->assertGreaterThanOrEqual(1, $firstLogCount);
 
         // Second apply
@@ -375,7 +375,7 @@ class LegacyIdRenumberTest extends TestCase
         $secondLogCount = IdMigrationLog::count();
 
         // Exactly the same
-        $this->assertEquals('INV260001', $secondInv->invoice_number);
+        $this->assertEquals('INV26270001', $secondInv->invoice_number);
         $this->assertEquals($firstLogCount, $secondLogCount);
     }
 
@@ -406,13 +406,13 @@ class LegacyIdRenumberTest extends TestCase
 
         // Apply migration
         Artisan::call('gym:renumber-legacy-ids', ['--apply' => true, '--gym' => $this->gym1->id]);
-        $this->assertEquals('INV260001', $inv->fresh()->invoice_number);
-        $this->assertEquals('INV260001', $rev->fresh()->reference_no);
+        $this->assertEquals('INV26270001', $inv->fresh()->invoice_number);
+        $this->assertEquals('INV26270001', $rev->fresh()->reference_no);
         $this->assertGreaterThanOrEqual(1, IdMigrationLog::count());
 
         // Dry-run rollback does not restore yet
         Artisan::call('gym:renumber-legacy-ids', ['--rollback' => true, '--gym' => $this->gym1->id]);
-        $this->assertEquals('INV260001', $inv->fresh()->invoice_number);
+        $this->assertEquals('INV26270001', $inv->fresh()->invoice_number);
 
         // Apply rollback
         $exitRollback = Artisan::call('gym:renumber-legacy-ids', [

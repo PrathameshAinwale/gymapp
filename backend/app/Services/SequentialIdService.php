@@ -10,16 +10,18 @@ class SequentialIdService
     /**
      * Compute Financial Year code based on Asia/Kolkata (IST) timezone.
      * Indian FY starts 1 April and ends 31 March.
-     * FY code is the last 2 digits of the year in which the FY starts.
+     * FY code is either:
+     * - 2 digits (e.g. '26' for FY 2026-27), or
+     * - 4-digit span (e.g. '2627' for FY 2026-27, '2728' for FY 2027-28)
      *
      * Examples:
-     * - 2026-03-31 23:59:59 IST -> FY25 (starts 1 Apr 2025)
-     * - 2026-04-01 00:00:00 IST -> FY26 (starts 1 Apr 2026)
-     * - 2026-11-19 IST          -> FY26
-     * - 2027-03-31 23:59:59 IST -> FY26
-     * - 2027-04-01 00:00:00 IST -> FY27
+     * - 2026-03-31 23:59:59 IST -> FY25 (starts 1 Apr 2025) / span '2526'
+     * - 2026-04-01 00:00:00 IST -> FY26 (starts 1 Apr 2026) / span '2627'
+     * - 2026-11-19 IST          -> FY26 / span '2627'
+     * - 2027-03-31 23:59:59 IST -> FY26 / span '2627'
+     * - 2027-04-01 00:00:00 IST -> FY27 / span '2728'
      */
-    public static function getFinancialYearCode($date = null): string
+    public static function getFinancialYearCode($date = null, bool $fourDigitSpan = false): string
     {
         $ist = self::parseDateToIst($date);
 
@@ -28,7 +30,14 @@ class SequentialIdService
 
         $fyStartYear = ($month >= 4) ? $year : ($year - 1);
 
-        return substr((string)$fyStartYear, -2);
+        $start2 = substr((string)$fyStartYear, -2);
+
+        if ($fourDigitSpan) {
+            $end2 = substr((string)($fyStartYear + 1), -2);
+            return "{$start2}{$end2}";
+        }
+
+        return $start2;
     }
 
     /**
@@ -80,7 +89,8 @@ class SequentialIdService
     {
         $gymId = max(1, $gymId);
         $entityType = strtolower(trim($entityType));
-        $fyCode = self::getFinancialYearCode($date);
+        $isInvoice = in_array($entityType, ['invoice', 'inv'], true);
+        $fyCode = self::getFinancialYearCode($date, $isInvoice);
 
         $prefix = match ($entityType) {
             'invoice', 'inv' => 'INV',
@@ -135,7 +145,7 @@ class SequentialIdService
     }
 
     /**
-     * Generate next sequential Invoice Number (e.g. INV260001).
+     * Generate next sequential Invoice Number (e.g. INV26270001).
      */
     public static function generateInvoiceNumber(int $gymId, $date = null): string
     {
@@ -171,11 +181,12 @@ class SequentialIdService
         }
 
         $currentFy = self::getFinancialYearCode();
+        $currentInvoiceFy = self::getFinancialYearCode(null, true);
         $summary = [];
 
         foreach ($gymIds as $gymId) {
             $summary[$gymId] = [
-                'invoice' => self::seedEntityCounter($gymId, 'invoice', 'invoices', 'invoice_number', 'INV', $currentFy),
+                'invoice' => self::seedEntityCounter($gymId, 'invoice', 'invoices', 'invoice_number', 'INV', $currentInvoiceFy),
                 'member' => self::seedEntityCounter($gymId, 'member', 'users', 'member_number', 'MEM', $currentFy),
                 'enquiry' => self::seedEntityCounter($gymId, 'enquiry', 'enquiries', 'enquiry_number', 'ENQ', $currentFy),
             ];
@@ -189,13 +200,13 @@ class SequentialIdService
         $maxSeq = 0;
 
         try {
-            // Find records matching pattern: PREFIX + 2-digit FY + 4+ digit sequence
+            // Find records matching pattern: PREFIX + 2 to 4 digit FY + 4+ digit sequence
             $records = DB::table($table)
                 ->where('gym_id', $gymId)
                 ->whereNotNull($column)
                 ->pluck($column);
 
-            $pattern = '/^' . preg_quote($prefix, '/') . '(\d{2})(\d{4,})$/i';
+            $pattern = '/^' . preg_quote($prefix, '/') . '(\d{2,4})(\d{4,})$/i';
 
             foreach ($records as $val) {
                 if (preg_match($pattern, trim((string)$val), $matches)) {

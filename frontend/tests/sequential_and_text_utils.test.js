@@ -36,7 +36,19 @@ describe('Part 1: Indian Financial Year (FY) Code & Sequential ID Validation', (
     assert.equal(fy, '27');
   });
 
+  test('Financial Year 4-digit span for Invoices (e.g. 2627 for FY26-27, 2728 for FY27-28)', () => {
+    // Current FY (2026-2027) -> '2627'
+    const fy2627 = getFinancialYearCode('2026-11-20T10:00:00+05:30', true);
+    assert.equal(fy2627, '2627');
+
+    // Next FY boundary (1 Apr 2027) -> '2728'
+    const fy2728 = getFinancialYearCode('2027-04-01T00:00:00+05:30', true);
+    assert.equal(fy2728, '2728');
+  });
+
   test('Sequential ID format verification', () => {
+    assert.equal(isSequentialId('INV26270001'), true);
+    assert.equal(isSequentialId('INV27280001'), true);
     assert.equal(isSequentialId('INV260001'), true);
     assert.equal(isSequentialId('MEM260005'), true);
     assert.equal(isSequentialId('ENQ260012'), true);

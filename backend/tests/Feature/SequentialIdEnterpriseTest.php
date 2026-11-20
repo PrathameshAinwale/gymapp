@@ -65,17 +65,18 @@ class SequentialIdEnterpriseTest extends TestCase
     public function test_sequence_increments_correctly_for_invoice_member_and_enquiry()
     {
         $currentFy = SequentialIdService::getFinancialYearCode();
+        $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
 
-        // Invoices
+        // Invoices (uses 4-digit FY span e.g. INV26270001)
         $inv1 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $inv2 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $inv3 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
 
-        $this->assertEquals("INV{$currentFy}0001", $inv1);
-        $this->assertEquals("INV{$currentFy}0002", $inv2);
-        $this->assertEquals("INV{$currentFy}0003", $inv3);
+        $this->assertEquals("INV{$currentInvoiceFy}0001", $inv1);
+        $this->assertEquals("INV{$currentInvoiceFy}0002", $inv2);
+        $this->assertEquals("INV{$currentInvoiceFy}0003", $inv3);
 
-        // Members
+        // Members (uses 2-digit FY e.g. MEM260001)
         $mem1 = SequentialIdService::generateMemberNumber($this->gymA->id);
         $mem2 = SequentialIdService::generateMemberNumber($this->gymA->id);
 
@@ -146,11 +147,12 @@ class SequentialIdEnterpriseTest extends TestCase
         $gymAMem4 = SequentialIdService::generateMemberNumber($this->gymA->id);
         $this->assertEquals("MEM{$currentFy}0004", $gymAMem4);
 
-        // Invoices isolation
+        // Invoices isolation (uses 4-digit FY span e.g. INV26270001)
+        $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
         $gymAInv1 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $gymBInv1 = SequentialIdService::generateInvoiceNumber($this->gymB->id);
-        $this->assertEquals("INV{$currentFy}0001", $gymAInv1);
-        $this->assertEquals("INV{$currentFy}0001", $gymBInv1);
+        $this->assertEquals("INV{$currentInvoiceFy}0001", $gymAInv1);
+        $this->assertEquals("INV{$currentInvoiceFy}0001", $gymBInv1);
 
         // Enquiries isolation
         $gymAEnq1 = SequentialIdService::generateEnquiryNumber($this->gymA->id);
@@ -241,21 +243,21 @@ class SequentialIdEnterpriseTest extends TestCase
      */
     public function test_counter_restarts_at_0001_in_new_fy_and_cross_fy_conversion()
     {
-        // Issue last invoice of FY26
+        // Issue last invoice of FY26 (FY 2026-27 -> INV26270001)
         $invFY26 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2026-11-19 12:00:00');
-        $this->assertEquals('INV260001', $invFY26);
+        $this->assertEquals('INV26270001', $invFY26);
 
-        // Issue first invoice of FY27 (1 Apr 2027)
+        // Issue first invoice of FY27 (1 Apr 2027 -> FY 2027-28 -> INV27280001)
         $invFY27_1 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-04-01 09:00:00');
-        $this->assertEquals('INV270001', $invFY27_1);
+        $this->assertEquals('INV27280001', $invFY27_1);
 
         // Subsequent invoice in FY27 continues
         $invFY27_2 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-04-02 10:00:00');
-        $this->assertEquals('INV270002', $invFY27_2);
+        $this->assertEquals('INV27280002', $invFY27_2);
 
         // Old FY26 counter is not altered: another back-dated entry in FY26 continues FY26 sequence
         $invFY26_2 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-03-15 12:00:00');
-        $this->assertEquals('INV260002', $invFY26_2);
+        $this->assertEquals('INV26270002', $invFY26_2);
 
         // Cross FY Conversion:
         // Enquiry created on 15 Feb 2027 (FY26) -> ENQ260001
@@ -273,7 +275,7 @@ class SequentialIdEnterpriseTest extends TestCase
     public function test_concurrency_safe_unique_number_generation()
     {
         $numbers = [];
-        $currentFy = SequentialIdService::getFinancialYearCode();
+        $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
 
         for ($i = 0; $i < 20; $i++) {
             $num = SequentialIdService::generateInvoiceNumber($this->gymA->id);
@@ -281,8 +283,8 @@ class SequentialIdEnterpriseTest extends TestCase
         }
 
         $this->assertCount(20, array_unique($numbers), 'All 20 generated invoice numbers must be unique');
-        $this->assertEquals("INV{$currentFy}0001", $numbers[0]);
-        $this->assertEquals("INV{$currentFy}0020", $numbers[19]);
+        $this->assertEquals("INV{$currentInvoiceFy}0001", $numbers[0]);
+        $this->assertEquals("INV{$currentInvoiceFy}0020", $numbers[19]);
     }
 
     /**

@@ -3,10 +3,15 @@
  * Indian FY starts 1 April and ends 31 March.
  * Calculated strictly in Asia/Kolkata (IST) timezone (+05:30).
  *
- * 1 Apr 2026 to 31 Mar 2027 -> '26'
- * 1 Apr 2027 to 31 Mar 2028 -> '27'
+ * 1 Apr 2026 to 31 Mar 2027:
+ * - standard (2-digit): '26'
+ * - fourDigitSpan (4-digit): '2627'
+ *
+ * 1 Apr 2027 to 31 Mar 2028:
+ * - standard (2-digit): '27'
+ * - fourDigitSpan (4-digit): '2728'
  */
-export function getFinancialYearCode(dateVal = null) {
+export function getFinancialYearCode(dateVal = null, fourDigitSpan = false) {
   let dateObj;
   if (!dateVal) {
     dateObj = new Date();
@@ -39,15 +44,22 @@ export function getFinancialYearCode(dateVal = null) {
   }
 
   const fyStartYear = month >= 4 ? year : year - 1;
-  return String(fyStartYear).slice(-2);
+  const start2 = String(fyStartYear).slice(-2);
+
+  if (fourDigitSpan) {
+    const end2 = String(fyStartYear + 1).slice(-2);
+    return `${start2}${end2}`;
+  }
+
+  return start2;
 }
 
 /**
  * Checks if a string conforms to the sequential ID pattern for invoices, members, or enquiries.
- * Pattern: (INV|MEM|ENQ) + 2-digit FY + 4+ digit sequence.
- * Examples: INV260001, MEM260005, ENQ260012
+ * Pattern: (INV|MEM|ENQ) + 2 or 4 digit FY + 4+ digit sequence.
+ * Examples: INV26270001, INV260001, MEM260005, ENQ260012
  */
 export function isSequentialId(idStr) {
   if (typeof idStr !== 'string') return false;
-  return /^(INV|MEM|ENQ)\d{2}\d{4,}$/i.test(idStr.trim());
+  return /^(INV|MEM|ENQ)\d{2,4}\d{4,}$/i.test(idStr.trim());
 }

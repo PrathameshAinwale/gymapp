@@ -440,10 +440,8 @@ class GymClassController extends Controller
         $result = DB::transaction(function () use (
             $cls, $memberUser, $amount, $paymentMethod, $today, $creatorId, $creatorName, $existing
         ) {
-            // Generate unique sequential invoice number
-            do {
-                $invoiceNo = 'INV-' . date('Y') . '-' . rand(1000, 9999);
-            } while (Invoice::where('invoice_number', $invoiceNo)->exists());
+            // Generate official sequential invoice number
+            $invoiceNo = \App\Services\SequentialIdService::generateInvoiceNumber($cls->gym_id ?? 1, $today);
 
             $itemTitle = "Class Batch: {$cls->name}";
             $items = [

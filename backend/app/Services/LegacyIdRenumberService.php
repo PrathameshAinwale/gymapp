@@ -15,10 +15,10 @@ use Illuminate\Support\Str;
 class LegacyIdRenumberService
 {
     /**
-     * Pattern matcher for sequential entity IDs (e.g. INV260001, MEM260001, ENQ260001).
-     * Prefix: 3 uppercase letters, FY: 2 digits, Sequence: 4 or more digits.
+     * Pattern matcher for sequential entity IDs (e.g. INV26270001, MEM260001, ENQ260001).
+     * Invoice supports 2 to 4 digit FY (e.g. INV26270001 or INV260001). Member/Enquiry use 2-digit FY.
      */
-    public const PATTERN_INVOICE = '/^INV(\d{2})(\d{4,})$/i';
+    public const PATTERN_INVOICE = '/^INV(\d{2,4})(\d{4,})$/i';
     public const PATTERN_MEMBER  = '/^MEM(\d{2})(\d{4,})$/i';
     public const PATTERN_ENQUIRY = '/^ENQ(\d{2})(\d{4,})$/i';
 
@@ -158,11 +158,11 @@ class LegacyIdRenumberService
         $sampleMappings = [];
         $counterChanges = [];
 
-        // Group invoices by Indian Financial Year (strict IST)
+        // Group invoices by Indian Financial Year (strict IST) using 4-digit span code (e.g. 2627)
         $byFy = [];
         foreach ($invoices as $inv) {
             $fyDate = $inv->date ?: $inv->created_at;
-            $fyCode = SequentialIdService::getFinancialYearCode($fyDate);
+            $fyCode = SequentialIdService::getFinancialYearCode($fyDate, true);
             $byFy[$fyCode][] = $inv;
         }
 
