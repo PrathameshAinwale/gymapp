@@ -505,6 +505,8 @@ class InvoiceController extends Controller
             'id' => $inv->invoice_number,
             'numericId' => $inv->id,
             'gymId' => $inv->gym_id,
+            'gymName' => $inv->gym?->name,
+            'gymLogo' => $inv->gym?->logo,
             'invoiceNumber' => $inv->invoice_number,
             'invoice_number' => $inv->invoice_number,
             'legacyId' => $inv->legacy_id,

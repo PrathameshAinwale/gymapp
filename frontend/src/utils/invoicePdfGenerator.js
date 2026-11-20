@@ -276,6 +276,42 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   const pdfCurrencySymbol = (!gymInfo?.currency || gymInfo.currency === '₹' || gymInfo.currency.includes('â')) ? 'Rs.' : gymInfo.currency;
   const taxRate = Number(invoice?.gstRate ?? invoice?.taxRate ?? gymInfo?.tax_rate ?? gymInfo?.taxRate ?? 18);
 
+  // Gym Brand Logo resolution (handles base64 data URIs, DOM image cache, and localStorage fallback)
+  let resolvedLogo =
+    gymInfo?.logo ||
+    gymInfo?.gymLogo ||
+    invoice?.gymLogo ||
+    invoice?.gym_logo ||
+    invoice?.gym?.logo ||
+    '';
+
+  if (!resolvedLogo && typeof window !== 'undefined') {
+    try {
+      const storedGym = JSON.parse(localStorage.getItem('pulsefit_gymInfo') || '{}');
+      if (storedGym?.logo) {
+        resolvedLogo = storedGym.logo;
+      }
+    } catch (_) {}
+  }
+
+  if (typeof document !== 'undefined' && resolvedLogo && typeof resolvedLogo === 'string' && !resolvedLogo.startsWith('data:')) {
+    try {
+      const match = Array.from(document.images).find(
+        (img) => img.src === resolvedLogo || (resolvedLogo.length > 5 && img.src.includes(resolvedLogo))
+      );
+      if (match && match.complete && match.naturalWidth > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = match.naturalWidth;
+        canvas.height = match.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(match, 0, 0);
+        resolvedLogo = canvas.toDataURL('image/png');
+      } else if (match) {
+        resolvedLogo = match;
+      }
+    } catch (_) {}
+  }
+
   const isProductSale = Boolean(
     invoice?.isProductSale ||
     invoice?.invoiceType === 'product' ||
@@ -394,44 +430,112 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
   // 1. BRAND & RECEIPT HEADER
   let curY = layout.curY;
 
-  // Gym Monogram Logo Mark
-  const monogram = (gymName || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || (gymName ? gymName.slice(0, 2).toUpperCase() : '★');
+  // Gym Brand Logo Embed or Monogram Fallback
+  let logoDrawn = false;
+  const logoBoxSize = 13; // 13mm x 13mm logo container
+  const logoPad = 1;      // 1mm internal padding
 
-  if (isPending) {
-    doc.setFillColor(245, 158, 11);
-  } else {
-    doc.setFillColor(16, 185, 129);
+  const isValidLogoCandidate =
+    (typeof resolvedLogo === 'string' && (resolvedLogo.startsWith('data:image/') || resolvedLogo.startsWith('http://') || resolvedLogo.startsWith('https://') || resolvedLogo.startsWith('/'))) ||
+    (typeof resolvedLogo === 'object' && resolvedLogo !== null && (resolvedLogo.naturalWidth || resolvedLogo instanceof HTMLImageElement));
+
+  if (isValidLogoCandidate) {
+    try {
+      let imgFormat = 'PNG';
+      const maxDim = logoBoxSize - (logoPad * 2);
+      let imgW = maxDim;
+      let imgH = maxDim;
+      let imgX = margin + logoPad;
+      let imgY = curY + logoPad;
+
+      if (typeof resolvedLogo === 'string' && resolvedLogo.startsWith('data:')) {
+        const props = doc.getImageProperties(resolvedLogo);
+        if (props && props.width && props.height) {
+          imgFormat = props.fileType || 'PNG';
+          const aspect = props.width / props.height;
+          if (aspect >= 1) {
+            imgW = maxDim;
+            imgH = Math.max(4, maxDim / aspect);
+            imgX = margin + logoPad;
+            imgY = curY + logoPad + ((maxDim - imgH) / 2);
+          } else {
+            imgH = maxDim;
+            imgW = Math.max(4, maxDim * aspect);
+            imgY = curY + logoPad;
+            imgX = margin + logoPad + ((maxDim - imgW) / 2);
+          }
+        }
+      } else if (resolvedLogo && typeof resolvedLogo === 'object' && resolvedLogo.naturalWidth && resolvedLogo.naturalHeight) {
+        const aspect = resolvedLogo.naturalWidth / resolvedLogo.naturalHeight;
+        if (aspect >= 1) {
+          imgW = maxDim;
+          imgH = Math.max(4, maxDim / aspect);
+          imgX = margin + logoPad;
+          imgY = curY + logoPad + ((maxDim - imgH) / 2);
+        } else {
+          imgH = maxDim;
+          imgW = Math.max(4, maxDim * aspect);
+          imgY = curY + logoPad;
+          imgX = margin + logoPad + ((maxDim - imgW) / 2);
+        }
+      }
+
+      // Draw clean white rounded container with subtle border
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, curY, logoBoxSize, logoBoxSize, 2, 2, 'FD');
+
+      // Embed the brand logo image
+      doc.addImage(resolvedLogo, imgFormat, imgX, imgY, imgW, imgH);
+      logoDrawn = true;
+    } catch (imgErr) {
+      console.warn('PDF gym logo embed note (falling back to monogram):', imgErr);
+      logoDrawn = false;
+    }
   }
-  doc.roundedRect(margin, curY, 11, 11, 2, 2, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text(monogram, margin + 5.5, curY + 7.5, { align: 'center' });
 
-  // Gym Title (Wrapped with maxWidth 95mm so long gym names wrap cleanly)
+  if (!logoDrawn) {
+    const monogram = (gymName || '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || (gymName ? gymName.slice(0, 2).toUpperCase() : '★');
+
+    if (isPending) {
+      doc.setFillColor(245, 158, 11);
+    } else {
+      doc.setFillColor(16, 185, 129);
+    }
+    doc.roundedRect(margin, curY, 11, 11, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text(monogram, margin + 5.5, curY + 7.5, { align: 'center' });
+  }
+
+  // Gym Title (Wrapped with maxWidth so long gym names wrap cleanly)
+  const titleLeft = logoDrawn ? (margin + logoBoxSize + 2.5) : (margin + 14);
+  const titleMaxW = logoDrawn ? 92 : 95;
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42); // slate-900
   const displayName = gymName ? gymName.toUpperCase() : 'FITNESS CLUB';
-  const gymNameLines = wrapAndBreakText(doc, displayName, 95);
-  doc.text(gymNameLines, margin + 14, curY + 5.5);
+  const gymNameLines = wrapAndBreakText(doc, displayName, titleMaxW);
+  doc.text(gymNameLines, titleLeft, curY + 5.5);
 
   const gymNameH = gymNameLines.length * 4.5;
 
-  // Gym Tagline (Wrapped safely to 95mm so long taglines never collide with header right block)
+  // Gym Tagline (Wrapped safely so long taglines never collide with header right block)
   let taglineH = 0;
   if (gymTagline) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139); // slate-500
-    const taglineLines = wrapAndBreakText(doc, gymTagline, 95);
-    doc.text(taglineLines, margin + 14, curY + 6.5 + gymNameH);
+    const taglineLines = wrapAndBreakText(doc, gymTagline, titleMaxW);
+    doc.text(taglineLines, titleLeft, curY + 6.5 + gymNameH);
     taglineH = taglineLines.length * 3.5;
   }
 
@@ -492,7 +596,8 @@ export function generateInvoicePdf(arg1, arg2, arg3) {
 
   const contactText = contactParts.join('  •  ');
   const contactLines = contactText ? wrapAndBreakText(doc, contactText, 105) : [];
-  const contactY = curY + 12 + gymNameH + taglineH;
+  const headerBrandBottom = Math.max(logoDrawn ? (curY + logoBoxSize) : (curY + 11), curY + 6.5 + gymNameH + taglineH);
+  const contactY = headerBrandBottom + 4;
   if (contactLines.length > 0) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);

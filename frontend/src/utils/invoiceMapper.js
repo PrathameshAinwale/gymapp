@@ -53,6 +53,8 @@ export const mapInvoiceRecord = (raw) => {
     invoice_number: invNum,
     numericId: raw.numericId ?? raw.numeric_id ?? raw.id ?? null,
     gymId: raw.gymId ?? raw.gym_id ?? null,
+    gymName: raw.gymName || raw.gym_name || raw.gym?.name || null,
+    gymLogo: raw.gymLogo || raw.gym_logo || raw.gym?.logo || null,
     memberId: raw.memberId || (raw.userId ? `mem-${raw.userId}` : (raw.user_id ? `mem-${raw.user_id}` : null)),
     userId: raw.userId ?? raw.user_id ?? (raw.memberId ? Number(String(raw.memberId).replace(/\D/g, '')) : null),
     memberName: raw.memberName || raw.member_name || raw.name || 'Member',

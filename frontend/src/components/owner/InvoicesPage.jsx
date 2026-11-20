@@ -614,7 +614,7 @@ export const InvoicesPage = ({
       setPdfPreviewUrl(null);
       setPdfGeneratedData(null);
     }
-  }, [selectedInvoice?.id, selectedInvoice?.amount, selectedInvoice?.status, selectedInvoiceMember?.id, selectedInvoiceMember?.phone]);
+  }, [selectedInvoice?.id, selectedInvoice?.amount, selectedInvoice?.status, selectedInvoiceMember?.id, selectedInvoiceMember?.phone, gymInfo?.logo]);
 
   // Overall KPIs
   const totalBilledRevenue = useMemo(() => {

@@ -1665,3 +1665,32 @@ test('33. Create Invoice Page used for Edit Invoice: Full-page navigation, pre-p
   assert.equal(updatePayloadCapture.member_name, 'Bhavesh Patel', 'Updated member name saved');
 });
 
+test('34. generateInvoicePdf embeds gym logo image and falls back gracefully when absent or invalid', async () => {
+  const sample1x1Png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  // Case A: Gym with updated logo in gymInfo -> PDF must embed the logo image (/Subtype /Image)
+  const resWithLogo = generateInvoicePdf({
+    invoice: { id: 'INV-2026-LOGO-1', amount: 3000, date: '2026-11-20' },
+    gymInfo: { name: 'Titan Gym', logo: sample1x1Png }
+  });
+  const pdfStringWithLogo = resWithLogo.doc.output();
+  assert.ok(pdfStringWithLogo.includes('/Subtype /Image'), 'PDF stream must embed image object when gym logo is provided');
+
+  // Case B: Gym without logo -> PDF must render monogram text and NOT crash
+  const resNoLogo = generateInvoicePdf({
+    invoice: { id: 'INV-2026-LOGO-2', amount: 3000, date: '2026-11-20' },
+    gymInfo: { name: 'Titan Gym', logo: '' }
+  });
+  const pdfStringNoLogo = resNoLogo.doc.output();
+  assert.ok(!pdfStringNoLogo.includes('/Subtype /Image'), 'PDF stream must not contain image object when no logo');
+  assert.ok(pdfStringNoLogo.includes('TI'), 'PDF stream must contain monogram letters for Titan Gym');
+
+  // Case C: Invalid or corrupted logo string -> Graceful fallback without throwing
+  const resBrokenLogo = generateInvoicePdf({
+    invoice: { id: 'INV-2026-LOGO-3', amount: 3000, date: '2026-11-20' },
+    gymInfo: { name: 'Broken Logo Gym', logo: 'not-a-valid-data-uri' }
+  });
+  assert.ok(resBrokenLogo.doc, 'Must generate valid PDF even with invalid logo without crashing');
+});
+
+

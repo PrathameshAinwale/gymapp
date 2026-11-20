@@ -1679,6 +1679,8 @@ export const CreateInvoicePage = ({
         : mapInvoiceRecord({
           id: backendInvoiceRef,
           invoiceNumber: backendInvoiceRef,
+          gymName: gymInfo?.name || '',
+          gymLogo: gymInfo?.logo || '',
           memberName: memberName,
           phone: currentMember?.phone || '',
           email: currentMember?.email || '',
