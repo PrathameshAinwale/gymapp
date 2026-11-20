@@ -15,10 +15,10 @@ use Illuminate\Support\Str;
 class LegacyIdRenumberService
 {
     /**
-     * Pattern matcher for sequential entity IDs (e.g. INV26270001, MEM260001, ENQ260001).
-     * Invoice supports 2 to 4 digit FY (e.g. INV26270001 or INV260001). Member/Enquiry use 2-digit FY.
+     * Pattern matcher for sequential entity IDs (e.g. INV-26-27-0001, INV26270001, MEM260001, ENQ260001).
+     * Invoice supports 2 to 4 digit FY with optional hyphens (e.g. INV-26-27-0001, INV26270001, or INV260001). Member/Enquiry use 2-digit FY.
      */
-    public const PATTERN_INVOICE = '/^INV(\d{2,4})(\d{4,})$/i';
+    public const PATTERN_INVOICE = '/^INV-?(\d{2})-?(\d{2})?-?(\d{4,})$/i';
     public const PATTERN_MEMBER  = '/^MEM(\d{2})(\d{4,})$/i';
     public const PATTERN_ENQUIRY = '/^ENQ(\d{2})(\d{4,})$/i';
 
@@ -175,8 +175,8 @@ class LegacyIdRenumberService
             foreach ($fyInvoices as $inv) {
                 $rawNo = trim((string)$inv->invoice_number);
                 if (preg_match(self::PATTERN_INVOICE, $rawNo, $matches)) {
-                    $invFy = (string)$matches[1];
-                    $seqVal = (int)$matches[2];
+                    $invFy = !empty($matches[2]) ? ($matches[1] . $matches[2]) : (string)$matches[1];
+                    $seqVal = (int)$matches[3];
                     if ($invFy === $fyCode) {
                         $takenSeqs[$seqVal] = true;
                         $alreadySequential++;
@@ -203,7 +203,13 @@ class LegacyIdRenumberService
                     $nextSeq++;
                 }
 
-                $newNumber = 'INV' . $fyCode . str_pad((string)$nextSeq, 4, '0', STR_PAD_LEFT);
+                if (strlen($fyCode) === 4) {
+                    $start2 = substr($fyCode, 0, 2);
+                    $end2 = substr($fyCode, 2, 2);
+                    $newNumber = "INV-{$start2}-{$end2}-" . str_pad((string)$nextSeq, 4, '0', STR_PAD_LEFT);
+                } else {
+                    $newNumber = "INV-{$fyCode}-" . str_pad((string)$nextSeq, 4, '0', STR_PAD_LEFT);
+                }
                 $takenSeqs[$nextSeq] = true;
                 if ($nextSeq > $maxAssignedInFy) {
                     $maxAssignedInFy = $nextSeq;

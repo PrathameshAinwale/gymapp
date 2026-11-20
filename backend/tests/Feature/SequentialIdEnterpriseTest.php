@@ -67,14 +67,16 @@ class SequentialIdEnterpriseTest extends TestCase
         $currentFy = SequentialIdService::getFinancialYearCode();
         $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
 
-        // Invoices (uses 4-digit FY span e.g. INV26270001)
+        // Invoices (uses 4-digit FY span with hyphens e.g. INV-26-27-0001)
         $inv1 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $inv2 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $inv3 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
 
-        $this->assertEquals("INV{$currentInvoiceFy}0001", $inv1);
-        $this->assertEquals("INV{$currentInvoiceFy}0002", $inv2);
-        $this->assertEquals("INV{$currentInvoiceFy}0003", $inv3);
+        $start2 = substr($currentInvoiceFy, 0, 2);
+        $end2 = substr($currentInvoiceFy, 2, 2);
+        $this->assertEquals("INV-{$start2}-{$end2}-0001", $inv1);
+        $this->assertEquals("INV-{$start2}-{$end2}-0002", $inv2);
+        $this->assertEquals("INV-{$start2}-{$end2}-0003", $inv3);
 
         // Members (uses 2-digit FY e.g. MEM260001)
         $mem1 = SequentialIdService::generateMemberNumber($this->gymA->id);
@@ -147,12 +149,14 @@ class SequentialIdEnterpriseTest extends TestCase
         $gymAMem4 = SequentialIdService::generateMemberNumber($this->gymA->id);
         $this->assertEquals("MEM{$currentFy}0004", $gymAMem4);
 
-        // Invoices isolation (uses 4-digit FY span e.g. INV26270001)
+        // Invoices isolation (uses 4-digit FY span with hyphens e.g. INV-26-27-0001)
         $currentInvoiceFy = SequentialIdService::getFinancialYearCode(null, true);
         $gymAInv1 = SequentialIdService::generateInvoiceNumber($this->gymA->id);
         $gymBInv1 = SequentialIdService::generateInvoiceNumber($this->gymB->id);
-        $this->assertEquals("INV{$currentInvoiceFy}0001", $gymAInv1);
-        $this->assertEquals("INV{$currentInvoiceFy}0001", $gymBInv1);
+        $start2 = substr($currentInvoiceFy, 0, 2);
+        $end2 = substr($currentInvoiceFy, 2, 2);
+        $this->assertEquals("INV-{$start2}-{$end2}-0001", $gymAInv1);
+        $this->assertEquals("INV-{$start2}-{$end2}-0001", $gymBInv1);
 
         // Enquiries isolation
         $gymAEnq1 = SequentialIdService::generateEnquiryNumber($this->gymA->id);
@@ -243,21 +247,21 @@ class SequentialIdEnterpriseTest extends TestCase
      */
     public function test_counter_restarts_at_0001_in_new_fy_and_cross_fy_conversion()
     {
-        // Issue last invoice of FY26 (FY 2026-27 -> INV26270001)
+        // Issue last invoice of FY26 (FY 2026-27 -> INV-26-27-0001)
         $invFY26 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2026-11-19 12:00:00');
-        $this->assertEquals('INV26270001', $invFY26);
+        $this->assertEquals('INV-26-27-0001', $invFY26);
 
-        // Issue first invoice of FY27 (1 Apr 2027 -> FY 2027-28 -> INV27280001)
+        // Issue first invoice of FY27 (1 Apr 2027 -> FY 2027-28 -> INV-27-28-0001)
         $invFY27_1 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-04-01 09:00:00');
-        $this->assertEquals('INV27280001', $invFY27_1);
+        $this->assertEquals('INV-27-28-0001', $invFY27_1);
 
         // Subsequent invoice in FY27 continues
         $invFY27_2 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-04-02 10:00:00');
-        $this->assertEquals('INV27280002', $invFY27_2);
+        $this->assertEquals('INV-27-28-0002', $invFY27_2);
 
         // Old FY26 counter is not altered: another back-dated entry in FY26 continues FY26 sequence
         $invFY26_2 = SequentialIdService::generateInvoiceNumber($this->gymA->id, '2027-03-15 12:00:00');
-        $this->assertEquals('INV26270002', $invFY26_2);
+        $this->assertEquals('INV-26-27-0002', $invFY26_2);
 
         // Cross FY Conversion:
         // Enquiry created on 15 Feb 2027 (FY26) -> ENQ260001
@@ -283,8 +287,10 @@ class SequentialIdEnterpriseTest extends TestCase
         }
 
         $this->assertCount(20, array_unique($numbers), 'All 20 generated invoice numbers must be unique');
-        $this->assertEquals("INV{$currentInvoiceFy}0001", $numbers[0]);
-        $this->assertEquals("INV{$currentInvoiceFy}0020", $numbers[19]);
+        $start2 = substr($currentInvoiceFy, 0, 2);
+        $end2 = substr($currentInvoiceFy, 2, 2);
+        $this->assertEquals("INV-{$start2}-{$end2}-0001", $numbers[0]);
+        $this->assertEquals("INV-{$start2}-{$end2}-0020", $numbers[19]);
     }
 
     /**

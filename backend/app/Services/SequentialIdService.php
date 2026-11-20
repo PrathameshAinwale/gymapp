@@ -137,15 +137,21 @@ class SequentialIdService
                     'updated_at' => now(),
                 ]);
 
-            // 4. Format zero-padded to 4 digits (e.g. INV260001; 10000+ grows to 5 digits naturally)
+            // 4. Format zero-padded to 4 digits (e.g. INV-26-27-0001; 10000+ grows to 5 digits naturally)
             $paddedSeq = str_pad((string)$nextNum, 4, '0', STR_PAD_LEFT);
+
+            if ($normalizedType === 'invoice') {
+                $start2 = substr($fyCode, 0, 2);
+                $end2 = substr($fyCode, 2, 2);
+                return "{$prefix}-{$start2}-{$end2}-{$paddedSeq}";
+            }
 
             return "{$prefix}{$fyCode}{$paddedSeq}";
         });
     }
 
     /**
-     * Generate next sequential Invoice Number (e.g. INV26270001).
+     * Generate next sequential Invoice Number (e.g. INV-26-27-0001).
      */
     public static function generateInvoiceNumber(int $gymId, $date = null): string
     {
@@ -200,18 +206,18 @@ class SequentialIdService
         $maxSeq = 0;
 
         try {
-            // Find records matching pattern: PREFIX + 2 to 4 digit FY + 4+ digit sequence
+            // Find records matching pattern: PREFIX + optional hyphens + FY + sequence (supports INV-26-27-0001, INV26270001, MEM260001)
             $records = DB::table($table)
                 ->where('gym_id', $gymId)
                 ->whereNotNull($column)
                 ->pluck($column);
 
-            $pattern = '/^' . preg_quote($prefix, '/') . '(\d{2,4})(\d{4,})$/i';
+            $pattern = '/^' . preg_quote($prefix, '/') . '-?(\d{2})-?(\d{2})?-?(\d{4,})$/i';
 
             foreach ($records as $val) {
                 if (preg_match($pattern, trim((string)$val), $matches)) {
-                    $recordFy = $matches[1];
-                    $seqVal = (int)$matches[2];
+                    $recordFy = !empty($matches[2]) ? ($matches[1] . $matches[2]) : $matches[1];
+                    $seqVal = (int)$matches[3];
 
                     if ($recordFy === $currentFy && $seqVal > $maxSeq) {
                         $maxSeq = $seqVal;
