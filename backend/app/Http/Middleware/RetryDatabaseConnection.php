@@ -27,12 +27,11 @@ class RetryDatabaseConnection
                     $currentHost = (string) config('database.connections.mysql.host');
                     // On Linux / CageFS, 'localhost' triggers UNIX socket which throws EPERM 2002.
                     // Prefer IPv4 TCP loopback '127.0.0.1' over UNIX socket 'localhost'.
-                    if ($currentHost === 'localhost' || empty($currentHost)) {
-                        config(['database.connections.mysql.host' => '127.0.0.1']);
-                    }
-
+                    config(['database.connections.mysql.host' => '127.0.0.1']);
+                    config(['database.connections.mysql.options.' . \PDO::ATTR_PERSISTENT => true]);
                     DB::purge('mysql');
-                    usleep(250000); // 250ms backoff before retry
+                    DB::reconnect('mysql');
+                    usleep(150000); // 150ms backoff before retry
                     return $next($request);
                 } catch (\Throwable $retryException) {
                     throw $retryException;

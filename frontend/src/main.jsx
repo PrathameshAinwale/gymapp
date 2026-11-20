@@ -11,13 +11,24 @@ import './index.css'
 import App from './App.jsx'
 
 // Automatically handle and recover from stale/outdated chunks following a new production deployment
-window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
-  const hasReloaded = sessionStorage.getItem('chunk_reload_lock');
-  if (!hasReloaded) {
-    sessionStorage.setItem('chunk_reload_lock', 'true');
+const recoverStaleChunk = () => {
+  try {
+    const lastReload = sessionStorage.getItem('chunk_reload_ts');
+    const now = Date.now();
+    if (!lastReload || (now - parseInt(lastReload, 10)) > 10000) {
+      sessionStorage.setItem('chunk_reload_ts', String(now));
+      const url = new URL(window.location.href);
+      url.searchParams.set('_cv', String(now));
+      window.location.replace(url.toString());
+    }
+  } catch (_) {
     window.location.reload();
   }
+};
+
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  recoverStaleChunk();
 });
 
 window.addEventListener('error', (event) => {
@@ -25,20 +36,12 @@ window.addEventListener('error', (event) => {
   if (
     msg.includes('Failed to load module script') ||
     msg.includes('Expected a JavaScript-or-Wasm module script') ||
-    msg.includes('Failed to fetch dynamically imported module')
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module')
   ) {
-    const hasReloaded = sessionStorage.getItem('chunk_reload_lock');
-    if (!hasReloaded) {
-      sessionStorage.setItem('chunk_reload_lock', 'true');
-      window.location.reload();
-    }
+    recoverStaleChunk();
   }
 });
-
-// Clear reload lock once page loads successfully
-try {
-  sessionStorage.removeItem('chunk_reload_lock');
-} catch (_) {}
 
 // Prevent mouse wheel from unintentionally increasing/decreasing number inputs
 document.addEventListener('wheel', () => {

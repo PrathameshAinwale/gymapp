@@ -30,6 +30,78 @@ use Illuminate\Database\Schema\Blueprint;
 
 class OperationsController extends Controller
 {
+    /**
+     * Safely resolve an integer user_id from any incoming member ID representation
+     * (numeric ID, 'mem-123', sequential 'MEM260001', legacy ID, phone number, or name).
+     * Returns null if not found (never 0, preventing foreign key constraint violations).
+     */
+    protected function resolveUserId($rawId, ?int $gymId = null, ?string $phone = null, ?string $name = null): ?int
+    {
+        $rawStr = is_string($rawId) ? trim($rawId) : (string)$rawId;
+
+        // 1. Direct positive integer ID
+        if (is_numeric($rawStr) && (int)$rawStr > 0) {
+            $num = (int)$rawStr;
+            if (User::where('id', $num)->exists()) {
+                return $num;
+            }
+        }
+
+        // 2. Prefixed 'mem-123' format
+        if (is_string($rawId) && preg_match('/^mem-(\d+)$/i', $rawId, $m)) {
+            $num = (int)$m[1];
+            if ($num > 0 && User::where('id', $num)->exists()) {
+                return $num;
+            }
+        }
+
+        // 3. Sequential member number (e.g. MEM260001) or legacy alphanumeric ID
+        if (!empty($rawStr) && strtolower($rawStr) !== 'null' && strtolower($rawStr) !== 'undefined') {
+            $cleanMemNo = strtoupper(preg_replace('/^mem-/i', '', $rawStr));
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->where(function ($q) use ($rawStr, $cleanMemNo) {
+                    $q->where('member_number', $cleanMemNo)
+                      ->orWhere('member_number', $rawStr)
+                      ->orWhere('legacy_id', $rawStr);
+                })
+                ->first();
+
+            if ($user) {
+                return $user->id;
+            }
+        }
+
+        // 4. Lookup by phone if provided
+        $cleanPhone = $phone ? preg_replace('/\D+/', '', $phone) : null;
+        if (!empty($cleanPhone)) {
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->where(function ($q) use ($cleanPhone, $phone) {
+                    $q->where('phone', $phone)
+                      ->orWhere('phone', 'LIKE', "%{$cleanPhone}");
+                })
+                ->first();
+
+            if ($user) {
+                return $user->id;
+            }
+        }
+
+        // 5. Lookup by member name if provided
+        if (!empty($name) && strtolower(trim($name)) !== 'member' && strtolower(trim($name)) !== 'undefined') {
+            $user = User::query()
+                ->when($gymId, fn($q) => $q->where('gym_id', $gymId))
+                ->where('name', trim($name))
+                ->first();
+
+            if ($user) {
+                return $user->id;
+            }
+        }
+
+        return null;
+    }
     // ==========================================
     // 1. PRODUCTS & PRO SHOP INVENTORY
     // ==========================================
@@ -203,8 +275,9 @@ class OperationsController extends Controller
         }
 
         $targetUserId = $request->input('user_id', $request->input('userId', $request->input('member_id', $request->input('memberId'))));
-        $resolvedUserId = $targetUserId ? (int)str_replace('mem-', '', $targetUserId) : null;
-        if (!$resolvedUserId || !User::where('id', $resolvedUserId)->exists()) {
+        $buyerName = trim($request->input('buyer_name', $request->input('buyerName', 'Walk-in Customer')));
+        $resolvedUserId = $this->resolveUserId($targetUserId, $activeGymId, null, $buyerName);
+        if (!$resolvedUserId) {
             $resolvedUserId = User::where('gym_id', $activeGymId)->where('role', 'owner')->value('id')
                 ?? User::first()?->id
                 ?? 1;
@@ -480,16 +553,17 @@ class OperationsController extends Controller
 
     public function storeFreeze(Request $request)
     {
+        $gymId = $this->resolveGymId($request);
         $memberIdRaw = $request->memberId ?? $request->member_id;
-        $memberId = $memberIdRaw ? (int)str_replace('mem-', '', $memberIdRaw) : null;
+        $memberName = $request->memberName ?? $request->member_name ?? 'Member';
+        $phone = $request->phone ?? null;
+        $memberId = $this->resolveUserId($memberIdRaw, $gymId, $phone, $memberName);
         $daysFrozen = (int)($request->daysFrozen ?? $request->days_frozen ?? 15);
         $freezeStartDate = $request->freezeStartDate ?? $request->freeze_start_date ?? now()->toDateString();
         $freezeEndDate = $request->freezeEndDate ?? $request->freeze_end_date ?? now()->addDays($daysFrozen)->toDateString();
         $fee = (float)($request->fee ?? $request->transferFee ?? 0);
         $paymentMethod = $request->paymentMethod ?? $request->payment_method ?? 'Cash';
         $type = $request->type ?? 'freeze';
-
-        $gymId = $this->resolveGymId($request);
         $policy = $this->getGymFreezePolicy($gymId) ?: self::getDefaultFreezePolicy();
 
         $requiredMonths = $type === 'extension'
@@ -872,9 +946,9 @@ class OperationsController extends Controller
         };
 
         $fromMemberIdRaw = $request->fromMemberId ?? $request->from_member_id;
-        $fromMemberId = $cleanDigits($fromMemberIdRaw);
+        $fromMemberId = $this->resolveUserId($fromMemberIdRaw, $gymId, null, $request->fromMemberName);
         $toMemberIdRaw = $request->toMemberId ?? $request->to_member_id;
-        $toMemberId = $cleanDigits($toMemberIdRaw);
+        $toMemberId = $this->resolveUserId($toMemberIdRaw, $gymId, null, $request->toMemberName);
 
         $transferDate = $request->transferDate ?? $request->transfer_date ?? now()->toDateString();
         $transferFee = (float)($request->transferFee ?? $request->transfer_fee ?? ($request->transferCharge ?? 0));
@@ -1199,17 +1273,19 @@ class OperationsController extends Controller
     public function getConsentForms(Request $request)
     {
         $gymId = $this->resolveGymId($request);
-        $query = ConsentForm::query();
+        $query = ConsentForm::with('member');
         if ($gymId) {
             $query->where(function ($q) use ($gymId) {
                 $q->where('gym_id', $gymId);
             });
         }
         $forms = $query->get()->map(function ($cf) {
+            $memberIdFormatted = $cf->member?->member_number ?: ($cf->member_id ? 'mem-' . $cf->member_id : null);
             return [
                 'id' => 'cform-' . $cf->id,
                 'numericId' => $cf->id,
-                'memberId' => 'mem-' . $cf->member_id,
+                'memberId' => $memberIdFormatted,
+                'userId' => $cf->member_id,
                 'memberName' => $cf->member_name,
                 'phone' => $cf->phone,
                 'planName' => $cf->plan_name,
@@ -1227,15 +1303,19 @@ class OperationsController extends Controller
 
     public function storeConsentForm(Request $request)
     {
-        $memberIdRaw = $request->memberId ?? $request->member_id;
-        $memberId = $memberIdRaw ? (int)str_replace('mem-', '', $memberIdRaw) : null;
+        $gymId = $this->resolveGymId($request);
+        $memberIdRaw = $request->input('memberId', $request->input('member_id', $request->input('userId', $request->input('user_id'))));
+        $memberName = $request->memberName ?? $request->member_name ?? 'Member';
+        $phone = $request->phone ?? '';
+
+        $memberId = $this->resolveUserId($memberIdRaw, $gymId, $phone, $memberName);
         $status = $request->status ?? 'Pending';
 
         $cf = ConsentForm::create([
-            'gym_id' => $this->resolveGymId($request),
+            'gym_id' => $gymId,
             'member_id' => $memberId,
-            'member_name' => $request->memberName ?? $request->member_name ?? 'Member',
-            'phone' => $request->phone ?? '',
+            'member_name' => $memberName,
+            'phone' => $phone,
             'plan_name' => $request->planName ?? $request->plan_name ?? 'General Membership',
             'emergency_contact' => $request->emergencyContact ?? $request->emergency_contact ?? '',
             'emergency_phone' => $request->emergencyPhone ?? $request->emergency_phone ?? '',

@@ -1863,7 +1863,7 @@ export const AddMemberPage = ({
       });
 
       await addConsentForm({
-        memberId: createdMember.id,
+        memberId: createdMember.userId || createdMember.id,
         memberName: formData.name,
         phone: formData.phone,
         planName: chosenPlan?.name,

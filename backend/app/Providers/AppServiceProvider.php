@@ -14,7 +14,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Guard against Hostinger/CloudLinux socket restrictions: force 127.0.0.1 over localhost
+        if (config('database.connections.mysql.host') === 'localhost' || empty(config('database.connections.mysql.host'))) {
+            config(['database.connections.mysql.host' => '127.0.0.1']);
+        }
+        if (config('database.connections.mariadb.host') === 'localhost' || empty(config('database.connections.mariadb.host'))) {
+            config(['database.connections.mariadb.host' => '127.0.0.1']);
+        }
     }
 
     /**

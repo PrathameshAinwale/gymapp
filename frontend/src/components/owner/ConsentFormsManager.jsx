@@ -626,10 +626,10 @@ export const ConsentFormsManager = () => {
               required
               value={createForm.memberId}
               onChange={(e) => {
-                const selected = members.find((m) => String(m.id) === String(e.target.value));
+                const selected = members.find((m) => String(m.id) === String(e.target.value) || String(m.userId) === String(e.target.value) || String(m.memberNumber) === String(e.target.value));
                 setCreateForm({
                   ...createForm,
-                  memberId: e.target.value,
+                  memberId: selected?.userId || e.target.value,
                   memberName: selected?.name || '',
                   phone: selected?.phone || '',
                   planName: selected?.planName || 'General Membership',

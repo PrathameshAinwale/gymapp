@@ -43,15 +43,18 @@
     RewriteRule ^extract_vendor\.php$ extract_vendor.php [L,QSA]
     RewriteRule ^migrate_backend\.php$ migrate_backend.php [L,QSA]
 
-    # Ensure index.html, root SPA and HTML responses are never cached by CDN, LiteSpeed or browser
-    <FilesMatch "\.(html|htm)$">
-        <IfModule mod_headers.c>
-            Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0"
-            Header set Pragma "no-cache"
-            Header set Expires "0"
-            Header set X-LiteSpeed-Cache-Control "no-cache"
-        </IfModule>
-    </FilesMatch>
+    # Cache control: cache immutable static assets, never cache HTML/root navigation
+    <IfModule mod_headers.c>
+        SetEnvIf Request_URI "^/assets/" IS_STATIC_ASSET
+        SetEnvIf Request_URI "\.(js|mjs|css|woff2?|ttf|eot|png|jpe?g|gif|svg|ico|webp|map)$" IS_STATIC_ASSET
+
+        Header set Cache-Control "public, max-age=31536000, immutable" env=IS_STATIC_ASSET
+
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0" env=!IS_STATIC_ASSET
+        Header set Pragma "no-cache" env=!IS_STATIC_ASSET
+        Header set Expires "0" env=!IS_STATIC_ASSET
+        Header set X-LiteSpeed-Cache-Control "no-cache" env=!IS_STATIC_ASSET
+    </IfModule>
 
     <IfModule LiteSpeed>
         CacheDisable public /
@@ -63,11 +66,15 @@
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # 4b. Never rewrite missing static assets to index.html; return 404 so browsers and Vite can handle missing chunks cleanly
-    RewriteCond %{REQUEST_URI} \.(js|mjs|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ [NC]
-    RewriteCond %{REQUEST_FILENAME} !-f
+    # 4b. Never rewrite missing static assets to index.html; return 404 so browsers and Vite handle missing chunks cleanly
+    RewriteCond %{REQUEST_URI} ^/assets/ [NC,OR]
+    RewriteCond %{REQUEST_URI} \.(js|mjs|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|map)$ [NC]
     RewriteRule ^ - [R=404,L]
 
-    # 5. React SPA Fallback: Route all other requests to index.html
+    # 5. React SPA Fallback: Route only navigation / page requests to index.html
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} !^/assets/ [NC]
+    RewriteCond %{REQUEST_URI} !\.(js|mjs|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|map)$ [NC]
     RewriteRule ^ index.html [L]
 </IfModule>

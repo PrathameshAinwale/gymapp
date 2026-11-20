@@ -56,12 +56,12 @@ if (!file_exists($backendPath . '/.env')) {
     }
 }
 
-// 1.2 Auto-fix DB_HOST=127.0.0.1 to localhost on Hostinger / Linux shared hosting
-// Linux shared hosts restrict TCP socket connection to 127.0.0.1:3306 (Operation not permitted)
+// 1.2 Auto-fix DB_HOST=localhost to 127.0.0.1 on Hostinger / Linux shared hosting
+// 'localhost' forces UNIX domain sockets which fail with SQLSTATE[HY000] [2002] Operation not permitted on CloudLinux/CageFS.
 if (file_exists($backendPath . '/.env')) {
     $currentEnv = @file_get_contents($backendPath . '/.env');
-    if ($currentEnv && str_contains($currentEnv, 'DB_HOST=127.0.0.1')) {
-        $updatedEnv = str_replace('DB_HOST=127.0.0.1', 'DB_HOST=localhost', $currentEnv);
+    if ($currentEnv && (str_contains($currentEnv, 'DB_HOST=localhost') || str_contains($currentEnv, 'DB_HOST=""') || str_contains($currentEnv, "DB_HOST=''"))) {
+        $updatedEnv = preg_replace('/^DB_HOST=.*$/m', 'DB_HOST=127.0.0.1', $currentEnv);
         @file_put_contents($backendPath . '/.env', $updatedEnv);
         @unlink($backendPath . '/bootstrap/cache/config.php');
     }

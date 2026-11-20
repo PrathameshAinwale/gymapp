@@ -47,7 +47,7 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
+            'host' => (env('DB_HOST') === 'localhost' || empty(env('DB_HOST'))) ? '127.0.0.1' : env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'laravel'),
             'username' => env('DB_USERNAME', 'root'),
@@ -61,7 +61,10 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? [
                 PDO::ATTR_TIMEOUT => (int) env('DB_TIMEOUT', 5),
-                PDO::ATTR_PERSISTENT => (bool) env('DB_PERSISTENT', false),
+                // Persistent connection pooling: reuses open MySQL connections across requests.
+                // Prevents exceeding Hostinger's 20 new connections/second rate limit (SQLSTATE[HY000] [2002] Operation not permitted).
+                PDO::ATTR_PERSISTENT => (bool) env('DB_PERSISTENT', true),
+                PDO::ATTR_EMULATE_PREPARES => true,
                 ...(env('MYSQL_ATTR_SSL_CA') ? [(PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA')] : []),
             ] : [],
         ],
@@ -69,7 +72,7 @@ return [
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
+            'host' => (env('DB_HOST') === 'localhost' || empty(env('DB_HOST'))) ? '127.0.0.1' : env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'laravel'),
             'username' => env('DB_USERNAME', 'root'),
@@ -83,7 +86,8 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? [
                 PDO::ATTR_TIMEOUT => (int) env('DB_TIMEOUT', 5),
-                PDO::ATTR_PERSISTENT => false,
+                PDO::ATTR_PERSISTENT => (bool) env('DB_PERSISTENT', true),
+                PDO::ATTR_EMULATE_PREPARES => true,
                 ...(env('MYSQL_ATTR_SSL_CA') ? [(PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA')] : []),
             ] : [],
         ],
